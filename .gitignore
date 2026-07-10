@@ -24,6 +24,8 @@ models/
 /presets.json
 /boxes.json
 /banned.txt
+/_hotwords_gen.txt
+/translate_error.log
 
 # ---- 文字起こしログ（実行時に生成される個人データ）----
 logs/
