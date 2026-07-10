@@ -304,7 +304,17 @@ class CaptionEngine:
         try:
             self._load(cfg)
         except Exception as e:  # モデル・単語帳のエラーをGUIへ
-            self.on_state("error", f"ロード失敗: {e}")
+            info = (type(e).__name__ + " " + str(e)).lower()
+            netish = any(k in info for k in (
+                "connection", "download", "resolve", "timeout", "network",
+                "getaddrinfo", "maxretry", "httperror", "localentrynotfound",
+                "offline", "temporarily", "ssl"))
+            if netish:
+                self.on_state("error", "モデルのダウンロードに失敗しました。"
+                              "ネット接続を確認して、もう一度 ▶開始 してください"
+                              "（ダウンロード済みの分は続きから取得します）")
+            else:
+                self.on_state("error", f"ロード失敗: {e}")
             return
 
         # 英訳ワーカー起動（この設定で有効なときだけ）。確定行を別スレッドで翻訳し認識を止めない
