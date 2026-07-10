@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>字幕オーバーレイ</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%;
+    background: transparent;          /* OBSで映像に重ねる */
+    overflow: hidden;
+  }
+  /* ボックス（位置・背景はJSがboxes定義から適用） */
+  #box { position: absolute; inset: 0; }
+  #clip { position: absolute; inset: 0; overflow: hidden; }
+  #scroller { position: absolute; left: 0; right: 0; bottom: 0; }
+  .line { word-break: break-word; line-height: 1.35; }
+  /* 英訳の併記行（各字幕行の下・小さめ薄め。サイズ/濃さはJSがstyleから適用） */
+  .line .en { line-height: 1.25; font-weight: 600; }
+</style>
+<script src="/ui/fx.js"></script>
+</head>
+<body>
+  <div id="box">
+    <div id="clip">
+      <div id="scroller">
+        <div id="finals"></div>
+        <div class="line" id="partial"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const qp = new URLSearchParams(location.search);
+
+  const boxEl = document.getElementById("box");
+  const clipEl = document.getElementById("clip");
+  const scroller = document.getElementById("scroller");
+  const finalsEl = document.getElementById("finals");
+  const partialEl = document.getElementById("partial");
+
+  // サーバから来なければこの既定（旧CLI互換）
+  let style = {
+    font: "'Yu Gothic UI','Meiryo',sans-serif", weight: 800, size: 40,
+    color: "#ffffff", outlineColor: "#000000", outlineWidth: 2,
+    glow: "", glowSize: 0, shadow: true, hotColor: "#ffd400",
+    animIn: "slide", partialOpacity: 0.55, letterSpacing: 0,
+    enScale: 0.6, enOpacity: 0.82
+  };
+  let box = {   // 既定はフリー（従来と同じ見た目）
+    x: 0, y: 0, w: 100, h: 100, bg: "", bgOpacity: 0, radius: 0,
+    padding: 28, borderColor: "", borderWidth: 0, align: "left",
+    maxLines: 4, smooth: true, smoothMs: 250
+  };
+  let effects = [];
+  let hotwords = [];
+  let table = [];
+
+  const isLyric = () => (box.mode || "flow") === "lyric";
+
+  function applyAll() {
+    // URLクエリは最優先で上書き
+    const size = qp.get("size") || style.size;
+    style.hotColor = qp.get("hot") || style.hotColor;
+    if (qp.get("max")) box.maxLines = parseInt(qp.get("max"), 10);
+
+    for (const el of [finalsEl, partialEl])
+      FX.applyLineStyle(el, style, size);
+    partialEl.style.opacity = style.partialOpacity ?? 0.55;
+    FX.applyBox(boxEl, scroller, box, clipEl);
+    // リリックモードでは認識途中は既定で非表示（設定でON可）
+    partialEl.style.display =
+      (isLyric() && !box.lyricPartial) ? "none" : "";
+    table = FX.buildTable(hotwords, effects, style);
+  }
+
+  function addFinal(text, id) {
+    if (!text) { partialEl.textContent = ""; return; }
+
+    if (isLyric()) {   // フレーズを画面に散らすタイポグラフィ演出
+      partialEl.textContent = "";
+      FX.lyricSpawn(boxEl, text, { style, table, box });
+      return;
+    }
+
+    const div = document.createElement("div");
+    div.className = "line";
+    if (id != null) div.dataset.fid = id;   // 英訳を後から結び付けるための目印
+    FX.renderWords(div, text, table, style);
+    FX.applyEntrance(div, style.animIn || "slide");
+
+    // 追加＋パーシャルのクリアをまとめてスムーズスクロール
+    FX.smoothAppend(scroller, box, () => {
+      partialEl.textContent = "";
+      finalsEl.appendChild(div);
+      while (finalsEl.children.length > (box.maxLines || 30))
+        finalsEl.removeChild(finalsEl.firstChild);
+    });
+    FX.burstLine(div);          // パーティクル発射（登録単語があれば）
+    // スクロール完了後、見切れた行をフェードアウトして掃除
+    setTimeout(() => FX.pruneClipped(clipEl, finalsEl, box),
+               (box.smoothMs || 250) + 80);
+  }
+
+  // 確定行(fid)の下に英訳を差し込む。既に見切れて消えた行なら無視。
+  function addTranslation(id, en) {
+    if (!en || id == null) return;
+    const line = finalsEl.querySelector('.line[data-fid="' + id + '"]');
+    if (!line) return;
+    let el = line.querySelector(".en");
+    if (!el) {
+      el = document.createElement("div");
+      el.className = "en";
+      line.appendChild(el);
+    }
+    el.style.fontSize = (style.enScale ?? 0.6) + "em";
+    el.style.opacity = style.enOpacity ?? 0.82;
+    el.textContent = en;
+  }
+
+  function handle(msg) {
+    switch (msg.type) {
+      case "init":
+      case "style":
+        if (msg.style) style = Object.assign({}, style, msg.style);
+        if (msg.box) box = Object.assign({}, msg.box);
+        if (msg.effects) effects = msg.effects;
+        if (msg.hotwords) hotwords = msg.hotwords;
+        applyAll();
+        break;
+      case "final":   addFinal(msg.text, msg.id); break;
+      case "translation": addTranslation(msg.id, msg.text); break;
+      case "partial":
+        // 薄文字（暫定表示）は既定でエフェクトなし＝プレーン。
+        // style.partialFx が真のときだけ確定文字と同じ装飾を乗せる。
+        if (style.partialFx)
+          FX.renderWords(partialEl, msg.text || "", table, style);
+        else
+          partialEl.textContent = msg.text || "";
+        // パーシャルが伸びて上の行が見切れたら掃除
+        FX.pruneClipped(clipEl, finalsEl, box);
+        break;
+      case "clear":
+        finalsEl.textContent = ""; partialEl.textContent = "";
+        FX.lyricClear(boxEl);
+        break;
+    }
+  }
+
+  function connect() {
+    const es = new EventSource("/events");
+    es.onmessage = (e) => handle(JSON.parse(e.data));
+    es.onerror = () => { es.close(); setTimeout(connect, 1000); };
+  }
+  applyAll();
+  connect();
+</script>
+</body>
+</html>

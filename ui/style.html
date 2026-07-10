@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>スタイルスタジオ</title>
+<script>
+  (function () {
+    const s = parseFloat(new URLSearchParams(location.search).get("s"));
+    if (s > 0 && s < 1) document.documentElement.style.zoom = s;
+  })();
+</script>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161c26; --panel2: #1c2432;
+    --line: #2a3547; --text: #dce6f5; --dim: #7d8ba1;
+    --accent: #00e5ff; --ok: #3dffa0; --err: #ff5c5c;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'Yu Gothic UI', 'Meiryo', sans-serif; font-size: 13px;
+    height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+  }
+  nav { display: flex; background: var(--panel); border-bottom: 1px solid var(--line); }
+  nav button {
+    background: none; border: none; color: var(--dim); padding: 12px 22px;
+    font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
+    border-bottom: 2px solid transparent;
+  }
+  nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .page { flex: 1; display: none; min-height: 0; }
+  .page.show { display: grid; grid-template-columns: 210px 1fr; gap: 10px; padding: 10px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; overflow-y: auto; }
+  .panel h2 { font-size: 11px; letter-spacing: .2em; color: var(--dim); margin-bottom: 10px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+  .pitem { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-bottom: 6px; cursor: pointer; font-weight: 700; }
+  .pitem:hover { border-color: var(--accent); }
+  .pitem.active { border-color: var(--accent); background: var(--panel2); }
+  .btn {
+    background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 14px; cursor: pointer; font-family: inherit; font-weight: 700; font-size: 13px;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.save { border-color: var(--ok); color: var(--ok); }
+  .btn.danger:hover { border-color: var(--err); color: var(--err); }
+  .btn.small { padding: 5px 10px; font-size: 12px; }
+  .editor { display: flex; flex-direction: column; min-height: 0; }
+  .form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; overflow-y: auto; padding-bottom: 8px; }
+  .fr label { display: flex; justify-content: space-between; color: var(--dim); margin-bottom: 3px; }
+  .fr label output { color: var(--accent); font-weight: 700; }
+  input[type=text], select {
+    width: 100%; background: var(--panel2); color: var(--text);
+    border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-family: inherit; font-size: 13px;
+  }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  input[type=color] { width: 100%; height: 32px; padding: 2px; background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
+  .chk { display: flex; align-items: center; gap: 8px; color: var(--dim); padding-top: 18px; }
+  .chk input { accent-color: var(--accent); width: 15px; height: 15px; }
+  /* 文字プレビュー */
+  #previewBox {
+    margin-top: 10px; border-radius: 10px; padding: 26px 20px 18px;
+    background: linear-gradient(135deg, #23304a 0%, #3a2a4d 50%, #1d3a3a 100%);
+    position: relative; overflow: hidden; min-height: 150px;
+    display: flex; flex-direction: column; justify-content: flex-end; gap: .15em;
+    flex-shrink: 0;
+  }
+  .ptag { position: absolute; top: 8px; left: 12px; font-size: 10px; letter-spacing: .2em; color: rgba(255,255,255,.4); z-index: 2; }
+  #previewBox .line, #stage .line { word-break: break-word; line-height: 1.35; }
+  /* ボックスプレビュー（16:9ステージ） */
+  #stageWrap { margin-top: 10px; flex-shrink: 0; }
+  #stage {
+    position: relative; width: 100%; aspect-ratio: 16/9; border-radius: 10px;
+    background:
+      linear-gradient(135deg, rgba(60,80,140,.6), rgba(120,60,120,.5), rgba(40,110,100,.55)),
+      repeating-conic-gradient(#1a2030 0% 25%, #151b28 0% 50%) 0 0/40px 40px;
+    overflow: hidden;
+  }
+  #stageBox { position: absolute; }
+  #stageClip { position: absolute; inset: 0; overflow: hidden; }
+  #stageScroll { position: absolute; left: 0; right: 0; bottom: 0; }
+  #stage .line { font-size: 15px; font-weight: 800; color: #fff;
+    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; }
+  .stageBtns { display: flex; gap: 6px; margin-top: 6px; }
+  footer { display: flex; gap: 10px; align-items: center; padding: 10px 14px; background: var(--panel); border-top: 1px solid var(--line); }
+  #saved { color: var(--ok); font-size: 12px; opacity: 0; transition: opacity .3s; }
+</style>
+<script src="/ui/fx.js"></script>
+</head>
+<body>
+  <nav>
+    <button id="tabStyle" class="active" onclick="showTab('style')">🎨 文字スタイル</button>
+    <button id="tabBox" onclick="showTab('box')">📦 ボックス（配置）</button>
+  </nav>
+
+  <!-- ================= 文字スタイル ================= -->
+  <div class="page show" id="pageStyle">
+    <section class="panel">
+      <h2>PRESETS</h2>
+      <div id="plist"></div>
+      <div style="display:flex; gap:6px; margin-top:10px; flex-wrap:wrap">
+        <button class="btn small" onclick="dupPreset()">⧉ 複製</button>
+        <button class="btn small danger" onclick="delPreset()">✕ 削除</button>
+      </div>
+    </section>
+    <section class="panel editor">
+      <h2>EDIT — <span id="editName"></span></h2>
+      <div class="form" id="form">
+        <div class="fr"><label>プリセット名</label><input type="text" id="f_name"></div>
+        <div class="fr"><label>説明</label><input type="text" id="f_desc"></div>
+        <div class="fr"><label>フォント</label><select id="f_fontSel"></select></div>
+        <div class="fr"><label>フォント直接指定（CSS）</label><input type="text" id="f_font" placeholder="'Yu Gothic UI', sans-serif"></div>
+        <div class="fr"><label>太さ <output id="o_weight"></output></label><input type="range" id="f_weight" min="400" max="900" step="100"></div>
+        <div class="fr"><label>サイズ <output id="o_size"></output></label><input type="range" id="f_size" min="20" max="80" step="2"></div>
+        <div class="fr"><label>文字色</label><input type="color" id="f_color"></div>
+        <div class="fr"><label>標準ハイライト色</label><input type="color" id="f_hotColor"></div>
+        <div class="fr"><label>アウトライン色</label><input type="color" id="f_outlineColor"></div>
+        <div class="fr"><label>アウトライン太さ <output id="o_outlineWidth"></output></label><input type="range" id="f_outlineWidth" min="0" max="6" step="1"></div>
+        <div class="fr"><label>グロー色</label><input type="color" id="f_glowColor"></div>
+        <div class="fr"><label>グロー強さ <output id="o_glowSize"></output>（0でなし）</label><input type="range" id="f_glowSize" min="0" max="30" step="2"></div>
+        <div class="fr"><label>登場アニメ</label><select id="f_animIn"></select></div>
+        <div class="fr chk"><input type="checkbox" id="f_shadow"><span>ドロップシャドウ</span></div>
+        <div class="fr"><label>途中表示の濃さ <output id="o_partial"></output></label><input type="range" id="f_partial" min="0.2" max="0.9" step="0.05"></div>
+        <div class="fr chk"><input type="checkbox" id="f_partialFx"><span>途中表示（薄文字）にもエフェクトを乗せる</span></div>
+        <div class="fr"><label>字間 <output id="o_spacing"></output></label><input type="range" id="f_spacing" min="0" max="0.15" step="0.01"></div>
+      </div>
+      <div id="previewBox">
+        <div class="ptag">PREVIEW ▶ クリックで再生</div>
+        <div class="line" id="prevPartial"></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ================= ボックス ================= -->
+  <div class="page" id="pageBox">
+    <section class="panel">
+      <h2>BOXES</h2>
+      <div id="blist"></div>
+      <div style="display:flex; gap:6px; margin-top:10px; flex-wrap:wrap">
+        <button class="btn small" onclick="dupBox()">⧉ 複製</button>
+        <button class="btn small danger" onclick="delBox()">✕ 削除</button>
+      </div>
+    </section>
+    <section class="panel editor">
+      <h2>EDIT — <span id="editBoxName"></span></h2>
+      <div class="form" id="bform">
+        <div class="fr"><label>ボックス名</label><input type="text" id="b_name"></div>
+        <div class="fr"><label>説明</label><input type="text" id="b_desc"></div>
+        <div class="fr"><label>モード</label>
+          <select id="b_mode">
+            <option value="flow">通常（積み上げ・スクロール）</option>
+            <option value="vertical">縦書き（右から左へ）</option>
+            <option value="lyric">リリックビデオ（散らし）</option>
+          </select></div>
+        <div class="fr"></div>
+        <div class="fr"><label>横位置 X <output id="o_bx"></output></label><input type="range" id="b_x" min="0" max="90" step="1"></div>
+        <div class="fr"><label>縦位置 Y <output id="o_by"></output></label><input type="range" id="b_y" min="0" max="90" step="1"></div>
+        <div class="fr"><label>幅 <output id="o_bw"></output></label><input type="range" id="b_w" min="10" max="100" step="1"></div>
+        <div class="fr"><label>高さ <output id="o_bh"></output></label><input type="range" id="b_h" min="8" max="100" step="1"></div>
+        <div class="fr"><label>背景色</label><input type="color" id="b_bg"></div>
+        <div class="fr"><label>背景の濃さ <output id="o_bop"></output>（0で透明）</label><input type="range" id="b_bgOpacity" min="0" max="1" step="0.05"></div>
+        <div class="fr"><label>角丸 <output id="o_brad"></output></label><input type="range" id="b_radius" min="0" max="40" step="2"></div>
+        <div class="fr"><label>内側余白 <output id="o_bpad"></output></label><input type="range" id="b_padding" min="0" max="48" step="2"></div>
+        <div class="fr"><label>枠線色</label><input type="color" id="b_borderColor"></div>
+        <div class="fr"><label>枠線太さ <output id="o_bbw"></output>（0でなし）</label><input type="range" id="b_borderWidth" min="0" max="6" step="1"></div>
+        <div class="fr only-flow"><label>文字揃え</label>
+          <select id="b_align"><option value="left">左揃え</option><option value="center">中央</option><option value="right">右揃え</option></select></div>
+        <div class="fr only-flow"><label>保持する行数 <output id="o_bml"></output></label><input type="range" id="b_maxLines" min="2" max="40" step="1"></div>
+        <div class="fr chk only-flow"><input type="checkbox" id="b_smooth"><span>スムーズスクロール</span></div>
+        <div class="fr only-flow"><label>スクロール速度 <output id="o_bsm"></output></label><input type="range" id="b_smoothMs" min="100" max="600" step="50"></div>
+        <div class="fr only-lyric"><label>分割単位</label>
+          <select id="b_lyricSplit">
+            <option value="phrase">フレーズごと（句読点で区切る）</option>
+            <option value="word">単語ごと（細かく散る）</option>
+          </select></div>
+        <div class="fr only-lyric"><label>サイズ倍率 <output id="o_bscale"></output>（はみ出しOK）</label><input type="range" id="b_lyricScale" min="0.5" max="3" step="0.1"></div>
+        <div class="fr only-lyric"><label>表示時間 <output id="o_blife"></output></label><input type="range" id="b_lifeSec" min="2" max="15" step="1"></div>
+        <div class="fr only-lyric"><label>同時表示数 <output id="o_bmc"></output></label><input type="range" id="b_maxChunks" min="3" max="15" step="1"></div>
+        <div class="fr only-lyric"><label>縦書き率 <output id="o_bvr"></output></label><input type="range" id="b_vertRate" min="0" max="100" step="5"></div>
+        <div class="fr only-lyric"><label>回転ゆらぎ <output id="o_brot"></output></label><input type="range" id="b_rotate" min="0" max="15" step="1"></div>
+        <div class="fr only-lyric"><label>サイズばらつき <output id="o_bjit"></output></label><input type="range" id="b_sizeJitter" min="0" max="0.8" step="0.05"></div>
+        <div class="fr only-lyric"><label>出現の時差 <output id="o_bstag"></output></label><input type="range" id="b_stagger" min="0" max="400" step="20"></div>
+        <div class="fr chk only-lyric"><input type="checkbox" id="b_lyricPartial"><span>認識途中も表示する</span></div>
+      </div>
+      <div id="stageWrap">
+        <div id="stage">
+          <div class="ptag">LAYOUT PREVIEW（16:9）</div>
+          <div id="stageBox"><div id="stageClip"><div id="stageScroll"></div></div></div>
+        </div>
+        <div class="stageBtns">
+          <button class="btn small" onclick="stageAdd()">＋ 行を追加（スクロール確認）</button>
+          <button class="btn small" onclick="stageClear()">クリア</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    <button class="btn save" onclick="saveAll()">💾 保存（OBSへ即反映）</button>
+    <span id="saved">保存しました ✓</span>
+  </footer>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  let presets = [], boxes = [];
+  let cur = 0, curBox = 0;
+  let effects = [], hotwords = [], sysFonts = [];
+
+  // ---------- 初期化 ----------
+  async function init() {
+    $("f_animIn").innerHTML =
+      FX.LINE_ANIMS.map(([v, l]) => `<option value="${v}">${l}</option>`).join("");
+
+    const [pj, bj, ej, hj, fj] = await Promise.all([
+      fetch("/api/presets"), fetch("/api/boxes"), fetch("/api/effects"),
+      fetch("/api/hotwords"), fetch("/api/fonts"),
+    ].map(p => p.then(r => r.json())));
+    presets = pj.presets || [];
+    boxes = bj.boxes || [];
+    effects = ej.effects || [];
+    hotwords = (hj.entries || []).map(e => e.surface);
+    sysFonts = fj.fonts || [];
+
+    // フォント選択: おすすめ + システムフォント全部
+    const rec = FX.FONTS.map(f =>
+      `<option value="${f.css.replace(/"/g, "&quot;")}">${f.label}</option>`).join("");
+    const sys = sysFonts.map(n =>
+      `<option value="'${n}'">${n}</option>`).join("");
+    $("f_fontSel").innerHTML =
+      '<option value="">（直接指定を使う）</option>' +
+      `<optgroup label="おすすめ">${rec}</optgroup>` +
+      `<optgroup label="システムフォント (${sysFonts.length})">${sys}</optgroup>`;
+
+    const q = new URLSearchParams(location.search);
+    const pi = presets.findIndex(p => p.id === q.get("preset"));
+    cur = pi >= 0 ? pi : 0;
+    const bi = boxes.findIndex(b => b.id === q.get("box"));
+    curBox = bi >= 0 ? bi : 0;
+    if (q.get("tab") === "box") showTab("box");
+
+    renderList(); loadForm();
+    renderBoxList(); loadBoxForm();
+    bindAll();
+  }
+
+  function showTab(t) {
+    $("tabStyle").className = t === "style" ? "active" : "";
+    $("tabBox").className = t === "box" ? "active" : "";
+    $("pageStyle").className = "page" + (t === "style" ? " show" : "");
+    $("pageBox").className = "page" + (t === "box" ? " show" : "");
+  }
+
+  function setR(id, out, val, fmt) { $(id).value = val; $(out).textContent = fmt($(id).value); }
+
+  // ================= 文字スタイル =================
+  function renderList() {
+    const box = $("plist");
+    box.innerHTML = "";
+    presets.forEach((p, i) => {
+      const d = document.createElement("div");
+      d.className = "pitem" + (i === cur ? " active" : "");
+      d.textContent = p.name;
+      d.onclick = () => { cur = i; renderList(); loadForm(); };
+      box.appendChild(d);
+    });
+  }
+
+  function loadForm() {
+    const p = presets[cur];
+    $("editName").textContent = p.name;
+    $("f_name").value = p.name;
+    $("f_desc").value = p.desc || "";
+    $("f_font").value = p.font || "";
+    $("f_fontSel").value = "";
+    setR("f_weight", "o_weight", p.weight ?? 800, v => v);
+    setR("f_size", "o_size", p.size ?? 40, v => v + "px");
+    $("f_color").value = p.color || "#ffffff";
+    $("f_hotColor").value = p.hotColor || "#ffd400";
+    $("f_outlineColor").value = p.outlineColor || "#000000";
+    setR("f_outlineWidth", "o_outlineWidth", p.outlineWidth ?? 2, v => v + "px");
+    $("f_glowColor").value = p.glow || "#00e5ff";
+    setR("f_glowSize", "o_glowSize", p.glow ? (p.glowSize ?? 12) : 0, v => v + "px");
+    $("f_animIn").value = p.animIn || "slide";
+    $("f_shadow").checked = !!p.shadow;
+    setR("f_partial", "o_partial", p.partialOpacity ?? 0.55, v => v);
+    $("f_partialFx").checked = !!p.partialFx;
+    setR("f_spacing", "o_spacing", p.letterSpacing ?? 0, v => v + "em");
+    preview(true);
+  }
+
+  function collect() {
+    const p = presets[cur];
+    p.name = $("f_name").value.trim() || p.name;
+    p.desc = $("f_desc").value.trim();
+    p.font = $("f_font").value.trim() || "'Yu Gothic UI',sans-serif";
+    p.weight = +$("f_weight").value;
+    p.size = +$("f_size").value;
+    p.color = $("f_color").value;
+    p.hotColor = $("f_hotColor").value;
+    p.outlineColor = $("f_outlineColor").value;
+    p.outlineWidth = +$("f_outlineWidth").value;
+    const gs = +$("f_glowSize").value;
+    p.glow = gs > 0 ? $("f_glowColor").value : "";
+    p.glowSize = gs;
+    p.animIn = $("f_animIn").value;
+    p.shadow = $("f_shadow").checked;
+    p.partialOpacity = +$("f_partial").value;
+    p.partialFx = $("f_partialFx").checked;
+    p.letterSpacing = +$("f_spacing").value;
+    return p;
+  }
+
+  const SAMPLE = "皆様こんばんは、今日の配信もよろしくお願いします！";
+  function preview(replay) {
+    const p = presets[cur];
+    const box = $("previewBox");
+    const scale = 0.6;
+    for (const old of box.querySelectorAll(".line:not(#prevPartial)")) old.remove();
+
+    const table = FX.buildTable(hotwords, effects, p);
+    const div = document.createElement("div");
+    div.className = "line";
+    FX.applyLineStyle(div, p, Math.round(p.size * scale));
+    FX.renderWords(div, SAMPLE, table, p);
+    if (replay) FX.applyEntrance(div, p.animIn);
+    box.insertBefore(div, $("prevPartial"));
+    if (replay) setTimeout(() => FX.burstLine(div), 150);
+
+    const pp = $("prevPartial");
+    FX.applyLineStyle(pp, p, Math.round(p.size * scale));
+    const partialSample = "にんしきちゅうのテキストはこんなかんじ";
+    if (p.partialFx) FX.renderWords(pp, partialSample, table, p);
+    else pp.textContent = partialSample;
+    pp.style.opacity = p.partialOpacity;
+  }
+
+  function dupPreset() {
+    const p = JSON.parse(JSON.stringify(collect()));
+    p.id = "custom-" + Date.now();
+    p.name = p.name + " のコピー";
+    presets.splice(cur + 1, 0, p);
+    cur += 1;
+    renderList(); loadForm();
+  }
+  function delPreset() {
+    if (presets.length <= 1) { alert("最後の1つは削除できません"); return; }
+    if (!confirm(`「${presets[cur].name}」を削除しますか？`)) return;
+    presets.splice(cur, 1);
+    cur = Math.max(0, cur - 1);
+    renderList(); loadForm();
+  }
+
+  // ================= ボックス =================
+  function renderBoxList() {
+    const el = $("blist");
+    el.innerHTML = "";
+    boxes.forEach((b, i) => {
+      const d = document.createElement("div");
+      d.className = "pitem" + (i === curBox ? " active" : "");
+      d.textContent = b.name;
+      d.onclick = () => { curBox = i; renderBoxList(); loadBoxForm(); };
+      el.appendChild(d);
+    });
+  }
+
+  function updateModeRows() {
+    const lyric = $("b_mode").value === "lyric";
+    for (const el of document.querySelectorAll(".only-flow"))
+      el.style.display = lyric ? "none" : "";
+    for (const el of document.querySelectorAll(".only-lyric"))
+      el.style.display = lyric ? "" : "none";
+  }
+
+  function loadBoxForm() {
+    const b = boxes[curBox];
+    $("editBoxName").textContent = b.name;
+    $("b_name").value = b.name;
+    $("b_desc").value = b.desc || "";
+    $("b_mode").value = b.mode || "flow";
+    setR("b_x", "o_bx", b.x ?? 0, v => v + "%");
+    setR("b_y", "o_by", b.y ?? 0, v => v + "%");
+    setR("b_w", "o_bw", b.w ?? 100, v => v + "%");
+    setR("b_h", "o_bh", b.h ?? 100, v => v + "%");
+    $("b_bg").value = b.bg || "#000000";
+    setR("b_bgOpacity", "o_bop", b.bgOpacity ?? 0, v => v);
+    setR("b_radius", "o_brad", b.radius ?? 0, v => v + "px");
+    setR("b_padding", "o_bpad", b.padding ?? 16, v => v + "px");
+    $("b_borderColor").value = b.borderColor || "#00e5ff";
+    setR("b_borderWidth", "o_bbw", b.borderWidth ?? 0, v => v + "px");
+    $("b_align").value = b.align || "left";
+    setR("b_maxLines", "o_bml", b.maxLines ?? 20, v => v + "行");
+    $("b_smooth").checked = b.smooth !== false;
+    setR("b_smoothMs", "o_bsm", b.smoothMs ?? 250, v => v + "ms");
+    $("b_lyricSplit").value = b.lyricSplit || "phrase";
+    setR("b_lyricScale", "o_bscale", b.lyricScale ?? 1, v => "×" + v);
+    setR("b_lifeSec", "o_blife", b.lifeSec ?? 6, v => v + "秒");
+    setR("b_maxChunks", "o_bmc", b.maxChunks ?? 8, v => v + "個");
+    setR("b_vertRate", "o_bvr", b.vertRate ?? 25, v => v + "%");
+    setR("b_rotate", "o_brot", b.rotate ?? 6, v => "±" + v + "°");
+    setR("b_sizeJitter", "o_bjit", b.sizeJitter ?? 0.35, v => v);
+    setR("b_stagger", "o_bstag", b.stagger ?? 130, v => v + "ms");
+    $("b_lyricPartial").checked = !!b.lyricPartial;
+    updateModeRows();
+    stageApply(); stageClear(); stageAdd(); stageAdd();
+  }
+
+  function collectBox() {
+    const b = boxes[curBox];
+    b.name = $("b_name").value.trim() || b.name;
+    b.desc = $("b_desc").value.trim();
+    b.x = +$("b_x").value; b.y = +$("b_y").value;
+    b.w = +$("b_w").value; b.h = +$("b_h").value;
+    b.bg = $("b_bg").value;
+    b.bgOpacity = +$("b_bgOpacity").value;
+    b.radius = +$("b_radius").value;
+    b.padding = +$("b_padding").value;
+    b.borderColor = $("b_borderColor").value;
+    b.borderWidth = +$("b_borderWidth").value;
+    b.align = $("b_align").value;
+    b.maxLines = +$("b_maxLines").value;
+    b.smooth = $("b_smooth").checked;
+    b.smoothMs = +$("b_smoothMs").value;
+    b.mode = $("b_mode").value;
+    b.lyricSplit = $("b_lyricSplit").value;
+    b.lyricScale = +$("b_lyricScale").value;
+    b.lifeSec = +$("b_lifeSec").value;
+    b.maxChunks = +$("b_maxChunks").value;
+    b.vertRate = +$("b_vertRate").value;
+    b.rotate = +$("b_rotate").value;
+    b.sizeJitter = +$("b_sizeJitter").value;
+    b.stagger = +$("b_stagger").value;
+    b.lyricPartial = $("b_lyricPartial").checked;
+    return b;
+  }
+
+  // ---- ステージプレビュー ----
+  const STAGE_LINES = [
+    "皆様こんばんは、今日も配信を始めます！",
+    "きょうもゆるっと配信していきます。",
+    "コメントもどんどん読んでいきますね。",
+    "文字がいっぱいになるとスクロールします。",
+    "スムーズスクロールの動きはこんな感じ。",
+  ];
+  let stageN = 0;
+
+  function stageApply() {
+    const b = boxes[curBox];
+    // ステージは16:9なのでpadding等のpx値は縮小して適用
+    FX.applyBox($("stageBox"), $("stageScroll"),
+      Object.assign({}, b, { padding: Math.max(4, Math.round((b.padding ?? 16) * 0.4)),
+                             fadePx: 18 }),
+      $("stageClip"));
+  }
+
+  // リリックプレビュー用のミニ文字スタイル
+  const STAGE_STYLE = {
+    font: "'Yu Gothic UI',sans-serif", weight: 800, size: 30,
+    color: "#ffffff", outlineColor: "#000000", outlineWidth: 1,
+    glow: "", glowSize: 0, shadow: false, hotColor: "#ffd400",
+  };
+
+  function stageAdd() {
+    const b = boxes[curBox];
+    if ((b.mode || "flow") === "lyric") {
+      FX.lyricSpawn($("stageBox"), STAGE_LINES[stageN++ % STAGE_LINES.length],
+                    { style: STAGE_STYLE, table: [], box: b, fontScale: 0.5 });
+      return;
+    }
+    const sc = $("stageScroll");
+    FX.smoothAppend(sc, b, () => {
+      const d = document.createElement("div");
+      d.className = "line";
+      d.textContent = STAGE_LINES[stageN++ % STAGE_LINES.length];
+      sc.appendChild(d);
+      while (sc.children.length > (b.maxLines || 30)) sc.removeChild(sc.firstChild);
+    });
+    setTimeout(() => FX.pruneClipped($("stageClip"), sc, b),
+               (b.smoothMs || 250) + 80);
+  }
+  function stageClear() {
+    $("stageScroll").innerHTML = "";
+    FX.lyricClear($("stageBox"));
+    stageN = 0;
+  }
+
+  function dupBox() {
+    const b = JSON.parse(JSON.stringify(collectBox()));
+    b.id = "box-" + Date.now();
+    b.name = b.name + " のコピー";
+    boxes.splice(curBox + 1, 0, b);
+    curBox += 1;
+    renderBoxList(); loadBoxForm();
+  }
+  function delBox() {
+    if (boxes.length <= 1) { alert("最後の1つは削除できません"); return; }
+    if (!confirm(`「${boxes[curBox].name}」を削除しますか？`)) return;
+    boxes.splice(curBox, 1);
+    curBox = Math.max(0, curBox - 1);
+    renderBoxList(); loadBoxForm();
+  }
+
+  // ================= バインド・保存 =================
+  let pt, bt;
+  function bindAll() {
+    $("f_fontSel").addEventListener("change", () => {
+      if ($("f_fontSel").value) $("f_font").value = $("f_fontSel").value;
+      onEdit();
+    });
+    const outs = {
+      f_weight: ["o_weight", v => v], f_size: ["o_size", v => v + "px"],
+      f_outlineWidth: ["o_outlineWidth", v => v + "px"], f_glowSize: ["o_glowSize", v => v + "px"],
+      f_partial: ["o_partial", v => v], f_spacing: ["o_spacing", v => v + "em"],
+    };
+    for (const el of document.querySelectorAll("#form input, #form select")) {
+      el.addEventListener("input", () => {
+        if (outs[el.id]) $(outs[el.id][0]).textContent = outs[el.id][1](el.value);
+        onEdit();
+      });
+    }
+    $("previewBox").addEventListener("click", () => preview(true));
+
+    const bouts = {
+      b_x: ["o_bx", v => v + "%"], b_y: ["o_by", v => v + "%"],
+      b_w: ["o_bw", v => v + "%"], b_h: ["o_bh", v => v + "%"],
+      b_bgOpacity: ["o_bop", v => v], b_radius: ["o_brad", v => v + "px"],
+      b_padding: ["o_bpad", v => v + "px"], b_borderWidth: ["o_bbw", v => v + "px"],
+      b_maxLines: ["o_bml", v => v + "行"], b_smoothMs: ["o_bsm", v => v + "ms"],
+      b_lyricScale: ["o_bscale", v => "×" + v],
+      b_lifeSec: ["o_blife", v => v + "秒"], b_maxChunks: ["o_bmc", v => v + "個"],
+      b_vertRate: ["o_bvr", v => v + "%"], b_rotate: ["o_brot", v => "±" + v + "°"],
+      b_sizeJitter: ["o_bjit", v => v], b_stagger: ["o_bstag", v => v + "ms"],
+    };
+    for (const el of document.querySelectorAll("#bform input, #bform select")) {
+      el.addEventListener("input", () => {
+        if (bouts[el.id]) $(bouts[el.id][0]).textContent = bouts[el.id][1](el.value);
+        collectBox();
+        $("editBoxName").textContent = boxes[curBox].name;
+        renderBoxList();
+        if (el.id === "b_mode") { updateModeRows(); stageClear(); stageAdd(); }
+        clearTimeout(bt);
+        bt = setTimeout(stageApply, 120);
+      });
+    }
+  }
+
+  function onEdit() {
+    collect();
+    $("editName").textContent = presets[cur].name;
+    renderList();
+    clearTimeout(pt);
+    pt = setTimeout(() => preview(true), 250);
+  }
+
+  async function saveAll() {
+    collect(); collectBox();
+    await fetch("/api/presets", { method: "POST", body: JSON.stringify({ presets }) });
+    await fetch("/api/boxes", { method: "POST", body: JSON.stringify({ boxes }) });
+    const s = $("saved");
+    s.style.opacity = 1;
+    setTimeout(() => { s.style.opacity = 0; }, 1800);
+  }
+
+  init();
+</script>
+</body>
+</html>

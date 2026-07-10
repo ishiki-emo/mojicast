@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>単語スタジオ</title>
+<script>
+  (function () {
+    const s = parseFloat(new URLSearchParams(location.search).get("s"));
+    if (s > 0 && s < 1) document.documentElement.style.zoom = s;
+  })();
+</script>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161c26; --panel2: #1c2432;
+    --line: #2a3547; --text: #dce6f5; --dim: #7d8ba1;
+    --accent: #00e5ff; --ok: #3dffa0; --err: #ff5c5c;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'Yu Gothic UI', 'Meiryo', sans-serif; font-size: 14px;
+    height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+  }
+  nav { display: flex; background: var(--panel); border-bottom: 1px solid var(--line); }
+  nav button {
+    background: none; border: none; color: var(--dim); padding: 12px 22px;
+    font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
+    border-bottom: 2px solid transparent;
+  }
+  nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .page { flex: 1; overflow-y: auto; padding: 14px; display: none; }
+  .page.show { display: block; }
+  .note { color: var(--dim); font-size: 12px; margin-bottom: 10px; line-height: 1.6; }
+  table { width: 100%; border-collapse: collapse; }
+  th { color: var(--dim); font-size: 11px; letter-spacing: .1em; text-align: left; padding: 4px 6px; }
+  td { padding: 3px; vertical-align: middle; }
+  input, select {
+    width: 100%; background: var(--panel2); color: var(--text);
+    border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px;
+    font-family: inherit; font-size: 13px;
+  }
+  input[type=color] { padding: 2px; height: 34px; cursor: pointer; }
+  .del { background: none; border: none; color: var(--dim); cursor: pointer; font-size: 16px; padding: 4px 8px; }
+  .del:hover { color: var(--err); }
+  footer { display: flex; gap: 10px; align-items: center; padding: 10px 14px; background: var(--panel); border-top: 1px solid var(--line); }
+  .btn {
+    background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 9px 18px; cursor: pointer; font-family: inherit; font-weight: 700;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.save { border-color: var(--ok); color: var(--ok); }
+  #saved { color: var(--ok); font-size: 12px; opacity: 0; transition: opacity .3s; }
+  /* プレビュー */
+  .prevCell { text-align: center; }
+  .prev {
+    display: inline-block; font-weight: 900; font-size: 20px; cursor: pointer;
+    text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000;
+    white-space: nowrap;
+  }
+  .hintClick { color: var(--dim); font-size: 10px; display: block; }
+</style>
+<script src="/ui/fx.js"></script>
+</head>
+<body>
+  <nav>
+    <button id="tabHot" class="active" onclick="showTab('hot')">🎤 ホットワード（認識）</button>
+    <button id="tabFx" onclick="showTab('fx')">✨ エフェクト単語（表示）</button>
+    <button id="tabBanned" onclick="showTab('banned')">🚫 禁止ワード（伏せ字）</button>
+  </nav>
+
+  <!-- ========== ホットワード ========== -->
+  <div class="page show" id="pageHot">
+    <div class="note">
+      認識を誘導する単語。<b>漢字を含む語は「読み」を必ずひらがなで</b>入れてください
+      （読みで認識し、表記に置き換わります）。うまく出ないときは「実際に誤認識された文字列」を
+      読み欄に入れた行を追加すると効きます。スコアは強さ（空欄=標準、目安1.5〜4.0）。
+      変更は<b>次回開始時</b>に反映されます。
+    </div>
+    <table id="hotTable">
+      <thead><tr><th style="width:30%">表記（画面に出したい形）</th><th style="width:40%">読み（ひらがな/実際の誤認識）</th><th style="width:15%">スコア</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <button class="btn" style="margin-top:10px" onclick="addHotRow()">＋ 行を追加</button>
+  </div>
+
+  <!-- ========== エフェクト単語 ========== -->
+  <div class="page" id="pageFx">
+    <div class="note">
+      画面に出たときに<b>派手に装飾する単語</b>（認識とは別管理）。
+      ホットワードの表記は未登録でも標準ハイライトされます。
+      色・フォント・サイズ・アニメ・<b>パーティクル</b>を個別指定でき、変更は<b>即反映</b>。
+      プレビューはクリックで再生🎬
+    </div>
+    <table id="fxTable">
+      <thead><tr>
+        <th style="width:17%">単語</th><th style="width:9%">色</th>
+        <th style="width:16%">フォント</th><th style="width:11%">サイズ</th>
+        <th style="width:14%">アニメ</th><th style="width:14%">パーティクル</th>
+        <th style="width:15%">プレビュー</th><th></th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+    <button class="btn" style="margin-top:10px" onclick="addFxRow()">＋ 行を追加</button>
+  </div>
+
+  <!-- ========== 禁止ワード ========== -->
+  <div class="page" id="pageBanned">
+    <div class="note">
+      放送禁止ワードなどを<b>1行に1語</b>。ここの語は<b>認識中（薄文字）・確定字幕・ログ・英訳</b>の
+      すべてで伏せ字になります。伏せ字は下の文字を語の文字数ぶん繰り返します（例:「ばか」→「○○」）。
+      変更は<b>次回開始時</b>に反映されます。
+    </div>
+    <div style="margin-bottom:10px">
+      伏せ字にする文字：
+      <input id="maskChar" maxlength="2" placeholder="○"
+             style="width:64px;text-align:center;font-size:18px">
+      <span style="color:var(--dim,#7d8ba1);font-size:12px">（1文字。既定「○」）</span>
+    </div>
+    <textarea id="bannedText" rows="14" spellcheck="false"
+      placeholder="1行に1語（例）&#10;ぴー&#10;NGワード"
+      style="width:100%;box-sizing:border-box;background:#1c2432;color:#dce6f5;
+             border:1px solid #2a3547;border-radius:8px;padding:10px;
+             font-family:inherit;font-size:15px;line-height:1.6;resize:vertical"></textarea>
+  </div>
+
+  <footer>
+    <button class="btn save" onclick="saveAll()">💾 保存</button>
+    <span id="saved">保存しました ✓</span>
+  </footer>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const SCALES = [["1", "標準"], ["1.15", "少し大きく"], ["1.3", "大きく"], ["1.5", "特大"]];
+
+  function opt(list, sel) {
+    return list.map(([v, l]) =>
+      `<option value="${v}" ${v === sel ? "selected" : ""}>${l}</option>`).join("");
+  }
+  function esc(s) { return String(s).replace(/"/g, "&quot;").replace(/</g, "&lt;"); }
+
+  function showTab(t) {
+    for (const k of ["hot", "fx", "banned"]) {
+      $("tab" + k[0].toUpperCase() + k.slice(1)).className = t === k ? "active" : "";
+      $("page" + k[0].toUpperCase() + k.slice(1)).className =
+        "page" + (t === k ? " show" : "");
+    }
+  }
+
+  // ---------- ホットワード ----------
+  function addHotRow(e = {}) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><input class="h-surface" value="${esc(e.surface || "")}" placeholder="星野ひかり"></td>
+      <td><input class="h-reading" value="${esc(e.reading === e.surface ? "" : e.reading || "")}" placeholder="ほしのひかり"></td>
+      <td><input class="h-score" value="${esc(e.score || "")}" placeholder="2.0"></td>
+      <td><button class="del" onclick="this.closest('tr').remove()">✕</button></td>`;
+    $("hotTable").querySelector("tbody").appendChild(tr);
+  }
+
+  // ---------- エフェクト ----------
+  let sysFonts = [];   // /api/fonts から取得（loadAllで先読み）
+
+  function addFxRow(e = {}) {
+    const tr = document.createElement("tr");
+    const rec = FX.FONTS.map(f =>
+      `<option value="${f.css.replace(/"/g, "&quot;")}" ${f.css === e.font ? "selected" : ""}>${f.label}</option>`).join("");
+    const sys = sysFonts.map(n => {
+      const v = `'${n}'`;
+      return `<option value="${v}" ${v === e.font ? "selected" : ""}>${n}</option>`;
+    }).join("");
+    const fontOpts = '<option value="">プリセット準拠</option>' +
+      `<optgroup label="おすすめ">${rec}</optgroup>` +
+      `<optgroup label="システムフォント (${sysFonts.length})">${sys}</optgroup>`;
+    const scaleOpts = SCALES.map(([v, l]) =>
+      `<option value="${v}" ${+v === +(e.scale || 1) ? "selected" : ""}>${l}</option>`).join("");
+    tr.innerHTML = `
+      <td><input class="f-word" value="${esc(e.word || "")}" placeholder="単語"></td>
+      <td><input type="color" class="f-color" value="${e.color || "#ffd400"}"></td>
+      <td><select class="f-font">${fontOpts}</select></td>
+      <td><select class="f-scale">${scaleOpts}</select></td>
+      <td><select class="f-anim">${opt(FX.WORD_ANIMS, e.anim || "pop")}</select></td>
+      <td><select class="f-particle">${opt(FX.PARTICLES, e.particle || "none")}</select></td>
+      <td class="prevCell"><span class="prev"></span><span class="hintClick">クリックで再生</span></td>
+      <td><button class="del" onclick="this.closest('tr').remove()">✕</button></td>`;
+    $("fxTable").querySelector("tbody").appendChild(tr);
+    const update = () => updatePreview(tr, true);
+    tr.querySelectorAll("input,select").forEach(el => el.addEventListener("input", update));
+    tr.querySelector(".prev").addEventListener("click", () => updatePreview(tr, true));
+    updatePreview(tr, false);
+  }
+
+  function rowFx(tr) {
+    return {
+      word: tr.querySelector(".f-word").value.trim(),
+      color: tr.querySelector(".f-color").value,
+      font: tr.querySelector(".f-font").value,
+      scale: +tr.querySelector(".f-scale").value,
+      anim: tr.querySelector(".f-anim").value,
+      particle: tr.querySelector(".f-particle").value,
+    };
+  }
+
+  function updatePreview(tr, replay) {
+    const fx = rowFx(tr);
+    const prev = tr.querySelector(".prev");
+    const word = fx.word || "サンプル";
+    // 本番（overlay）と同じ renderWords でプレビュー描画
+    // （要素を作り直すのでワンショット系アニメもクリックで再生される）
+    prev.style.fontSize = "20px";
+    FX.renderWords(prev, word, [[word, fx]],
+      { outlineWidth: 2, outlineColor: "#000000", hotColor: "#ffd400" });
+    if (replay && fx.particle !== "none")
+      FX.spawnParticles(prev, fx.particle, fx.color);
+  }
+
+  // ---------- 読み書き ----------
+  async function loadAll() {
+    try {
+      sysFonts = (await (await fetch("/api/fonts")).json()).fonts || [];
+    } catch (e) { sysFonts = []; }
+    const hot = await (await fetch("/api/hotwords")).json();
+    for (const e of hot.entries || []) addHotRow(e);
+    if (!(hot.entries || []).length) addHotRow();
+
+    const fx = await (await fetch("/api/effects")).json();
+    for (const e of fx.effects || []) addFxRow(e);
+    if (!(fx.effects || []).length) addFxRow();
+
+    const banned = await (await fetch("/api/banned")).json();
+    $("bannedText").value = (banned.words || []).join("\n");
+    $("maskChar").value = banned.mask_char || "○";
+  }
+
+  async function saveAll() {
+    const entries = [...$("hotTable").querySelectorAll("tbody tr")].map(tr => ({
+      surface: tr.querySelector(".h-surface").value.trim(),
+      reading: tr.querySelector(".h-reading").value.trim(),
+      score: tr.querySelector(".h-score").value.trim(),
+    })).filter(e => e.surface);
+
+    const effects = [...$("fxTable").querySelectorAll("tbody tr")]
+      .map(rowFx).filter(e => e.word);
+
+    const words = $("bannedText").value.split("\n")
+      .map(s => s.trim()).filter(Boolean);
+    const mask_char = $("maskChar").value.trim() || "○";
+
+    await fetch("/api/hotwords", { method: "POST", body: JSON.stringify({ entries }) });
+    await fetch("/api/effects", { method: "POST", body: JSON.stringify({ effects }) });
+    await fetch("/api/banned", { method: "POST", body: JSON.stringify({ words, mask_char }) });
+    const s = $("saved");
+    s.style.opacity = 1;
+    setTimeout(() => { s.style.opacity = 0; }, 1800);
+  }
+
+  loadAll();
+</script>
+</body>
+</html>

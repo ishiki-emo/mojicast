@@ -1,0 +1,42 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# ---- このプロジェクトの仮想環境・ビルド生成物 ----
+reazonspeech-env/
+build/
+dist/
+
+# ---- AIモデル（配布・DLで取得。リポジトリには含めない）----
+models/
+
+# ---- 上流 ReazonSpeech（別途 pip install する。README参照）----
+/ReazonSpeech/
+
+# ---- 実行時に生成/個人化されるデータ（ルート直下のみ除外。defaults/ の雛形は追跡する）----
+/config.json
+/hotwords.txt
+/effects.json
+/presets.json
+/boxes.json
+/banned.txt
+
+# ---- 文字起こしログ（実行時に生成される個人データ）----
+logs/
+
+# ---- 個人テスト用の録音・音声 ----
+*.wav
+
+# ---- Claude Code のローカル/一時ファイル ----
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+
+# ---- OS/エディタ ----
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

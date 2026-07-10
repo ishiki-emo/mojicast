@@ -1,0 +1,196 @@
+{
+  "effects": [
+    {
+      "word": "スピン",
+      "color": "#ffd400",
+      "font": "'UD デジタル 教科書体 NP'",
+      "scale": 1.5,
+      "anim": "spin",
+      "particle": "confetti"
+    },
+    {
+      "word": "ぷるぷる",
+      "color": "#00ccff",
+      "font": "",
+      "scale": 1,
+      "anim": "shake",
+      "particle": "none"
+    },
+    {
+      "word": "プルプル",
+      "color": "#00ccff",
+      "font": "",
+      "scale": 1,
+      "anim": "shake",
+      "particle": "none"
+    },
+    {
+      "word": "要チェック",
+      "color": "#ff429e",
+      "font": "",
+      "scale": 1.5,
+      "anim": "bounce",
+      "particle": "none"
+    },
+    {
+      "word": "輝く",
+      "color": "#a9fe7c",
+      "font": "",
+      "scale": 1.5,
+      "anim": "heartbeat",
+      "particle": "none"
+    },
+    {
+      "word": "配信",
+      "color": "#80a8ff",
+      "font": "",
+      "scale": 1.5,
+      "anim": "bounce",
+      "particle": "burst"
+    },
+    {
+      "word": "楽しい",
+      "color": "#ffd400",
+      "font": "'UD デジタル 教科書体 N-B','UD デジタル 教科書体 NP-B',sans-serif",
+      "scale": 1.5,
+      "anim": "pop",
+      "particle": "none"
+    },
+    {
+      "word": "怖い",
+      "color": "#1a53ff",
+      "font": "",
+      "scale": 1.3,
+      "anim": "glitch",
+      "particle": "none"
+    },
+    {
+      "word": "こわい",
+      "color": "#5938ff",
+      "font": "",
+      "scale": 1.15,
+      "anim": "shake",
+      "particle": "none"
+    },
+    {
+      "word": "すごい",
+      "color": "#ffd400",
+      "font": "",
+      "scale": 1,
+      "anim": "pop",
+      "particle": "spark"
+    },
+    {
+      "word": "ありがとう",
+      "color": "#ff9ec6",
+      "font": "",
+      "scale": 1.3,
+      "anim": "float",
+      "particle": "sakura"
+    },
+    {
+      "word": "かわいい",
+      "color": "#ff5ea8",
+      "font": "",
+      "scale": 1.3,
+      "anim": "heartbeat",
+      "particle": "heart"
+    },
+    {
+      "word": "可愛い",
+      "color": "#ff5ea8",
+      "font": "",
+      "scale": 1.3,
+      "anim": "heartbeat",
+      "particle": "heart"
+    },
+    {
+      "word": "やばい",
+      "color": "#ff4444",
+      "font": "",
+      "scale": 1.3,
+      "anim": "glitch",
+      "particle": "burst"
+    },
+    {
+      "word": "ヤバい",
+      "color": "#ff4444",
+      "font": "",
+      "scale": 1,
+      "anim": "glitch",
+      "particle": "burst"
+    },
+    {
+      "word": "おめでとう",
+      "color": "#ffb300",
+      "font": "",
+      "scale": 1,
+      "anim": "bounce",
+      "particle": "confetti"
+    },
+    {
+      "word": "最高",
+      "color": "#ffe94d",
+      "font": "",
+      "scale": 1,
+      "anim": "flash",
+      "particle": "spark"
+    },
+    {
+      "word": "好き",
+      "color": "#ff2d95",
+      "font": "",
+      "scale": 1,
+      "anim": "heartbeat",
+      "particle": "heart"
+    },
+    {
+      "word": "嬉しい",
+      "color": "#ffa64d",
+      "font": "",
+      "scale": 1.3,
+      "anim": "wave",
+      "particle": "note"
+    },
+    {
+      "word": "うれしい",
+      "color": "#ffa64d",
+      "font": "",
+      "scale": 1.3,
+      "anim": "wave",
+      "particle": "note"
+    },
+    {
+      "word": "こんばんは",
+      "color": "#7dd8ff",
+      "font": "",
+      "scale": 1,
+      "anim": "neon",
+      "particle": "none"
+    },
+    {
+      "word": "こんにちは",
+      "color": "#7dd8ff",
+      "font": "",
+      "scale": 1,
+      "anim": "neon",
+      "particle": "none"
+    },
+    {
+      "word": "エフェクト",
+      "color": "#ffd400",
+      "font": "",
+      "scale": 1,
+      "anim": "wave",
+      "particle": "none"
+    },
+    {
+      "word": "単語登録",
+      "color": "#fe7c7c",
+      "font": "",
+      "scale": 1,
+      "anim": "heartbeat",
+      "particle": "burst"
+    }
+  ]
+}

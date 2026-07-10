@@ -1,0 +1,22 @@
+# config.yaml - 開発環境用（このままコピーして使える）
+# ReazonSpeech音声認識設定
+
+model:
+  # K2版を使用（軽量・高速）
+  type: "k2"
+  device: "cpu"  # GPU使用時は "cuda"
+  
+audio:
+  # 入力音声の設定
+  sample_rate: 16000  # ReazonSpeechは16kHz固定
+  max_duration: 30    # K2版の上限は約30秒
+  
+output:
+  # 出力設定
+  format: "text"      # "text" or "json"
+  timestamps: false   # タイムスタンプ出力
+  save_dir: "./results"
+
+logging:
+  level: "DEBUG"
+  file: "./logs/dev.log"

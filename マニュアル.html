@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mojicast マニュアル</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161c26; --line: #2a3342;
+    --fg: #e6edf3; --dim: #8b98a9; --acc: #71e7fe; --warn: #ffd400;
+    --ok: #7dff8a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font-family: "Yu Gothic UI", "Meiryo", sans-serif;
+    line-height: 1.8; font-size: 15px;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 32px 20px 80px; }
+  header { text-align: center; padding: 28px 0 8px; }
+  header h1 { font-size: 28px; letter-spacing: .04em; }
+  header h1 .accent { color: var(--acc); }
+  header .sub { color: var(--dim); margin-top: 6px; font-size: 13px; }
+  .badges { margin-top: 14px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .badge {
+    font-size: 12px; padding: 3px 12px; border-radius: 20px;
+    border: 1px solid var(--line); color: var(--dim); background: var(--panel);
+  }
+  nav {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 16px 22px; margin: 26px 0;
+  }
+  nav b { color: var(--dim); font-size: 12px; letter-spacing: .1em; }
+  nav ol { margin: 8px 0 0 22px; }
+  nav a { color: var(--acc); text-decoration: none; }
+  nav a:hover { text-decoration: underline; }
+  section { margin-top: 44px; }
+  h2 {
+    font-size: 20px; padding-bottom: 8px; margin-bottom: 16px;
+    border-bottom: 2px solid var(--line);
+  }
+  h2 .no { color: var(--acc); margin-right: 8px; }
+  h3 { font-size: 16px; margin: 22px 0 8px; color: var(--acc); }
+  p { margin: 8px 0; }
+  ul, ol { margin: 8px 0 8px 24px; }
+  li { margin: 4px 0; }
+  code, .kbd {
+    background: #1f2733; border: 1px solid var(--line); border-radius: 5px;
+    padding: 1px 7px; font-family: Consolas, monospace; font-size: 13px; color: #9fd8ff;
+  }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px 18px; margin: 12px 0;
+  }
+  .card.warn { border-left: 4px solid var(--warn); }
+  .card.ok { border-left: 4px solid var(--ok); }
+  .card b.tag { font-size: 12px; letter-spacing: .08em; color: var(--dim); display: block; margin-bottom: 4px; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 14px; }
+  th, td { border: 1px solid var(--line); padding: 8px 12px; text-align: left; vertical-align: top; }
+  th { background: #1a212d; color: var(--dim); font-weight: 600; white-space: nowrap; }
+  td:first-child { white-space: nowrap; }
+  .step { display: flex; gap: 14px; margin: 14px 0; align-items: flex-start; }
+  .step .n {
+    flex: 0 0 30px; height: 30px; border-radius: 50%; background: var(--acc);
+    color: #06222b; font-weight: 800; display: flex; align-items: center; justify-content: center;
+  }
+  footer { margin-top: 60px; text-align: center; color: var(--dim); font-size: 12px; }
+  .dim { color: var(--dim); }
+  .overflow { overflow-x: auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Moji<span class="accent">cast</span></h1>
+  <div class="sub">配信用リアルタイム字幕アプリ — テスター向けマニュアル</div>
+  <div class="badges">
+    <span class="badge">🔌 完全オフライン</span>
+    <span class="badge">🐍 Python 不要</span>
+    <span class="badge">🎙 日本語音声認識</span>
+    <span class="badge">🌐 英訳の併記</span>
+    <span class="badge">🎬 OBS 連携</span>
+  </div>
+</header>
+
+<nav>
+  <b>目次</b>
+  <ol>
+    <li><a href="#start">はじめに・起動方法</a></li>
+    <li><a href="#cockpit">コックピット（メイン画面）</a></li>
+    <li><a href="#obs">OBS に字幕を出す</a></li>
+    <li><a href="#words">単語スタジオ（誤認識対策とエフェクト）</a></li>
+    <li><a href="#style">スタイルスタジオ（見た目のカスタマイズ）</a></li>
+    <li><a href="#translate">英訳の併記</a></li>
+    <li><a href="#files">フォルダとファイルの説明</a></li>
+    <li><a href="#trouble">困ったときは</a></li>
+    <li><a href="#feedback">フィードバックのお願い</a></li>
+  </ol>
+</nav>
+
+<section id="start">
+  <h2><span class="no">1</span>はじめに・起動方法</h2>
+  <p>Mojicast は、マイクの音声をリアルタイムに文字起こしして配信画面に字幕として表示するアプリです。
+     音声認識・句読点付け・英訳まで<b>すべてお使いのPCの中だけで動きます</b>。音声がネットに送られることはありません。</p>
+
+  <h3>動作環境</h3>
+  <ul>
+    <li>Windows 10 / 11（64bit）とマイク</li>
+    <li>WebView2 ランタイム <span class="dim">（Windows 11 は標準搭載。画面が真っ白なときだけ導入 → <a style="color:var(--acc)" href="#trouble">困ったときは</a>）</span></li>
+  </ul>
+
+  <h3>起動手順</h3>
+  <div class="step"><div class="n">1</div><div>このフォルダを<b>丸ごとローカルディスクにコピー</b>する（Zip 内や共有ドライブから直接起動しない）</div></div>
+  <div class="step"><div class="n">2</div><div><code>Mojicast.exe</code> をダブルクリック</div></div>
+  <div class="step"><div class="n">3</div><div>コックピット画面が開いたら、マイクを選んで <b>▶開始</b></div></div>
+  <div class="card warn"><b class="tag">初回のみ</b>
+    モデルの読み込みに少し時間がかかります（「認識モデルをロード中...」の表示）。2回目以降は速くなります。</div>
+</section>
+
+<section id="cockpit">
+  <h2><span class="no">2</span>コックピット（メイン画面）</h2>
+  <p>起動して最初に出る画面です。左が設定、中央が字幕モニタ、右がスタイル切替と OBS 連携です。</p>
+  <div class="overflow">
+  <table>
+    <tr><th>項目</th><th>説明</th></tr>
+    <tr><td>▶開始 / ■停止</td><td>音声認識のオン・オフ</td></tr>
+    <tr><td>マイク</td><td>入力デバイスの選択。「既定のマイク」で通常はOK</td></tr>
+    <tr><td>無音で確定</td><td>この長さ黙ると1行が確定する。短いほどテンポが良く、長いほど1行が長くなる</td></tr>
+    <tr><td>途中更新間隔</td><td>話している最中の「薄文字」の更新頻度</td></tr>
+    <tr><td>最大発話長</td><td>喋り続けたとき、この秒数で強制的に確定する</td></tr>
+    <tr><td>単語ブースト</td><td>登録単語の効きの強さ。効かない→上げる / 誤爆する→下げる</td></tr>
+    <tr><td>句読点をつける</td><td>確定文に「、」「。」を自動で付ける</td></tr>
+    <tr><td>単語登録を使う</td><td>単語スタジオのホットワードを使う</td></tr>
+    <tr><td>英訳を表示</td><td>確定した字幕の下に英訳を併記する（<a style="color:var(--acc)" href="#translate">詳細</a>）</td></tr>
+    <tr><td>高精度モード(fp32)</td><td>認識精度がわずかに上がるが遅くなる。通常はオフでOK</td></tr>
+  </table>
+  </div>
+  <div class="card"><b class="tag">ヒント</b>
+    スライダー系の設定は<b>次回 ▶開始 時に反映</b>されます。認識中に変えたら、いったん停止→開始してください。</div>
+</section>
+
+<section id="obs">
+  <h2><span class="no">3</span>OBS に字幕を出す</h2>
+  <div class="step"><div class="n">1</div><div>OBS で「ソース追加」→「<b>ブラウザ</b>」を選ぶ</div></div>
+  <div class="step"><div class="n">2</div><div>URL に <code>http://localhost:8765</code> を入力（コックピット右下の「コピー」ボタンでも取得可）</div></div>
+  <div class="step"><div class="n">3</div><div>幅・高さを<b>配信解像度と同じ</b>にする（例: 1920 × 1080）</div></div>
+  <p>アプリ側で ▶開始 すると、喋った内容が OBS 側にも表示されます。スタイルやレイアウトの変更も即座に反映されます。</p>
+  <div class="card"><b class="tag">表示の流れ</b>
+    話している間は<b>薄い文字</b>で途中経過が出て、ひと呼吸おくと<b>確定文字</b>に変わりエフェクトが発動します。</div>
+</section>
+
+<section id="words">
+  <h2><span class="no">4</span>単語スタジオ（誤認識対策とエフェクト）</h2>
+  <p>コックピットの「✦ 単語スタジオ」から開きます。タブが2つあります。</p>
+
+  <h3>🎤 ホットワード — 誤認識を減らす</h3>
+  <p>自分の名前・チャンネル名・ゲームタイトルなど、<b>よく誤認識される固有名詞</b>を登録すると認識が改善します。</p>
+  <ul>
+    <li><b>表記</b> … 画面に出したい文字（例: 星野ひかり）</li>
+    <li><b>読み</b> … ひらがなの読み（例: ほしのひかり）。<b>漢字を含む語は必ず入れる</b></li>
+    <li><b>スコア</b> … 効きの強さ（省略可。目安 2.0〜3.0）</li>
+  </ul>
+  <div class="card warn"><b class="tag">注意</b>
+    ホットワードの変更は<b>次回 ▶開始 時に反映</b>されます。</div>
+
+  <h3>✨ エフェクト単語 — 画面を彩る</h3>
+  <p>特定の単語が字幕に出たとき、色・サイズ・アニメ・パーティクルで装飾します。
+     「ありがとう」「かわいい」「最高」など、よく使う言葉が最初から登録済みです。
+     行の右端のプレビューをクリックすると動きを確認できます。こちらは<b>保存すると即反映</b>です。</p>
+</section>
+
+<section id="style">
+  <h2><span class="no">5</span>スタイルスタジオ（見た目のカスタマイズ）</h2>
+  <p>コックピット右側のプリセット一覧の <b>✎</b> ボタンから開きます。</p>
+  <h3>文字スタイル（プリセット）</h3>
+  <ul>
+    <li>フォント・サイズ・色・フチ・グロー・登場アニメなどを調整</li>
+    <li>「複製」で自分用プリセットを作るのがおすすめ</li>
+    <li><b>途中表示の濃さ</b> … 薄文字の透明度</li>
+    <li><b>途中表示（薄文字）にもエフェクトを乗せる</b> … 既定ではオフ（確定した瞬間にだけエフェクトが出る、落ち着いた見た目）</li>
+  </ul>
+  <h3>レイアウトボックス</h3>
+  <ul>
+    <li>字幕の表示位置・サイズ・背景・行数などを定義</li>
+    <li>通常の「流れる字幕」のほか、縦書き、画面に文字が散る「リリック」モードもあります</li>
+  </ul>
+</section>
+
+<section id="translate">
+  <h2><span class="no">6</span>英訳の併記</h2>
+  <p>コックピットの「<b>英訳を表示（各行の下）</b>」をオンにすると、確定した字幕の下に英訳が小さく併記されます。
+     海外リスナー向けの配信にどうぞ。</p>
+  <ul>
+    <li>翻訳もローカルで動きます（ネット不要・追加料金なし）</li>
+    <li>日本語の字幕が先に出て、英訳がひと呼吸おいて追いつきます</li>
+    <li>オンにして最初の ▶開始 時だけ「翻訳モデルをロード中...」と数秒待ちが入ります</li>
+  </ul>
+  <div class="card"><b class="tag">品質について</b>
+    軽量な翻訳モデルのため、固有名詞（人名・チャンネル名など）はうまく訳せないことがあります。
+    気になった誤訳があればぜひフィードバックしてください。</div>
+</section>
+
+<section id="files">
+  <h2><span class="no">7</span>フォルダとファイルの説明</h2>
+  <div class="overflow">
+  <table>
+    <tr><th>ファイル / フォルダ</th><th>内容</th></tr>
+    <tr><td><code>Mojicast.exe</code></td><td>アプリ本体</td></tr>
+    <tr><td><code>_internal\</code></td><td>実行に必要なファイル（触らない）</td></tr>
+    <tr><td><code>models\</code></td><td>AIモデル一式（触らない）</td></tr>
+    <tr><td><code>config.json</code></td><td>設定。初回起動時に自動生成され、変更は自動保存</td></tr>
+    <tr><td><code>hotwords.txt</code></td><td>ホットワード。アプリ内の単語スタジオから編集推奨</td></tr>
+    <tr><td><code>effects.json</code></td><td>エフェクト単語の定義</td></tr>
+    <tr><td><code>presets.json</code> / <code>boxes.json</code></td><td>文字スタイル / レイアウトの定義</td></tr>
+    <tr><td><code>ui\</code> / <code>overlay.html</code></td><td>画面ファイル（触らない）</td></tr>
+  </table>
+  </div>
+  <p class="dim">アンインストールはフォルダごと削除するだけです。レジストリ等は使いません。</p>
+</section>
+
+<section id="trouble">
+  <h2><span class="no">8</span>困ったときは</h2>
+  <div class="overflow">
+  <table>
+    <tr><th>症状</th><th>対処</th></tr>
+    <tr><td>画面が真っ白</td><td>「Microsoft Edge WebView2 ランタイム」をインストール（Web検索で公式Microsoftサイトから）。Windows 11 では通常発生しません</td></tr>
+    <tr><td>「ポート 8765 は使用中」</td><td>アプリが既に起動しています。タスクトレイやタスクマネージャーで確認して二重起動を解消</td></tr>
+    <tr><td>マイクを拾わない</td><td>Windows 設定 → プライバシー → マイクの許可を確認。他アプリの占有も確認。マイク選択を「既定のマイク」に戻すのも有効</td></tr>
+    <tr><td>認識が変・遅い</td><td>「無音で確定」「途中更新間隔」を調整。固有名詞の誤認識はホットワード登録で改善</td></tr>
+    <tr><td>OBS に何も出ない</td><td>アプリが起動しているか、URL が <code>http://localhost:8765</code> か、▶開始 しているかを確認。ブラウザソースを右クリック→「再読み込み」も有効</td></tr>
+    <tr><td>起動しない・すぐ落ちる</td><td>フォルダをローカルディスクに置いているか確認（Zip内・ネットワークドライブは不可）。ウイルス対策ソフトの誤検知の場合は除外設定へ</td></tr>
+  </table>
+  </div>
+</section>
+
+<section id="feedback">
+  <h2><span class="no">9</span>フィードバックのお願い</h2>
+  <p>テストありがとうございます！ 以下のような情報が特に助かります。</p>
+  <ul>
+    <li>誤認識・誤訳の具体例（何と言ったら何と表示されたか）</li>
+    <li>操作していて落ちた・固まったときの直前の操作</li>
+    <li>「ここが分かりにくい」「こういう機能が欲しい」という率直な感想</li>
+    <li>お使いのPCのスペック（CPU・メモリ）と、動作の軽さ・重さの体感</li>
+  </ul>
+</section>
+
+<footer>
+  Mojicast — ReazonSpeech k2 + Silero VAD + BERT句読点 + FuguMT英訳 / ローカル完結・オフライン動作
+</footer>
+
+</div>
+</body>
+</html>

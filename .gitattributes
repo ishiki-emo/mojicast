@@ -1,0 +1,10 @@
+# テキストは LF で正規化（OS差異を吸収）
+* text=auto eol=lf
+
+# バイナリは変換しない
+*.onnx binary
+*.wav  binary
+*.png  binary
+*.jpg  binary
+*.ico  binary
+*.pth  binary
