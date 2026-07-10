@@ -381,11 +381,15 @@ class CaptionEngine:
                                 text = self._punct(text)
                             if self._mask is not None:      # 禁止ワードを伏せ字化
                                 text = self._mask(text)
+                        if text:
                             self._fid += 1
                             self.on_final(text, self._fid)
                             self._log_final(text)
                             if translate_on:
                                 self._tq.put((self._fid, text))
+                        else:
+                            # 後処理で空になった発話は出さず、薄文字だけ消す
+                            self.on_partial("")
                         last_partial_len = 0
 
                     # 発話中の途中経過

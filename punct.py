@@ -47,7 +47,21 @@ def load_punctuator(num_threads: int = 4):
     if _model is not None:
         return
     torch.set_num_threads(num_threads)  # CPUを複数コア使う
-    _tokenizer = _local_first(BertTokenizer.from_pretrained, _MODEL_NAME)
+    # 語彙ファイルは明示的に取得して直接渡す。
+    # （凍結(exe)環境の新規DLでは BertTokenizer.from_pretrained が vocab.txt を
+    #   取得できず「特殊トークンだけの空トークナイザ」になることがある。
+    #   全文字がUNK化→句読点処理が空文字を返し字幕が消える致命症状になるため、
+    #   凍結でも確実に動く hf_hub_download でファイルを固定して構築する）
+    vocab_path = _local_first(hf.hf_hub_download, _MODEL_NAME, "vocab.txt")
+    # transformers v5 は引数名が vocab（v4 は vocab_file）。さらに v5 は語彙未指定でも
+    # 例外を出さず「特殊トークンのみの空トークナイザ」を作るため、下の健全性チェックが必須。
+    try:
+        tokenizer = BertTokenizer(vocab=vocab_path, do_lower_case=False)
+    except TypeError:                      # v4 系へのフォールバック
+        tokenizer = BertTokenizer(vocab_file=vocab_path, do_lower_case=False)
+    if len(tokenizer) < 100:   # 語彙が壊れていたら句読点は使わせない（呼び出し側で無効化）
+        raise RuntimeError(f"句読点トークナイザの語彙が不正です (size={len(tokenizer)})")
+    _tokenizer = tokenizer
     base_model = _local_first(BertModel.from_pretrained, _MODEL_NAME)
     model = _PunctuationPredictor(base_model)
     # 重みは HF リポジトリから取得（cwd非依存の絶対パスで解決）
@@ -116,7 +130,8 @@ def add_punctuation(text: str, comma_thresh: float = 0.1,
             comma_pos = probs[0] > comma_thresh
             period_pos = probs[1] > period_thresh
             result += _rebuild(inputs.input_ids[0], comma_pos, period_pos)
-    return result
+    # 万一（語彙劣化などで）空になったら、句読点なしの原文を返す＝字幕を消さない
+    return result if result else text
 
 
 if __name__ == "__main__":
