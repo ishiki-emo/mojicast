@@ -72,6 +72,7 @@ class CaptionEngine:
         self._fid = 0               # 確定行の通し番号（英訳の対応付け用）
         self._logf = None           # 文字起こしログのファイルハンドル（無効時 None）
         self._mask = None           # 禁止ワードの伏せ字化関数（無効時 None）
+        self._load_warn = ""        # 直近ロードの非致命的警告（英訳/句読点の失敗）
         self._thread = None
         self._stop = threading.Event()
         self.running = False
@@ -161,7 +162,8 @@ class CaptionEngine:
 
     def _load(self, cfg):
         """設定に応じてモデル群をロード（変更が無ければ再利用）"""
-        hw_file = "hotwords.txt" if cfg.get("use_hotwords", True) else ""
+        self._load_warn = ""    # このロードでの非致命的な警告（英訳/句読点の失敗など）
+        hw_file = os.path.join(BASE, "hotwords.txt") if cfg.get("use_hotwords", True) else ""
         hw_mtime = os.path.getmtime(hw_file) if hw_file and os.path.exists(hw_file) else 0
         sig = (cfg.get("precision", "int8-fp32"), hw_file, hw_mtime,
                cfg.get("hotwords_score", 2.0))
@@ -195,7 +197,9 @@ class CaptionEngine:
                     from vocab import parse_vocab, write_hotwords, build_replacer
                     entries = parse_vocab(hw_file)
                     if entries:
-                        hw_path = write_hotwords(entries)
+                        # 固定パスに書き出す（mkstempだと毎回%TEMP%に溜まるため）
+                        hw_path = write_hotwords(
+                            entries, os.path.join(BASE, "_hotwords_gen.txt"))
                         self._replacer = build_replacer(entries)
                 self._model = load_model(
                     device="cpu", hotwords_file=hw_path,
@@ -203,17 +207,27 @@ class CaptionEngine:
                     precision=cfg.get("precision", "int8-fp32"))
                 self._model_sig = sig
 
+            # 句読点・英訳は「付加機能」。ロードに失敗しても ASR（本体）は落とさず、
+            # その機能だけ無効にして続行する（＝日本語字幕は出続ける）。
             if need_punct:
                 self.on_state("loading", "句読点モデルをロード中...")
-                from punct import add_punctuation, load_punctuator
-                load_punctuator()
-                self._punct = add_punctuation
+                try:
+                    from punct import add_punctuation, load_punctuator
+                    load_punctuator()
+                    self._punct = add_punctuation
+                except Exception:
+                    self._punct = None
+                    self._load_warn = "句読点の読み込みに失敗"
 
             if need_trans:
                 self.on_state("loading", "翻訳モデル(英訳)をロード中...")
-                from translate import translate as _tr, load_translator
-                load_translator()
-                self._translate = _tr
+                try:
+                    from translate import translate as _tr, load_translator
+                    load_translator()
+                    self._translate = _tr
+                except Exception:
+                    self._translate = None
+                    self._load_warn = "英訳の読み込みに失敗（英訳なしで続行）"
         finally:
             stop_evt.set()
             if mon is not None:
@@ -321,7 +335,8 @@ class CaptionEngine:
                                 dtype="float32", blocksize=WINDOW_SIZE,
                                 device=device, callback=callback):
                 self.running = True
-                self.on_state("running", "認識中")
+                self.on_state("running",
+                              "認識中" + (f"  ※{self._load_warn}" if self._load_warn else ""))
                 while not self._stop.is_set():
                     try:
                         block = audio_q.get(timeout=0.2)
