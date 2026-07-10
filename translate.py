@@ -35,6 +35,14 @@ def load_translator(num_threads: int = 4):
         warnings.simplefilter("ignore")
         _tokenizer = _local_first(MarianTokenizer.from_pretrained, _MODEL_NAME)
         _model = _local_first(MarianMTModel.from_pretrained, _MODEL_NAME).eval()
+    # ロード直後の自己診断: 1文訳して空なら異常として失敗させる。
+    # （transformers は語彙ファイルを解決できなくても例外を出さず
+    #   「空トークナイザ」を作ることがあり、その場合は無言で訳が空になる。
+    #   ここで検出して例外にすれば、エンジン側が英訳だけ無効化して字幕を守れる）
+    if not translate("これはテストです。").strip():
+        _tokenizer = None
+        _model = None
+        raise RuntimeError("翻訳モデルの自己診断に失敗（出力が空）")
 
 
 def translate(text: str, max_new_tokens: int = 96) -> str:

@@ -39,32 +39,44 @@ ReazonSpeech k2 + Silero VAD + BERT句読点 + OBSオーバーレイ。
 | `presets.json` | 文字スタイルプリセット（自作追加OK） | 選択・保存時 |
 | `boxes.json` | 字幕ボックス（位置/背景/スクロール） | 選択・保存時 |
 
-## 配布パッケージ化（PyInstaller・完全オフライン）
-
-テスター配布用の「Python不要・ネット不要」パッケージを作る手順（検証済み）。
-モデルを事前DLしておく必要があるので、先に一度アプリを起動して認識まで動かしておく。
+## 配布パッケージ化（PyInstaller）
 
 ```powershell
 .\reazonspeech-env\Scripts\pip.exe install pyinstaller
 .\reazonspeech-env\Scripts\pyinstaller.exe --noconfirm Mojicast.spec  # onedir でexe化
-.\build_bundle.ps1                                                            # モデル+アセットを同梱
+.\build_bundle.ps1 -NoModels    # 軽量版（既定・初回DL・Zip約320MB）← GitHub Releases 用
+.\build_bundle.ps1              # 同梱版（モデル込み・完全オフライン・約3.1GB）
 ```
 
-生成物: `dist\Mojicast\`（約3.1GB）。フォルダごとZipして渡す。
+### リリース前チェックリスト（重要）
+**dev では起きずリリース版でだけ起きる不具合**（凍結環境の挙動差・新規DL経路の故障）を
+配布前に検出するため、必ずスモークテストを通すこと:
+
+```powershell
+.\smoke_test.ps1           # 高速: キャッシュからモデル複製して検証（約2分）
+.\smoke_test.ps1 -Fresh    # 完全: モデル実DL（2GB）で新規ユーザーを再現 ←リリース前は必ずこちら
+```
+
+- テスト中に表示される Mojicast の窓は**閉じない**こと（閉じるとアプリ終了＝FAIL扱い）
+- PASS 後、`dist\Mojicast\models`・`config.json`・`logs` を削除してから Zip する
+- 教訓: transformers は語彙ファイルを解決できなくても**例外を出さず空トークナイザを作る**
+  ことがある（v5）。各モデルはロード時に自己診断（語彙サイズ検査・試訳）で守っているが、
+  新しいモデルを追加するときも同様の健全性チェックを入れること
 
 構成ファイル:
 - `Mojicast.spec` — ビルド定義（torch/transformers/sherpa_onnx/pywebview等を collect_all）
-- `build_bundle.ps1` — ビルド後にアセットと**必要な4モデルだけ**を app 直下へ配置
-- `apppaths.py` — 凍結時に同梱 `models/` を HF キャッシュとして使いオフライン化
-  （`HF_HOME` / `HF_HUB_OFFLINE` を HF系 import より前に設定）
-- `defaults\` — 配布用の汎用データ（hotwords/effects/presets/boxes）。
+- `build_bundle.ps1` — ビルド後にアセット（+同梱版はモデル）を app 直下へ配置
+- `smoke_test.ps1` — リリース前スモークテスト（上記）
+- `apppaths.py` — 凍結時に HF キャッシュを exe 隣 `models/` に固定＋MOTW自己解除
+- `defaults\` — 配布用の汎用データ（hotwords/effects/presets/boxes/banned）。
   個人用の単語帳やDLフォント指定を配布物に入れないため、パッケージ時はこちらが優先コピーされる
-- `README_TESTER.txt` / `マニュアル.html` — テスターへ同梱するドキュメント
+- `README_TESTER.txt` / `マニュアル.html` / `ブロック解除.bat` — テスターへ同梱
 
-同梱する4モデル（`%USERPROFILE%\.cache\huggingface\hub` から）:
+同梱版で使う4モデル（`%USERPROFILE%\.cache\huggingface\hub` から）:
 `reazonspeech-k2-v2`（ASR） / `bert-base-japanese-char-v3`（句読点の土台） /
 `bert_japanese_punctuation`（句読点の重み） / `fugumt-ja-en`（英訳）
 
 注意点:
-- torch同梱のためサイズは大きめ（モデル込みで約3.1GB）
+- torch同梱のためサイズは大きめ
 - 配布先PCには WebView2 ランタイムが必要（Windows 11 は標準搭載）
+- モデル同梱版を再配布する場合は FuguMT の CC BY-SA 遵守が必要（CREDITS.md 参照）
