@@ -279,8 +279,20 @@ class CaptionEngine:
                 en = self._translate(text) if self._translate else ""
             except Exception:
                 en = ""           # 翻訳失敗は無視（字幕本体は出続ける）
+                self._log_translate_error(text)
             if en:
                 self.on_translation(fid, en)
+
+    def _log_translate_error(self, text):
+        """英訳ワーカーで起きた例外を translate_error.log に残す（無言失敗の可視化）"""
+        try:
+            import traceback
+            with open(os.path.join(BASE, "translate_error.log"),
+                      "a", encoding="utf-8") as f:
+                f.write(f"--- 英訳失敗: {text!r}\n")
+                f.write(traceback.format_exc() + "\n")
+        except OSError:
+            pass
 
     def _stop_translate_worker(self):
         if self._tq is not None:
