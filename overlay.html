@@ -66,6 +66,8 @@
 
     for (const el of [finalsEl, partialEl])
       FX.applyLineStyle(el, style, size);
+    // 表示済みの英訳行にも新スタイルを即反映
+    for (const el of finalsEl.querySelectorAll(".en")) styleEn(el);
     partialEl.style.opacity = style.partialOpacity ?? 0.55;
     FX.applyBox(boxEl, scroller, box, clipEl);
     // リリックモードでは認識途中は既定で非表示（設定でON可）
@@ -102,6 +104,14 @@
                (box.smoothMs || 250) + 80);
   }
 
+  // 英訳行へプリセットの EN スタイル（サイズ/濃さ/色/フォント）を適用
+  function styleEn(el) {
+    el.style.fontSize = (style.enScale ?? 0.6) + "em";
+    el.style.opacity = style.enOpacity ?? 0.82;
+    el.style.color = style.enColor || "";        // 空 = 本文と同じ色
+    el.style.fontFamily = style.enFont || "";    // 空 = 本文と同じフォント
+  }
+
   // 確定行(fid)の下に英訳を差し込む。既に見切れて消えた行なら無視。
   function addTranslation(id, en) {
     if (!en || id == null) return;
@@ -113,8 +123,7 @@
       el.className = "en";
       line.appendChild(el);
     }
-    el.style.fontSize = (style.enScale ?? 0.6) + "em";
-    el.style.opacity = style.enOpacity ?? 0.82;
+    styleEn(el);
     el.textContent = en;
   }
 

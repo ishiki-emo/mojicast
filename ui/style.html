@@ -121,6 +121,11 @@
         <div class="fr"><label>途中表示の濃さ <output id="o_partial"></output></label><input type="range" id="f_partial" min="0.2" max="0.9" step="0.05"></div>
         <div class="fr chk"><input type="checkbox" id="f_partialFx"><span>途中表示（薄文字）にもエフェクトを乗せる</span></div>
         <div class="fr"><label>字間 <output id="o_spacing"></output></label><input type="range" id="f_spacing" min="0" max="0.15" step="0.01"></div>
+        <div class="fr"><label>英訳サイズ <output id="o_enScale"></output>（本文比）</label><input type="range" id="f_enScale" min="0.3" max="1" step="0.05"></div>
+        <div class="fr"><label>英訳の濃さ <output id="o_enOpacity"></output></label><input type="range" id="f_enOpacity" min="0.3" max="1" step="0.05"></div>
+        <div class="fr chk"><input type="checkbox" id="f_enColorOn"><span>英訳に専用色を使う（オフ=本文と同じ）</span></div>
+        <div class="fr"><label>英訳の色</label><input type="color" id="f_enColor"></div>
+        <div class="fr"><label>英訳フォント</label><select id="f_enFontSel"></select></div>
       </div>
       <div id="previewBox">
         <div class="ptag">PREVIEW ▶ クリックで再生</div>
@@ -228,6 +233,10 @@
       '<option value="">（直接指定を使う）</option>' +
       `<optgroup label="おすすめ">${rec}</optgroup>` +
       `<optgroup label="システムフォント (${sysFonts.length})">${sys}</optgroup>`;
+    $("f_enFontSel").innerHTML =
+      '<option value="">（本文と同じ）</option>' +
+      `<optgroup label="おすすめ">${rec}</optgroup>` +
+      `<optgroup label="システムフォント (${sysFonts.length})">${sys}</optgroup>`;
 
     const q = new URLSearchParams(location.search);
     const pi = presets.findIndex(p => p.id === q.get("preset"));
@@ -283,6 +292,11 @@
     setR("f_partial", "o_partial", p.partialOpacity ?? 0.55, v => v);
     $("f_partialFx").checked = !!p.partialFx;
     setR("f_spacing", "o_spacing", p.letterSpacing ?? 0, v => v + "em");
+    setR("f_enScale", "o_enScale", p.enScale ?? 0.6, v => "×" + v);
+    setR("f_enOpacity", "o_enOpacity", p.enOpacity ?? 0.82, v => v);
+    $("f_enColorOn").checked = !!p.enColor;
+    $("f_enColor").value = p.enColor || "#9fd8ff";
+    $("f_enFontSel").value = p.enFont || "";
     preview(true);
   }
 
@@ -305,6 +319,10 @@
     p.partialOpacity = +$("f_partial").value;
     p.partialFx = $("f_partialFx").checked;
     p.letterSpacing = +$("f_spacing").value;
+    p.enScale = +$("f_enScale").value;
+    p.enOpacity = +$("f_enOpacity").value;
+    p.enColor = $("f_enColorOn").checked ? $("f_enColor").value : "";
+    p.enFont = $("f_enFontSel").value;
     return p;
   }
 
@@ -320,6 +338,16 @@
     div.className = "line";
     FX.applyLineStyle(div, p, Math.round(p.size * scale));
     FX.renderWords(div, SAMPLE, table, p);
+    // 英訳の見え方プレビュー（overlay の addTranslation と同じ適用）
+    const en = document.createElement("div");
+    en.textContent = "Good evening everyone, thank you for watching!";
+    en.style.fontSize = (p.enScale ?? 0.6) + "em";
+    en.style.opacity = p.enOpacity ?? 0.82;
+    en.style.color = p.enColor || "";
+    en.style.fontFamily = p.enFont || "";
+    en.style.fontWeight = 600;
+    en.style.lineHeight = 1.25;
+    div.appendChild(en);
     if (replay) FX.applyEntrance(div, p.animIn);
     box.insertBefore(div, $("prevPartial"));
     if (replay) setTimeout(() => FX.burstLine(div), 150);
@@ -508,6 +536,7 @@
       f_weight: ["o_weight", v => v], f_size: ["o_size", v => v + "px"],
       f_outlineWidth: ["o_outlineWidth", v => v + "px"], f_glowSize: ["o_glowSize", v => v + "px"],
       f_partial: ["o_partial", v => v], f_spacing: ["o_spacing", v => v + "em"],
+      f_enScale: ["o_enScale", v => "×" + v], f_enOpacity: ["o_enOpacity", v => v],
     };
     for (const el of document.querySelectorAll("#form input, #form select")) {
       el.addEventListener("input", () => {
