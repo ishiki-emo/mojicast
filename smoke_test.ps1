@@ -82,10 +82,13 @@ if ($server) {
     try { Invoke-RestMethod "http://127.0.0.1:8765/api/engine" -Method Post -Body '{"action":"stop"}' -ContentType "application/json" -TimeoutSec 5 | Out-Null } catch {}
 }
 
-# --- 片付け ---
+# --- 片付け（実行中に seed されたデータファイルも除去＝配布物をコード資産のみに保つ）---
 Start-Sleep -Seconds 2
 Get-Process Mojicast,msedgewebview2 -EA SilentlyContinue | Stop-Process -Force
-Remove-Item "$app\config.json","$app\logs" -Recurse -Force -EA SilentlyContinue
+foreach ($f in @("config.json","logs","hotwords.txt","effects.json","presets.json",
+                 "boxes.json","banned.txt","glossary.txt","_hotwords_gen.txt","translate_error.log")) {
+    Remove-Item "$app\$f" -Recurse -Force -EA SilentlyContinue
+}
 
 Write-Host ""
 if ($fail.Count -eq 0) {
