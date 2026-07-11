@@ -13,17 +13,16 @@ if (-not (Test-Path (Join-Path $app "Mojicast.exe"))) {
     throw "先に PyInstaller ビルドを実行してください（$app が見つかりません）"
 }
 
-# --- アセット / 既定データファイルを app 直下へ（config.json は同梱しない＝初回に既定生成）---
-# defaults\ にあるファイルは汎用版を優先（個人用の単語帳等を配布物に入れない）
-$assets = @("overlay.html", "silero_vad.onnx",
-            "presets.json", "boxes.json", "effects.json", "hotwords.txt",
-            "banned.txt", "glossary.txt")
-foreach ($f in $assets) {
-    $generic = Join-Path $root "defaults\$f"
-    $src = if (Test-Path $generic) { $generic } else { Join-Path $root $f }
-    Copy-Item $src (Join-Path $app $f) -Force
-    Write-Host ("  asset : $f" + $(if ($src -eq $generic) { "  (汎用版)" }))
+# --- コード資産のみ app 直下へ。データファイル(hotwords等)はルートに置かず、
+#     defaults\ を同梱して初回起動時に seed_defaults が生成する。
+#     → 既存インストールへの上書きアップデートでユーザーデータが潰れない ---
+foreach ($f in @("overlay.html", "silero_vad.onnx")) {
+    Copy-Item (Join-Path $root $f) (Join-Path $app $f) -Force
+    Write-Host "  asset : $f"
 }
+Remove-Item (Join-Path $app "defaults") -Recurse -Force -EA SilentlyContinue
+Copy-Item (Join-Path $root "defaults") (Join-Path $app "defaults") -Recurse -Force
+Write-Host "  asset : defaults\  (初回起動時にデータファイルを生成)"
 Copy-Item (Join-Path $root "ui") (Join-Path $app "ui") -Recurse -Force
 Write-Host "  asset : ui\"
 
