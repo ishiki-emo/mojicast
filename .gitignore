@@ -28,6 +28,11 @@ models/
 /_hotwords_gen.txt
 /translate_error.log
 
+# ---- ベンチ成果物（変換済みモデル。スクリプトから再生成可能）----
+bench/fugumt_ct2_*/
+bench/*.onnx
+bench/*.data
+
 # ---- 文字起こしログ（実行時に生成される個人データ）----
 logs/
 
