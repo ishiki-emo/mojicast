@@ -66,6 +66,7 @@
     <button id="tabHot" class="active" onclick="showTab('hot')">🎤 ホットワード（認識）</button>
     <button id="tabFx" onclick="showTab('fx')">✨ エフェクト単語（表示）</button>
     <button id="tabBanned" onclick="showTab('banned')">🚫 禁止ワード（伏せ字）</button>
+    <button id="tabGloss" onclick="showTab('gloss')">🌐 英訳辞書（固有名詞）</button>
   </nav>
 
   <!-- ========== ホットワード ========== -->
@@ -123,6 +124,21 @@
              font-family:inherit;font-size:15px;line-height:1.6;resize:vertical"></textarea>
   </div>
 
+  <!-- ========== 英訳辞書 ========== -->
+  <div class="page" id="pageGloss">
+    <div class="note">
+      名前・チャンネル名などの固有名詞の<b>英訳を固定</b>します。
+      「字幕の表記」に画面に出る日本語（例: 星野ひかり）、「英訳」に固定したい訳
+      （例: Hikari Hoshino）を入れると、英訳のその部分が必ずこの表記になります。
+      変更は<b>次回開始時</b>に反映されます。
+    </div>
+    <table id="glossTable">
+      <thead><tr><th style="width:42%">字幕の表記（日本語）</th><th style="width:48%">英訳（固定したい表記）</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <button class="btn" style="margin-top:10px" onclick="addGlossRow()">＋ 行を追加</button>
+  </div>
+
   <footer>
     <button class="btn save" onclick="saveAll()">💾 保存</button>
     <span id="saved">保存しました ✓</span>
@@ -139,7 +155,7 @@
   function esc(s) { return String(s).replace(/"/g, "&quot;").replace(/</g, "&lt;"); }
 
   function showTab(t) {
-    for (const k of ["hot", "fx", "banned"]) {
+    for (const k of ["hot", "fx", "banned", "gloss"]) {
       $("tab" + k[0].toUpperCase() + k.slice(1)).className = t === k ? "active" : "";
       $("page" + k[0].toUpperCase() + k.slice(1)).className =
         "page" + (t === k ? " show" : "");
@@ -155,6 +171,16 @@
       <td><input class="h-score" value="${esc(e.score || "")}" placeholder="2.0"></td>
       <td><button class="del" onclick="this.closest('tr').remove()">✕</button></td>`;
     $("hotTable").querySelector("tbody").appendChild(tr);
+  }
+
+  // ---------- 英訳辞書 ----------
+  function addGlossRow(e = {}) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><input class="g-ja" value="${esc(e.ja || "")}" placeholder="星野ひかり"></td>
+      <td><input class="g-en" value="${esc(e.en || "")}" placeholder="Hikari Hoshino"></td>
+      <td><button class="del" onclick="this.closest('tr').remove()">✕</button></td>`;
+    $("glossTable").querySelector("tbody").appendChild(tr);
   }
 
   // ---------- エフェクト ----------
@@ -229,6 +255,10 @@
     const banned = await (await fetch("/api/banned")).json();
     $("bannedText").value = (banned.words || []).join("\n");
     $("maskChar").value = banned.mask_char || "○";
+
+    const gloss = await (await fetch("/api/glossary")).json();
+    for (const e of gloss.entries || []) addGlossRow(e);
+    if (!(gloss.entries || []).length) addGlossRow();
   }
 
   async function saveAll() {
@@ -245,9 +275,15 @@
       .map(s => s.trim()).filter(Boolean);
     const mask_char = $("maskChar").value.trim() || "○";
 
+    const gloss = [...$("glossTable").querySelectorAll("tbody tr")].map(tr => ({
+      ja: tr.querySelector(".g-ja").value.trim(),
+      en: tr.querySelector(".g-en").value.trim(),
+    })).filter(e => e.ja && e.en);
+
     await fetch("/api/hotwords", { method: "POST", body: JSON.stringify({ entries }) });
     await fetch("/api/effects", { method: "POST", body: JSON.stringify({ effects }) });
     await fetch("/api/banned", { method: "POST", body: JSON.stringify({ words, mask_char }) });
+    await fetch("/api/glossary", { method: "POST", body: JSON.stringify({ entries: gloss }) });
     const s = $("saved");
     s.style.opacity = 1;
     setTimeout(() => { s.style.opacity = 0; }, 1800);

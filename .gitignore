@@ -24,6 +24,7 @@ models/
 /presets.json
 /boxes.json
 /banned.txt
+/glossary.txt
 /_hotwords_gen.txt
 /translate_error.log
 

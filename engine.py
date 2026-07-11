@@ -26,6 +26,7 @@ SAMPLE_RATE = 16000
 WINDOW_SIZE = 512
 VAD_MODEL_PATH = os.path.join(BASE, "silero_vad.onnx")
 BANNED_PATH = os.path.join(BASE, "banned.txt")
+GLOSSARY_PATH = os.path.join(BASE, "glossary.txt")
 
 # 初回DLの進捗表示に使う、各モデルのおおよそのDLサイズ（MB）
 _MODEL_SIZES_MB = {
@@ -72,6 +73,7 @@ class CaptionEngine:
         self._fid = 0               # 確定行の通し番号（英訳の対応付け用）
         self._logf = None           # 文字起こしログのファイルハンドル（無効時 None）
         self._mask = None           # 禁止ワードの伏せ字化関数（無効時 None）
+        self._gloss = None          # 英訳辞書 [(表記, 英訳)]（無効時 None）
         self._load_warn = ""        # 直近ロードの非致命的警告（英訳/句読点の失敗）
         self._thread = None
         self._stop = threading.Event()
@@ -133,6 +135,30 @@ class CaptionEngine:
                     text = text.replace(w, ch * len(w))     # 文字数ぶん繰り返す
             return text
         return mask
+
+    # ---------------- 英訳辞書（グロッサリ） ----------------
+
+    def _build_glossary(self):
+        """glossary.txt（表記,英訳）を読み込む。翻訳前に日本語側で英訳語へ
+        置換すると、NMTはラテン文字の固有名詞をそのまま英文へ通すため、
+        固有名詞の訳を固定できる。無ければ None。"""
+        pairs = []
+        try:
+            with open(GLOSSARY_PATH, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#") or "," not in line:
+                        continue
+                    ja, en = line.split(",", 1)             # 英訳側の,も許容
+                    ja, en = ja.strip(), en.strip()
+                    if ja and en:
+                        pairs.append((ja, en))
+        except OSError:
+            return None
+        if not pairs:
+            return None
+        pairs.sort(key=lambda p: len(p[0]), reverse=True)   # 長い表記から置換
+        return pairs
 
     # ---------------- モデルロード ----------------
 
@@ -275,6 +301,11 @@ class CaptionEngine:
             if item is None:      # 停止サインで終了
                 break
             fid, text = item
+            # 英訳辞書: 翻訳前に日本語側で英訳語へ置換（固有名詞の訳を固定）
+            if self._gloss:
+                for ja, en_word in self._gloss:
+                    if ja in text:
+                        text = text.replace(ja, en_word)
             try:
                 en = self._translate(text) if self._translate else ""
             except Exception:
@@ -328,6 +359,7 @@ class CaptionEngine:
 
         self._open_log(cfg)             # 文字起こしログをこのセッション用に開く
         self._mask = self._build_masker(cfg)   # 禁止ワードの伏せ字化を用意
+        self._gloss = self._build_glossary()   # 英訳辞書（固有名詞の訳を固定）
 
         try:
             import sounddevice as sd

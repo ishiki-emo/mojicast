@@ -27,6 +27,7 @@ PRESETS_PATH = os.path.join(BASE, "presets.json")
 BOXES_PATH = os.path.join(BASE, "boxes.json")
 HOTWORDS_PATH = os.path.join(BASE, "hotwords.txt")
 BANNED_PATH = os.path.join(BASE, "banned.txt")
+GLOSSARY_PATH = os.path.join(BASE, "glossary.txt")
 
 DEFAULT_CONFIG = {
     "silence_ms": 300, "interval": 0.4, "max_utt": 12.0,
@@ -115,6 +116,35 @@ def save_banned(words):
         if w:
             lines.append(w)
     with open(BANNED_PATH, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+
+
+def load_glossary():
+    """glossary.txt → [{ja, en}]（#行・不正行は除外）"""
+    entries = []
+    try:
+        with open(GLOSSARY_PATH, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "," not in line:
+                    continue
+                ja, en = line.split(",", 1)
+                if ja.strip() and en.strip():
+                    entries.append({"ja": ja.strip(), "en": en.strip()})
+    except OSError:
+        pass
+    return entries
+
+
+def save_glossary(entries):
+    lines = ["# 英訳辞書: 字幕の表記,英訳  （#行はコメント）",
+             "# 例: 癒色えも,ISHIKI Emo  → 英訳時にこの語の訳が固定されます"]
+    for e in entries:
+        ja = (e.get("ja") or "").strip()
+        en = (e.get("en") or "").strip()
+        if ja and en:
+            lines.append(f"{ja},{en}")
+    with open(GLOSSARY_PATH, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
 
 
@@ -279,6 +309,8 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/banned":
             self._json({"words": load_banned(),
                         "mask_char": load_config().get("mask_char", "○")})
+        elif path == "/api/glossary":
+            self._json({"entries": load_glossary()})
         elif path == "/api/effects":
             self._json(_read_json(EFFECTS_PATH, {"effects": []}))
         elif path == "/api/presets":
@@ -330,6 +362,9 @@ class Handler(BaseHTTPRequestHandler):
             cfg = load_config()
             cfg["mask_char"] = (body.get("mask_char") or "○").strip() or "○"
             save_config(cfg)
+            self._json({"ok": True})
+        elif path == "/api/glossary":
+            save_glossary(body.get("entries", []))
             self._json({"ok": True})
         elif path == "/api/effects":
             _write_json(EFFECTS_PATH,
@@ -428,7 +463,7 @@ def seed_defaults():
     if not os.path.isdir(src):
         return
     for name in ("hotwords.txt", "effects.json", "presets.json", "boxes.json",
-                 "banned.txt"):
+                 "banned.txt", "glossary.txt"):
         dst = os.path.join(BASE, name)
         if not os.path.exists(dst):
             try:

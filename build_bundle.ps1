@@ -17,7 +17,7 @@ if (-not (Test-Path (Join-Path $app "Mojicast.exe"))) {
 # defaults\ にあるファイルは汎用版を優先（個人用の単語帳等を配布物に入れない）
 $assets = @("overlay.html", "silero_vad.onnx",
             "presets.json", "boxes.json", "effects.json", "hotwords.txt",
-            "banned.txt")
+            "banned.txt", "glossary.txt")
 foreach ($f in $assets) {
     $generic = Join-Path $root "defaults\$f"
     $src = if (Test-Path $generic) { $generic } else { Join-Path $root $f }
