@@ -45,6 +45,15 @@
   .btn.small { padding: 5px 10px; font-size: 12px; }
   .editor { display: flex; flex-direction: column; min-height: 0; }
   .form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; overflow-y: auto; padding-bottom: 8px; }
+  /* フォーム内のセクション見出し（2カラムを全幅でまたぐ） */
+  .fsec {
+    grid-column: 1 / -1; display: flex; align-items: baseline; gap: 8px;
+    margin-top: 14px; padding-bottom: 5px; border-bottom: 1px solid var(--line);
+    font-size: 11px; font-weight: 800; letter-spacing: .12em; color: var(--accent);
+  }
+  .fsec:first-child { margin-top: 0; }
+  .fsec small { font-weight: 400; letter-spacing: 0; color: var(--dim); }
+  .fsec.en { color: #ff7ac2; }
   .fr label { display: flex; justify-content: space-between; color: var(--dim); margin-bottom: 3px; }
   .fr label output { color: var(--accent); font-weight: 700; }
   input[type=text], select {
@@ -104,8 +113,11 @@
     <section class="panel editor">
       <h2>EDIT — <span id="editName"></span></h2>
       <div class="form" id="form">
+        <div class="fsec">📛 プリセット</div>
         <div class="fr"><label>プリセット名</label><input type="text" id="f_name"></div>
         <div class="fr"><label>説明</label><input type="text" id="f_desc"></div>
+
+        <div class="fsec">✏️ 本文（メイン字幕）</div>
         <div class="fr"><label>フォント</label><select id="f_fontSel"></select></div>
         <div class="fr"><label>フォント直接指定（CSS）</label><input type="text" id="f_font" placeholder="'Yu Gothic UI', sans-serif"></div>
         <div class="fr"><label>太さ <output id="o_weight"></output></label><input type="range" id="f_weight" min="400" max="900" step="100"></div>
@@ -118,19 +130,23 @@
         <div class="fr"><label>グロー強さ <output id="o_glowSize"></output>（0でなし）</label><input type="range" id="f_glowSize" min="0" max="30" step="2"></div>
         <div class="fr"><label>登場アニメ</label><select id="f_animIn"></select></div>
         <div class="fr chk"><input type="checkbox" id="f_shadow"><span>ドロップシャドウ</span></div>
-        <div class="fr"><label>途中表示の濃さ <output id="o_partial"></output></label><input type="range" id="f_partial" min="0.2" max="0.9" step="0.05"></div>
-        <div class="fr chk"><input type="checkbox" id="f_partialFx"><span>途中表示（薄文字）にもエフェクトを乗せる</span></div>
         <div class="fr"><label>字間 <output id="o_spacing"></output></label><input type="range" id="f_spacing" min="0" max="0.15" step="0.01"></div>
-        <div class="fr"><label>英訳サイズ <output id="o_enScale"></output>（本文比）</label><input type="range" id="f_enScale" min="0.3" max="1" step="0.05"></div>
-        <div class="fr"><label>英訳の濃さ <output id="o_enOpacity"></output></label><input type="range" id="f_enOpacity" min="0.3" max="1" step="0.05"></div>
-        <div class="fr chk"><input type="checkbox" id="f_enColorOn"><span>英訳に専用色を使う（オフ=本文と同じ）</span></div>
-        <div class="fr"><label>英訳の色</label><input type="color" id="f_enColor"></div>
-        <div class="fr"><label>英訳フォント</label><select id="f_enFontSel"></select></div>
-        <div class="fr chk"><input type="checkbox" id="f_enDeco"><span>英訳に専用の縁取り・グローを使う（オフ=本文と同じ）</span></div>
-        <div class="fr"><label>英訳アウトライン色</label><input type="color" id="f_enOutlineColor"></div>
-        <div class="fr"><label>英訳アウトライン太さ <output id="o_enOutlineWidth"></output></label><input type="range" id="f_enOutlineWidth" min="0" max="6" step="1"></div>
-        <div class="fr"><label>英訳グロー色</label><input type="color" id="f_enGlowColor"></div>
-        <div class="fr"><label>英訳グロー強さ <output id="o_enGlowSize"></output>（0でなし）</label><input type="range" id="f_enGlowSize" min="0" max="30" step="2"></div>
+
+        <div class="fsec">🌫 途中表示（薄文字）</div>
+        <div class="fr"><label>濃さ <output id="o_partial"></output></label><input type="range" id="f_partial" min="0.2" max="0.9" step="0.05"></div>
+        <div class="fr chk"><input type="checkbox" id="f_partialFx"><span>エフェクトを乗せる（オフ=プレーン表示）</span></div>
+
+        <div class="fsec en">🌐 英訳 <small>（コックピットで「英訳を表示」ONのとき）</small></div>
+        <div class="fr"><label>サイズ <output id="o_enScale"></output>（本文比）</label><input type="range" id="f_enScale" min="0.3" max="1" step="0.05"></div>
+        <div class="fr"><label>濃さ <output id="o_enOpacity"></output></label><input type="range" id="f_enOpacity" min="0.3" max="1" step="0.05"></div>
+        <div class="fr chk"><input type="checkbox" id="f_enColorOn"><span>専用色を使う（オフ=本文と同じ）</span></div>
+        <div class="fr"><label>色</label><input type="color" id="f_enColor"></div>
+        <div class="fr"><label>フォント</label><select id="f_enFontSel"></select></div>
+        <div class="fr chk"><input type="checkbox" id="f_enDeco"><span>専用の縁取り・グローを使う（オフ=本文と同じ）</span></div>
+        <div class="fr"><label>アウトライン色</label><input type="color" id="f_enOutlineColor"></div>
+        <div class="fr"><label>アウトライン太さ <output id="o_enOutlineWidth"></output></label><input type="range" id="f_enOutlineWidth" min="0" max="6" step="1"></div>
+        <div class="fr"><label>グロー色</label><input type="color" id="f_enGlowColor"></div>
+        <div class="fr"><label>グロー強さ <output id="o_enGlowSize"></output>（0でなし）</label><input type="range" id="f_enGlowSize" min="0" max="30" step="2"></div>
       </div>
       <div id="previewBox">
         <div class="ptag">PREVIEW ▶ クリックで再生</div>
