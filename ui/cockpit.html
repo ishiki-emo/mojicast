@@ -189,7 +189,7 @@
     </section>
   </main>
 
-  <footer>Mojicast — ReazonSpeech k2 + Silero VAD + BERT句読点 / ローカル完結・オフライン動作</footer>
+  <footer>Mojicast <span id="verTag"></span> — ReazonSpeech k2 + Silero VAD + BERT句読点 / ローカル完結・オフライン動作</footer>
 
 <script>
   const $ = (id) => document.getElementById(id);
@@ -238,6 +238,7 @@
 
   async function loadAll() {
     cfg = await api("/api/config");
+    if (cfg.version) $("verTag").textContent = "v" + cfg.version;
     $("silence").value = cfg.silence_ms; $("oSilence").textContent = cfg.silence_ms + "ms";
     $("interval").value = cfg.interval;  $("oInterval").textContent = cfg.interval + "s";
     $("maxUtt").value = cfg.max_utt;     $("oMax").textContent = cfg.max_utt + "s";

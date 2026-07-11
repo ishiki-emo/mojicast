@@ -18,6 +18,9 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from apppaths import BASE
+
+APP_VERSION = "0.2.0"
+
 CONFIG_PATH = os.path.join(BASE, "config.json")
 EFFECTS_PATH = os.path.join(BASE, "effects.json")
 PRESETS_PATH = os.path.join(BASE, "presets.json")
@@ -268,7 +271,9 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self._file(os.path.join(BASE, "ui", name))
         elif path == "/api/config":
-            self._json(load_config())
+            cfg = load_config()
+            cfg["version"] = APP_VERSION   # 表示用（保存はされない: POSTでは既知キーのみ更新）
+            self._json(cfg)
         elif path == "/api/hotwords":
             self._json({"entries": load_hotwords()})
         elif path == "/api/banned":
