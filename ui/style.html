@@ -208,7 +208,7 @@
       </div>
       <div id="stageWrap">
         <div id="stage">
-          <div class="ptag">LAYOUT PREVIEW（16:9）</div>
+          <div class="ptag">LAYOUT PREVIEW（16:9）<span id="stageStyleName" style="margin-left:10px;color:rgba(255,255,255,.55)"></span></div>
           <div id="stageBox"><div id="stageClip"><div id="stageScroll"></div></div></div>
         </div>
         <div class="stageBtns">
@@ -229,21 +229,23 @@
   let presets = [], boxes = [];
   let cur = 0, curBox = 0;
   let effects = [], hotwords = [], sysFonts = [];
+  let activePresetId = "";   // コックピットで使用中のプリセット（ボックスプレビューに使う）
 
   // ---------- 初期化 ----------
   async function init() {
     $("f_animIn").innerHTML =
       FX.LINE_ANIMS.map(([v, l]) => `<option value="${v}">${l}</option>`).join("");
 
-    const [pj, bj, ej, hj, fj] = await Promise.all([
+    const [pj, bj, ej, hj, fj, cj] = await Promise.all([
       fetch("/api/presets"), fetch("/api/boxes"), fetch("/api/effects"),
-      fetch("/api/hotwords"), fetch("/api/fonts"),
+      fetch("/api/hotwords"), fetch("/api/fonts"), fetch("/api/config"),
     ].map(p => p.then(r => r.json())));
     presets = pj.presets || [];
     boxes = bj.boxes || [];
     effects = ej.effects || [];
     hotwords = (hj.entries || []).map(e => e.surface);
     sysFonts = fj.fonts || [];
+    activePresetId = cj.preset || "";
 
     // フォント選択: おすすめ + システムフォント全部
     const rec = FX.FONTS.map(f =>
@@ -518,25 +520,38 @@
       $("stageClip"));
   }
 
-  // リリックプレビュー用のミニ文字スタイル
+  // ステージ用フォールバック（使用中プリセットが見つからない場合のみ）
   const STAGE_STYLE = {
-    font: "'Yu Gothic UI',sans-serif", weight: 800, size: 30,
+    font: "'Yu Gothic UI',sans-serif", weight: 800, size: 40,
     color: "#ffffff", outlineColor: "#000000", outlineWidth: 1,
     glow: "", glowSize: 0, shadow: false, hotColor: "#ffd400",
   };
 
+  // 現在使用中の文字スタイル（タブ1で編集中なら未保存の内容も反映される）
+  function stageStyle() {
+    return presets.find(p => p.id === activePresetId) || presets[0] || STAGE_STYLE;
+  }
+  // ステージは16:9ミニチュアなので文字サイズを縮小（読める下限つき）
+  function stageScale() {
+    return Math.max(0.15, ($("stage").clientWidth || 460) / 1280);
+  }
+
   function stageAdd() {
     const b = boxes[curBox];
+    const p = stageStyle();
+    const table = FX.buildTable(hotwords, effects, p);
+    $("stageStyleName").textContent = p.name ? `スタイル: ${p.name}` : "";
     if ((b.mode || "flow") === "lyric") {
       FX.lyricSpawn($("stageBox"), STAGE_LINES[stageN++ % STAGE_LINES.length],
-                    { style: STAGE_STYLE, table: [], box: b, fontScale: 0.5 });
+                    { style: p, table, box: b, fontScale: stageScale() });
       return;
     }
     const sc = $("stageScroll");
     FX.smoothAppend(sc, b, () => {
       const d = document.createElement("div");
       d.className = "line";
-      d.textContent = STAGE_LINES[stageN++ % STAGE_LINES.length];
+      FX.applyLineStyle(d, p, Math.max(11, Math.round((p.size || 40) * stageScale())));
+      FX.renderWords(d, STAGE_LINES[stageN++ % STAGE_LINES.length], table, p);
       sc.appendChild(d);
       while (sc.children.length > (b.maxLines || 30)) sc.removeChild(sc.firstChild);
     });
