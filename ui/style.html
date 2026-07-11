@@ -126,6 +126,11 @@
         <div class="fr chk"><input type="checkbox" id="f_enColorOn"><span>英訳に専用色を使う（オフ=本文と同じ）</span></div>
         <div class="fr"><label>英訳の色</label><input type="color" id="f_enColor"></div>
         <div class="fr"><label>英訳フォント</label><select id="f_enFontSel"></select></div>
+        <div class="fr chk"><input type="checkbox" id="f_enDeco"><span>英訳に専用の縁取り・グローを使う（オフ=本文と同じ）</span></div>
+        <div class="fr"><label>英訳アウトライン色</label><input type="color" id="f_enOutlineColor"></div>
+        <div class="fr"><label>英訳アウトライン太さ <output id="o_enOutlineWidth"></output></label><input type="range" id="f_enOutlineWidth" min="0" max="6" step="1"></div>
+        <div class="fr"><label>英訳グロー色</label><input type="color" id="f_enGlowColor"></div>
+        <div class="fr"><label>英訳グロー強さ <output id="o_enGlowSize"></output>（0でなし）</label><input type="range" id="f_enGlowSize" min="0" max="30" step="2"></div>
       </div>
       <div id="previewBox">
         <div class="ptag">PREVIEW ▶ クリックで再生</div>
@@ -297,6 +302,11 @@
     $("f_enColorOn").checked = !!p.enColor;
     $("f_enColor").value = p.enColor || "#9fd8ff";
     $("f_enFontSel").value = p.enFont || "";
+    $("f_enDeco").checked = !!p.enDeco;
+    $("f_enOutlineColor").value = p.enOutlineColor || "#000000";
+    setR("f_enOutlineWidth", "o_enOutlineWidth", p.enOutlineWidth ?? 2, v => v + "px");
+    $("f_enGlowColor").value = p.enGlowColor || "#00e5ff";
+    setR("f_enGlowSize", "o_enGlowSize", p.enGlowSize ?? 0, v => v + "px");
     preview(true);
   }
 
@@ -323,6 +333,11 @@
     p.enOpacity = +$("f_enOpacity").value;
     p.enColor = $("f_enColorOn").checked ? $("f_enColor").value : "";
     p.enFont = $("f_enFontSel").value;
+    p.enDeco = $("f_enDeco").checked;
+    p.enOutlineColor = $("f_enOutlineColor").value;
+    p.enOutlineWidth = +$("f_enOutlineWidth").value;
+    p.enGlowColor = $("f_enGlowColor").value;
+    p.enGlowSize = +$("f_enGlowSize").value;
     return p;
   }
 
@@ -338,7 +353,7 @@
     div.className = "line";
     FX.applyLineStyle(div, p, Math.round(p.size * scale));
     FX.renderWords(div, SAMPLE, table, p);
-    // 英訳の見え方プレビュー（overlay の addTranslation と同じ適用）
+    // 英訳の見え方プレビュー（overlay の styleEn と同じ適用）
     const en = document.createElement("div");
     en.textContent = "Good evening everyone, thank you for watching!";
     en.style.fontSize = (p.enScale ?? 0.6) + "em";
@@ -347,6 +362,15 @@
     en.style.fontFamily = p.enFont || "";
     en.style.fontWeight = 600;
     en.style.lineHeight = 1.25;
+    if (p.enDeco) {
+      en.style.textShadow = FX.buildTextShadow({
+        outlineWidth: p.enOutlineWidth ?? 2,
+        outlineColor: p.enOutlineColor || "#000000",
+        glow: (p.enGlowSize > 0 ? (p.enGlowColor || "#00e5ff") : ""),
+        glowSize: p.enGlowSize || 0,
+        shadow: p.shadow,
+      });
+    }
     div.appendChild(en);
     if (replay) FX.applyEntrance(div, p.animIn);
     box.insertBefore(div, $("prevPartial"));
@@ -537,6 +561,8 @@
       f_outlineWidth: ["o_outlineWidth", v => v + "px"], f_glowSize: ["o_glowSize", v => v + "px"],
       f_partial: ["o_partial", v => v], f_spacing: ["o_spacing", v => v + "em"],
       f_enScale: ["o_enScale", v => "×" + v], f_enOpacity: ["o_enOpacity", v => v],
+      f_enOutlineWidth: ["o_enOutlineWidth", v => v + "px"],
+      f_enGlowSize: ["o_enGlowSize", v => v + "px"],
     };
     for (const el of document.querySelectorAll("#form input, #form select")) {
       el.addEventListener("input", () => {

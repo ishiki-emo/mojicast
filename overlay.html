@@ -104,12 +104,23 @@
                (box.smoothMs || 250) + 80);
   }
 
-  // 英訳行へプリセットの EN スタイル（サイズ/濃さ/色/フォント）を適用
+  // 英訳行へプリセットの EN スタイル（サイズ/濃さ/色/フォント/縁取り/グロー）を適用
   function styleEn(el) {
     el.style.fontSize = (style.enScale ?? 0.6) + "em";
     el.style.opacity = style.enOpacity ?? 0.82;
     el.style.color = style.enColor || "";        // 空 = 本文と同じ色
     el.style.fontFamily = style.enFont || "";    // 空 = 本文と同じフォント
+    if (style.enDeco) {                          // 専用の縁取り・グロー
+      el.style.textShadow = FX.buildTextShadow({
+        outlineWidth: style.enOutlineWidth ?? 2,
+        outlineColor: style.enOutlineColor || "#000000",
+        glow: (style.enGlowSize > 0 ? (style.enGlowColor || "#00e5ff") : ""),
+        glowSize: style.enGlowSize || 0,
+        shadow: style.shadow,
+      });
+    } else {
+      el.style.textShadow = "";                  // 本文の縁取り・グローを継承
+    }
   }
 
   // 確定行(fid)の下に英訳を差し込む。既に見切れて消えた行なら無視。
