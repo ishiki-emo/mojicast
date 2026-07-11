@@ -83,11 +83,15 @@
       repeating-conic-gradient(#1a2030 0% 25%, #151b28 0% 50%) 0 0/40px 40px;
     overflow: hidden;
   }
+  /* 中身は本物の1920×1080で組み、scale()で縮小＝比率が本番と完全一致するミニチュア */
+  #stageInner {
+    position: absolute; top: 0; left: 0; width: 1920px; height: 1080px;
+    transform-origin: 0 0;
+  }
   #stageBox { position: absolute; }
   #stageClip { position: absolute; inset: 0; overflow: hidden; }
   #stageScroll { position: absolute; left: 0; right: 0; bottom: 0; }
-  #stage .line { font-size: 15px; font-weight: 800; color: #fff;
-    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; }
+  #stage .line { word-break: break-word; line-height: 1.35; }
   .stageBtns { display: flex; gap: 6px; margin-top: 6px; }
   footer { display: flex; gap: 10px; align-items: center; padding: 10px 14px; background: var(--panel); border-top: 1px solid var(--line); }
   #saved { color: var(--ok); font-size: 12px; opacity: 0; transition: opacity .3s; }
@@ -208,8 +212,10 @@
       </div>
       <div id="stageWrap">
         <div id="stage">
-          <div class="ptag">LAYOUT PREVIEW（16:9）<span id="stageStyleName" style="margin-left:10px;color:rgba(255,255,255,.55)"></span></div>
-          <div id="stageBox"><div id="stageClip"><div id="stageScroll"></div></div></div>
+          <div class="ptag">LAYOUT PREVIEW（1920×1080の縮小）<span id="stageStyleName" style="margin-left:10px;color:rgba(255,255,255,.55)"></span></div>
+          <div id="stageInner">
+            <div id="stageBox"><div id="stageClip"><div id="stageScroll"></div></div></div>
+          </div>
         </div>
         <div class="stageBtns">
           <button class="btn small" onclick="stageAdd()">＋ 行を追加（スクロール確認）</button>
@@ -511,13 +517,18 @@
   ];
   let stageN = 0;
 
+  // ステージ縮小率を実測して #stageInner に適用（1920×1080 → パネル幅）
+  function updateStageScale() {
+    const s = ($("stage").clientWidth || 460) / 1920;
+    $("stageInner").style.transform = `scale(${s})`;
+  }
+  new ResizeObserver(updateStageScale).observe(document.getElementById("stage"));
+
   function stageApply() {
     const b = boxes[curBox];
-    // ステージは16:9なのでpadding等のpx値は縮小して適用
-    FX.applyBox($("stageBox"), $("stageScroll"),
-      Object.assign({}, b, { padding: Math.max(4, Math.round((b.padding ?? 16) * 0.4)),
-                             fadePx: 18 }),
-      $("stageClip"));
+    // 中身は本物の1920×1080座標系なので、box定義をそのまま適用（縮小はscaleが担う）
+    FX.applyBox($("stageBox"), $("stageScroll"), b, $("stageClip"));
+    updateStageScale();
   }
 
   // ステージ用フォールバック（使用中プリセットが見つからない場合のみ）
@@ -531,10 +542,6 @@
   function stageStyle() {
     return presets.find(p => p.id === activePresetId) || presets[0] || STAGE_STYLE;
   }
-  // ステージは16:9ミニチュアなので文字サイズを縮小（読める下限つき）
-  function stageScale() {
-    return Math.max(0.15, ($("stage").clientWidth || 460) / 1280);
-  }
 
   function stageAdd() {
     const b = boxes[curBox];
@@ -542,15 +549,16 @@
     const table = FX.buildTable(hotwords, effects, p);
     $("stageStyleName").textContent = p.name ? `スタイル: ${p.name}` : "";
     if ((b.mode || "flow") === "lyric") {
+      // 実寸座標系なので fontScale=1（本番と同一の散らばり・サイズ）
       FX.lyricSpawn($("stageBox"), STAGE_LINES[stageN++ % STAGE_LINES.length],
-                    { style: p, table, box: b, fontScale: stageScale() });
+                    { style: p, table, box: b, fontScale: 1 });
       return;
     }
     const sc = $("stageScroll");
     FX.smoothAppend(sc, b, () => {
       const d = document.createElement("div");
       d.className = "line";
-      FX.applyLineStyle(d, p, Math.max(11, Math.round((p.size || 40) * stageScale())));
+      FX.applyLineStyle(d, p, p.size);   // 実寸（縮小はstageInnerのscaleが担う）
       FX.renderWords(d, STAGE_LINES[stageN++ % STAGE_LINES.length], table, p);
       sc.appendChild(d);
       while (sc.children.length > (b.maxLines || 30)) sc.removeChild(sc.firstChild);
