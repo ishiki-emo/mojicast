@@ -26,7 +26,7 @@ DEFAULT_CONFIG = {
     "silence_ms": 300, "interval": 0.4, "max_utt": 12.0,
     "device": None, "precision": "int8-fp32", "punctuate": True,
     "use_hotwords": True, "hotwords_score": 2.0, "translate": False,
-    "save_log": True, "mask_char": "○",
+    "save_log": True, "mask_char": "○", "num_arabic": True,
     "preset": "standard", "box": "none", "port": 8765,
     "word_profile": "",     # 使用中の単語プロファイル（"" = 共通のみ）
 }

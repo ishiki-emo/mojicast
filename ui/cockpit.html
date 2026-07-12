@@ -187,6 +187,7 @@
       </div>
       <div class="toggle"><span>句読点をつける</span><input type="checkbox" id="punct" checked></div>
       <div class="toggle"><span>単語登録を使う</span><input type="checkbox" id="useHot" checked></div>
+      <div class="toggle"><span>数字を算用数字に（三十五→35）</span><input type="checkbox" id="numArabic" checked></div>
       <div class="toggle"><span>英訳を表示（各行の下）</span><input type="checkbox" id="translate"></div>
       <div class="toggle"><span>文字起こしログを保存</span><input type="checkbox" id="saveLog" checked></div>
       <div class="toggle"><span>高精度モード(fp32)</span><input type="checkbox" id="fp32"></div>
@@ -289,6 +290,7 @@
 
   $("punct").addEventListener("change", e => { cfg.punctuate = e.target.checked; saveCfg(); });
   $("useHot").addEventListener("change", e => { cfg.use_hotwords = e.target.checked; saveCfg(); });
+  $("numArabic").addEventListener("change", e => { cfg.num_arabic = e.target.checked; saveCfg(); });
   $("translate").addEventListener("change", e => { cfg.translate = e.target.checked; saveCfg(); });
   $("saveLog").addEventListener("change", e => { cfg.save_log = e.target.checked; saveCfg(); });
   $("fp32").addEventListener("change", e => { cfg.precision = e.target.checked ? "fp32" : "int8-fp32"; saveCfg(); });
@@ -329,6 +331,7 @@
     $("score").value = cfg.hotwords_score; $("oScore").textContent = (+cfg.hotwords_score).toFixed(1);
     $("punct").checked = cfg.punctuate;
     $("useHot").checked = cfg.use_hotwords;
+    $("numArabic").checked = cfg.num_arabic !== false;
     $("translate").checked = !!cfg.translate;
     $("saveLog").checked = cfg.save_log !== false;
     $("fp32").checked = cfg.precision === "fp32";

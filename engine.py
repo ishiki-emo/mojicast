@@ -22,6 +22,7 @@ import numpy as np
 
 from apppaths import BASE
 import wordstore
+from numnorm import normalize_numbers
 
 SAMPLE_RATE = 16000
 WINDOW_SIZE = 512
@@ -392,6 +393,8 @@ class CaptionEngine:
                         if text:
                             if self._replacer is not None:
                                 text = self._replacer(text)
+                            if cfg.get("num_arabic", True):   # 三十五 → 35
+                                text = normalize_numbers(text)
                             if self._punct is not None and cfg.get("punctuate", True):
                                 text = self._punct(text)
                             if self._mask is not None:      # 禁止ワードを伏せ字化
@@ -415,6 +418,8 @@ class CaptionEngine:
                                 and len(cur) >= int(0.3 * SAMPLE_RATE)):
                             last_partial_len = len(cur)
                             p = self._recognize(cur)
+                            if cfg.get("num_arabic", True):
+                                p = normalize_numbers(p)
                             if self._mask is not None:      # 認識中(薄文字)も伏せ字化
                                 p = self._mask(p)
                             self.on_partial(p)
