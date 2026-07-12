@@ -69,7 +69,7 @@
   .row label { display: flex; justify-content: space-between; color: var(--dim); margin-bottom: 4px; }
   .row label output { color: var(--accent); font-weight: 700; }
   input[type=range] { width: 100%; accent-color: var(--accent); }
-  select, input[type=text] {
+  select, input[type=text], input[type=number] {
     width: 100%; background: var(--panel2); color: var(--text);
     border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-family: inherit;
   }
@@ -237,6 +237,14 @@
           <button onclick="copyUrl()">コピー</button>
         </div>
         <div class="hint">推奨サイズ: 配信解像度と同じ（例 1920×1080）</div>
+        <div class="obs" style="align-items:center">
+          <span style="color:var(--dim);font-size:12px;white-space:nowrap">ポート</span>
+          <input type="number" id="port" min="1024" max="65535" step="1"
+                 style="width:90px;flex:none">
+          <span class="hint" style="margin:0">他アプリと衝突する場合のみ変更</span>
+        </div>
+        <div class="hint" id="portHint" style="display:none;color:var(--warn)">
+          ⚠ 次回起動時に反映。OBSブラウザソースのURLも新しいポートに更新してください</div>
       </div>
     </section>
   </main>
@@ -290,6 +298,14 @@
   $("wordProfile").addEventListener("change", e => {
     cfg.word_profile = e.target.value; saveCfg();
   });
+  $("port").addEventListener("change", e => {
+    const v = Math.round(+e.target.value);
+    if (!(v >= 1024 && v <= 65535)) { e.target.value = cfg.port; return; }
+    e.target.value = v;
+    if (v === cfg.port) return;
+    cfg.port = v; saveCfg();
+    $("portHint").style.display = "block";
+  });
 
   // innerHTML への埋め込み用（要素内容・二重引用符の属性値の両方で安全）
   const escHtml = (s) => String(s).replace(/&/g, "&amp;")
@@ -317,6 +333,7 @@
     $("saveLog").checked = cfg.save_log !== false;
     $("fp32").checked = cfg.precision === "fp32";
     $("obsUrl").value = location.origin + "/";
+    $("port").value = cfg.port;
 
     const dv = await api("/api/devices");
     const sel = $("device");

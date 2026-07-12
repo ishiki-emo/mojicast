@@ -70,13 +70,27 @@ def _port_free(port: int) -> bool:
         return s.connect_ex(("127.0.0.1", port)) != 0
 
 
+def _fatal(msg: str):
+    """起動不能エラーの通知。windowed exe ではコンソールが無いので MessageBox で出す"""
+    try:
+        import ctypes
+        ctypes.windll.user32.MessageBoxW(0, msg, "Mojicast", 0x10)  # MB_ICONERROR
+    except Exception:
+        print(msg)
+    sys.exit(1)
+
+
 def main():
     cfg = app_server.load_config()
     port = cfg.get("port", 8765)
+    if not (isinstance(port, int) and 1024 <= port <= 65535):
+        port = 8765   # 設定が壊れていても起動は守る
     if not _port_free(port):
-        print(f"ポート {port} は使用中です。別のアプリ（または前回の起動）が"
-              "動いていないか確認してください。")
-        sys.exit(1)
+        _fatal(f"ポート {port} は使用中のため起動できません。\n\n"
+               "・Mojicast が既に起動していないか確認してください\n"
+               "　（タスクバーやタスクマネージャの Mojicast / msedgewebview2）\n"
+               "・別のアプリがこのポートを使っている場合は、コックピットの\n"
+               "　「OBS 連携 → ポート」で変更できます（設定ファイルは data\\config.json）")
 
     app_server.start(port)
 

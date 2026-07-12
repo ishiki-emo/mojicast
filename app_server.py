@@ -20,7 +20,7 @@ from urllib.parse import urlparse, parse_qs
 from apppaths import BASE
 import wordstore
 
-APP_VERSION = "0.2.0"
+APP_VERSION = "0.3.0"
 
 DEFAULT_CONFIG = {
     "silence_ms": 300, "interval": 0.4, "max_utt": 12.0,
@@ -369,6 +369,16 @@ class Handler(BaseHTTPRequestHandler):
                 if p is None:
                     return
                 body["word_profile"] = p
+            if "port" in body:
+                try:
+                    port = int(body["port"])
+                    if not (1024 <= port <= 65535):
+                        raise ValueError
+                    body["port"] = port
+                except (TypeError, ValueError):
+                    self._json({"ok": False,
+                                "error": "ポートは 1024〜65535 の数値で指定してください"}, 400)
+                    return
             cfg = load_config()
             cfg.update({k: v for k, v in body.items() if k in DEFAULT_CONFIG})
             save_config(cfg)
