@@ -13,21 +13,14 @@ Caption Studio のHTTP/SSEサーバ
 import os
 import json
 import queue
-import shutil
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import urlparse, parse_qs
 
 from apppaths import BASE
+import wordstore
 
 APP_VERSION = "0.2.0"
-
-CONFIG_PATH = os.path.join(BASE, "config.json")
-EFFECTS_PATH = os.path.join(BASE, "effects.json")
-PRESETS_PATH = os.path.join(BASE, "presets.json")
-BOXES_PATH = os.path.join(BASE, "boxes.json")
-HOTWORDS_PATH = os.path.join(BASE, "hotwords.txt")
-BANNED_PATH = os.path.join(BASE, "banned.txt")
-GLOSSARY_PATH = os.path.join(BASE, "glossary.txt")
 
 DEFAULT_CONFIG = {
     "silence_ms": 300, "interval": 0.4, "max_utt": 12.0,
@@ -35,6 +28,7 @@ DEFAULT_CONFIG = {
     "use_hotwords": True, "hotwords_score": 2.0, "translate": False,
     "save_log": True, "mask_char": "○",
     "preset": "standard", "box": "none", "port": 8765,
+    "word_profile": "",     # 使用中の単語プロファイル（"" = 共通のみ）
 }
 
 _clients = []
@@ -59,105 +53,38 @@ def _write_json(path, data):
 
 
 def load_config():
+    wordstore.ensure_data()
     cfg = dict(DEFAULT_CONFIG)
-    cfg.update(_read_json(CONFIG_PATH, {}))
+    cfg.update(_read_json(wordstore.data_path("config.json"), {}))
     return cfg
 
 
 def save_config(cfg):
-    _write_json(CONFIG_PATH, cfg)
+    _write_json(wordstore.data_path("config.json"), cfg)
 
 
-def load_hotwords():
-    """hotwords.txt → [{surface, reading, score}]"""
-    from vocab import parse_vocab
-    if not os.path.exists(HOTWORDS_PATH):
-        return []
-    return [{"surface": s, "reading": r, "score": sc or ""}
-            for s, r, sc in parse_vocab(HOTWORDS_PATH)]
+def _presets_path():
+    return wordstore.data_path("presets.json")
 
 
-def save_hotwords(entries):
-    lines = ["# 表記,読み,スコア  （読み・スコアは省略可 / #行はコメント）",
-             "# 漢字を含む語は「読み」を必ず書く（読みで認識を誘導し、表記へ置換する）"]
-    for e in entries:
-        surface = (e.get("surface") or "").strip()
-        if not surface:
-            continue
-        reading = (e.get("reading") or "").strip()
-        score = str(e.get("score") or "").strip()
-        line = surface
-        if reading and reading != surface:
-            line += f",{reading}"
-            if score:
-                line += f",{score}"
-        elif score:
-            line += f",{surface},{score}"
-        lines.append(line)
-    with open(HOTWORDS_PATH, "w", encoding="utf-8") as f:
-        f.write("\n".join(lines) + "\n")
-
-
-def load_banned():
-    """banned.txt → 禁止ワードのリスト（#行・空行は除外）"""
-    try:
-        with open(BANNED_PATH, encoding="utf-8") as f:
-            return [ln.strip() for ln in f
-                    if ln.strip() and not ln.lstrip().startswith("#")]
-    except OSError:
-        return []
-
-
-def save_banned(words):
-    lines = ["# 放送禁止ワードなどを1行に1語（#行はコメント）",
-             "# ここの語は認識中・確定・ログ・英訳のすべてで伏せ字になります"]
-    for w in words:
-        w = (w or "").strip()
-        if w:
-            lines.append(w)
-    with open(BANNED_PATH, "w", encoding="utf-8") as f:
-        f.write("\n".join(lines) + "\n")
-
-
-def load_glossary():
-    """glossary.txt → [{ja, en}]（#行・不正行は除外）"""
-    entries = []
-    try:
-        with open(GLOSSARY_PATH, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#") or "," not in line:
-                    continue
-                ja, en = line.split(",", 1)
-                if ja.strip() and en.strip():
-                    entries.append({"ja": ja.strip(), "en": en.strip()})
-    except OSError:
-        pass
-    return entries
-
-
-def save_glossary(entries):
-    lines = ["# 英訳辞書: 字幕の表記,英訳  （#行はコメント）",
-             "# 例: 癒色えも,ISHIKI Emo  → 英訳時にこの語の訳が固定されます"]
-    for e in entries:
-        ja = (e.get("ja") or "").strip()
-        en = (e.get("en") or "").strip()
-        if ja and en:
-            lines.append(f"{ja},{en}")
-    with open(GLOSSARY_PATH, "w", encoding="utf-8") as f:
-        f.write("\n".join(lines) + "\n")
+def _boxes_path():
+    return wordstore.data_path("boxes.json")
 
 
 def resolve_style(cfg):
-    """現在のプリセット＋ボックス＋エフェクト＋ハイライト単語をまとめて返す"""
-    presets = _read_json(PRESETS_PATH, {"presets": []})["presets"]
+    """現在のプリセット＋ボックス＋エフェクト＋ハイライト単語をまとめて返す
+
+    エフェクト・ハイライト単語は「共通＋使用中プロファイル」の合成。
+    """
+    presets = _read_json(_presets_path(), {"presets": []})["presets"]
     style = next((p for p in presets if p["id"] == cfg.get("preset")),
                  presets[0] if presets else {})
-    boxes = _read_json(BOXES_PATH, {"boxes": []})["boxes"]
+    boxes = _read_json(_boxes_path(), {"boxes": []})["boxes"]
     box = next((b for b in boxes if b["id"] == cfg.get("box")),
                boxes[0] if boxes else {})
-    effects = _read_json(EFFECTS_PATH, {"effects": []})["effects"]
-    hot_surfaces = [e["surface"] for e in load_hotwords()]
+    profile = cfg.get("word_profile", "")
+    effects = wordstore.merged_effects(profile)
+    hot_surfaces = [s for s, _r, _sc in wordstore.merged_hotwords(profile)]
     return {"style": style, "box": box, "effects": effects,
             "hotwords": hot_surfaces}
 
@@ -285,9 +212,24 @@ class Handler(BaseHTTPRequestHandler):
         n = int(self.headers.get("Content-Length", 0))
         return json.loads(self.rfile.read(n).decode("utf-8")) if n else {}
 
+    def _profile_arg(self, value):
+        """profile 指定を検証して返す（"" = 共通 / None = エラー応答済み）"""
+        p = value.strip() if isinstance(value, str) else ""
+        if not p:
+            return ""
+        if not wordstore.valid_profile_name(p):
+            self._json({"ok": False, "error": "invalid profile"}, 400)
+            return None
+        if not wordstore.profile_exists(p):
+            self._json({"ok": False, "error": "profile not found"}, 404)
+            return None
+        return p
+
     # --- GET ---
     def do_GET(self):
-        path = self.path.split("?")[0]
+        url = urlparse(self.path)
+        path = url.path
+        query = {k: v[0] for k, v in parse_qs(url.query).items()}
         if path in ("/", "/overlay"):
             self._file(os.path.join(BASE, "overlay.html"))
         elif path == "/events":
@@ -304,19 +246,34 @@ class Handler(BaseHTTPRequestHandler):
             cfg = load_config()
             cfg["version"] = APP_VERSION   # 表示用（保存はされない: POSTでは既知キーのみ更新）
             self._json(cfg)
+        elif path == "/api/profiles":
+            self._json({"profiles": wordstore.list_profiles(),
+                        "active": load_config().get("word_profile", "")})
         elif path == "/api/hotwords":
-            self._json({"entries": load_hotwords()})
+            p = self._profile_arg(query.get("profile"))
+            if p is None:
+                return
+            self._json({"entries": wordstore.load_hotwords(p)})
         elif path == "/api/banned":
-            self._json({"words": load_banned(),
+            p = self._profile_arg(query.get("profile"))
+            if p is None:
+                return
+            self._json({"words": wordstore.load_banned(p),
                         "mask_char": load_config().get("mask_char", "○")})
         elif path == "/api/glossary":
-            self._json({"entries": load_glossary()})
+            p = self._profile_arg(query.get("profile"))
+            if p is None:
+                return
+            self._json({"entries": wordstore.load_glossary(p)})
         elif path == "/api/effects":
-            self._json(_read_json(EFFECTS_PATH, {"effects": []}))
+            p = self._profile_arg(query.get("profile"))
+            if p is None:
+                return
+            self._json({"effects": wordstore.load_effects(p)})
         elif path == "/api/presets":
-            self._json(_read_json(PRESETS_PATH, {"presets": []}))
+            self._json(_read_json(_presets_path(), {"presets": []}))
         elif path == "/api/boxes":
-            self._json(_read_json(BOXES_PATH, {"boxes": []}))
+            self._json(_read_json(_boxes_path(), {"boxes": []}))
         elif path == "/api/fonts":
             try:
                 self._json({"fonts": list_system_fonts()})
@@ -343,32 +300,51 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/config":
+            if "word_profile" in body:
+                p = self._profile_arg(body.get("word_profile"))
+                if p is None:
+                    return
+                body["word_profile"] = p
             cfg = load_config()
             cfg.update({k: v for k, v in body.items() if k in DEFAULT_CONFIG})
             save_config(cfg)
-            # プリセット変更は表示側へ即反映
+            # プリセット・プロファイル変更は表示側へ即反映
             ev = {"type": "style"}
             ev.update(resolve_style(cfg))
             broadcast(ev)
             self._json({"ok": True, "config": cfg})
+        elif path == "/api/profiles":
+            self._post_profiles(body)
         elif path == "/api/hotwords":
-            save_hotwords(body.get("entries", []))
+            p = self._profile_arg(body.get("profile"))
+            if p is None:
+                return
+            wordstore.save_hotwords(body.get("entries", []), p)
             ev = {"type": "style"}
             ev.update(resolve_style(load_config()))
             broadcast(ev)
             self._json({"ok": True})
         elif path == "/api/banned":
-            save_banned(body.get("words", []))
-            cfg = load_config()
-            cfg["mask_char"] = (body.get("mask_char") or "○").strip() or "○"
-            save_config(cfg)
+            p = self._profile_arg(body.get("profile"))
+            if p is None:
+                return
+            wordstore.save_banned(body.get("words", []), p)
+            if "mask_char" in body:      # 伏せ字文字は全体設定（プロファイル外）
+                cfg = load_config()
+                cfg["mask_char"] = (body.get("mask_char") or "○").strip() or "○"
+                save_config(cfg)
             self._json({"ok": True})
         elif path == "/api/glossary":
-            save_glossary(body.get("entries", []))
+            p = self._profile_arg(body.get("profile"))
+            if p is None:
+                return
+            wordstore.save_glossary(body.get("entries", []), p)
             self._json({"ok": True})
         elif path == "/api/effects":
-            _write_json(EFFECTS_PATH,
-                        {"effects": body.get("effects", [])})
+            p = self._profile_arg(body.get("profile"))
+            if p is None:
+                return
+            wordstore.save_effects(body.get("effects", []), p)
             ev = {"type": "style"}
             ev.update(resolve_style(load_config()))
             broadcast(ev)
@@ -379,7 +355,7 @@ class Handler(BaseHTTPRequestHandler):
                     and all(p.get("id") and p.get("name") for p in presets)):
                 self._json({"ok": False, "error": "invalid presets"}, 400)
                 return
-            _write_json(PRESETS_PATH, {"presets": presets})
+            _write_json(_presets_path(), {"presets": presets})
             cfg = load_config()
             if not any(p["id"] == cfg.get("preset") for p in presets):
                 cfg["preset"] = presets[0]["id"]   # 使用中プリセットが消えたら先頭へ
@@ -394,7 +370,7 @@ class Handler(BaseHTTPRequestHandler):
                     and all(b.get("id") and b.get("name") for b in boxes)):
                 self._json({"ok": False, "error": "invalid boxes"}, 400)
                 return
-            _write_json(BOXES_PATH, {"boxes": boxes})
+            _write_json(_boxes_path(), {"boxes": boxes})
             cfg = load_config()
             if not any(b["id"] == cfg.get("box") for b in boxes):
                 cfg["box"] = boxes[0]["id"]
@@ -419,6 +395,37 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"ok": True})
         else:
             self._send_body(404, b"not found", "text/plain")
+
+    def _post_profiles(self, body):
+        """プロファイルの作成・削除（{action, name}）"""
+        action = body.get("action")
+        name = (body.get("name") or "").strip()
+        if action == "create":
+            if not wordstore.valid_profile_name(name):
+                self._json({"ok": False,
+                            "error": "使えない名前です（記号 \\ / : * ? \" < > | は不可・40文字まで）"}, 400)
+                return
+            if wordstore.profile_exists(name):
+                self._json({"ok": False, "error": "同名のプロファイルがあります"}, 400)
+                return
+            wordstore.create_profile(name)
+        elif action == "delete":
+            if not wordstore.profile_exists(name):
+                self._json({"ok": False, "error": "profile not found"}, 404)
+                return
+            wordstore.delete_profile(name)
+            cfg = load_config()
+            if cfg.get("word_profile") == name:   # 使用中を消したら共通のみへ
+                cfg["word_profile"] = ""
+                save_config(cfg)
+        else:
+            self._json({"ok": False, "error": "unknown action"}, 400)
+            return
+        # プロファイル一覧・合成結果の変化を全画面へ反映
+        ev = {"type": "style"}
+        ev.update(resolve_style(load_config()))
+        broadcast(ev)
+        self._json({"ok": True, "profiles": wordstore.list_profiles()})
 
     # --- SSE ---
     def _events(self):
@@ -452,28 +459,8 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.flush()
 
 
-def seed_defaults():
-    """データファイルが無ければ defaults/ から複製する。
-
-    個人用の単語帳等(hotwords.txt/effects.json/…)はgit管理外なので、
-    git clone 直後の新規環境でも既定データで起動できるようにする。
-    既存ファイルは上書きしない（利用者の編集を保持）。
-    """
-    src = os.path.join(BASE, "defaults")
-    if not os.path.isdir(src):
-        return
-    for name in ("hotwords.txt", "effects.json", "presets.json", "boxes.json",
-                 "banned.txt", "glossary.txt"):
-        dst = os.path.join(BASE, name)
-        if not os.path.exists(dst):
-            try:
-                shutil.copyfile(os.path.join(src, name), dst)
-            except OSError:
-                pass
-
-
 def start(port: int = 8765):
-    seed_defaults()
+    wordstore.ensure_data()   # data/ 作成・旧配置からの移行・既定データの複製
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server

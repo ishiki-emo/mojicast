@@ -17,7 +17,11 @@ models/
 # ---- 上流 ReazonSpeech（別途 pip install する。README参照）----
 /ReazonSpeech/
 
-# ---- 実行時に生成/個人化されるデータ（ルート直下のみ除外。defaults/ の雛形は追跡する）----
+# ---- 実行時に生成/個人化されるデータ（data/ に集約。defaults/ の雛形は追跡する）----
+/data/
+/translate_error.log
+
+# ---- 旧レイアウト（v0.2以前はルート直下）の残骸もコミットしない ----
 /config.json
 /hotwords.txt
 /effects.json
@@ -26,7 +30,6 @@ models/
 /banned.txt
 /glossary.txt
 /_hotwords_gen.txt
-/translate_error.log
 
 # ---- ベンチ成果物（変換済みモデル。スクリプトから再生成可能）----
 bench/fugumt_ct2_*/

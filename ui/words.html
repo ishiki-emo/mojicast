@@ -43,6 +43,19 @@
   .del { background: none; border: none; color: var(--dim); cursor: pointer; font-size: 16px; padding: 4px 8px; }
   .del:hover { color: var(--err); }
   footer { display: flex; gap: 10px; align-items: center; padding: 10px 14px; background: var(--panel); border-top: 1px solid var(--line); }
+  /* プロファイルバー */
+  [hidden] { display: none !important; }
+  .pbar {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    padding: 9px 14px; background: var(--panel2); border-bottom: 1px solid var(--line);
+    font-size: 12px; color: var(--dim);
+  }
+  .pbar select { width: auto; min-width: 170px; font-weight: 700; }
+  .pbar .btn { padding: 6px 12px; font-size: 12px; }
+  .pbar input { width: 160px; }
+  .pbHint { margin-left: auto; font-size: 11px; }
+  .pbErr { color: var(--err); font-size: 12px; }
+  #guardBar { background: rgba(255,184,77,.08); border-bottom: 1px solid var(--warn, #ffb84d); color: var(--text); }
   .btn {
     background: var(--panel2); color: var(--text); border: 1px solid var(--line);
     border-radius: 8px; padding: 9px 18px; cursor: pointer; font-family: inherit; font-weight: 700;
@@ -62,6 +75,34 @@
 <script src="/ui/fx.js"></script>
 </head>
 <body>
+  <!-- ========== プロファイルバー ========== -->
+  <div class="pbar">
+    <span>編集する単語セット:</span>
+    <select id="profileSel" onchange="onProfileSelect(this.value)"></select>
+    <button class="btn" onclick="showNewProfile()">＋ 新規プロファイル</button>
+    <button class="btn" id="btnDelProf" onclick="askDeleteProfile()">🗑 削除</button>
+    <span id="delConfirm" hidden>
+      本当に削除？
+      <button class="btn" onclick="doDeleteProfile()">はい</button>
+      <button class="btn" onclick="$('delConfirm').hidden = true">いいえ</button>
+    </span>
+    <span class="pbHint">プロファイルは「共通」に<b>加算</b>して使われます（同じ単語はプロファイル優先）</span>
+  </div>
+  <div class="pbar" id="newProfBar" hidden>
+    <span>プロファイル名:</span>
+    <input id="newProfName" maxlength="40" placeholder="例: ゲーム実況"
+           onkeydown="if(event.key==='Enter')doCreateProfile()">
+    <button class="btn" onclick="doCreateProfile()">作成</button>
+    <button class="btn" onclick="$('newProfBar').hidden = true">キャンセル</button>
+    <span class="pbErr" id="newProfErr"></span>
+  </div>
+  <div class="pbar" id="guardBar" hidden>
+    <span>⚠ 未保存の変更があります。切り替える前にどうしますか？</span>
+    <button class="btn" onclick="guardSave()">💾 保存して切替</button>
+    <button class="btn" onclick="guardDiscard()">破棄して切替</button>
+    <button class="btn" onclick="guardCancel()">キャンセル</button>
+  </div>
+
   <nav>
     <button id="tabHot" class="active" onclick="showTab('hot')">🎤 ホットワード（認識）</button>
     <button id="tabFx" onclick="showTab('fx')">✨ エフェクト単語（表示）</button>
@@ -239,29 +280,119 @@
       FX.spawnParticles(prev, fx.particle, fx.color);
   }
 
+  // ---------- プロファイル ----------
+  let curProfile = "";      // 編集中のスコープ（"" = 共通）
+  let dirty = false;        // 未保存の編集があるか
+  let pendingSwitch = null; // 切替待ちのプロファイル名
+
+  async function loadProfiles(select) {
+    const d = await (await fetch("/api/profiles")).json();
+    const sel = $("profileSel");
+    const names = d.profiles || [];
+    sel.innerHTML = '<option value="">共通（すべての配信）</option>' +
+      names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join("");
+    if (select !== undefined && (select === "" || names.includes(select)))
+      curProfile = select;
+    else if (!names.includes(curProfile)) curProfile = "";
+    sel.value = curProfile;
+    $("btnDelProf").disabled = !curProfile;
+  }
+
+  function onProfileSelect(v) {
+    if (v === curProfile) return;
+    if (dirty) {
+      pendingSwitch = v;
+      $("profileSel").value = curProfile;   // 表示は戻して確認を出す
+      $("guardBar").hidden = false;
+      return;
+    }
+    switchTo(v);
+  }
+
+  async function switchTo(v) {
+    curProfile = v;
+    $("profileSel").value = v;
+    $("btnDelProf").disabled = !v;
+    $("delConfirm").hidden = true;
+    $("guardBar").hidden = true;
+    await reloadData();
+  }
+
+  async function guardSave()    { $("guardBar").hidden = true; await saveAll(); await switchTo(pendingSwitch); }
+  async function guardDiscard() { $("guardBar").hidden = true; await switchTo(pendingSwitch); }
+  function guardCancel()        { pendingSwitch = null; $("guardBar").hidden = true; }
+
+  function showNewProfile() {
+    $("newProfErr").textContent = "";
+    $("newProfName").value = "";
+    $("newProfBar").hidden = false;
+    $("newProfName").focus();
+  }
+
+  async function doCreateProfile() {
+    const name = $("newProfName").value.trim();
+    const r = await (await fetch("/api/profiles", {
+      method: "POST", body: JSON.stringify({ action: "create", name }) })).json();
+    if (!r.ok) { $("newProfErr").textContent = r.error || "作成できません"; return; }
+    $("newProfBar").hidden = true;
+    await loadProfiles(curProfile);
+    onProfileSelect(name);               // 未保存編集があれば確認を挟んで切替
+  }
+
+  function askDeleteProfile() {
+    if (curProfile) $("delConfirm").hidden = false;
+  }
+
+  async function doDeleteProfile() {
+    await fetch("/api/profiles", {
+      method: "POST",
+      body: JSON.stringify({ action: "delete", name: curProfile }) });
+    dirty = false;                       // 消した対象の編集は破棄
+    await loadProfiles("");
+    await switchTo("");
+  }
+
   // ---------- 読み書き ----------
+  function clearTables() {
+    for (const id of ["hotTable", "fxTable", "glossTable"])
+      $(id).querySelector("tbody").innerHTML = "";
+    $("bannedText").value = "";
+  }
+
+  async function reloadData() {
+    clearTables();
+    const q = "?profile=" + encodeURIComponent(curProfile);
+    const hot = await (await fetch("/api/hotwords" + q)).json();
+    for (const e of hot.entries || []) addHotRow(e);
+    if (!(hot.entries || []).length) addHotRow();
+
+    const fx = await (await fetch("/api/effects" + q)).json();
+    for (const e of fx.effects || []) addFxRow(e);
+    if (!(fx.effects || []).length) addFxRow();
+
+    const banned = await (await fetch("/api/banned" + q)).json();
+    $("bannedText").value = (banned.words || []).join("\n");
+    $("maskChar").value = banned.mask_char || "○";
+
+    const gloss = await (await fetch("/api/glossary" + q)).json();
+    for (const e of gloss.entries || []) addGlossRow(e);
+    if (!(gloss.entries || []).length) addGlossRow();
+    dirty = false;
+  }
+
   async function loadAll() {
     try {
       sysFonts = (await (await fetch("/api/fonts")).json()).fonts || [];
     } catch (e) { sysFonts = []; }
-    const hot = await (await fetch("/api/hotwords")).json();
-    for (const e of hot.entries || []) addHotRow(e);
-    if (!(hot.entries || []).length) addHotRow();
-
-    const fx = await (await fetch("/api/effects")).json();
-    for (const e of fx.effects || []) addFxRow(e);
-    if (!(fx.effects || []).length) addFxRow();
-
-    const banned = await (await fetch("/api/banned")).json();
-    $("bannedText").value = (banned.words || []).join("\n");
-    $("maskChar").value = banned.mask_char || "○";
-
-    const gloss = await (await fetch("/api/glossary")).json();
-    for (const e of gloss.entries || []) addGlossRow(e);
-    if (!(gloss.entries || []).length) addGlossRow();
+    // 初期スコープはコックピットで使用中のプロファイル
+    const d = await (await fetch("/api/profiles")).json();
+    curProfile = (d.profiles || []).includes(d.active) ? d.active : "";
+    await loadProfiles(curProfile);
+    await reloadData();
   }
 
   async function saveAll() {
+    const profile = curProfile;
     const entries = [...$("hotTable").querySelectorAll("tbody tr")].map(tr => ({
       surface: tr.querySelector(".h-surface").value.trim(),
       reading: tr.querySelector(".h-reading").value.trim(),
@@ -280,13 +411,22 @@
       en: tr.querySelector(".g-en").value.trim(),
     })).filter(e => e.ja && e.en);
 
-    await fetch("/api/hotwords", { method: "POST", body: JSON.stringify({ entries }) });
-    await fetch("/api/effects", { method: "POST", body: JSON.stringify({ effects }) });
-    await fetch("/api/banned", { method: "POST", body: JSON.stringify({ words, mask_char }) });
-    await fetch("/api/glossary", { method: "POST", body: JSON.stringify({ entries: gloss }) });
+    await fetch("/api/hotwords", { method: "POST", body: JSON.stringify({ entries, profile }) });
+    await fetch("/api/effects", { method: "POST", body: JSON.stringify({ effects, profile }) });
+    await fetch("/api/banned", { method: "POST", body: JSON.stringify({ words, mask_char, profile }) });
+    await fetch("/api/glossary", { method: "POST", body: JSON.stringify({ entries: gloss, profile }) });
+    dirty = false;
     const s = $("saved");
     s.style.opacity = 1;
     setTimeout(() => { s.style.opacity = 0; }, 1800);
+  }
+
+  // 未保存の編集を検知（入力・行削除）
+  for (const page of document.querySelectorAll(".page")) {
+    page.addEventListener("input", () => { dirty = true; });
+    page.addEventListener("click", (e) => {
+      if (e.target.classList.contains("del")) dirty = true;
+    });
   }
 
   loadAll();

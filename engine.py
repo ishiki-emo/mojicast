@@ -21,12 +21,11 @@ from datetime import datetime
 import numpy as np
 
 from apppaths import BASE
+import wordstore
 
 SAMPLE_RATE = 16000
 WINDOW_SIZE = 512
 VAD_MODEL_PATH = os.path.join(BASE, "silero_vad.onnx")
-BANNED_PATH = os.path.join(BASE, "banned.txt")
-GLOSSARY_PATH = os.path.join(BASE, "glossary.txt")
 
 # 初回DLの進捗表示に使う、各モデルのおおよそのDLサイズ（MB）
 _MODEL_SIZES_MB = {
@@ -117,13 +116,8 @@ class CaptionEngine:
     # ---------------- 禁止ワードの伏せ字化 ----------------
 
     def _build_masker(self, cfg):
-        """banned.txt の語を伏せ字化する関数を返す（語が無ければ None）"""
-        try:
-            with open(BANNED_PATH, encoding="utf-8") as f:
-                words = [ln.strip() for ln in f
-                         if ln.strip() and not ln.lstrip().startswith("#")]
-        except OSError:
-            words = []
+        """禁止ワード（共通＋プロファイル合成）を伏せ字化する関数を返す（語が無ければ None）"""
+        words = wordstore.merged_banned(cfg.get("word_profile", ""))
         words = sorted(set(words), key=len, reverse=True)  # 長い語から置換
         if not words:
             return None
@@ -138,23 +132,11 @@ class CaptionEngine:
 
     # ---------------- 英訳辞書（グロッサリ） ----------------
 
-    def _build_glossary(self):
-        """glossary.txt（表記,英訳）を読み込む。翻訳前に日本語側で英訳語へ
+    def _build_glossary(self, cfg):
+        """英訳辞書（共通＋プロファイル合成）を読み込む。翻訳前に日本語側で英訳語へ
         置換すると、NMTはラテン文字の固有名詞をそのまま英文へ通すため、
         固有名詞の訳を固定できる。無ければ None。"""
-        pairs = []
-        try:
-            with open(GLOSSARY_PATH, encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line or line.startswith("#") or "," not in line:
-                        continue
-                    ja, en = line.split(",", 1)             # 英訳側の,も許容
-                    ja, en = ja.strip(), en.strip()
-                    if ja and en:
-                        pairs.append((ja, en))
-        except OSError:
-            return None
+        pairs = wordstore.merged_glossary(cfg.get("word_profile", ""))
         if not pairs:
             return None
         pairs.sort(key=lambda p: len(p[0]), reverse=True)   # 長い表記から置換
@@ -189,9 +171,10 @@ class CaptionEngine:
     def _load(self, cfg):
         """設定に応じてモデル群をロード（変更が無ければ再利用）"""
         self._load_warn = ""    # このロードでの非致命的な警告（英訳/句読点の失敗など）
-        hw_file = os.path.join(BASE, "hotwords.txt") if cfg.get("use_hotwords", True) else ""
-        hw_mtime = os.path.getmtime(hw_file) if hw_file and os.path.exists(hw_file) else 0
-        sig = (cfg.get("precision", "int8-fp32"), hw_file, hw_mtime,
+        # ホットワードは共通＋使用中プロファイルの合成（内容が変わればASRを再ロード）
+        hw_entries = (wordstore.merged_hotwords(cfg.get("word_profile", ""))
+                      if cfg.get("use_hotwords", True) else [])
+        sig = (cfg.get("precision", "int8-fp32"), tuple(hw_entries),
                cfg.get("hotwords_score", 2.0))
 
         # 各モデルの「ロードが要るか」を個別判定（ASRの再利用判定に引きずられない）。
@@ -219,14 +202,12 @@ class CaptionEngine:
                 from asr_model import load_model
                 hw_path = ""
                 self._replacer = None
-                if hw_file and os.path.exists(hw_file):
-                    from vocab import parse_vocab, write_hotwords, build_replacer
-                    entries = parse_vocab(hw_file)
-                    if entries:
-                        # 固定パスに書き出す（mkstempだと毎回%TEMP%に溜まるため）
-                        hw_path = write_hotwords(
-                            entries, os.path.join(BASE, "_hotwords_gen.txt"))
-                        self._replacer = build_replacer(entries)
+                if hw_entries:
+                    from vocab import write_hotwords, build_replacer
+                    # 固定パスに書き出す（mkstempだと毎回%TEMP%に溜まるため）
+                    hw_path = write_hotwords(
+                        hw_entries, wordstore.data_path("_hotwords_gen.txt"))
+                    self._replacer = build_replacer(hw_entries)
                 self._model = load_model(
                     device="cpu", hotwords_file=hw_path,
                     hotwords_score=cfg.get("hotwords_score", 2.0),
@@ -359,7 +340,7 @@ class CaptionEngine:
 
         self._open_log(cfg)             # 文字起こしログをこのセッション用に開く
         self._mask = self._build_masker(cfg)   # 禁止ワードの伏せ字化を用意
-        self._gloss = self._build_glossary()   # 英訳辞書（固有名詞の訳を固定）
+        self._gloss = self._build_glossary(cfg)   # 英訳辞書（固有名詞の訳を固定）
 
         try:
             import sounddevice as sd

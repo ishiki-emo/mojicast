@@ -102,8 +102,9 @@ pyinstaller --noconfirm Mojicast.spec
 | `defaults/` | 既定データ（初回に個人環境へ複製される種） |
 | `packaging`（`*.spec` / `build_bundle.ps1`） | 配布ビルド |
 
-`config.json` / `hotwords.txt` / `effects.json` などの実行時データは各自の環境で
-生成・編集されるもので、リポジトリには含まれません（初回起動時に `defaults/` から複製）。
+設定・単語帳などの実行時データは `data/` フォルダに集約され、各自の環境で
+生成・編集されるもので、リポジトリには含まれません（初回起動時に `defaults/` から複製。
+旧バージョンでルート直下にあったデータは初回起動時に `data/` へ自動移行）。
 
 ## ライセンス
 

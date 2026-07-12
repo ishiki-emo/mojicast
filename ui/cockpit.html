@@ -180,6 +180,11 @@
         <label>単語ブースト <output id="oScore">2.0</output></label>
         <input type="range" id="score" min="1.0" max="4.0" step="0.5" value="2.0">
       </div>
+      <div class="row">
+        <label>単語プロファイル</label>
+        <select id="wordProfile"></select>
+        <div class="hint">「共通」に加算した単語セット。作成は単語スタジオから</div>
+      </div>
       <div class="toggle"><span>句読点をつける</span><input type="checkbox" id="punct" checked></div>
       <div class="toggle"><span>単語登録を使う</span><input type="checkbox" id="useHot" checked></div>
       <div class="toggle"><span>英訳を表示（各行の下）</span><input type="checkbox" id="translate"></div>
@@ -282,6 +287,20 @@
   $("device").addEventListener("change", e => {
     cfg.device = e.target.value === "default" ? null : +e.target.value; saveCfg();
   });
+  $("wordProfile").addEventListener("change", e => {
+    cfg.word_profile = e.target.value; saveCfg();
+  });
+
+  const escHtml = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+
+  async function loadWordProfiles() {
+    const d = await api("/api/profiles");
+    const names = d.profiles || [];
+    const sel = $("wordProfile");
+    sel.innerHTML = '<option value="">共通のみ</option>' +
+      names.map(n => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join("");
+    sel.value = names.includes(cfg.word_profile) ? cfg.word_profile : "";
+  }
 
   async function loadAll() {
     cfg = await api("/api/config");
@@ -306,6 +325,8 @@
       sel.appendChild(o);
     }
     if (cfg.device !== null && cfg.device !== undefined) sel.value = cfg.device;
+
+    await loadWordProfiles();
 
     presets = (await api("/api/presets")).presets || [];
     boxes = (await api("/api/boxes")).boxes || [];
@@ -337,8 +358,9 @@
     }
   }
 
-  async function refreshPresets() {   // スタイルスタジオでの保存を反映
+  async function refreshPresets() {   // スタイル/単語スタジオでの保存を反映
     cfg = await api("/api/config");
+    await loadWordProfiles();
     presets = (await api("/api/presets")).presets || [];
     boxes = (await api("/api/boxes")).boxes || [];
     renderPresets();
