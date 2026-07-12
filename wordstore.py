@@ -102,10 +102,22 @@ def profile_exists(name) -> bool:
             and os.path.isdir(os.path.join(PROFILES_DIR, name)))
 
 
-def create_profile(name):
+def create_profile(name, copy_from=""):
+    """プロファイルを作成する。copy_from に既存プロファイル名を渡すと
+    その単語ファイル一式を複製したテンプレート開始になる（空 = ゼロから）。"""
     if not valid_profile_name(name):
         raise ValueError("使えない名前です（記号 \\ / : * ? \" < > | は不可）")
-    os.makedirs(os.path.join(PROFILES_DIR, name), exist_ok=True)
+    d = os.path.join(PROFILES_DIR, name)
+    os.makedirs(d, exist_ok=True)
+    if copy_from and profile_exists(copy_from):
+        src = os.path.join(PROFILES_DIR, copy_from)
+        for f in WORD_FILES:
+            p = os.path.join(src, f)
+            if os.path.exists(p):
+                try:
+                    shutil.copyfile(p, os.path.join(d, f))
+                except OSError:
+                    pass
 
 
 def delete_profile(name):

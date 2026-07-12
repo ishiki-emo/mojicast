@@ -408,7 +408,11 @@ class Handler(BaseHTTPRequestHandler):
             if wordstore.profile_exists(name):
                 self._json({"ok": False, "error": "同名のプロファイルがあります"}, 400)
                 return
-            wordstore.create_profile(name)
+            copy_from = (body.get("copy_from") or "").strip()
+            if copy_from and not wordstore.profile_exists(copy_from):
+                self._json({"ok": False, "error": "コピー元が見つかりません"}, 404)
+                return
+            wordstore.create_profile(name, copy_from)
         elif action == "delete":
             if not wordstore.profile_exists(name):
                 self._json({"ok": False, "error": "profile not found"}, 404)

@@ -92,6 +92,8 @@
     <span>プロファイル名:</span>
     <input id="newProfName" maxlength="40" placeholder="例: ゲーム実況"
            onkeydown="if(event.key==='Enter')doCreateProfile()">
+    <span>開始内容:</span>
+    <select id="newProfCopy"></select>
     <button class="btn" onclick="doCreateProfile()">作成</button>
     <button class="btn" onclick="$('newProfBar').hidden = true">キャンセル</button>
     <span class="pbErr" id="newProfErr"></span>
@@ -284,11 +286,13 @@
   let curProfile = "";      // 編集中のスコープ（"" = 共通）
   let dirty = false;        // 未保存の編集があるか
   let pendingSwitch = null; // 切替待ちのプロファイル名
+  let profileNames = [];    // 既存プロファイル名（コピー元の選択肢用）
 
   async function loadProfiles(select) {
     const d = await (await fetch("/api/profiles")).json();
     const sel = $("profileSel");
     const names = d.profiles || [];
+    profileNames = names;
     sel.innerHTML = '<option value="">共通（すべての配信）</option>' +
       names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join("");
     if (select !== undefined && (select === "" || names.includes(select)))
@@ -325,14 +329,21 @@
   function showNewProfile() {
     $("newProfErr").textContent = "";
     $("newProfName").value = "";
+    // コピー元の選択肢（ゼロから / 既存プロファイル）。既定は編集中のプロファイル
+    $("newProfCopy").innerHTML = '<option value="">ゼロから（空）</option>' +
+      profileNames.map(n =>
+        `<option value="${esc(n)}">「${esc(n)}」をコピー</option>`).join("");
+    $("newProfCopy").value = curProfile || "";
     $("newProfBar").hidden = false;
     $("newProfName").focus();
   }
 
   async function doCreateProfile() {
     const name = $("newProfName").value.trim();
+    const copy_from = $("newProfCopy").value;
     const r = await (await fetch("/api/profiles", {
-      method: "POST", body: JSON.stringify({ action: "create", name }) })).json();
+      method: "POST",
+      body: JSON.stringify({ action: "create", name, copy_from }) })).json();
     if (!r.ok) { $("newProfErr").textContent = r.error || "作成できません"; return; }
     $("newProfBar").hidden = true;
     await loadProfiles(curProfile);
