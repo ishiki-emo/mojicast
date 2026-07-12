@@ -95,6 +95,15 @@
   .stageBtns { display: flex; gap: 6px; margin-top: 6px; }
   footer { display: flex; gap: 10px; align-items: center; padding: 10px 14px; background: var(--panel); border-top: 1px solid var(--line); }
   #saved { color: var(--ok); font-size: 12px; opacity: 0; transition: opacity .3s; }
+  [hidden] { display: none !important; }
+  .expbar {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    padding: 9px 14px; background: var(--panel2); border-top: 1px solid var(--line);
+    font-size: 12px; color: var(--dim);
+  }
+  #ioMsg { font-size: 12px; }
+  #ioMsg.ok { color: var(--ok); }
+  #ioMsg.err { color: var(--err); }
 </style>
 <script src="/ui/fx.js"></script>
 </head>
@@ -225,9 +234,23 @@
     </section>
   </div>
 
+  <div class="expbar" id="expBar" hidden>
+    <span>エクスポートする内容:</span>
+    <button class="btn small" onclick="doExport('preset')" id="expCurPreset"></button>
+    <button class="btn small" onclick="doExport('box')" id="expCurBox"></button>
+    <button class="btn small" onclick="doExport('all')">すべて（スタイル＋ボックス全部）</button>
+    <button class="btn small" id="expOpen" hidden onclick="openExportDir()">📂 保存先フォルダを開く</button>
+  </div>
+
   <footer>
     <button class="btn save" onclick="saveAll()">💾 保存（OBSへ即反映）</button>
     <span id="saved">保存しました ✓</span>
+    <span style="flex:1"></span>
+    <span id="ioMsg"></span>
+    <button class="btn" onclick="toggleExport()">📤 エクスポート</button>
+    <button class="btn" onclick="$('impFile').click()">📥 インポート</button>
+    <input type="file" id="impFile" accept=".mojipack,.json" hidden
+           onchange="doImport(this.files[0])">
   </footer>
 
 <script>
@@ -650,6 +673,57 @@
     const s = $("saved");
     s.style.opacity = 1;
     setTimeout(() => { s.style.opacity = 0; }, 1800);
+  }
+
+  // ================= エクスポート / インポート（mojipack） =================
+  function ioMsg(text, ok) {
+    $("ioMsg").textContent = text;
+    $("ioMsg").className = ok ? "ok" : "err";
+  }
+
+  function toggleExport() {
+    const bar = $("expBar");
+    bar.hidden = !bar.hidden;
+    if (!bar.hidden) {
+      $("expCurPreset").textContent = `表示中のスタイル「${presets[cur].name}」`;
+      $("expCurBox").textContent = `表示中のボックス「${boxes[curBox].name}」`;
+      $("expOpen").hidden = true;
+      ioMsg("", true);
+    }
+  }
+
+  async function doExport(kind) {
+    await saveAll();                 // 見たままの状態を書き出すため先に保存
+    const body = { presets: [], boxes: [] };
+    if (kind === "preset") body.presets = [presets[cur].id];
+    else if (kind === "box") body.boxes = [boxes[curBox].id];
+    else { body.presets = presets.map(p => p.id); body.boxes = boxes.map(b => b.id); }
+    const r = await (await fetch("/api/mojipack/export",
+      { method: "POST", body: JSON.stringify(body) })).json();
+    ioMsg(r.ok ? `書き出しました: ${r.file}` : (r.error || "書き出しに失敗しました"), r.ok);
+    $("expOpen").hidden = !r.ok;
+  }
+
+  function openExportDir() {
+    fetch("/api/mojipack/open", { method: "POST", body: "{}" });
+  }
+
+  async function doImport(file) {
+    if (!file) return;
+    $("impFile").value = "";
+    let data;
+    try { data = JSON.parse(await file.text()); }
+    catch { ioMsg("読み込めません（JSONとして解釈できないファイルです）", false); return; }
+    await saveAll();                 // 未保存の編集を退避してからマージ
+    const r = await (await fetch("/api/mojipack/import",
+      { method: "POST", body: JSON.stringify({ data }) })).json();
+    if (!r.ok) { ioMsg(r.error || "インポートに失敗しました", false); return; }
+    // サーバ側でマージされた結果を取り直す（追記マージなので編集位置は維持される）
+    const [pj, bj] = await Promise.all(
+      [fetch("/api/presets"), fetch("/api/boxes")].map(p => p.then(x => x.json())));
+    presets = pj.presets || []; boxes = bj.boxes || [];
+    renderList(); loadForm(); renderBoxList(); loadBoxForm();
+    ioMsg(`インポートしました（スタイル ${r.presets} 件 / ボックス ${r.boxes} 件）`, true);
   }
 
   init();

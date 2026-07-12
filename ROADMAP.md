@@ -25,6 +25,10 @@
 
 - フェーズ1: `.mojipack`（実体はJSON）のエクスポート/インポート
   - マージ方式（上書きしない・ID再生成・名前衝突は「〜 (imported)」）
+  - ✅**スタイル分（presets/boxes）は実装済み（2026-07-13・未リリース）**:
+    スタイルスタジオの📤/📥、書き出し先 `data/export/`、
+    下記のHTML注入対策（名前・説明・色・座標のエスケープ）も実施済み。
+    残りは単語系（hotwords/effects/banned/glossary/プロファイル）のパック化
 - フェーズ2: リポジトリに `community-packs/` + GitHub Discussions で募集
 - フェーズ3: アプリ内ギャラリー（GitHub上のインデックス取得・急がない）
 - **前提の修正**: コックピットのプリセット一覧が名前を innerHTML 描画しており、

@@ -71,6 +71,70 @@ def _boxes_path():
     return wordstore.data_path("boxes.json")
 
 
+# ---------------- mojipack（スタイルのエクスポート/インポート） ----------------
+
+EXPORT_DIR_NAME = "export"
+
+
+def _clean_str(v, maxlen):
+    """インポート値の無害化: 文字列化・制御文字除去・長さ制限"""
+    s = str(v) if isinstance(v, (str, int, float)) else ""
+    s = "".join(c for c in s if ord(c) >= 32).strip()
+    return s[:maxlen]
+
+
+def _merge_pack_items(items, existing, kind, stamp):
+    """パック内アイテムを既存リストへマージ形式で追加（上書きしない・ID再生成・
+    名前衝突は「〜 (imported)」）。追加した件数を返す。"""
+    if not isinstance(items, list):
+        return 0
+    names = {x.get("name") for x in existing}
+    added = 0
+    for i, item in enumerate(items[:100]):          # 件数上限（暴走ファイル対策）
+        if not isinstance(item, dict):
+            continue
+        if len(json.dumps(item, ensure_ascii=False)) > 20000:
+            continue                                 # 異常に大きい定義は捨てる
+        name = _clean_str(item.get("name"), 60)
+        if not name:
+            continue
+        if name in names:
+            name += " (imported)"
+        n = 2
+        while name in names:                         # (imported) 同士の衝突も回避
+            name = _clean_str(item.get("name"), 60) + f" (imported {n})"
+            n += 1
+        new = dict(item)
+        new["id"] = f"imp-{kind}-{stamp}-{i}"
+        new["name"] = name
+        new["desc"] = _clean_str(item.get("desc"), 200)
+        existing.append(new)
+        names.add(name)
+        added += 1
+    return added
+
+
+def import_mojipack(data):
+    """mojipack をプリセット/ボックスへマージする。(結果dict, エラー文字列) を返す"""
+    if not isinstance(data, dict) or "mojipack" not in data:
+        return None, "mojipackファイルではありません"
+    if len(json.dumps(data, ensure_ascii=False)) > 2 * 1024 * 1024:
+        return None, "ファイルが大きすぎます"
+    from datetime import datetime
+    stamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    presets = _read_json(_presets_path(), {"presets": []})["presets"]
+    boxes = _read_json(_boxes_path(), {"boxes": []})["boxes"]
+    np_ = _merge_pack_items(data.get("presets"), presets, "p", stamp)
+    nb = _merge_pack_items(data.get("boxes"), boxes, "b", stamp)
+    if np_ == 0 and nb == 0:
+        return None, "取り込める定義がありませんでした"
+    if np_:
+        _write_json(_presets_path(), {"presets": presets})
+    if nb:
+        _write_json(_boxes_path(), {"boxes": boxes})
+    return {"presets": np_, "boxes": nb}, None
+
+
 def resolve_style(cfg):
     """現在のプリセット＋ボックス＋エフェクト＋ハイライト単語をまとめて返す
 
@@ -390,6 +454,43 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"ok": True})
             else:
                 self._json({"ok": False, "error": "unknown action"}, 400)
+        elif path == "/api/mojipack/export":
+            ids_p = set(body.get("presets") or [])
+            ids_b = set(body.get("boxes") or [])
+            presets = [p for p in _read_json(_presets_path(), {"presets": []})["presets"]
+                       if p.get("id") in ids_p]
+            boxes = [b for b in _read_json(_boxes_path(), {"boxes": []})["boxes"]
+                     if b.get("id") in ids_b]
+            if not presets and not boxes:
+                self._json({"ok": False, "error": "エクスポート対象がありません"}, 400)
+                return
+            pack = {"mojipack": 1, "app": "Mojicast",
+                    "presets": presets, "boxes": boxes}
+            d = wordstore.data_path(EXPORT_DIR_NAME)
+            os.makedirs(d, exist_ok=True)
+            from datetime import datetime
+            fname = "style_" + datetime.now().strftime("%Y%m%d_%H%M%S") + ".mojipack"
+            with open(os.path.join(d, fname), "w", encoding="utf-8") as f:
+                json.dump(pack, f, ensure_ascii=False, indent=2)
+            self._json({"ok": True, "file": fname,
+                        "path": os.path.join(d, fname)})
+        elif path == "/api/mojipack/import":
+            result, err = import_mojipack(body.get("data"))
+            if err:
+                self._json({"ok": False, "error": err}, 400)
+                return
+            ev = {"type": "style"}
+            ev.update(resolve_style(load_config()))
+            broadcast(ev)
+            self._json({"ok": True, **result})
+        elif path == "/api/mojipack/open":
+            d = wordstore.data_path(EXPORT_DIR_NAME)
+            os.makedirs(d, exist_ok=True)
+            try:
+                os.startfile(d)            # エクスプローラで開く（Windows）
+                self._json({"ok": True})
+            except OSError as e:
+                self._json({"ok": False, "error": str(e)}, 500)
         elif path == "/api/clear":
             broadcast({"type": "clear"})
             self._json({"ok": True})
