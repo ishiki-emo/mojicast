@@ -12,10 +12,9 @@ from PyInstaller.utils.hooks import collect_all
 datas, binaries, hiddenimports = [], [], []
 
 # ネイティブ拡張やデータファイルを丸ごと取り込む重量級パッケージ群
-# ※ fugashi / unidic_lite(MeCab辞書 248MB) は実行時に未使用のため意図的に除外
-#   （句読点は文字トークナイザ、ASRもMeCab不使用。実推論で未ロードを確認済み）
+# ※ torch / transformers は排除済み（句読点=onnxruntime / 翻訳=ctranslate2）
 for pkg in (
-    "torch", "transformers", "tokenizers", "safetensors", "huggingface_hub",
+    "onnxruntime", "ctranslate2", "sentencepiece", "huggingface_hub",
     "sherpa_onnx", "sounddevice",
     "webview", "pythonnet", "clr_loader", "reazonspeech",
 ):
@@ -41,9 +40,10 @@ a = Analysis(
     hookspath=[],
     runtime_hooks=[],
     # ビルドを軽く・速くするため未使用の大物を除外
-    # fugashi/unidic_lite/MeCab は実行時不要（transformersは無くても正常動作）
+    # torch/transformers は実行時不要（ONNX/CT2移行済み。混入したら失敗させる）
     excludes=["tkinter", "matplotlib", "PyQt5", "PyQt6", "PySide2", "PySide6",
               "pytest", "IPython", "notebook",
+              "torch", "transformers", "tokenizers", "safetensors",
               "fugashi", "unidic_lite", "MeCab"],
     noarchive=False,
 )

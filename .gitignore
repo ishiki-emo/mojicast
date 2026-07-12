@@ -13,6 +13,8 @@ dist/
 
 # ---- AIモデル（配布・DLで取得。リポジトリには含めない）----
 models/
+# 変換済みモデル（tools/convert_models.py で再生成可能・HFリポジトリへアップロードして配布）
+/models_conv/
 
 # ---- 上流 ReazonSpeech（別途 pip install する。README参照）----
 /ReazonSpeech/

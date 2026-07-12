@@ -1,6 +1,8 @@
-# bench/ — ONNX / CTranslate2 移行のPoCベンチ（アプリ非組込）
+# bench/ — ONNX / CTranslate2 移行のPoCベンチ
 
-将来の「torch/transformers 排除」移行の実測材料。アプリ本体には一切組み込んでいない。
+「torch/transformers 排除」移行の実測材料。**移行は2026-07-13に本実装済み**
+（punct.py=ONNX / translate.py=CT2）。旧torch実装は `legacy_punct.py` / `legacy_translate.py`
+として保存してあり、`regression_diff.py` が実配信ログで新旧を比較する。
 
 ## 準備（dev venv に追加が必要なもの・requirements には含めない）
 ```powershell

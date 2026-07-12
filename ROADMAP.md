@@ -40,14 +40,17 @@
 
 - 短期: **Inno Setup インストーラ化**（≈1日）
   - 配布物が setup.exe 1個になり、展開の遅さ・MOTW・フォルダの威圧感が構造的に解消
-- 長期: **推論ランタイム載せ替え**（数日＋回帰検証）
+- 長期: **推論ランタイム載せ替え** ✅実装済み（2026-07-13・未リリース）
   - 句読点BERT → ONNX Runtime / FuguMT(Marian) → CTranslate2 で torch+transformers を排除
-  - 約0.85GB/15,000ファイル → 約250MB/数百ファイル級へ
-  - **PoC実測済み（bench/ 参照・2026-07-11）**: 移行リスクは低いと確認
-    - 翻訳 CT2 fp32: 訳文12/12完全一致・約2倍速・ロード6.8s→0.3s
-    - 翻訳 CT2 int8: 約5倍速(166→29ms)・60MB・差分は同格の言い換えのみ
-    - 句読点 ONNX: 判定8/8完全一致・約2倍速・ロード4.9s→0.7s
-  - 本移行時は実際の配信ログで回帰diffを実施すること
+  - 実配信ログ62行で回帰diff実施: 句読点は実質差分0（OOV文字が保持される改善のみ）、
+    翻訳トークナイザ実効一致、訳文58/62一致（差分は数値起因の同格言い換え4件）
+  - torch/transformers を import したら失敗するテストで非依存を実証済み
+  - モデル変換は `tools/convert_models.py`（punct ONNX 364MB / FuguMT CT2 fp32 122MB、
+    初回DL合計 約2.0GB → 約1.2GB）
+  - **リリース前の残作業**: 変換済みモデルを HF リポジトリ
+    （`ishiki-emo/mojicast-models`、punct.py/translate.py の `_REPO_ID`）へアップロード。
+    FuguMT変換版は CC BY-SA 4.0 継承＋クレジット必須（CREDITS.md 参照）。
+    アップロード後に PyInstaller 再ビルド → `smoke_test.ps1 -Fresh` で新規DL経路を検証
 - onefile化は非推奨（この規模は起動毎のtemp展開が遅すぎる）
 
 ## 4. 別ソフト「話題レーダー」（仮称）

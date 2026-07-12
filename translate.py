@@ -1,47 +1,71 @@
-"""日本語→英語のローカル翻訳（FuguMT / MarianMT）
+"""日本語→英語のローカル翻訳（FuguMT / CTranslate2版）
 
 確定字幕を英訳して併記するためのモジュール。CPUで動作・完全オフライン。
-モデル: staka/fugumt-ja-en（約60Mパラメータの軽量MT。1行あたり数十ms）
-初回呼び出し時にモデルをロード（遅延ロード）。
+モデル: staka/fugumt-ja-en を tools/convert_models.py で CTranslate2 (fp32) 化したもの。
+torch / transformers 非依存。トークナイザは SentencePiece を直接使う。
 
 k2 の確定テキスト（句読点適用済み）をそのまま渡す想定。
 翻訳は認識ループとは別スレッドから呼ぶこと（engine.CaptionEngine が担当）。
 """
-import warnings
+import os
 
-_MODEL_NAME = "staka/fugumt-ja-en"
+import huggingface_hub as hf
 
-_tokenizer = None
-_model = None
+from apppaths import BASE
+
+_REPO_ID = "ishiki-emo/mojicast-models"   # 変換済みモデルの配布リポジトリ
+_SUBDIR = "fugumt-ja-en-ct2"
+
+_translator = None
+_sp_src = None
+_sp_tgt = None
 
 
-def _local_first(loader, *args, **kwargs):
-    """まずローカルキャッシュから読み、無ければDL（同梱版=DL無し / 軽量版=初回DL）"""
+def _resolve_dir(download=True):
+    """CT2モデルフォルダの解決: models_conv/（開発・手動配置）→ HFキャッシュ → DL"""
+    local = os.path.join(BASE, "models_conv", _SUBDIR)
+    if os.path.exists(os.path.join(local, "model.bin")):
+        return local
     try:
-        return loader(*args, local_files_only=True, **kwargs)
+        base = hf.snapshot_download(_REPO_ID, allow_patterns=[f"{_SUBDIR}/*"],
+                                    local_files_only=True)
     except Exception:
-        return loader(*args, **kwargs)
+        if not download:
+            raise
+        base = hf.snapshot_download(_REPO_ID, allow_patterns=[f"{_SUBDIR}/*"])
+    d = os.path.join(base, _SUBDIR)
+    if not os.path.exists(os.path.join(d, "model.bin")):
+        raise FileNotFoundError(f"CT2モデルが不完全です: {d}")
+    return d
+
+
+def cached() -> bool:
+    """モデルがローカルにあるか（DLはしない。初回DLサイズ見積り用）"""
+    try:
+        _resolve_dir(download=False)
+        return True
+    except Exception:
+        return False
 
 
 def load_translator(num_threads: int = 4):
     """モデルとトークナイザをロード（初回のみ実行）"""
-    global _tokenizer, _model
-    if _model is not None:
+    global _translator, _sp_src, _sp_tgt
+    if _translator is not None:
         return
-    import torch
-    from transformers import MarianMTModel, MarianTokenizer
-    torch.set_num_threads(num_threads)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        _tokenizer = _local_first(MarianTokenizer.from_pretrained, _MODEL_NAME)
-        _model = _local_first(MarianMTModel.from_pretrained, _MODEL_NAME).eval()
+    import ctranslate2
+    import sentencepiece as spm
+    d = _resolve_dir()
+    _sp_src = spm.SentencePieceProcessor(model_file=os.path.join(d, "source.spm"))
+    _sp_tgt = spm.SentencePieceProcessor(model_file=os.path.join(d, "target.spm"))
+    _translator = ctranslate2.Translator(d, device="cpu",
+                                         compute_type="float32",
+                                         inter_threads=1,
+                                         intra_threads=num_threads)
     # ロード直後の自己診断: 1文訳して空なら異常として失敗させる。
-    # （transformers は語彙ファイルを解決できなくても例外を出さず
-    #   「空トークナイザ」を作ることがあり、その場合は無言で訳が空になる。
-    #   ここで検出して例外にすれば、エンジン側が英訳だけ無効化して字幕を守れる）
+    # （エンジン側が英訳だけ無効化して字幕本体を守れる）
     if not translate("これはテストです。").strip():
-        _tokenizer = None
-        _model = None
+        _translator = None
         raise RuntimeError("翻訳モデルの自己診断に失敗（出力が空）")
 
 
@@ -49,16 +73,17 @@ def translate(text: str, max_new_tokens: int = 96) -> str:
     """日本語テキストを英訳して返す（greedy＝最速）。空文字は空文字を返す。"""
     if not text or not text.strip():
         return ""
-    if _model is None:
+    if _translator is None:
         load_translator()
-    import torch
-    with torch.no_grad(), warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        inputs = _tokenizer(text, return_tensors="pt",
-                            padding=True, truncation=True, max_length=512)
-        out = _model.generate(**inputs, max_new_tokens=max_new_tokens,
-                              num_beams=1)
-    return _tokenizer.decode(out[0], skip_special_tokens=True).strip()
+    tokens = _sp_src.encode(text, out_type=str)
+    if len(tokens) > 511:                     # 旧実装の truncation=512 相当
+        tokens = tokens[:511]
+    tokens.append("</s>")
+    res = _translator.translate_batch([tokens], beam_size=1,
+                                      max_decoding_length=max_new_tokens)
+    out = [t for t in res[0].hypotheses[0]
+           if t not in ("</s>", "<pad>", "<unk>")]
+    return _sp_tgt.decode(out).strip()
 
 
 if __name__ == "__main__":

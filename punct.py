@@ -1,95 +1,83 @@
 """
-日本語テキストに句読点(、。)を復元するモジュール
+日本語テキストに句読点(、。)を復元するモジュール（ONNX Runtime版）
+
 モデル: bobfromjapan/bert_japanese_punctuation
         (tohoku-nlp/bert-base-japanese-char-v3 + 線形層のトークン分類)
+        を tools/convert_models.py で ONNX 化したもの。
 
-k2 など句読点を出さないASRの出力を、認識後にここへ通して整形する。
-初回呼び出し時にモデルをロード（遅延ロード）。CPUで動作。
+torch / transformers 非依存。トークナイザは文字単位（1文字=1トークン）なので
+vocab.txt から自前で構築する。k2 など句読点を出さないASRの出力を、
+認識後にここへ通して整形する。初回呼び出し時にロード（遅延ロード）。CPUで動作。
+
+旧torch版との差分: 語彙に無い文字（絵文字など）を旧版は出力から落としていたが、
+本版は元の文字をそのまま残す（判定はUNKとして計算するので句読点位置は同等）。
 """
-import torch
+import os
+
+import numpy as np
 import huggingface_hub as hf
-from transformers import BertTokenizer, BertModel
 
-_MODEL_NAME = "tohoku-nlp/bert-base-japanese-char-v3"
-_REPO_ID = "bobfromjapan/bert_japanese_punctuation"
+from apppaths import BASE
 
-_tokenizer = None
-_model = None
+_REPO_ID = "ishiki-emo/mojicast-models"   # 変換済みモデルの配布リポジトリ
+_SUBDIR = "punct"
+
+_sess = None
+_vocab = None          # 文字 → トークンID
+_cls_id = _sep_id = _unk_id = None
 
 
-def _local_first(loader, *args, **kwargs):
-    """まずローカルキャッシュから読み、無ければDL（同梱版=DL無し / 軽量版=初回DL）"""
+def _resolve(filename, download=True):
+    """モデルファイルのパス解決: models_conv/（開発・手動配置）→ HFキャッシュ → DL"""
+    local = os.path.join(BASE, "models_conv", _SUBDIR, filename)
+    if os.path.exists(local):
+        return local
     try:
-        return loader(*args, local_files_only=True, **kwargs)
+        return hf.hf_hub_download(_REPO_ID, f"{_SUBDIR}/{filename}",
+                                  local_files_only=True)
     except Exception:
-        return loader(*args, **kwargs)
+        if not download:
+            raise
+        return hf.hf_hub_download(_REPO_ID, f"{_SUBDIR}/{filename}")
 
 
-class _PunctuationPredictor(torch.nn.Module):
-    """BERTの各トークン出力に線形層を足し、直後の句読点(、。)を予測する"""
-
-    def __init__(self, base_model):
-        super().__init__()
-        self.base_model = base_model
-        self.dropout = torch.nn.Dropout(0.2)
-        self.linear = torch.nn.Linear(768, 2)  # [、の確率, 。の確率]
-
-    def forward(self, input_ids, attention_mask):
-        last_hidden_state = self.base_model(
-            input_ids=input_ids, attention_mask=attention_mask
-        ).last_hidden_state
-        return self.linear(self.dropout(last_hidden_state))
+def cached() -> bool:
+    """モデルがローカルにあるか（DLはしない。初回DLサイズ見積り用）"""
+    try:
+        _resolve("vocab.txt", download=False)
+        _resolve("punct_bert.onnx", download=False)
+        return True
+    except Exception:
+        return False
 
 
 def load_punctuator(num_threads: int = 4):
-    """モデルとトークナイザをロード（初回のみ実行）"""
-    global _tokenizer, _model
-    if _model is not None:
+    """モデルと語彙をロード（初回のみ実行）"""
+    global _sess, _vocab, _cls_id, _sep_id, _unk_id
+    if _sess is not None:
         return
-    torch.set_num_threads(num_threads)  # CPUを複数コア使う
-    # 語彙ファイルは明示的に取得して直接渡す。
-    # （凍結(exe)環境の新規DLでは BertTokenizer.from_pretrained が vocab.txt を
-    #   取得できず「特殊トークンだけの空トークナイザ」になることがある。
-    #   全文字がUNK化→句読点処理が空文字を返し字幕が消える致命症状になるため、
-    #   凍結でも確実に動く hf_hub_download でファイルを固定して構築する）
-    vocab_path = _local_first(hf.hf_hub_download, _MODEL_NAME, "vocab.txt")
-    # transformers v5 は引数名が vocab（v4 は vocab_file）。さらに v5 は語彙未指定でも
-    # 例外を出さず「特殊トークンのみの空トークナイザ」を作るため、下の健全性チェックが必須。
-    try:
-        tokenizer = BertTokenizer(vocab=vocab_path, do_lower_case=False)
-    except TypeError:                      # v4 系へのフォールバック
-        tokenizer = BertTokenizer(vocab_file=vocab_path, do_lower_case=False)
-    if len(tokenizer) < 100:   # 語彙が壊れていたら句読点は使わせない（呼び出し側で無効化）
-        raise RuntimeError(f"句読点トークナイザの語彙が不正です (size={len(tokenizer)})")
-    _tokenizer = tokenizer
-    base_model = _local_first(BertModel.from_pretrained, _MODEL_NAME)
-    model = _PunctuationPredictor(base_model)
-    # 重みは HF リポジトリから取得（cwd非依存の絶対パスで解決）
-    weight_path = _local_first(hf.hf_hub_download, _REPO_ID,
-                               "weight/punctuation_position_model.pth")
-    model.load_state_dict(torch.load(weight_path, map_location="cpu"))
-    model.eval()
-    _model = model
+    vocab = {}
+    with open(_resolve("vocab.txt"), encoding="utf-8") as f:
+        for i, line in enumerate(f):
+            vocab[line.rstrip("\n")] = i
+    # 語彙が壊れていたら句読点は使わせない（呼び出し側が機能を無効化して字幕を守る）
+    if len(vocab) < 100 or "[CLS]" not in vocab or "[SEP]" not in vocab:
+        raise RuntimeError(f"句読点トークナイザの語彙が不正です (size={len(vocab)})")
+    _vocab = vocab
+    _cls_id = vocab["[CLS]"]
+    _sep_id = vocab["[SEP]"]
+    _unk_id = vocab.get("[UNK]", 1)
 
-
-def _rebuild(input_ids, comma_pos, period_pos):
-    """トークン列と句読点フラグから、句読点入りテキストを組み立てる"""
-    out = []
-    n = len(input_ids)
-    for i, (c, p) in enumerate(zip(comma_pos, period_pos)):
-        token_id = input_ids[i].item()
-        if token_id <= 5:  # [PAD]/[UNK]/[CLS]/[SEP]/[MASK] などの特殊トークンは除外
-            continue
-        if i >= n - 1:
-            break
-        ch = _tokenizer.convert_ids_to_tokens(token_id)
-        if p:
-            out.append(ch + "。")
-        elif c:
-            out.append(ch + "、")
-        else:
-            out.append(ch)
-    return "".join(out)
+    import onnxruntime as ort
+    so = ort.SessionOptions()
+    so.intra_op_num_threads = num_threads
+    sess = ort.InferenceSession(_resolve("punct_bert.onnx"), so,
+                                providers=["CPUExecutionProvider"])
+    _sess = sess
+    # ロード直後の自己診断: 1文処理して空なら異常として失敗させる
+    if not add_punctuation("これはてすとです"):
+        _sess = None
+        raise RuntimeError("句読点モデルの自己診断に失敗（出力が空）")
 
 
 def add_punctuation(text: str, comma_thresh: float = 0.1,
@@ -106,31 +94,32 @@ def add_punctuation(text: str, comma_thresh: float = 0.1,
     Returns:
         句読点入りテキスト
     """
-    if _model is None:
+    if _sess is None:
         load_punctuator()
 
     text = text.replace("、", "").replace("。", "")
     if not text:
         return text
 
-    result = ""
-    with torch.no_grad():
-        for i in range(0, len(text), max_length):
-            chunk = text[i:i + max_length]
-            # 文字を空白区切りにして1文字=1トークンとして扱う（MeCab不要）
-            # パディングは実発話長に合わせる(longest)。512固定だと短文でも
-            # 512トークン分計算して遅くなるため（357ms→30ms相当の差）。
-            inputs = _tokenizer(
-                " ".join(list(chunk)),
-                padding="longest", truncation=True, max_length=512,
-                return_tensors="pt",
-            )
-            output = torch.sigmoid(_model(inputs.input_ids, inputs.attention_mask))
-            probs = output[0].numpy().T
-            comma_pos = probs[0] > comma_thresh
-            period_pos = probs[1] > period_thresh
-            result += _rebuild(inputs.input_ids[0], comma_pos, period_pos)
-    # 万一（語彙劣化などで）空になったら、句読点なしの原文を返す＝字幕を消さない
+    out = []
+    for i in range(0, len(text), max_length):
+        chunk = text[i:i + max_length]
+        ids = [_cls_id] + [_vocab.get(ch, _unk_id) for ch in chunk] + [_sep_id]
+        input_ids = np.array([ids], dtype=np.int64)
+        attention_mask = np.ones_like(input_ids)
+        logits = _sess.run(None, {"input_ids": input_ids,
+                                  "attention_mask": attention_mask})[0][0]
+        probs = 1.0 / (1.0 + np.exp(-logits))   # sigmoid → [:, (、確率, 。確率)]
+        for j, ch in enumerate(chunk):
+            comma, period = probs[j + 1]        # +1 は先頭の [CLS] ぶん
+            if period > period_thresh:
+                out.append(ch + "。")
+            elif comma > comma_thresh:
+                out.append(ch + "、")
+            else:
+                out.append(ch)
+    result = "".join(out)
+    # 万一空になったら原文を返す＝字幕を消さない
     return result if result else text
 
 

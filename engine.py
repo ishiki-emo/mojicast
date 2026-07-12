@@ -29,10 +29,9 @@ VAD_MODEL_PATH = os.path.join(BASE, "silero_vad.onnx")
 
 # 初回DLの進捗表示に使う、各モデルのおおよそのDLサイズ（MB）
 _MODEL_SIZES_MB = {
-    "models--reazon-research--reazonspeech-k2-v2": 739,       # ASR
-    "models--tohoku-nlp--bert-base-japanese-char-v3": 702,    # 句読点の土台
-    "models--bobfromjapan--bert_japanese_punctuation": 352,   # 句読点の重み
-    "models--staka--fugumt-ja-en": 233,                       # 英訳
+    "asr": 739,        # ReazonSpeech k2 v2
+    "punct": 364,      # 句読点BERT（ONNX変換済み・単一ファイル）
+    "translate": 124,  # FuguMT（CTranslate2変換済み＋SentencePiece）
 }
 
 
@@ -146,15 +145,18 @@ class CaptionEngine:
 
     def _expected_download_mb(self, cfg):
         """この設定で未キャッシュのモデルの合計DLサイズ(MB)と、DLが要るかを返す"""
-        hub = _hub_dir()
-        need = ["models--reazon-research--reazonspeech-k2-v2"]
+        total = 0
+        if not os.path.isdir(os.path.join(
+                _hub_dir(), "models--reazon-research--reazonspeech-k2-v2")):
+            total += _MODEL_SIZES_MB["asr"]
         if cfg.get("punctuate", True):
-            need += ["models--tohoku-nlp--bert-base-japanese-char-v3",
-                     "models--bobfromjapan--bert_japanese_punctuation"]
+            import punct
+            if not punct.cached():
+                total += _MODEL_SIZES_MB["punct"]
         if cfg.get("translate", False):
-            need += ["models--staka--fugumt-ja-en"]
-        total = sum(_MODEL_SIZES_MB[m] for m in need
-                    if not os.path.isdir(os.path.join(hub, m)))
+            import translate
+            if not translate.cached():
+                total += _MODEL_SIZES_MB["translate"]
         return total, total > 0
 
     def _dl_monitor(self, total_mb, stop_evt):

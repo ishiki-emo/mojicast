@@ -59,30 +59,33 @@ ReazonSpeech k2 + Silero VAD + BERT句読点 + OBSオーバーレイ。
 配布前に検出するため、必ずスモークテストを通すこと:
 
 ```powershell
-.\smoke_test.ps1           # 高速: キャッシュからモデル複製して検証（約2分）
-.\smoke_test.ps1 -Fresh    # 完全: モデル実DL（2GB）で新規ユーザーを再現 ←リリース前は必ずこちら
+.\smoke_test.ps1           # 高速: ローカルのモデル複製で検証（約2分）
+.\smoke_test.ps1 -Fresh    # 完全: モデル実DL（約1.2GB）で新規ユーザーを再現 ←リリース前は必ずこちら
 ```
 
 - テスト中に表示される Mojicast の窓は**閉じない**こと（閉じるとアプリ終了＝FAIL扱い）
-- PASS 後、`dist\Mojicast\models`・`data`・`logs` を削除してから Zip する
-- 教訓: transformers は語彙ファイルを解決できなくても**例外を出さず空トークナイザを作る**
-  ことがある（v5）。各モデルはロード時に自己診断（語彙サイズ検査・試訳）で守っているが、
-  新しいモデルを追加するときも同様の健全性チェックを入れること
+- `-Fresh` は句読点/翻訳の変換済みモデルを配布リポジトリから実DLする
+  （`punct.py` / `translate.py` の `_REPO_ID`。アップロード済みであること）
+- PASS 後、`dist\Mojicast\models`・`models_conv`・`data`・`logs` を削除してから Zip する
+- 教訓: ロード系は必ず自己診断（語彙サイズ検査・試訳・試句読点）で守ること。
+  旧transformers時代、語彙欠落でも例外を出さず「空トークナイザ」ができて
+  無言で字幕が消える事故があった（現行の ONNX/CT2 実装でも自己診断は継承済み）
 
 構成ファイル:
-- `Mojicast.spec` — ビルド定義（torch/transformers/sherpa_onnx/pywebview等を collect_all）
+- `Mojicast.spec` — ビルド定義（onnxruntime/ctranslate2/sherpa_onnx/pywebview等を collect_all）
 - `build_bundle.ps1` — ビルド後にアセット（+同梱版はモデル）を app 直下へ配置
 - `smoke_test.ps1` — リリース前スモークテスト（上記）
+- `tools\convert_models.py` — 句読点→ONNX / FuguMT→CT2 の変換（開発時のみ・要torch）
+- `bench\regression_diff.py` — 移行回帰diff（実配信ログで旧torch実装と比較）
 - `apppaths.py` — 凍結時に HF キャッシュを exe 隣 `models/` に固定＋MOTW自己解除
 - `defaults\` — 配布用の汎用データ（hotwords/effects/presets/boxes/banned）。
   個人用の単語帳やDLフォント指定を配布物に入れないため、パッケージ時はこちらが優先コピーされる
 - `README_TESTER.txt` / `マニュアル.html` / `ブロック解除.bat` — テスターへ同梱
 
-同梱版で使う4モデル（`%USERPROFILE%\.cache\huggingface\hub` から）:
-`reazonspeech-k2-v2`（ASR） / `bert-base-japanese-char-v3`（句読点の土台） /
-`bert_japanese_punctuation`（句読点の重み） / `fugumt-ja-en`（英訳）
+同梱版で使うモデル:
+- ASR `reazonspeech-k2-v2`（`%USERPROFILE%\.cache\huggingface\hub` から）
+- 句読点ONNX＋翻訳CT2（リポジトリ直下 `models_conv\` から。`tools\convert_models.py` で生成）
 
 注意点:
-- torch同梱のためサイズは大きめ
 - 配布先PCには WebView2 ランタイムが必要（Windows 11 は標準搭載）
-- モデル同梱版を再配布する場合は FuguMT の CC BY-SA 遵守が必要（CREDITS.md 参照）
+- FuguMT の**変換済みモデルの配布（HFリポジトリ含む）は CC BY-SA 4.0 の継承が必要**（CREDITS.md 参照）

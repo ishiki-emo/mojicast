@@ -44,7 +44,7 @@ _A fully-offline real-time captioning app for live streaming: Japanese speech re
 | メモリ | 8GB（英訳ON時、本アプリ実測 約2GB） | 16GB |
 | ストレージ | 空き5GB | SSD |
 
-ほか: マイク / WebView2（Win11標準搭載） / 初回のみネット接続（モデル約2GB DL）。
+ほか: マイク / WebView2（Win11標準搭載） / 初回のみネット接続（モデル約1.2GB DL）。
 OBS併用時はGPUエンコード（NVENC / AMF）推奨。開発には Python 3.11。
 
 ## 使い方（配布版）
@@ -62,14 +62,11 @@ git clone <this-repo>
 cd mojicast
 python -m venv .venv && . .venv/Scripts/activate   # Windows
 
-# 1) PyTorch (CPU版)
-pip install torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu
-
-# 2) ReazonSpeech k2-asr（上流から）
+# 1) ReazonSpeech k2-asr（上流から）
 git clone https://github.com/reazon-research/ReazonSpeech
 pip install ./ReazonSpeech/pkg/k2-asr
 
-# 3) 残りの依存
+# 2) 残りの依存（torch / transformers は不要）
 pip install -r requirements.txt
 
 # 起動
@@ -77,7 +74,9 @@ python app.py
 ```
 
 初回起動時、必要な AI モデルが Hugging Face から自動ダウンロードされます
-（合計約 2GB・進捗はコックピットに表示）。以降はキャッシュから読み込み、オフラインで動作します。
+（合計約 1.2GB・進捗はコックピットに表示）。以降はキャッシュから読み込み、オフラインで動作します。
+句読点・翻訳は変換済みモデル（ONNX / CTranslate2）を使用します。モデルを変換し直す場合のみ
+`tools/convert_models.py` を参照してください（torch / transformers が必要）。
 
 ## 配布用パッケージ（PyInstaller）
 

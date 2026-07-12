@@ -1,27 +1,25 @@
 # Mojicast 依存パッケージ（Python 3.11 で検証）
 #
-# 【重要】この2つは別扱いで先に入れてください（requirements.txt では入りません）:
+# 【重要】ReazonSpeech k2-asr は上流リポジトリから先にインストールしてください:
 #
-#   1) PyTorch (CPU版):
-#      pip install torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu
-#
-#   2) ReazonSpeech k2-asr（上流リポジトリからインストール）:
-#      git clone https://github.com/reazon-research/ReazonSpeech
-#      pip install ./ReazonSpeech/pkg/k2-asr
+#   git clone https://github.com/reazon-research/ReazonSpeech
+#   pip install ./ReazonSpeech/pkg/k2-asr
 #
 # その後に:  pip install -r requirements.txt
+#
+# ※ torch / transformers は不要になりました（v0.3系: 句読点=ONNX Runtime、
+#   翻訳=CTranslate2 へ移行済み）。モデルを変換し直す開発作業のときだけ
+#   tools/convert_models.py のコメントに従って別途インストールしてください。
 
-transformers==5.13.0
-tokenizers==0.22.2
-safetensors==0.8.0
 huggingface_hub==1.22.0
 sherpa-onnx==1.13.4
+onnxruntime==1.27.0
+ctranslate2==4.8.1
+sentencepiece==0.2.1
 numpy==2.4.6
 pywebview==6.2.1
 pythonnet==3.1.0
 sounddevice==0.5.5
-fugashi==1.5.2
-unidic-lite==1.0.8
 
 # パッケージング（配布用exeを作る場合のみ）
 # pyinstaller==6.21.0

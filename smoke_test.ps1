@@ -29,18 +29,23 @@ Get-Process Mojicast,msedgewebview2 -EA SilentlyContinue | Stop-Process -Force
 Start-Sleep -Seconds 2
 Remove-Item "$app\data","$app\translate_error.log" -Recurse -Force -EA SilentlyContinue
 if ($Fresh) {
-    Note "[Fresh] models を削除 → 実ダウンロードで検証します（約2GB）"
+    # 注意: Fresh は句読点/翻訳の変換済みモデルを HF リポジトリ（punct.py/translate.py の
+    # _REPO_ID）から実DLする。リポジトリへのアップロードが済んでいないと失敗する。
+    Note "[Fresh] models を削除 → 実ダウンロードで検証します（約1.2GB）"
     Remove-Item "$app\models" -Recurse -Force -EA SilentlyContinue
+    Remove-Item "$app\models_conv" -Recurse -Force -EA SilentlyContinue
 } else {
-    Note "[Fast] ローカルHFキャッシュからモデルを複製します"
+    Note "[Fast] ローカルのモデルを複製します（ASR=HFキャッシュ / 句読点・翻訳=models_conv）"
     $hubSrc = Join-Path $env:USERPROFILE ".cache\huggingface\hub"
     $hubDst = "$app\models\hub"
     New-Item -ItemType Directory -Force $hubDst | Out-Null
-    foreach ($m in @("models--reazon-research--reazonspeech-k2-v2",
-                     "models--tohoku-nlp--bert-base-japanese-char-v3",
-                     "models--bobfromjapan--bert_japanese_punctuation",
-                     "models--staka--fugumt-ja-en")) {
-        if (-not (Test-Path "$hubDst\$m")) { Copy-Item "$hubSrc\$m" "$hubDst\$m" -Recurse -Force }
+    $m = "models--reazon-research--reazonspeech-k2-v2"
+    if (-not (Test-Path "$hubDst\$m")) { Copy-Item "$hubSrc\$m" "$hubDst\$m" -Recurse -Force }
+    if (-not (Test-Path "$app\models_conv\punct\punct_bert.onnx")) {
+        if (-not (Test-Path "$root\models_conv\punct\punct_bert.onnx")) {
+            throw "models_conv がありません。先に tools\convert_models.py を実行してください"
+        }
+        Copy-Item "$root\models_conv" "$app\models_conv" -Recurse -Force
     }
 }
 
