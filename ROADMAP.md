@@ -51,7 +51,9 @@
     - `ishiki-emo/mojicast-punct-onnx`（Apache-2.0）
     - `ishiki-emo/mojicast-fugumt-ja-en-ct2`（CC BY-SA 4.0 継承・staka氏クレジット掲載）
     - 実DL経路の動作確認済み（models_conv 退避 → HFからDL → 出力一致）
-  - **リリース前の残作業**: PyInstaller 再ビルド → `smoke_test.ps1 -Fresh` で凍結環境の新規DL経路を検証
+  - 凍結ビルドで `smoke_test.ps1`（Fast/Fresh 両方）**PASS 済み（2026-07-13）**。
+    配布物は 約15,000ファイル/0.85GB → **1,532ファイル/0.43GB** に削減。
+    → v0.3.0 としてリリース可能な状態（Zip化と GitHub Releases 掲載のみ）
 - onefile化は非推奨（この規模は起動毎のtemp展開が遅すぎる）
 
 ## 4. 別ソフト「話題レーダー」（仮称）
