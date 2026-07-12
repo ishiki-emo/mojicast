@@ -111,10 +111,19 @@
   </div>
 
   <h3>動作環境</h3>
-  <ul>
-    <li>Windows 10 / 11（64bit）とマイク</li>
-    <li>WebView2 ランタイム <span class="dim">（Windows 11 は標準搭載。画面が真っ白なときだけ導入 → <a style="color:var(--acc)" href="#trouble">困ったときは</a>）</span></li>
-  </ul>
+  <div class="overflow">
+  <table>
+    <tr><th></th><th>最低</th><th>推奨</th></tr>
+    <tr><td>OS</td><td>Windows 10（64bit）</td><td>Windows 11</td></tr>
+    <tr><td>CPU</td><td>4コア8スレッド<br>（2017年以降の Core i5 / Ryzen 5 相当）</td><td>6コア以上<br>（ゲーム配信と併用する場合）</td></tr>
+    <tr><td>メモリ</td><td>8GB<br><span class="dim">（英訳ON時、本アプリが約2GB使用）</span></td><td>16GB</td></tr>
+    <tr><td>ストレージ</td><td>空き5GB</td><td>SSD</td></tr>
+    <tr><td>その他</td><td colspan="2">マイク / WebView2ランタイム（Win11標準搭載） / 初回のみネット接続（モデル約2GBのDL）</td></tr>
+  </table>
+  </div>
+  <div class="card"><b class="tag">配信との同時利用</b>
+    OBSの映像エンコードは<b>GPUエンコード（NVENC / AMF）推奨</b>。
+    x264（CPUエンコード）でゲーム配信と併用する場合は、推奨スペック以上でお使いください。</div>
 
   <h3>起動手順</h3>
   <div class="step"><div class="n">1</div><div>このフォルダを<b>丸ごとローカルディスクにコピー</b>する（Zip 内や共有ドライブから直接起動しない）</div></div>

@@ -6,10 +6,15 @@
 Python のインストールは不要です。ネット接続も不要です。
 
 ■ 動作環境
-  - Windows 10 / 11（64bit）
-  - マイク
+  - OS: Windows 10 / 11（64bit）
+  - CPU: 最低 4コア8スレッド（2017年以降の Core i5 / Ryzen 5 相当）
+         推奨 6コア以上（ゲーム配信と併用する場合）
+  - メモリ: 最低 8GB / 推奨 16GB（英訳ON時、本アプリが約2GB使用）
+  - ストレージ: 空き5GB（SSD推奨）
+  - マイク / 初回のみネット接続（モデル約2GBのダウンロード）
   - WebView2 ランタイム（Windows 11 は標準搭載。Windows 10 で
     画面が真っ白なら「Microsoft Edge WebView2 Runtime」を入れてください）
+  - OBS併用時はGPUエンコード（NVENC等）推奨
 
 ■ 初回起動について
   ・初回だけ「WindowsによってPCが保護されました」(SmartScreen)が出ることがあります。

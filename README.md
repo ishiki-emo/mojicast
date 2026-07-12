@@ -37,9 +37,15 @@ _A fully-offline real-time captioning app for live streaming: Japanese speech re
 
 ## 動作環境
 
-- Windows 10 / 11（64bit）とマイク
-- WebView2 ランタイム（Windows 11 は標準搭載）
-- 開発/実行に Python 3.11
+| | 最低 | 推奨 |
+|---|---|---|
+| OS | Windows 10（64bit） | Windows 11 |
+| CPU | 4コア8スレッド（2017年以降の Core i5 / Ryzen 5 相当） | 6コア以上（ゲーム配信と併用時） |
+| メモリ | 8GB（英訳ON時、本アプリ実測 約2GB） | 16GB |
+| ストレージ | 空き5GB | SSD |
+
+ほか: マイク / WebView2（Win11標準搭載） / 初回のみネット接続（モデル約2GB DL）。
+OBS併用時はGPUエンコード（NVENC / AMF）推奨。開発には Python 3.11。
 
 ## 使い方（配布版）
 
