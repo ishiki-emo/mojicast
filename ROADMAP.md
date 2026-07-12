@@ -47,10 +47,11 @@
   - torch/transformers を import したら失敗するテストで非依存を実証済み
   - モデル変換は `tools/convert_models.py`（punct ONNX 364MB / FuguMT CT2 fp32 122MB、
     初回DL合計 約2.0GB → 約1.2GB）
-  - **リリース前の残作業**: 変換済みモデルを HF の2リポジトリへアップロード
-    （`ishiki-emo/mojicast-punct-onnx`=Apache-2.0 / `ishiki-emo/mojicast-fugumt-ja-en-ct2`
-    =CC BY-SA 4.0 継承＋クレジット必須。モデルカードは models_conv/ 内に作成済み）。
-    アップロード後に PyInstaller 再ビルド → `smoke_test.ps1 -Fresh` で新規DL経路を検証
+  - モデル配布: HF 2リポジトリへ**アップロード済み（2026-07-13・公開確認済み）**
+    - `ishiki-emo/mojicast-punct-onnx`（Apache-2.0）
+    - `ishiki-emo/mojicast-fugumt-ja-en-ct2`（CC BY-SA 4.0 継承・staka氏クレジット掲載）
+    - 実DL経路の動作確認済み（models_conv 退避 → HFからDL → 出力一致）
+  - **リリース前の残作業**: PyInstaller 再ビルド → `smoke_test.ps1 -Fresh` で凍結環境の新規DL経路を検証
 - onefile化は非推奨（この規模は起動毎のtemp展開が遅すぎる）
 
 ## 4. 別ソフト「話題レーダー」（仮称）
