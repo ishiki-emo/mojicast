@@ -61,13 +61,25 @@
   .fx-glowpulse{ animation: fxglow 1.2s ease-in-out infinite; }
   .fx-spin     { animation: fxspin .6s cubic-bezier(.34,1.56,.64,1); }
   .fx-flash    { animation: fxflash .9s ease-out; }
-  .fx-rainbow  {
-    background: linear-gradient(90deg,#ff5ea8,#ffb84d,#ffe94d,#7dff8a,#5ec8ff,#b48cff,#ff5ea8);
+  /* レインボー/シャインは2層構造:
+     本体 = 不透明文字（縁取りtext-shadowが効く）
+     ::after = グラデーション文字を上に重ねる（clip-textはtext-shadowと共存できないため） */
+  .fx-rainbow, .fx-shine { position: relative; }
+  .fx-rainbow::after, .fx-shine::after {
+    content: attr(data-text);
+    position: absolute; inset: 0;
+    background-image: var(--fx-grad);
     background-size: 300% 100%;
     -webkit-background-clip: text; background-clip: text;
-    color: transparent !important;
-    animation: fxrainbow 2.4s linear infinite;
+    color: transparent;
+    text-shadow: none;
+    pointer-events: none;
   }
+  .fx-rainbow {
+    --fx-grad: linear-gradient(90deg,#ff4d9e,#ffa53d,#ffd93d,#4de07a,#3db5ff,#a570ff,#ff4d9e);
+  }
+  .fx-rainbow::after { animation: fxrainbow 2.4s linear infinite; }
+  .fx-shine::after   { animation: fxrainbow 2.2s linear infinite; }
   @keyframes fxpop    { 0% { transform:scale(1.7) rotate(-4deg); filter:brightness(2); }
                         60% { transform:scale(.93); } 100% { transform:scale(1); } }
   @keyframes fxbounce { 0% { transform:translateY(0); } 25% { transform:translateY(-.35em); }
@@ -83,7 +95,6 @@
                         15%,60% { filter:brightness(2.6); } }
   @keyframes fxrainbow{ from { background-position:0% 0; } to { background-position:300% 0; } }
 
-  .fx-shine    { animation: fxrainbow 2.2s linear infinite; }
   .fx-neon     { animation: fxneonin 1.1s both, fxglow 2.4s 1.1s ease-in-out infinite; }
   .fx-heartbeat{ animation: fxheart 1.1s ease-in-out infinite; }
   .fx-float    { animation: fxfloat 3s ease-in-out infinite; }
@@ -216,25 +227,22 @@
           span.textContent = w;
         }
         if (fx.anim === "shine") {
-          // 単語色のベースに白い光が走るグラデーション
+          // 単語色のベースに白い光が走るグラデーション（::afterに描く）
           const c = fx.color || "#ffd400";
-          span.style.backgroundImage =
-            `linear-gradient(115deg, ${c} 42%, #ffffff 50%, ${c} 58%)`;
-          span.style.backgroundSize = "300% 100%";
-          span.style.webkitBackgroundClip = "text";
-          span.style.backgroundClip = "text";
-          span.style.color = "transparent";
+          span.style.setProperty("--fx-grad",
+            `linear-gradient(115deg, ${c} 42%, #ffffff 50%, ${c} 58%)`);
+          if (!fx.color) span.style.color = c;
         }
+        if (fx.anim === "shine" || fx.anim === "rainbow")
+          span.dataset.text = w;   // ::after のグラデーション文字用
         if (fx.particle && fx.particle !== "none")
           span.dataset.particle = fx.particle;
-        if (fx.color && fx.anim !== "shine") {
-          span.style.color = fx.color;
-        }
+        if (fx.color) span.style.color = fx.color;
         if (fx.color) span.dataset.color = fx.color;
         if (fx.font) span.style.fontFamily = fx.font;
         if (fx.scale && +fx.scale !== 1) span.style.fontSize = fx.scale + "em";
         span.style.fontWeight = 900;
-        if (fx.color && fx.anim !== "rainbow") {
+        if (fx.color) {
           span.style.textShadow =
             FX.outlineShadow(style.outlineWidth ?? 2, style.outlineColor || "#000")
               .concat([`0 0 12px ${fx.color}`, `0 0 22px ${fx.color}`]).join(",");
