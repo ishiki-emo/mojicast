@@ -42,6 +42,15 @@ Python のインストールは不要です。ネット接続も不要です。
      ※旧バージョンでフォルダ直下にあったデータファイルは、初回起動時に自動で
        data フォルダへ移動します。
 
+  【v0.2.0以前 → v0.3.0 のアップデートについて】
+  ・初回の ▶開始 時に、新方式の句読点・英訳モデル（合計約500MB）を自動DLします
+    （音声認識モデルは引き継がれるので再DLされません）
+  ・models\hub 内の旧モデル3フォルダは使われなくなりました。残っていても害は
+    ありませんが、削除すると約1.3GB空きます:
+      models--tohoku-nlp--bert-base-japanese-char-v3
+      models--bobfromjapan--bert_japanese_punctuation
+      models--staka--fugumt-ja-en
+
 ■ OBS 連携
   1. OBS でソース追加 →「ブラウザ」
   2. URL に  http://localhost:8765  （アプリ右下からコピー可）
