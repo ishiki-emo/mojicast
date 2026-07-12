@@ -47,9 +47,9 @@
   - torch/transformers を import したら失敗するテストで非依存を実証済み
   - モデル変換は `tools/convert_models.py`（punct ONNX 364MB / FuguMT CT2 fp32 122MB、
     初回DL合計 約2.0GB → 約1.2GB）
-  - **リリース前の残作業**: 変換済みモデルを HF リポジトリ
-    （`ishiki-emo/mojicast-models`、punct.py/translate.py の `_REPO_ID`）へアップロード。
-    FuguMT変換版は CC BY-SA 4.0 継承＋クレジット必須（CREDITS.md 参照）。
+  - **リリース前の残作業**: 変換済みモデルを HF の2リポジトリへアップロード
+    （`ishiki-emo/mojicast-punct-onnx`=Apache-2.0 / `ishiki-emo/mojicast-fugumt-ja-en-ct2`
+    =CC BY-SA 4.0 継承＋クレジット必須。モデルカードは models_conv/ 内に作成済み）。
     アップロード後に PyInstaller 再ビルド → `smoke_test.ps1 -Fresh` で新規DL経路を検証
 - onefile化は非推奨（この規模は起動毎のtemp展開が遅すぎる）
 

@@ -13,8 +13,8 @@ import huggingface_hub as hf
 
 from apppaths import BASE
 
-_REPO_ID = "ishiki-emo/mojicast-models"   # 変換済みモデルの配布リポジトリ
-_SUBDIR = "fugumt-ja-en-ct2"
+_REPO_ID = "ishiki-emo/mojicast-fugumt-ja-en-ct2"   # 変換済みモデルの配布リポジトリ
+_SUBDIR = "fugumt-ja-en-ct2"                         # ローカル models_conv/ 内のフォルダ名
 
 _translator = None
 _sp_src = None
@@ -27,13 +27,11 @@ def _resolve_dir(download=True):
     if os.path.exists(os.path.join(local, "model.bin")):
         return local
     try:
-        base = hf.snapshot_download(_REPO_ID, allow_patterns=[f"{_SUBDIR}/*"],
-                                    local_files_only=True)
+        d = hf.snapshot_download(_REPO_ID, local_files_only=True)
     except Exception:
         if not download:
             raise
-        base = hf.snapshot_download(_REPO_ID, allow_patterns=[f"{_SUBDIR}/*"])
-    d = os.path.join(base, _SUBDIR)
+        d = hf.snapshot_download(_REPO_ID)
     if not os.path.exists(os.path.join(d, "model.bin")):
         raise FileNotFoundError(f"CT2モデルが不完全です: {d}")
     return d

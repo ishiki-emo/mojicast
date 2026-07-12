@@ -19,8 +19,8 @@ import huggingface_hub as hf
 
 from apppaths import BASE
 
-_REPO_ID = "ishiki-emo/mojicast-models"   # 変換済みモデルの配布リポジトリ
-_SUBDIR = "punct"
+_REPO_ID = "ishiki-emo/mojicast-punct-onnx"   # 変換済みモデルの配布リポジトリ
+_SUBDIR = "punct"                              # ローカル models_conv/ 内のフォルダ名
 
 _sess = None
 _vocab = None          # 文字 → トークンID
@@ -33,12 +33,11 @@ def _resolve(filename, download=True):
     if os.path.exists(local):
         return local
     try:
-        return hf.hf_hub_download(_REPO_ID, f"{_SUBDIR}/{filename}",
-                                  local_files_only=True)
+        return hf.hf_hub_download(_REPO_ID, filename, local_files_only=True)
     except Exception:
         if not download:
             raise
-        return hf.hf_hub_download(_REPO_ID, f"{_SUBDIR}/{filename}")
+        return hf.hf_hub_download(_REPO_ID, filename)
 
 
 def cached() -> bool:

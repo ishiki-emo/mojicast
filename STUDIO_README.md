@@ -64,8 +64,8 @@ ReazonSpeech k2 + Silero VAD + BERT句読点 + OBSオーバーレイ。
 ```
 
 - テスト中に表示される Mojicast の窓は**閉じない**こと（閉じるとアプリ終了＝FAIL扱い）
-- `-Fresh` は句読点/翻訳の変換済みモデルを配布リポジトリから実DLする
-  （`punct.py` / `translate.py` の `_REPO_ID`。アップロード済みであること）
+- `-Fresh` は句読点/翻訳の変換済みモデルを配布リポジトリ（HFの2リポジトリ、
+  `punct.py` / `translate.py` の `_REPO_ID`）から実DLする。アップロード済みであること
 - PASS 後、`dist\Mojicast\models`・`models_conv`・`data`・`logs` を削除してから Zip する
 - 教訓: ロード系は必ず自己診断（語彙サイズ検査・試訳・試句読点）で守ること。
   旧transformers時代、語彙欠落でも例外を出さず「空トークナイザ」ができて
