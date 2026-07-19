@@ -71,7 +71,31 @@
   #btnEngine.on { border-color: var(--err); color: var(--err); }
   #btnEngine:disabled { opacity: .5; cursor: wait; }
   /* ---------- レイアウト ---------- */
-  main { flex: 1; display: grid; grid-template-columns: 270px 1fr 260px; gap: 10px; padding: 10px; min-height: 0; }
+  main { flex: 1; display: grid; grid-template-columns: 1fr 288px; gap: 10px; padding: 10px; min-height: 0; }
+  .col { display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; }
+  .col-right { overflow-y: auto; }
+  #centerPanel { flex: 1; }
+  /* 設定バー（マイク／入力レベル／⚙詳細設定 を横並び） */
+  .setrow { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+  .field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .field.mic { flex: 2; min-width: 180px; }
+  .meterwrap { flex: 1; min-width: 130px; display: flex; flex-direction: column; gap: 5px; }
+  .setrow .cap { font-size: 11px; color: var(--dim); }
+  .advbtn { align-self: flex-end; white-space: nowrap; }
+  .advbtn .chev { display: inline-block; transition: transform .18s; }
+  .advbtn.open .chev { transform: rotate(180deg); }
+  .adv { display: none; margin-top: 12px; border-top: 1px solid var(--line); padding-top: 12px; }
+  .adv.open { display: block; }
+  .advgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px 18px; }
+  .advgrid .row { margin-bottom: 0; }
+  @media (max-width: 1000px) { .advgrid { grid-template-columns: 1fr 1fr; } }
+  /* 表示クリア（字幕モニタ内・右上・ふだんは控えめ／ホバーで明瞭） */
+  .clr-in { position: absolute; top: 8px; right: 8px; z-index: 4; font-family: inherit;
+    font-size: 11px; font-weight: 700; padding: 4px 9px; border-radius: 7px;
+    border: 1px solid var(--line); background: var(--panel2); color: var(--dim);
+    cursor: pointer; opacity: .5; transition: opacity .15s, color .15s, border-color .15s; }
+  .mon-wrap:hover .clr-in { opacity: 1; }
+  .clr-in:hover { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
   .panel {
     background: var(--panel); border: 1px solid var(--line);
     border-radius: 12px; padding: 14px; overflow-y: auto;
@@ -91,7 +115,7 @@
   .toggle { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; color: var(--dim); }
   .toggle input { accent-color: var(--accent); width: 16px; height: 16px; }
   /* レベルメーター */
-  #meter { width: 100%; height: 14px; background: var(--panel2); border-radius: 7px; overflow: hidden; border: 1px solid var(--line); }
+  #meter { width: 100%; height: 32px; background: var(--panel2); border-radius: 8px; overflow: hidden; border: 1px solid var(--line); }
   #meterBar { height: 100%; width: 0%; background: linear-gradient(90deg, var(--ok), var(--warn) 70%, var(--err)); transition: width .08s linear; }
   /* ---------- モニタ ---------- */
   #monitor {
@@ -141,8 +165,9 @@
   /* ---------- 右ペインのグループ区画 ---------- */
   .group {
     border: 1px solid var(--line); border-radius: 12px;
-    padding: 12px; margin-bottom: 12px; background: rgba(255,255,255,.02);
+    padding: 12px; background: rgba(255,255,255,.02);
   }
+  :root[data-theme="light"] .group { background: rgba(0,0,0,.02); }
   .ghead { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
   .gicon {
     width: 30px; height: 30px; border-radius: 8px; flex: none;
@@ -221,54 +246,50 @@
     <div id="stateText">停止中</div>
     <div class="spacer"></div>
     <button id="themeBtn" onclick="toggleTheme()" title="ライト/ダーク切替">🌙</button>
-    <button onclick="clearCaptions()">表示クリア</button>
     <button onclick="openStudio('')">🛠 スタジオ</button>
     <button id="btnEngine" onclick="toggleEngine()">▶ 開始</button>
   </header>
 
   <main>
-    <!-- ========== 左: 入力・認識設定 ========== -->
-    <section class="panel">
-      <h2>🎙 入力・認識設定</h2>
-      <div class="row">
-        <label>マイク</label>
-        <select id="device"></select>
-      </div>
-      <div class="row">
-        <label>入力レベル</label>
-        <div id="meter"><div id="meterBar"></div></div>
-      </div>
-      <div class="row">
-        <label>単語プロファイル</label>
-        <select id="wordProfile"></select>
-        <div class="hint">「共通」に加算した単語セット。<a class="glink" onclick="openWords()">単語スタジオで編集 →</a></div>
-      </div>
-      <details class="adv">
-        <summary>⚙ 詳細設定<span class="chev">▸</span></summary>
-        <div class="advbody">
-          <div class="row">
-            <label>無音で文を区切る <output id="oSilence">300ms</output></label>
-            <input type="range" id="silence" min="100" max="800" step="50" value="300">
+    <!-- ========== 左: 設定バー ＋ 字幕モニタ ========== -->
+    <div class="col">
+      <section class="panel">
+        <div class="setrow">
+          <div class="field mic">
+            <span class="cap">マイク</span>
+            <select id="device"></select>
           </div>
-          <div class="row">
-            <label>途中経過の更新間隔 <output id="oInterval">0.4s</output></label>
-            <input type="range" id="interval" min="0.2" max="1.0" step="0.1" value="0.4">
+          <div class="meterwrap">
+            <span class="cap">入力レベル</span>
+            <div id="meter"><div id="meterBar"></div></div>
           </div>
-          <div class="row">
-            <label>一区切りの最長 <output id="oMax">12s</output></label>
-            <input type="range" id="maxUtt" min="5" max="30" step="1" value="12">
-          </div>
-          <div class="row">
-            <label>登録した単語の出やすさ <output id="oScore">2.0</output></label>
-            <input type="range" id="score" min="1.0" max="4.0" step="0.5" value="2.0">
+          <button class="advbtn" id="advBtn" onclick="toggleAdv()">⚙ 詳細設定 <span class="chev">▾</span></button>
+        </div>
+        <div class="adv" id="advBody">
+          <div class="advgrid">
+            <div class="row">
+              <label>無音で文を区切る <output id="oSilence">300ms</output></label>
+              <input type="range" id="silence" min="100" max="800" step="50" value="300">
+            </div>
+            <div class="row">
+              <label>途中経過の更新間隔 <output id="oInterval">0.4s</output></label>
+              <input type="range" id="interval" min="0.2" max="1.0" step="0.1" value="0.4">
+            </div>
+            <div class="row">
+              <label>一区切りの最長 <output id="oMax">12s</output></label>
+              <input type="range" id="maxUtt" min="5" max="30" step="1" value="12">
+            </div>
+            <div class="row">
+              <label>登録した単語の出やすさ <output id="oScore">2.0</output></label>
+              <input type="range" id="score" min="1.0" max="4.0" step="0.5" value="2.0">
+            </div>
           </div>
         </div>
-      </details>
-      <div class="hint" id="restartHint" style="display:none">⚠ 設定変更は次回開始時に反映</div>
-    </section>
+        <div class="hint" id="restartHint" style="display:none">⚠ 設定変更は次回開始時に反映</div>
+      </section>
 
-    <!-- ========== 中央: 字幕モニタ ========== -->
-    <section class="panel" id="centerPanel">
+      <!-- 字幕モニタ -->
+      <section class="panel" id="centerPanel">
       <div class="mon-head">
         <h2 style="margin:0;border:0;padding:0">字幕モニタ</h2>
         <span class="rec" id="rec">● REC</span>
@@ -282,23 +303,25 @@
       </div>
       <div class="mon-wrap">
         <div id="monitor"></div>
+        <button class="clr-in" onclick="clearCaptions()">表示クリア</button>
         <div id="guide">
           <div>
             <div class="g-title">はじめの3ステップ</div>
             <div class="g-sub">この案内は最初だけ表示されます</div>
           </div>
           <ol>
-            <li><span class="g-n">1</span><div><b>マイクを選ぶ</b><span>左の「入力」パネル</span></div></li>
+            <li><span class="g-n">1</span><div><b>マイクを選ぶ</b><span>上の設定バー</span></div></li>
             <li><span class="g-n">2</span><div><b>「▶ 開始」を押す</b><span>右上のボタン。字幕がここに出ます</span></div></li>
             <li><span class="g-n">3</span><div><b>表示用のURLをOBSに貼る</b><span>右の「OBS 連携」からコピー</span></div></li>
           </ol>
           <button class="g-close" onclick="dismissGuide()">閉じる</button>
         </div>
       </div>
-    </section>
+      </section>
+    </div>
 
-    <!-- ========== 右: スタイル・レイアウト・OBS ========== -->
-    <section class="panel">
+    <!-- ========== 右: 選んで設定（スタイル/レイアウト/単語/OBS）========== -->
+    <div class="col col-right">
       <div class="group">
         <div class="ghead">
           <span class="gicon" style="background:rgba(0,229,255,.12)">🎨</span>
@@ -323,6 +346,17 @@
       </div>
       <div class="group">
         <div class="ghead">
+          <span class="gicon" style="background:rgba(255,184,77,.12)">📖</span>
+          <div>
+            <div class="gtitle">単語プロファイル</div>
+            <div class="gdesc">「共通」に足す単語セット</div>
+          </div>
+          <a class="gedit" onclick="openWords()">スタジオで編集 →</a>
+        </div>
+        <div class="selrow"><select id="wordProfile"></select></div>
+      </div>
+      <div class="group">
+        <div class="ghead">
           <span class="gicon" style="background:rgba(61,255,160,.12)">🎬</span>
           <div>
             <div class="gtitle">OBS 連携</div>
@@ -343,7 +377,7 @@
         <div class="hint" id="portHint" style="display:none;color:var(--warn)">
           ⚠ 次回起動時に反映。OBSブラウザソースのURLも新しいポートに更新してください</div>
       </div>
-    </section>
+    </div>
   </main>
 
   <footer>Mojicast <span id="verTag"></span> — ReazonSpeech k2 + Silero VAD + BERT句読点 / ローカル完結・オフライン動作</footer>
@@ -369,6 +403,12 @@
 
   function debounce(fn, ms) {
     let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+  }
+
+  // 詳細設定（設定バーの開閉）
+  function toggleAdv() {
+    $("advBody").classList.toggle("open");
+    $("advBtn").classList.toggle("open");
   }
 
   // ---------- テーマ（dark / light）----------
