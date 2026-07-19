@@ -36,13 +36,16 @@ UI_SCALE = _ui_scale()
 class JsApi:
     """コックピットの JS から呼べるネイティブAPI"""
 
-    def __init__(self):
+    def __init__(self, port):
         self._windows = {}   # key -> webview.Window
+        self._port = port    # 実際に起動しているポート（configの値ではなく起動時の実ポート）
 
     def _open(self, key, title, path, width, height):
         if self._windows.get(key) is not None:
             return
-        port = app_server.load_config().get("port", 8765)
+        # configを読み直さず起動時の実ポートを使う。ポート変更は次回起動時反映で、
+        # 変更後・再起動前は config != 実ポートとなり、別窓が接続先を誤るため（見切れず要修正）
+        port = self._port
         sep = "&" if "?" in path else "?"
         w = webview.create_window(
             f"{title} — Mojicast",
@@ -97,7 +100,7 @@ def main():
 
     app_server.start(port)
 
-    api = JsApi()
+    api = JsApi(port)
     window = webview.create_window(
         "Mojicast",
         f"http://127.0.0.1:{port}/ui/cockpit?s={UI_SCALE}",
