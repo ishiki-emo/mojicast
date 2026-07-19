@@ -262,7 +262,6 @@
             <label>登録した単語の出やすさ <output id="oScore">2.0</output></label>
             <input type="range" id="score" min="1.0" max="4.0" step="0.5" value="2.0">
           </div>
-          <div class="toggle"><span>登録した単語を使う</span><input type="checkbox" id="useHot" checked></div>
         </div>
       </details>
       <div class="hint" id="restartHint" style="display:none">⚠ 設定変更は次回開始時に反映</div>
@@ -400,8 +399,6 @@
   bindRange("maxUtt", "max_utt", "oMax", v => v + "s");
   bindRange("score", "hotwords_score", "oScore", v => (+v).toFixed(1));
 
-  $("useHot").addEventListener("change", e => { cfg.use_hotwords = e.target.checked; saveCfg(); });
-
   // 字幕処理トグル（モニタ上のチップ）。cfgのキーを直接切り替える
   function mtogOn(k) {
     return k === "precision" ? cfg.precision === "fp32" : !!cfg[k];
@@ -456,7 +453,6 @@
     $("interval").value = cfg.interval;  $("oInterval").textContent = cfg.interval + "s";
     $("maxUtt").value = cfg.max_utt;     $("oMax").textContent = cfg.max_utt + "s";
     $("score").value = cfg.hotwords_score; $("oScore").textContent = (+cfg.hotwords_score).toFixed(1);
-    $("useHot").checked = cfg.use_hotwords;
     if (cfg.num_arabic === undefined) cfg.num_arabic = true;   // 既定ON（チップ表示用）
     if (cfg.save_log === undefined) cfg.save_log = true;
     syncMTog();   // 字幕処理チップ（句読点/英訳/ログ/漢数字/高精度）を反映
