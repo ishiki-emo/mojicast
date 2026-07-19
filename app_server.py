@@ -20,7 +20,7 @@ from urllib.parse import urlparse, parse_qs
 from apppaths import BASE
 import wordstore
 
-APP_VERSION = "0.3.0"
+APP_VERSION = "0.3.1"
 
 DEFAULT_CONFIG = {
     "silence_ms": 300, "interval": 0.4, "max_utt": 12.0,

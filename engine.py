@@ -144,6 +144,21 @@ class CaptionEngine:
 
     # ---------------- モデルロード ----------------
 
+    def _log_load_error(self, name):
+        """付加機能（句読点/英訳）のロード失敗時に traceback を logs/ へ残す。
+        GUIには短い警告しか出せないため、テスターからの報告調査はこのログで行う。"""
+        try:
+            import traceback
+            d = os.path.join(BASE, "logs")
+            os.makedirs(d, exist_ok=True)
+            ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            with open(os.path.join(d, "load_error.log"), "a",
+                      encoding="utf-8") as f:
+                f.write(f"[{ts}] {name} のロードに失敗\n")
+                f.write(traceback.format_exc() + "\n")
+        except OSError:
+            pass                    # ログが書けなくても本体は続行
+
     def _expected_download_mb(self, cfg):
         """この設定で未キャッシュのモデルの合計DLサイズ(MB)と、DLが要るかを返す"""
         total = 0
@@ -228,6 +243,7 @@ class CaptionEngine:
                 except Exception:
                     self._punct = None
                     self._load_warn = "句読点の読み込みに失敗"
+                    self._log_load_error("句読点モデル")
 
             if need_trans:
                 self.on_state("loading", "翻訳モデル(英訳)をロード中...")
@@ -238,6 +254,7 @@ class CaptionEngine:
                 except Exception:
                     self._translate = None
                     self._load_warn = "英訳の読み込みに失敗（英訳なしで続行）"
+                    self._log_load_error("翻訳モデル(英訳)")
         finally:
             stop_evt.set()
             if mon is not None:

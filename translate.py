@@ -79,8 +79,16 @@ def load_translator(num_threads: int = 4):
     import ctranslate2
     import sentencepiece as spm
     d = _resolve_dir()
-    _sp_src = spm.SentencePieceProcessor(model_file=os.path.join(d, "source.spm"))
-    _sp_tgt = spm.SentencePieceProcessor(model_file=os.path.join(d, "target.spm"))
+
+    # SentencePiece は Windows で非ASCIIパス上のファイルを開けない（narrow string
+    # でopenするため）。凍結版は exe 隣にモデルを置くので、日本語名フォルダに
+    # インストールされると model_file= 渡しでは必ず失敗する。バイト列で渡して回避。
+    def _sp_load(path):
+        with open(path, "rb") as f:
+            return spm.SentencePieceProcessor(model_proto=f.read())
+
+    _sp_src = _sp_load(os.path.join(d, "source.spm"))
+    _sp_tgt = _sp_load(os.path.join(d, "target.spm"))
     _translator = ctranslate2.Translator(d, device="cpu",
                                          compute_type="float32",
                                          inter_threads=1,
