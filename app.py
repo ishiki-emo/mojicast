@@ -52,17 +52,20 @@ class JsApi:
         self._windows[key] = w
         w.events.closed += lambda: self._windows.pop(key, None)
 
+    def open_studio(self, query=""):
+        """統合スタジオ（文字スタイル/レイアウト/単語/共有）を別窓で開く
+
+        query 例: "tab=words" / "tab=box" / "preset=cute" / "tab=box&box=lower"
+        """
+        path = "/ui/studio" + (f"?{query}" if query else "")
+        self._open("studio", "スタジオ", path, 1120, 840)
+
+    # 後方互換: 旧エントリはすべて統合スタジオへ委譲
     def open_words(self):
-        """単語スタジオを別窓で開く（既に開いていれば何もしない）"""
-        self._open("words", "単語スタジオ", "/ui/words", 940, 680)
+        self.open_studio("tab=words")
 
     def open_style(self, query=""):
-        """スタイルスタジオ（プリセット/ボックス編集）を別窓で開く
-
-        query 例: "preset=cute" / "tab=box&box=lower"
-        """
-        self._open("style", "スタイルスタジオ",
-                   f"/ui/style?{query}", 1020, 820)
+        self.open_studio(query)
 
 
 def _port_free(port: int) -> bool:

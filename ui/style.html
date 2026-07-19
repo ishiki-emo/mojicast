@@ -5,13 +5,18 @@
 <title>スタイルスタジオ</title>
 <script>
   (function () {
-    const s = parseFloat(new URLSearchParams(location.search).get("s"));
+    const qs = new URLSearchParams(location.search);
+    const s = parseFloat(qs.get("s"));
     if (s > 0 && s < 1) document.documentElement.style.zoom = s;
     try { if (localStorage.getItem("mojicast-theme") === "light")
       document.documentElement.dataset.theme = "light"; } catch (e) {}
+    // スタジオ（studio.html）へiframe埋め込み時: 内部の上位ナビは親が担うので隠す
+    if (qs.get("embed") === "1") document.documentElement.classList.add("embed");
   })();
 </script>
 <style>
+  /* 埋め込み時: このページ自身の上位タブ(nav)は非表示（親studioが切替を担う） */
+  :root.embed nav { display: none; }
   :root {
     --bg: #0d1117; --panel: #161c26; --panel2: #1c2432;
     --line: #2a3547; --text: #dce6f5; --dim: #7d8ba1;
@@ -277,6 +282,13 @@
     else r.removeAttribute("data-theme");
     try { localStorage.setItem("mojicast-theme", t === "light" ? "light" : "dark"); } catch (e) {}
   }
+
+  // スタジオ(studio.html)から埋め込み時: 上位タブの切替とテーマ変更を受ける
+  window.addEventListener("message", (e) => {
+    const m = e.data || {};
+    if (m.mojiTab === "style" || m.mojiTab === "box") showTab(m.mojiTab);
+    if (m.mojiTheme) applyTheme(m.mojiTheme);
+  });
 
   async function init() {
     $("f_animIn").innerHTML =

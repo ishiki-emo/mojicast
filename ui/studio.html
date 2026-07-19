@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>スタジオ</title>
+<script>
+  (function () {
+    const s = parseFloat(new URLSearchParams(location.search).get("s"));
+    if (s > 0 && s < 1) document.documentElement.style.zoom = s;
+    try { if (localStorage.getItem("mojicast-theme") === "light")
+      document.documentElement.dataset.theme = "light"; } catch (e) {}
+  })();
+</script>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161c26; --panel2: #1c2432;
+    --line: #2a3547; --text: #dce6f5; --dim: #7d8ba1;
+    --accent: #00e5ff; --accent2: #ff2d95; --ok: #3dffa0; --warn: #ffb84d; --err: #ff5c5c;
+  }
+  :root[data-theme="light"] {
+    --bg: #f7f9fc; --panel: #ffffff; --panel2: #eef2f8;
+    --line: #dbe2ec; --text: #16202e; --dim: #5c6b80;
+    --accent: #0499bd; --accent2: #d4247a; --ok: #12a05f; --warn: #b5761a; --err: #d94141;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { display: flex; flex-direction: column; background: var(--bg); color: var(--text);
+    font-family: "Yu Gothic UI", "Meiryo", sans-serif; overflow: hidden; }
+
+  .sthead { display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+    background: var(--panel); border-bottom: 1px solid var(--line); }
+  .sthead .logo { font-weight: 800; font-size: 15px; letter-spacing: .5px; }
+  .sthead .logo b { color: var(--accent2); }
+  .sthead .desc { color: var(--dim); font-size: 12px; }
+
+  .topnav { display: flex; gap: 4px; padding: 8px 12px 0; background: var(--panel);
+    border-bottom: 1px solid var(--line); }
+  .topnav button { font-family: inherit; font-weight: 700; font-size: 13.5px; color: var(--dim);
+    background: transparent; border: 1px solid transparent; border-bottom: 0;
+    border-radius: 9px 9px 0 0; padding: 10px 16px; cursor: pointer; transition: color .15s, background .15s; }
+  .topnav button:hover { color: var(--text); }
+  .topnav button[aria-selected="true"] { color: var(--text); background: var(--bg);
+    border-color: var(--line); box-shadow: 0 1px 0 0 var(--bg); }
+  .topnav button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .frames { flex: 1; position: relative; min-height: 0; }
+  .pane { position: absolute; inset: 0; display: none; }
+  .pane.on { display: block; }
+  iframe.pane { width: 100%; height: 100%; border: 0; background: var(--bg); }
+
+  /* 共有パネル */
+  #pShare { overflow: auto; padding: 22px; }
+  .sharegrid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 900px; }
+  @media (max-width: 720px) { .sharegrid { grid-template-columns: 1fr; } }
+  .card { background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
+  .card h3 { font-size: 14px; margin-bottom: 6px; }
+  .card p { color: var(--dim); font-size: 12.5px; margin-bottom: 14px; }
+  .card .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn { font-family: inherit; font-weight: 700; font-size: 13px; color: var(--text);
+    background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
+    padding: 9px 13px; cursor: pointer; transition: border-color .15s, background .15s; }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.primary { border-color: var(--ok); color: var(--ok); }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  #shareMsg { margin-top: 16px; font-size: 12.5px; max-width: 900px; min-height: 1.4em; }
+  #shareMsg.ok { color: var(--ok); } #shareMsg.err { color: var(--err); }
+  .note { color: var(--dim); font-size: 12px; margin-top: 18px; max-width: 900px; line-height: 1.7; }
+</style>
+</head>
+<body>
+  <div class="sthead">
+    <span class="logo">STUDIO<b>.</b></span>
+    <span class="desc">字幕の見た目と単語を作る・育てる場所</span>
+  </div>
+
+  <div class="topnav" role="tablist" aria-label="スタジオ">
+    <button role="tab" aria-selected="true"  data-tab="style"  onclick="topTab('style')">🎨 文字スタイル</button>
+    <button role="tab" aria-selected="false" data-tab="layout" onclick="topTab('layout')">📐 レイアウト</button>
+    <button role="tab" aria-selected="false" data-tab="words"  onclick="topTab('words')">📖 単語</button>
+    <button role="tab" aria-selected="false" data-tab="share"  onclick="topTab('share')">🔗 共有</button>
+  </div>
+
+  <div class="frames">
+    <iframe class="pane on" id="fStyle" title="文字スタイル / レイアウト"></iframe>
+    <iframe class="pane" id="fWords" title="単語"></iframe>
+    <section class="pane" id="pShare">
+      <div class="sharegrid">
+        <div class="card">
+          <h3>📤 エクスポート</h3>
+          <p>文字スタイルとレイアウトを .mojipack にまとめて書き出し、配布できます。</p>
+          <div class="btns">
+            <button class="btn" onclick="exportAll()">すべて書き出す</button>
+            <button class="btn" onclick="openFolder()">📂 保存先フォルダを開く</button>
+          </div>
+        </div>
+        <div class="card">
+          <h3>📥 インポート</h3>
+          <p>受け取った .mojipack を取り込みます。既存は上書きせず追加します（名前が重なると「〜 (imported)」）。</p>
+          <div class="btns">
+            <button class="btn primary" onclick="document.getElementById('impFile').click()">ファイルを選ぶ…</button>
+            <input type="file" id="impFile" accept=".mojipack,.json" hidden onchange="doImport(this.files[0])">
+          </div>
+        </div>
+      </div>
+      <div id="shareMsg"></div>
+      <p class="note">個別（この文字スタイルだけ／このレイアウトだけ）の書き出しは、
+        「文字スタイル」「レイアウト」タブの下部にある 📤 エクスポート からも行えます。</p>
+    </section>
+  </div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const qs = new URLSearchParams(location.search);
+  const S = qs.get("s") ? "&s=" + encodeURIComponent(qs.get("s")) : "";
+
+  // iframe の src を組み立て（style へは deep-link 用の tab/preset/box を引き継ぐ）
+  const styleExtra =
+    (qs.get("tab") === "box" ? "&tab=box" : "") +
+    (qs.get("preset") ? "&preset=" + encodeURIComponent(qs.get("preset")) : "") +
+    (qs.get("box") ? "&box=" + encodeURIComponent(qs.get("box")) : "");
+  $("fStyle").src = "/ui/style?embed=1" + S + styleExtra;
+  $("fWords").src = "/ui/words?embed=1" + S;
+
+  const TABS = ["style", "layout", "words", "share"];
+  function topTab(name) {
+    for (const b of document.querySelectorAll(".topnav button"))
+      b.setAttribute("aria-selected", String(b.dataset.tab === name));
+    $("fStyle").classList.toggle("on", name === "style" || name === "layout");
+    $("fWords").classList.toggle("on", name === "words");
+    $("pShare").classList.toggle("on", name === "share");
+    if (name === "style" || name === "layout") {
+      // 埋め込んだ style ページの内部タブを親から切替（リロードせず）
+      try { $("fStyle").contentWindow.postMessage(
+        { mojiTab: name === "layout" ? "box" : "style" }, "*"); } catch (e) {}
+    }
+  }
+
+  // 初期タブ（cockpit からの deep-link）
+  (function () {
+    const t = qs.get("tab");
+    topTab(t === "words" ? "words" : t === "share" ? "share" : t === "box" ? "layout" : "style");
+  })();
+
+  // ---------- 共有（エクスポート / インポート） ----------
+  function shareMsg(text, ok) {
+    const el = $("shareMsg");
+    el.textContent = text; el.className = ok ? "ok" : "err";
+  }
+  async function jpost(path, body) {
+    const r = await fetch(path, { method: "POST", body: JSON.stringify(body) });
+    return r.json();
+  }
+  async function exportAll() {
+    try {
+      const [p, b] = await Promise.all([
+        fetch("/api/presets").then(r => r.json()),
+        fetch("/api/boxes").then(r => r.json()),
+      ]);
+      const res = await jpost("/api/mojipack/export", {
+        presets: (p.presets || []).map(x => x.id),
+        boxes: (b.boxes || []).map(x => x.id),
+      });
+      if (res.ok) shareMsg("書き出しました: " + res.file, true);
+      else shareMsg(res.error || "書き出しに失敗しました", false);
+    } catch (e) { shareMsg("書き出しに失敗しました", false); }
+  }
+  async function openFolder() {
+    const res = await jpost("/api/mojipack/open", {});
+    if (!res.ok) shareMsg(res.error || "フォルダを開けませんでした", false);
+  }
+  async function doImport(file) {
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      const res = await jpost("/api/mojipack/import", { data });
+      if (res.ok) {
+        shareMsg(`取り込みました（文字スタイル ${res.presets} 件 / レイアウト ${res.boxes} 件）`, true);
+        // style iframe を読み直して取り込み結果を反映
+        $("fStyle").src = $("fStyle").src;
+      } else {
+        shareMsg(res.error || "取り込みに失敗しました", false);
+      }
+    } catch (e) { shareMsg("ファイルを読めませんでした（.mojipack を選んでください）", false); }
+    $("impFile").value = "";
+  }
+</script>
+</body>
+</html>

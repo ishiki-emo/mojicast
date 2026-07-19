@@ -181,7 +181,7 @@
     <div class="spacer"></div>
     <button id="themeBtn" onclick="toggleTheme()" title="ライト/ダーク切替">🌙</button>
     <button onclick="clearCaptions()">表示クリア</button>
-    <button onclick="openWords()">✦ 単語スタジオ</button>
+    <button onclick="openStudio('')">🛠 スタジオ</button>
     <button id="btnEngine" onclick="toggleEngine()">▶ 開始</button>
   </header>
 
@@ -498,21 +498,16 @@
     try { navigator.clipboard.writeText(el.value); } catch (e) { document.execCommand("copy"); }
   }
 
-  // ---------- 単語スタジオ / スタイルスタジオ（別窓） ----------
-  function openWords() {
-    if (window.pywebview && window.pywebview.api && window.pywebview.api.open_words) {
-      window.pywebview.api.open_words();
+  // ---------- スタジオ（別窓・文字スタイル/レイアウト/単語/共有を統合） ----------
+  function openStudio(query) {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.open_studio) {
+      window.pywebview.api.open_studio(query || "");
     } else {
-      window.open("/ui/words", "_blank", "width=920,height=640");
+      window.open("/ui/studio" + (query ? "?" + query : ""), "_blank", "width=1120,height=840");
     }
   }
-  function openStyle(query) {
-    if (window.pywebview && window.pywebview.api && window.pywebview.api.open_style) {
-      window.pywebview.api.open_style(query || "");
-    } else {
-      window.open("/ui/style?" + (query || ""), "_blank", "width=1000,height=800");
-    }
-  }
+  function openWords() { openStudio("tab=words"); }
+  function openStyle(query) { openStudio(query || ""); }
 
   // ---------- モニタ（SSE） ----------
   const MON_MAX = 6;
