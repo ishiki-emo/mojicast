@@ -7,6 +7,8 @@
   (function () {
     const s = parseFloat(new URLSearchParams(location.search).get("s"));
     if (s > 0 && s < 1) document.documentElement.style.zoom = s;
+    try { if (localStorage.getItem("mojicast-theme") === "light")
+      document.documentElement.dataset.theme = "light"; } catch (e) {}
   })();
 </script>
 <style>
@@ -15,6 +17,13 @@
     --line: #2a3547; --text: #dce6f5; --dim: #7d8ba1;
     --accent: #00e5ff; --ok: #3dffa0; --err: #ff5c5c;
   }
+  /* ライトテーマ（GUI窓のみ）。既定はダーク。 */
+  :root[data-theme="light"] {
+    --bg: #f7f9fc; --panel: #ffffff; --panel2: #eef2f8;
+    --line: #dbe2ec; --text: #16202e; --dim: #5c6b80;
+    --accent: #0499bd; --ok: #12a05f; --err: #d94141;
+  }
+  :root[data-theme="light"] .fsec.en { color: #d4247a; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     background: var(--bg); color: var(--text);
@@ -261,6 +270,14 @@
   let activePresetId = "";   // コックピットで使用中のプリセット（ボックスプレビューに使う）
 
   // ---------- 初期化 ----------
+  // テーマ適用（このページに切替UIは無い。cockpitの保存値／localStorageに従う）
+  function applyTheme(t) {
+    const r = document.documentElement;
+    if (t === "light") r.setAttribute("data-theme", "light");
+    else r.removeAttribute("data-theme");
+    try { localStorage.setItem("mojicast-theme", t === "light" ? "light" : "dark"); } catch (e) {}
+  }
+
   async function init() {
     $("f_animIn").innerHTML =
       FX.LINE_ANIMS.map(([v, l]) => `<option value="${v}">${l}</option>`).join("");
@@ -275,6 +292,7 @@
     hotwords = (hj.entries || []).map(e => e.surface);
     sysFonts = fj.fonts || [];
     activePresetId = cj.preset || "";
+    applyTheme(cj.theme);   // 保存済みテーマを確定反映（先読みの上書き）
 
     // フォント選択: おすすめ + システムフォント全部
     const rec = FX.FONTS.map(f =>

@@ -8,6 +8,9 @@
   (function () {
     const s = parseFloat(new URLSearchParams(location.search).get("s"));
     if (s > 0 && s < 1) document.documentElement.style.zoom = s;
+    // テーマ先読み（configロード前のちらつき防止。真の値はloadAllで上書き）
+    try { if (localStorage.getItem("mojicast-theme") === "light")
+      document.documentElement.dataset.theme = "light"; } catch (e) {}
   })();
 </script>
 <style>
@@ -16,6 +19,18 @@
     --line: #2a3547; --text: #dce6f5; --dim: #7d8ba1;
     --accent: #00e5ff; --accent2: #ff2d95; --ok: #3dffa0; --warn: #ffb84d; --err: #ff5c5c;
   }
+  /* ライトテーマ（GUI窓のみ。overlayは対象外）。既定はダーク。 */
+  :root[data-theme="light"] {
+    --bg: #f7f9fc; --panel: #ffffff; --panel2: #eef2f8;
+    --line: #dbe2ec; --text: #16202e; --dim: #5c6b80;
+    --accent: #0499bd; --accent2: #d4247a; --ok: #12a05f; --warn: #b5761a; --err: #d94141;
+  }
+  /* 字幕モニタは透過オーバーレイの見た目。ライトでは黒縞→透過を示す市松に */
+  :root[data-theme="light"] #monitor {
+    background: repeating-conic-gradient(#cfd7e2 0% 25%, #e4e9f1 0% 50%) 0 0/22px 22px;
+  }
+  :root[data-theme="light"] .sw { background: #c1ccdc; }
+  :root[data-theme="light"] .group { background: rgba(0,0,0,.02); }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     background: var(--bg); color: var(--text);
@@ -147,6 +162,7 @@
     <div class="led" id="led"></div>
     <div id="stateText">停止中</div>
     <div class="spacer"></div>
+    <button id="themeBtn" onclick="toggleTheme()" title="ライト/ダーク切替">🌙</button>
     <button onclick="clearCaptions()">表示クリア</button>
     <button onclick="openWords()">✦ 単語スタジオ</button>
     <button id="btnEngine" onclick="toggleEngine()">▶ 開始</button>
@@ -275,6 +291,21 @@
     let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
   }
 
+  // ---------- テーマ（dark / light）----------
+  function applyTheme(t) {
+    const light = t === "light";
+    const r = document.documentElement;
+    if (light) r.setAttribute("data-theme", "light"); else r.removeAttribute("data-theme");
+    const b = $("themeBtn");
+    if (b) { b.textContent = light ? "☀" : "🌙"; }
+    try { localStorage.setItem("mojicast-theme", light ? "light" : "dark"); } catch (e) {}
+  }
+  function toggleTheme() {
+    cfg.theme = cfg.theme === "light" ? "dark" : "light";
+    applyTheme(cfg.theme);
+    api("/api/config", { theme: cfg.theme });   // 保存（次回起動・他窓の初期値に反映）
+  }
+
   function bindRange(id, key, outId, fmt, scale) {
     const el = $(id);
     el.addEventListener("input", () => {
@@ -324,6 +355,7 @@
 
   async function loadAll() {
     cfg = await api("/api/config");
+    applyTheme(cfg.theme);   // 保存済みテーマを確定反映（先読みの上書き）
     if (cfg.version) $("verTag").textContent = "v" + cfg.version;
     $("silence").value = cfg.silence_ms; $("oSilence").textContent = cfg.silence_ms + "ms";
     $("interval").value = cfg.interval;  $("oInterval").textContent = cfg.interval + "s";

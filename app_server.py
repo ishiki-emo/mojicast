@@ -29,6 +29,7 @@ DEFAULT_CONFIG = {
     "save_log": True, "mask_char": "○", "num_arabic": True,
     "preset": "standard", "box": "none", "port": 8765,
     "word_profile": "",     # 使用中の単語プロファイル（"" = 共通のみ）
+    "theme": "dark",        # GUI窓のテーマ（dark / light）。overlayは対象外
 }
 
 _clients = []
@@ -379,6 +380,8 @@ class Handler(BaseHTTPRequestHandler):
                     self._json({"ok": False,
                                 "error": "ポートは 1024〜65535 の数値で指定してください"}, 400)
                     return
+            if "theme" in body and body.get("theme") not in ("dark", "light"):
+                body["theme"] = "dark"   # 未知値はダークへ（既定）
             cfg = load_config()
             cfg.update({k: v for k, v in body.items() if k in DEFAULT_CONFIG})
             save_config(cfg)

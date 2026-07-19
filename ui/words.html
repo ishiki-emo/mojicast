@@ -7,6 +7,8 @@
   (function () {
     const s = parseFloat(new URLSearchParams(location.search).get("s"));
     if (s > 0 && s < 1) document.documentElement.style.zoom = s;
+    try { if (localStorage.getItem("mojicast-theme") === "light")
+      document.documentElement.dataset.theme = "light"; } catch (e) {}
   })();
 </script>
 <style>
@@ -14,6 +16,12 @@
     --bg: #0d1117; --panel: #161c26; --panel2: #1c2432;
     --line: #2a3547; --text: #dce6f5; --dim: #7d8ba1;
     --accent: #00e5ff; --ok: #3dffa0; --err: #ff5c5c;
+  }
+  /* ライトテーマ（GUI窓のみ）。既定はダーク。 */
+  :root[data-theme="light"] {
+    --bg: #f7f9fc; --panel: #ffffff; --panel2: #eef2f8;
+    --line: #dbe2ec; --text: #16202e; --dim: #5c6b80;
+    --accent: #0499bd; --ok: #12a05f; --err: #d94141;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -162,8 +170,8 @@
     </div>
     <textarea id="bannedText" rows="14" spellcheck="false"
       placeholder="1行に1語（例）&#10;ぴー&#10;NGワード"
-      style="width:100%;box-sizing:border-box;background:#1c2432;color:#dce6f5;
-             border:1px solid #2a3547;border-radius:8px;padding:10px;
+      style="width:100%;box-sizing:border-box;background:var(--panel2);color:var(--text);
+             border:1px solid var(--line);border-radius:8px;padding:10px;
              font-family:inherit;font-size:15px;line-height:1.6;resize:vertical"></textarea>
   </div>
 
@@ -391,7 +399,19 @@
     dirty = false;
   }
 
+  // テーマ適用（このページに切替UIは無い。cockpitの保存値／localStorageに従う）
+  function applyTheme(t) {
+    const r = document.documentElement;
+    if (t === "light") r.setAttribute("data-theme", "light");
+    else r.removeAttribute("data-theme");
+    try { localStorage.setItem("mojicast-theme", t === "light" ? "light" : "dark"); } catch (e) {}
+  }
+
   async function loadAll() {
+    try {
+      const c = await (await fetch("/api/config")).json();
+      applyTheme(c.theme);   // 保存済みテーマを確定反映（先読みの上書き）
+    } catch (e) {}
     try {
       sysFonts = (await (await fetch("/api/fonts")).json()).fonts || [];
     } catch (e) { sysFonts = []; }
