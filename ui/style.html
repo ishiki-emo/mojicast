@@ -110,13 +110,13 @@
 <body>
   <nav>
     <button id="tabStyle" class="active" onclick="showTab('style')">🎨 文字スタイル</button>
-    <button id="tabBox" onclick="showTab('box')">📦 ボックス（配置）</button>
+    <button id="tabBox" onclick="showTab('box')">📐 レイアウト</button>
   </nav>
 
   <!-- ================= 文字スタイル ================= -->
   <div class="page show" id="pageStyle">
     <section class="panel">
-      <h2>PRESETS</h2>
+      <h2>プリセット</h2>
       <div id="plist"></div>
       <div style="display:flex; gap:6px; margin-top:10px; flex-wrap:wrap">
         <button class="btn small" onclick="dupPreset()">⧉ 複製</button>
@@ -124,7 +124,7 @@
       </div>
     </section>
     <section class="panel editor">
-      <h2>EDIT — <span id="editName"></span></h2>
+      <h2>編集 — <span id="editName"></span></h2>
       <div class="form" id="form">
         <div class="fsec">📛 プリセット</div>
         <div class="fr"><label>プリセット名</label><input type="text" id="f_name"></div>
@@ -162,7 +162,7 @@
         <div class="fr"><label>グロー強さ <output id="o_enGlowSize"></output>（0でなし）</label><input type="range" id="f_enGlowSize" min="0" max="30" step="2"></div>
       </div>
       <div id="previewBox">
-        <div class="ptag">PREVIEW ▶ クリックで再生</div>
+        <div class="ptag">プレビュー ▶ クリックで再生</div>
         <div class="line" id="prevPartial"></div>
       </div>
     </section>
@@ -171,7 +171,7 @@
   <!-- ================= ボックス ================= -->
   <div class="page" id="pageBox">
     <section class="panel">
-      <h2>BOXES</h2>
+      <h2>ボックス</h2>
       <div id="blist"></div>
       <div style="display:flex; gap:6px; margin-top:10px; flex-wrap:wrap">
         <button class="btn small" onclick="dupBox()">⧉ 複製</button>
@@ -179,7 +179,7 @@
       </div>
     </section>
     <section class="panel editor">
-      <h2>EDIT — <span id="editBoxName"></span></h2>
+      <h2>編集 — <span id="editBoxName"></span></h2>
       <div class="form" id="bform">
         <div class="fr"><label>ボックス名</label><input type="text" id="b_name"></div>
         <div class="fr"><label>説明</label><input type="text" id="b_desc"></div>
@@ -221,7 +221,7 @@
       </div>
       <div id="stageWrap">
         <div id="stage">
-          <div class="ptag">LAYOUT PREVIEW（1920×1080の縮小）<span id="stageStyleName" style="margin-left:10px;color:rgba(255,255,255,.55)"></span></div>
+          <div class="ptag">レイアウトプレビュー（1920×1080の縮小）<span id="stageStyleName" style="margin-left:10px;color:rgba(255,255,255,.55)"></span></div>
           <div id="stageInner">
             <div id="stageBox"><div id="stageClip"><div id="stageScroll"></div></div></div>
           </div>
@@ -238,7 +238,7 @@
     <span>エクスポートする内容:</span>
     <button class="btn small" onclick="doExport('preset')" id="expCurPreset"></button>
     <button class="btn small" onclick="doExport('box')" id="expCurBox"></button>
-    <button class="btn small" onclick="doExport('all')">すべて（スタイル＋ボックス全部）</button>
+    <button class="btn small" onclick="doExport('all')">すべて（文字スタイル＋レイアウト）</button>
     <button class="btn small" id="expOpen" hidden onclick="openExportDir()">📂 保存先フォルダを開く</button>
   </div>
 
