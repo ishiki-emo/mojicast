@@ -106,6 +106,27 @@
   .mon-head .rec { color: var(--err); font-size: 11px; letter-spacing: .15em; opacity: 0; }
   .mon-head .rec.on { opacity: 1; animation: blink 1.2s infinite; }
   #centerPanel { display: flex; flex-direction: column; }
+  /* はじめの3ステップ（初回のみ・モニタに重ねて表示） */
+  .mon-wrap { position: relative; flex: 1; min-height: 0; display: flex; }
+  .mon-wrap #monitor { flex: 1; }
+  #guide {
+    position: absolute; inset: 0; z-index: 5; border-radius: 8px;
+    display: flex; flex-direction: column; justify-content: center; gap: 16px;
+    padding: 26px; text-align: left;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--panel) 92%, transparent),
+      color-mix(in srgb, var(--bg) 94%, transparent));
+    border: 1px solid var(--line);
+  }
+  #guide .g-title { font-weight: 800; font-size: 15px; }
+  #guide .g-sub { color: var(--dim); font-size: 12px; margin-top: -8px; }
+  #guide ol { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+  #guide li { display: flex; align-items: center; gap: 12px; }
+  #guide .g-n { flex: none; width: 26px; height: 26px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px;
+    color: var(--bg); background: var(--accent); }
+  #guide li b { font-size: 14px; }
+  #guide li span { display: block; color: var(--dim); font-size: 12px; }
+  #guide .g-close { align-self: flex-start; margin-top: 4px; }
   /* ---------- 右ペインのグループ区画 ---------- */
   .group {
     border: 1px solid var(--line); border-radius: 12px;
@@ -210,24 +231,24 @@
         <summary>⚙ 詳細設定<span class="chev">▸</span></summary>
         <div class="advbody">
           <div class="row">
-            <label>無音で確定 <output id="oSilence">300ms</output></label>
+            <label>無音で文を区切る <output id="oSilence">300ms</output></label>
             <input type="range" id="silence" min="100" max="800" step="50" value="300">
           </div>
           <div class="row">
-            <label>途中更新間隔 <output id="oInterval">0.4s</output></label>
+            <label>途中経過の更新間隔 <output id="oInterval">0.4s</output></label>
             <input type="range" id="interval" min="0.2" max="1.0" step="0.1" value="0.4">
           </div>
           <div class="row">
-            <label>最大発話長 <output id="oMax">12s</output></label>
+            <label>一区切りの最長 <output id="oMax">12s</output></label>
             <input type="range" id="maxUtt" min="5" max="30" step="1" value="12">
           </div>
           <div class="row">
-            <label>単語ブースト <output id="oScore">2.0</output></label>
+            <label>登録した単語の出やすさ <output id="oScore">2.0</output></label>
             <input type="range" id="score" min="1.0" max="4.0" step="0.5" value="2.0">
           </div>
-          <div class="toggle"><span>単語登録を使う</span><input type="checkbox" id="useHot" checked></div>
-          <div class="toggle"><span>数字を算用数字に（三十五→35）</span><input type="checkbox" id="numArabic" checked></div>
-          <div class="toggle"><span>高精度モード(fp32)</span><input type="checkbox" id="fp32"></div>
+          <div class="toggle"><span>登録した単語を使う</span><input type="checkbox" id="useHot" checked></div>
+          <div class="toggle"><span>漢数字を数字に（三十五→35）</span><input type="checkbox" id="numArabic" checked></div>
+          <div class="toggle"><span>高精度モード（重い代わりに正確）</span><input type="checkbox" id="fp32"></div>
         </div>
       </details>
       <div class="hint" id="restartHint" style="display:none">⚠ 設定変更は次回開始時に反映</div>
@@ -239,7 +260,21 @@
         <h2 style="margin:0;border:0;padding:0">字幕モニタ</h2>
         <span class="rec" id="rec">● REC</span>
       </div>
-      <div id="monitor"></div>
+      <div class="mon-wrap">
+        <div id="monitor"></div>
+        <div id="guide">
+          <div>
+            <div class="g-title">はじめの3ステップ</div>
+            <div class="g-sub">この案内は最初だけ表示されます</div>
+          </div>
+          <ol>
+            <li><span class="g-n">1</span><div><b>マイクを選ぶ</b><span>左の「入力」パネル</span></div></li>
+            <li><span class="g-n">2</span><div><b>「▶ 開始」を押す</b><span>右上のボタン。字幕がここに出ます</span></div></li>
+            <li><span class="g-n">3</span><div><b>表示用のURLをOBSに貼る</b><span>右の「OBS 連携」からコピー</span></div></li>
+          </ol>
+          <button class="g-close" onclick="dismissGuide()">閉じる</button>
+        </div>
+      </div>
     </section>
 
     <!-- ========== 右: スタイル・レイアウト・OBS ========== -->
@@ -509,12 +544,27 @@
   function openWords() { openStudio("tab=words"); }
   function openStyle(query) { openStudio(query || ""); }
 
+  // ---------- はじめの3ステップ（初回のみ） ----------
+  function dismissGuide() {
+    const g = $("guide");
+    if (g) g.style.display = "none";
+    try { localStorage.setItem("mojicast-onboarded", "1"); } catch (e) {}
+  }
+  (function initGuide() {
+    try {
+      if (localStorage.getItem("mojicast-onboarded") === "1") {
+        const g = $("guide"); if (g) g.style.display = "none";
+      }
+    } catch (e) {}
+  })();
+
   // ---------- モニタ（SSE） ----------
   const MON_MAX = 6;
   const monitor = $("monitor");
   let partialDiv = null;
 
   function monPartial(text) {
+    if (text) dismissGuide();   // 認識が始まったら案内は役目を終える
     if (!partialDiv) {
       partialDiv = document.createElement("div");
       partialDiv.className = "p";
@@ -526,6 +576,7 @@
   function monFinal(text, id) {
     if (partialDiv) { partialDiv.remove(); partialDiv = null; }
     if (!text) return;
+    dismissGuide();
     const d = document.createElement("div");
     if (id != null) d.dataset.fid = id;
     d.textContent = text;

@@ -150,13 +150,13 @@
         <div class="fr"><label>太さ <output id="o_weight"></output></label><input type="range" id="f_weight" min="400" max="900" step="100"></div>
         <div class="fr"><label>サイズ <output id="o_size"></output></label><input type="range" id="f_size" min="20" max="80" step="2"></div>
         <div class="fr"><label>文字色</label><input type="color" id="f_color"></div>
-        <div class="fr"><label>標準ハイライト色</label><input type="color" id="f_hotColor"></div>
-        <div class="fr"><label>アウトライン色</label><input type="color" id="f_outlineColor"></div>
-        <div class="fr"><label>アウトライン太さ <output id="o_outlineWidth"></output></label><input type="range" id="f_outlineWidth" min="0" max="6" step="1"></div>
+        <div class="fr"><label>強調の色</label><input type="color" id="f_hotColor"></div>
+        <div class="fr"><label>縁取り色</label><input type="color" id="f_outlineColor"></div>
+        <div class="fr"><label>縁取りの太さ <output id="o_outlineWidth"></output></label><input type="range" id="f_outlineWidth" min="0" max="6" step="1"></div>
         <div class="fr"><label>グロー色</label><input type="color" id="f_glowColor"></div>
         <div class="fr"><label>グロー強さ <output id="o_glowSize"></output>（0でなし）</label><input type="range" id="f_glowSize" min="0" max="30" step="2"></div>
         <div class="fr"><label>登場アニメ</label><select id="f_animIn"></select></div>
-        <div class="fr chk"><input type="checkbox" id="f_shadow"><span>ドロップシャドウ</span></div>
+        <div class="fr chk"><input type="checkbox" id="f_shadow"><span>影をつける</span></div>
         <div class="fr"><label>字間 <output id="o_spacing"></output></label><input type="range" id="f_spacing" min="0" max="0.15" step="0.01"></div>
 
         <div class="fsec">🌫 途中表示（薄文字）</div>
@@ -170,8 +170,8 @@
         <div class="fr"><label>色</label><input type="color" id="f_enColor"></div>
         <div class="fr"><label>フォント</label><select id="f_enFontSel"></select></div>
         <div class="fr chk"><input type="checkbox" id="f_enDeco"><span>専用の縁取り・グローを使う（オフ=本文と同じ）</span></div>
-        <div class="fr"><label>アウトライン色</label><input type="color" id="f_enOutlineColor"></div>
-        <div class="fr"><label>アウトライン太さ <output id="o_enOutlineWidth"></output></label><input type="range" id="f_enOutlineWidth" min="0" max="6" step="1"></div>
+        <div class="fr"><label>縁取り色</label><input type="color" id="f_enOutlineColor"></div>
+        <div class="fr"><label>縁取りの太さ <output id="o_enOutlineWidth"></output></label><input type="range" id="f_enOutlineWidth" min="0" max="6" step="1"></div>
         <div class="fr"><label>グロー色</label><input type="color" id="f_enGlowColor"></div>
         <div class="fr"><label>グロー強さ <output id="o_enGlowSize"></output>（0でなし）</label><input type="range" id="f_enGlowSize" min="0" max="30" step="2"></div>
       </div>
@@ -197,7 +197,7 @@
       <div class="form" id="bform">
         <div class="fr"><label>ボックス名</label><input type="text" id="b_name"></div>
         <div class="fr"><label>説明</label><input type="text" id="b_desc"></div>
-        <div class="fr"><label>モード</label>
+        <div class="fr"><label>表示のしかた</label>
           <select id="b_mode">
             <option value="flow">通常（積み上げ・スクロール）</option>
             <option value="vertical">縦書き（右から左へ）</option>

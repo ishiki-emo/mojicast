@@ -114,10 +114,10 @@
   </div>
 
   <nav>
-    <button id="tabHot" class="active" onclick="showTab('hot')">🎤 ホットワード（認識）</button>
-    <button id="tabFx" onclick="showTab('fx')">✨ エフェクト単語（表示）</button>
-    <button id="tabBanned" onclick="showTab('banned')">🚫 禁止ワード（伏せ字）</button>
-    <button id="tabGloss" onclick="showTab('gloss')">🌐 英訳辞書（固有名詞）</button>
+    <button id="tabHot" class="active" onclick="showTab('hot')">🎤 認識させる単語</button>
+    <button id="tabFx" onclick="showTab('fx')">✨ 強調する単語</button>
+    <button id="tabBanned" onclick="showTab('banned')">🚫 伏せ字にする単語</button>
+    <button id="tabGloss" onclick="showTab('gloss')">🌐 英訳を固定する単語</button>
   </nav>
 
   <!-- ========== ホットワード ========== -->
@@ -125,11 +125,11 @@
     <div class="note">
       認識を誘導する単語。<b>漢字を含む語は「読み」を必ずひらがなで</b>入れてください
       （読みで認識し、表記に置き換わります）。うまく出ないときは「実際に誤認識された文字列」を
-      読み欄に入れた行を追加すると効きます。スコアは強さ（空欄=標準、目安1.5〜4.0）。
+      読み欄に入れた行を追加すると効きます。出やすさは強さの調整（空欄=標準、目安1.5〜4.0）。
       変更は<b>次回開始時</b>に反映されます。
     </div>
     <table id="hotTable">
-      <thead><tr><th style="width:30%">表記（画面に出したい形）</th><th style="width:40%">読み（ひらがな/実際の誤認識）</th><th style="width:15%">スコア</th><th></th></tr></thead>
+      <thead><tr><th style="width:30%">表記（画面に出したい形）</th><th style="width:40%">読み（ひらがな/実際の誤認識）</th><th style="width:15%">出やすさ</th><th></th></tr></thead>
       <tbody></tbody>
     </table>
     <button class="btn" style="margin-top:10px" onclick="addHotRow()">＋ 行を追加</button>
@@ -139,8 +139,8 @@
   <div class="page" id="pageFx">
     <div class="note">
       画面に出たときに<b>派手に装飾する単語</b>（認識とは別管理）。
-      ホットワードの表記は未登録でも標準ハイライトされます。
-      色・フォント・サイズ・アニメ・<b>パーティクル</b>を個別指定でき、変更は<b>即反映</b>。
+      「認識させる単語」に入れていなくても、ここの単語は標準で強調されます。
+      色・フォント・サイズ・アニメ・<b>飛ぶ絵文字</b>を個別指定でき、変更は<b>即反映</b>。
       プレビューはクリックで再生🎬
     </div>
     <table id="fxTable">
