@@ -123,13 +123,13 @@
   <!-- ========== ホットワード ========== -->
   <div class="page show" id="pageHot">
     <div class="note">
-      認識を誘導する単語。<b>漢字を含む語は「読み」を必ずひらがなで</b>入れてください
-      （読みで認識し、表記に置き換わります）。うまく出ないときは「実際に誤認識された文字列」を
-      読み欄に入れた行を追加すると効きます。出やすさは強さの調整（空欄=標準、目安1.5〜4.0）。
-      変更は<b>次回開始時</b>に反映されます。
+      認識を助ける単語です。<b>「読み」欄には、ひらがなの読みでも、実際に出てしまう別の言葉
+      （漢字でもOK）でも</b>入れられ、どちらも「表記」の形に直ります。<br>
+      例）<b>癒色えも ← いしきえも</b>（読みから）／ <b>癒色えも ← 一色えも</b>（誤変換を直す）<br>
+      「出やすさ」は強さの調整（空欄=標準、目安1.5〜4.0）。変更は<b>次回開始時</b>に反映されます。
     </div>
     <table id="hotTable">
-      <thead><tr><th style="width:30%">表記（画面に出したい形）</th><th style="width:40%">読み（ひらがな/実際の誤認識）</th><th style="width:15%">出やすさ</th><th></th></tr></thead>
+      <thead><tr><th style="width:30%">表記（画面に出したい形）</th><th style="width:40%">読み／実際に出る形（誤変換もOK）</th><th style="width:15%">出やすさ</th><th></th></tr></thead>
       <tbody></tbody>
     </table>
     <button class="btn" style="margin-top:10px" onclick="addHotRow()">＋ 行を追加</button>

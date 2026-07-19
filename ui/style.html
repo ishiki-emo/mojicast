@@ -89,7 +89,8 @@
   .ptag { position: absolute; top: 8px; left: 12px; font-size: 10px; letter-spacing: .2em; color: rgba(255,255,255,.4); z-index: 2; }
   #previewBox .line, #stage .line { word-break: break-word; line-height: 1.35; }
   /* ボックスプレビュー（16:9ステージ） */
-  #stageWrap { margin-top: 10px; flex-shrink: 0; }
+  /* プレビューは幅を抑え、フォームの縦スペースを確保（editor全幅だと16:9で縦を占有しすぎる） */
+  #stageWrap { margin-top: 10px; flex-shrink: 0; max-width: 460px; }
   #stage {
     position: relative; width: 100%; aspect-ratio: 16/9; border-radius: 10px;
     background:

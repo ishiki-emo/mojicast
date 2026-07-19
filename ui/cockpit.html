@@ -145,6 +145,9 @@
   .gedit:hover { text-decoration: underline; }
   .glink { color: var(--accent); font-weight: 700; cursor: pointer; }
   .glink:hover { text-decoration: underline; }
+  /* プリセット/ボックス一覧に高さ上限＋内部スクロール。
+     数が増えても「OBS 連携」を右カラムから押し出さないため */
+  #presets, #boxes { max-height: 24vh; overflow-y: auto; padding-right: 2px; }
   /* 詳細設定（折りたたみ）: 難しい認識パラメータをここへ格納 */
   details.adv { border: 1px solid var(--line); border-radius: 8px; background: var(--panel2);
     overflow: hidden; margin-bottom: 10px; }
