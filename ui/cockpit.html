@@ -118,6 +118,23 @@
   }
   .gtitle { font-weight: 800; font-size: 13px; letter-spacing: .05em; }
   .gdesc { color: var(--dim); font-size: 11px; }
+  /* 右カラム: 「スタジオで編集 →」導線 */
+  .gedit { margin-left: auto; align-self: center; color: var(--accent); font-size: 11.5px;
+    font-weight: 700; text-decoration: none; white-space: nowrap; cursor: pointer; }
+  .gedit:hover { text-decoration: underline; }
+  .glink { color: var(--accent); font-weight: 700; cursor: pointer; }
+  .glink:hover { text-decoration: underline; }
+  /* 詳細設定（折りたたみ）: 難しい認識パラメータをここへ格納 */
+  details.adv { border: 1px solid var(--line); border-radius: 8px; background: var(--panel2);
+    overflow: hidden; margin-bottom: 10px; }
+  details.adv > summary { list-style: none; cursor: pointer; padding: 9px 11px; font-size: 12.5px;
+    font-weight: 700; color: var(--dim); display: flex; align-items: center; gap: 8px; }
+  details.adv > summary::-webkit-details-marker { display: none; }
+  details.adv > summary:hover { color: var(--text); }
+  details.adv > summary .chev { margin-left: auto; transition: transform .18s; }
+  details.adv[open] > summary .chev { transform: rotate(90deg); }
+  .advbody { padding: 4px 11px 10px; border-top: 1px solid var(--line); }
+  .advbody .row:first-child { margin-top: 8px; }
   /* ---------- プリセット ---------- */
   .preset {
     border: 1px solid var(--line); border-radius: 10px;
@@ -181,32 +198,38 @@
         <div id="meter"><div id="meterBar"></div></div>
       </div>
       <div class="row">
-        <label>無音で確定 <output id="oSilence">300ms</output></label>
-        <input type="range" id="silence" min="100" max="800" step="50" value="300">
-      </div>
-      <div class="row">
-        <label>途中更新間隔 <output id="oInterval">0.4s</output></label>
-        <input type="range" id="interval" min="0.2" max="1.0" step="0.1" value="0.4">
-      </div>
-      <div class="row">
-        <label>最大発話長 <output id="oMax">12s</output></label>
-        <input type="range" id="maxUtt" min="5" max="30" step="1" value="12">
-      </div>
-      <div class="row">
-        <label>単語ブースト <output id="oScore">2.0</output></label>
-        <input type="range" id="score" min="1.0" max="4.0" step="0.5" value="2.0">
-      </div>
-      <div class="row">
         <label>単語プロファイル</label>
         <select id="wordProfile"></select>
-        <div class="hint">「共通」に加算した単語セット。作成は単語スタジオから</div>
+        <div class="hint">「共通」に加算した単語セット。<a class="glink" onclick="openWords()">単語スタジオで編集 →</a></div>
       </div>
       <div class="toggle"><span>句読点をつける</span><input type="checkbox" id="punct" checked></div>
-      <div class="toggle"><span>単語登録を使う</span><input type="checkbox" id="useHot" checked></div>
-      <div class="toggle"><span>数字を算用数字に（三十五→35）</span><input type="checkbox" id="numArabic" checked></div>
       <div class="toggle"><span>英訳を表示（各行の下）</span><input type="checkbox" id="translate"></div>
       <div class="toggle"><span>文字起こしログを保存</span><input type="checkbox" id="saveLog" checked></div>
-      <div class="toggle"><span>高精度モード(fp32)</span><input type="checkbox" id="fp32"></div>
+
+      <details class="adv">
+        <summary>⚙ 詳細設定<span class="chev">▸</span></summary>
+        <div class="advbody">
+          <div class="row">
+            <label>無音で確定 <output id="oSilence">300ms</output></label>
+            <input type="range" id="silence" min="100" max="800" step="50" value="300">
+          </div>
+          <div class="row">
+            <label>途中更新間隔 <output id="oInterval">0.4s</output></label>
+            <input type="range" id="interval" min="0.2" max="1.0" step="0.1" value="0.4">
+          </div>
+          <div class="row">
+            <label>最大発話長 <output id="oMax">12s</output></label>
+            <input type="range" id="maxUtt" min="5" max="30" step="1" value="12">
+          </div>
+          <div class="row">
+            <label>単語ブースト <output id="oScore">2.0</output></label>
+            <input type="range" id="score" min="1.0" max="4.0" step="0.5" value="2.0">
+          </div>
+          <div class="toggle"><span>単語登録を使う</span><input type="checkbox" id="useHot" checked></div>
+          <div class="toggle"><span>数字を算用数字に（三十五→35）</span><input type="checkbox" id="numArabic" checked></div>
+          <div class="toggle"><span>高精度モード(fp32)</span><input type="checkbox" id="fp32"></div>
+        </div>
+      </details>
       <div class="hint" id="restartHint" style="display:none">⚠ 設定変更は次回開始時に反映</div>
     </section>
 
@@ -228,6 +251,7 @@
             <div class="gtitle">文字スタイル</div>
             <div class="gdesc">字幕の見た目（フォント・色・エフェクト）</div>
           </div>
+          <a class="gedit" onclick="openStyle('')">スタジオで編集 →</a>
         </div>
         <div id="presets"></div>
       </div>
@@ -238,6 +262,7 @@
             <div class="gtitle">レイアウト</div>
             <div class="gdesc">字幕の位置・大きさ・流れ方</div>
           </div>
+          <a class="gedit" onclick="openStyle('tab=box')">スタジオで編集 →</a>
         </div>
         <div id="boxes"></div>
       </div>
