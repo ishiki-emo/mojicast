@@ -145,9 +145,8 @@
   .gedit:hover { text-decoration: underline; }
   .glink { color: var(--accent); font-weight: 700; cursor: pointer; }
   .glink:hover { text-decoration: underline; }
-  /* プリセット/ボックス一覧に高さ上限＋内部スクロール。
-     数が増えても「OBS 連携」を右カラムから押し出さないため */
-  #presets, #boxes { max-height: 24vh; overflow-y: auto; padding-right: 2px; }
+  /* 文字スタイル/レイアウトはプルダウンで選択（省スペース・OBS連携を押し出さない） */
+  #presets select, #boxes select { margin-top: 2px; }
   /* 詳細設定（折りたたみ）: 難しい認識パラメータをここへ格納 */
   details.adv { border: 1px solid var(--line); border-radius: 8px; background: var(--panel2);
     overflow: hidden; margin-bottom: 10px; }
@@ -289,7 +288,7 @@
             <div class="gtitle">文字スタイル</div>
             <div class="gdesc">字幕の見た目（フォント・色・エフェクト）</div>
           </div>
-          <a class="gedit" onclick="openStyle('')">スタジオで編集 →</a>
+          <a class="gedit" onclick="openStyle('preset=' + encodeURIComponent(cfg.preset || ''))">スタジオで編集 →</a>
         </div>
         <div id="presets"></div>
       </div>
@@ -300,7 +299,7 @@
             <div class="gtitle">レイアウト</div>
             <div class="gdesc">字幕の位置・大きさ・流れ方</div>
           </div>
-          <a class="gedit" onclick="openStyle('tab=box')">スタジオで編集 →</a>
+          <a class="gedit" onclick="openStyle('tab=box&box=' + encodeURIComponent(cfg.box || ''))">スタジオで編集 →</a>
         </div>
         <div id="boxes"></div>
       </div>
@@ -451,28 +450,20 @@
     renderBoxes();
   }
 
-  // ---------- プリセット ----------
+  // ---------- プリセット（プルダウンで選択） ----------
   function renderPresets() {
+    const sel = document.createElement("select");
+    sel.innerHTML = presets.map(p =>
+      `<option value="${escHtml(p.id)}">${escHtml(p.name)}</option>`).join("");
+    sel.value = cfg.preset;
+    if (sel.selectedIndex < 0 && presets[0]) { sel.value = presets[0].id; cfg.preset = sel.value; }
+    sel.onchange = async () => {
+      cfg.preset = sel.value;
+      await api("/api/config", { preset: sel.value });
+    };
     const box = $("presets");
     box.innerHTML = "";
-    for (const p of presets) {
-      const div = document.createElement("div");
-      div.className = "preset" + (p.id === cfg.preset ? " active" : "");
-      const sw = `<span class="sw" style="background:${escHtml(p.color || "#fff")};` +
-                 `box-shadow:0 0 6px ${escHtml(p.glow || "transparent")}"></span>`;
-      div.innerHTML = `<div class="nm">${sw}${escHtml(p.name)}</div><div class="ds">${escHtml(p.desc || "")}</div>
-        <button class="edit" title="スタイルスタジオで編集">✎ 編集</button>`;
-      div.onclick = async () => {
-        cfg.preset = p.id;
-        await api("/api/config", { preset: p.id });
-        renderPresets();
-      };
-      div.querySelector(".edit").onclick = (e) => {
-        e.stopPropagation();
-        openStyle("preset=" + p.id);
-      };
-      box.appendChild(div);
-    }
+    box.appendChild(sel);
   }
 
   async function refreshPresets() {   // スタイル/単語スタジオでの保存を反映
@@ -484,27 +475,20 @@
     renderBoxes();
   }
 
+  // ---------- レイアウト（プルダウンで選択） ----------
   function renderBoxes() {
+    const sel = document.createElement("select");
+    sel.innerHTML = boxes.map(b =>
+      `<option value="${escHtml(b.id)}">${escHtml(b.name)}</option>`).join("");
+    sel.value = cfg.box;
+    if (sel.selectedIndex < 0 && boxes[0]) { sel.value = boxes[0].id; cfg.box = sel.value; }
+    sel.onchange = async () => {
+      cfg.box = sel.value;
+      await api("/api/config", { box: sel.value });
+    };
     const el = $("boxes");
     el.innerHTML = "";
-    for (const b of boxes) {
-      const div = document.createElement("div");
-      div.className = "preset" + (b.id === cfg.box ? " active" : "");
-      const mini = `<span class="mini"><i style="left:${+b.x || 0}%;top:${+b.y || 0}%;` +
-                   `width:${+(b.w ?? 100) || 0}%;height:${+(b.h ?? 100) || 0}%"></i></span>`;
-      div.innerHTML = `<div class="nm">${mini}${escHtml(b.name)}</div><div class="ds">${escHtml(b.desc || "")}</div>
-        <button class="edit" title="スタイルスタジオで編集">✎ 編集</button>`;
-      div.onclick = async () => {
-        cfg.box = b.id;
-        await api("/api/config", { box: b.id });
-        renderBoxes();
-      };
-      div.querySelector(".edit").onclick = (e) => {
-        e.stopPropagation();
-        openStyle("tab=box&box=" + b.id);
-      };
-      el.appendChild(div);
-    }
+    el.appendChild(sel);
   }
 
   // ---------- エンジン ----------
