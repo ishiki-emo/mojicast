@@ -33,6 +33,7 @@ DEFAULT_CONFIG = {
     # 1対1コラボ（案A改・出力キャプチャ）。collab=Trueで②の入力を相手話者として取り込む
     "collab": False, "collab_device": None,
     "self_name": "自分", "guest_name": "ゲスト",
+    "guest_preset": "standard", "guest_box": "none",   # 相手の見た目割当
 }
 
 _clients = []
@@ -139,22 +140,38 @@ def import_mojipack(data):
     return {"presets": np_, "boxes": nb}, None
 
 
+def _pick(items, key, wanted):
+    """items から key==wanted を探す。無ければ先頭（空なら {}）"""
+    return next((x for x in items if x.get(key) == wanted),
+                items[0] if items else {})
+
+
 def resolve_style(cfg):
     """現在のプリセット＋ボックス＋エフェクト＋ハイライト単語をまとめて返す
 
-    エフェクト・ハイライト単語は「共通＋使用中プロファイル」の合成。
+    エフェクト・ハイライト単語は「共通＋使用中プロファイル」の合成（話者間で共有）。
+    コラボON時は speakers に「自分／相手それぞれの style・box」を載せる
+    （overlay/字幕ログが speaker で振り分けて描画）。
     """
     presets = _read_json(_presets_path(), {"presets": []})["presets"]
-    style = next((p for p in presets if p["id"] == cfg.get("preset")),
-                 presets[0] if presets else {})
     boxes = _read_json(_boxes_path(), {"boxes": []})["boxes"]
-    box = next((b for b in boxes if b["id"] == cfg.get("box")),
-               boxes[0] if boxes else {})
+    style = _pick(presets, "id", cfg.get("preset"))
+    box = _pick(boxes, "id", cfg.get("box"))
     profile = cfg.get("word_profile", "")
     effects = wordstore.merged_effects(profile)
     hot_surfaces = [s for s, _r, _sc in wordstore.merged_hotwords(profile)]
-    return {"style": style, "box": box, "effects": effects,
-            "hotwords": hot_surfaces}
+    out = {"style": style, "box": box, "effects": effects,
+           "hotwords": hot_surfaces}
+    if cfg.get("collab"):
+        self_name = (cfg.get("self_name") or "自分").strip() or "自分"
+        guest_name = (cfg.get("guest_name") or "ゲスト").strip() or "ゲスト"
+        gstyle = _pick(presets, "id", cfg.get("guest_preset"))
+        gbox = _pick(boxes, "id", cfg.get("guest_box"))
+        out["speakers"] = {
+            self_name: {"style": style, "box": box},
+            guest_name: {"style": gstyle, "box": gbox},
+        }
+    return out
 
 
 # ---------------- システムフォント列挙（Windows GDI） ----------------
