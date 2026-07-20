@@ -63,6 +63,10 @@ class JsApi:
         path = "/ui/studio" + (f"?{query}" if query else "")
         self._open("studio", "スタジオ", path, 1120, 840)
 
+    def open_collab(self):
+        """1対1コラボの設定窓を開く（コックピットを散らかさない別窓）"""
+        self._open("collab", "コラボ設定", "/ui/collab", 560, 720)
+
     # 後方互換: 旧エントリはすべて統合スタジオへ委譲
     def open_words(self):
         self.open_studio("tab=words")

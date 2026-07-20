@@ -370,52 +370,11 @@
             <div class="gtitle">1対1コラボ</div>
             <div class="gdesc">相手の声（Discord出力）も字幕化</div>
           </div>
+          <a class="gedit" onclick="openCollab()">✎ 設定</a>
         </div>
         <label class="toggle">コラボを有効化
           <input type="checkbox" id="collabOn"></label>
-        <div id="collabBody" style="display:none">
-          <div class="row">
-            <label>相手の音の取り込み方</label>
-            <select id="collabSource">
-              <option value="process">アプリの音を直接（推奨・追加ソフト不要）</option>
-              <option value="device">入力デバイス（仮想ケーブル）</option>
-            </select>
-          </div>
-          <div class="row" id="rowCollabProc">
-            <label>相手の声が鳴るアプリ</label>
-            <div style="display:flex;gap:6px">
-              <select id="collabProcess" style="flex:1;min-width:0"></select>
-              <button onclick="loadApps()" title="アプリ一覧を更新">↻</button>
-            </div>
-            <div class="hint">Discord等を起動してから ↻ で更新。通話中だと確実に出ます</div>
-            <div class="hint" id="procHint" style="display:none;color:var(--warn)"></div>
-          </div>
-          <div class="row" id="rowCollabDev">
-            <label>相手の音声入力</label>
-            <select id="collabDevice"></select>
-            <div class="hint">Discordの出力先にした仮想ケーブル（VB-CABLE等）を選ぶ</div>
-          </div>
-          <div class="row" style="display:flex;gap:8px;margin-bottom:14px">
-            <div style="flex:1;min-width:0">
-              <label>自分の表示名</label>
-              <input type="text" id="selfName" maxlength="20">
-            </div>
-            <div style="flex:1;min-width:0">
-              <label>相手の表示名</label>
-              <input type="text" id="guestName" maxlength="20">
-            </div>
-          </div>
-          <div class="row">
-            <label>相手の文字スタイル</label>
-            <select id="guestPreset"></select>
-          </div>
-          <div class="row">
-            <label>相手のレイアウト</label>
-            <select id="guestBox"></select>
-            <div class="hint">自分と重ならない位置のレイアウトを推奨</div>
-          </div>
-          <div class="hint">⚠ ヘッドホン必須（スピーカーだと相手の声をマイクが拾い二重字幕に）</div>
-        </div>
+        <div class="hint" id="collabSummary" style="display:none;margin-top:0"></div>
       </div>
       <div class="group">
         <div class="ghead">
@@ -534,71 +493,31 @@
     $("portHint").style.display = "block";
   });
 
-  // ---------- 1対1コラボ ----------
-  function syncCollabRows() {
-    const proc = (cfg.collab_source || "process") === "process";
-    $("rowCollabProc").style.display = proc ? "" : "none";
-    $("rowCollabDev").style.display = proc ? "none" : "";
+  // ---------- 1対1コラボ（詳細設定は別窓 /ui/collab） ----------
+  function openCollab() {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.open_collab) {
+      window.pywebview.api.open_collab();
+    } else {
+      window.open("/ui/collab", "_blank", "width=560,height=720");
+    }
+  }
+  // トグル状態と「方式／相手名」の1行サマリを反映
+  function syncCollab() {
+    $("collabOn").checked = !!cfg.collab;
+    const s = $("collabSummary");
+    if (!cfg.collab) { s.style.display = "none"; return; }
+    const src = (cfg.collab_source || "process") === "process"
+      ? "アプリ直接" + (cfg.collab_process ? "・" + cfg.collab_process : "（アプリ未選択）")
+      : "仮想ケーブル";
+    s.textContent = src + " ／ 相手: " + ((cfg.guest_name || "").trim() || "ゲスト");
+    s.style.display = "block";
   }
   $("collabOn").addEventListener("change", e => {
     cfg.collab = e.target.checked;
-    $("collabBody").style.display = cfg.collab ? "" : "none";
-    if (cfg.collab) loadApps();
+    syncCollab();
+    if (cfg.collab) openCollab();   // 有効化と同時に設定窓を開く
     saveCfg();
   });
-  $("collabSource").addEventListener("change", e => {
-    cfg.collab_source = e.target.value;
-    syncCollabRows();
-    if (cfg.collab_source === "process") loadApps();
-    saveCfg();
-  });
-  $("collabProcess").addEventListener("change", e => {
-    cfg.collab_process = e.target.value; saveCfg();
-  });
-  $("collabDevice").addEventListener("change", e => {
-    cfg.collab_device = e.target.value === "" ? null : +e.target.value; saveCfg();
-  });
-
-  // 音声セッションを持つアプリ一覧を取得して選択肢に反映
-  async function loadApps() {
-    const d = await api("/api/loopback-apps");
-    const sel = $("collabProcess");
-    const cur = cfg.collab_process || "";
-    const apps = d.apps || [];
-    sel.innerHTML = '<option value="">（未選択）</option>' +
-      apps.map(a => `<option value="${escHtml(a.name)}">` +
-        `${a.active ? "🔊 " : ""}${escHtml(a.name)}</option>`).join("");
-    // 保存済みの対象が今の一覧に無くても選択は維持（次回起動待ちの場合など）
-    if (cur && !apps.some(a => a.name === cur)) {
-      const o = document.createElement("option");
-      o.value = cur; o.textContent = cur + "（未起動）";
-      sel.appendChild(o);
-    }
-    sel.value = cur;
-    const hint = $("procHint");
-    if (d.supported === false) {
-      hint.textContent = "⚠ このWindowsは未対応です（Windows 10 2004以降が必要）。仮想ケーブル方式をお使いください";
-      hint.style.display = "block";
-    } else {
-      hint.style.display = "none";
-    }
-  }
-  $("selfName").addEventListener("input", e => { cfg.self_name = e.target.value; saveCfg(); });
-  $("guestName").addEventListener("input", e => { cfg.guest_name = e.target.value; saveCfg(); });
-  $("guestPreset").addEventListener("change", e => { cfg.guest_preset = e.target.value; saveCfg(); });
-  $("guestBox").addEventListener("change", e => { cfg.guest_box = e.target.value; saveCfg(); });
-
-  // 相手の見た目割当（プリセット/ボックス一覧から選ぶ）
-  function renderCollabStyles() {
-    const fill = (sel, items, cur) => {
-      sel.innerHTML = items.map(x =>
-        `<option value="${escHtml(x.id)}">${escHtml(x.name)}</option>`).join("");
-      sel.value = cur;
-      if (sel.selectedIndex < 0 && items[0]) sel.value = items[0].id;
-    };
-    fill($("guestPreset"), presets, cfg.guest_preset);
-    fill($("guestBox"), boxes, cfg.guest_box);
-  }
 
   // innerHTML への埋め込み用（要素内容・二重引用符の属性値の両方で安全）
   const escHtml = (s) => String(s).replace(/&/g, "&amp;")
@@ -637,23 +556,7 @@
     }
     if (cfg.device !== null && cfg.device !== undefined) sel.value = cfg.device;
 
-    // コラボ: 相手の音声入力（同じデバイス一覧・未選択なら開始してもソロ動作）
-    const csel = $("collabDevice");
-    csel.innerHTML = '<option value="">（未選択）</option>';
-    for (const d of dv.devices || []) {
-      const o = document.createElement("option");
-      o.value = d.index; o.textContent = d.name;
-      csel.appendChild(o);
-    }
-    if (cfg.collab_device !== null && cfg.collab_device !== undefined)
-      csel.value = cfg.collab_device;
-    $("collabOn").checked = !!cfg.collab;
-    $("collabBody").style.display = cfg.collab ? "" : "none";
-    $("collabSource").value = cfg.collab_source || "process";
-    syncCollabRows();
-    if (cfg.collab) loadApps();
-    $("selfName").value = cfg.self_name || "";
-    $("guestName").value = cfg.guest_name || "";
+    syncCollab();   // コラボのトグル＋サマリ（詳細は別窓）
 
     await loadWordProfiles();
 
@@ -661,7 +564,6 @@
     boxes = (await api("/api/boxes")).boxes || [];
     renderPresets();
     renderBoxes();
-    renderCollabStyles();
   }
 
   // ---------- プリセット（プルダウン＋色見本） ----------
@@ -691,14 +593,14 @@
     box.appendChild(row);
   }
 
-  async function refreshPresets() {   // スタイル/単語スタジオでの保存を反映
+  async function refreshPresets() {   // スタイル/単語/コラボ窓での保存を反映
     cfg = await api("/api/config");
     await loadWordProfiles();
     presets = (await api("/api/presets")).presets || [];
     boxes = (await api("/api/boxes")).boxes || [];
     renderPresets();
     renderBoxes();
-    renderCollabStyles();
+    syncCollab();   // コラボ窓で変えた方式/相手名をサマリへ反映
   }
 
   // ---------- レイアウト（プルダウン＋概要ミニ図） ----------
