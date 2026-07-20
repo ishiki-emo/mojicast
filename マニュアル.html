@@ -211,6 +211,24 @@
      Intel 12世代以降ではAVX-512が無効化され、256bit版の AVX-VNNI に置き換わりました（それでも○）。
      CPU使用率は「誰かが喋っている間」だけ上がり、無音の間はほぼゼロです。</p>
 
+  <h3>世代の見方（自分のCPUがどれか分からないとき）</h3>
+  <p>自分のCPU名は「設定 → システム → バージョン情報」で見られます。</p>
+  <div class="overflow">
+  <table>
+    <tr><th>CPU名の例</th><th>世代の読み方</th></tr>
+    <tr><td>Intel Core i9-<b>11</b>900 / i5-<b>10</b>400</td>
+        <td>ハイフンの後ろ、<b>末尾3桁を除いた数字が世代</b>（11900→11世代、10400→10世代、8700→8世代）</td></tr>
+    <tr><td>Intel Core i7-<b>11</b>65G7（ノート）</td>
+        <td>同じく先頭2桁が世代（1165G7→11世代。末尾G7は Ice Lake / Tiger Lake 系＝AVX-512対応の目印）</td></tr>
+    <tr><td>Intel Core <b>Ultra</b> 7 155H</td>
+        <td>「Core Ultra」と付けば新世代（12世代以降相当）で ○</td></tr>
+    <tr><td>AMD Ryzen 7 <b>7</b>700X（デスクトップ）</td>
+        <td>先頭1桁が数字世代。<b>7</b>000 / <b>9</b>000番台なら ◎</td></tr>
+    <tr><td>AMD Ryzen 7 78<b>4</b>0HS（ノート）</td>
+        <td>ノート用は中身が混在。<b>十の位が4以上</b>（7640 / 7840 / 8840 等）なら Zen 4 相当で ◎</td></tr>
+  </table>
+  </div>
+
   <div class="card"><b class="tag">配信との同時利用</b>
     OBSの映像エンコードは<b>GPUエンコード（NVENC / AMF）推奨</b>。Mojicast はGPUをほぼ使わないため、
     ゲーム・Live2D・OBSとはCPU/GPUの棲み分けができます。
