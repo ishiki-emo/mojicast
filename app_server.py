@@ -31,7 +31,9 @@ DEFAULT_CONFIG = {
     "word_profile": "",     # 使用中の単語プロファイル（"" = 共通のみ）
     "theme": "dark",        # GUI窓のテーマ（dark / light）。overlayは対象外
     # 1対1コラボ（案A改・出力キャプチャ）。collab=Trueで②の入力を相手話者として取り込む
-    "collab": False, "collab_device": None,
+    # collab_source: "process"=アプリ音声を直接取り込み（方式2・推奨）/ "device"=仮想ケーブル
+    "collab": False, "collab_source": "process",
+    "collab_process": "", "collab_device": None,
     "self_name": "自分", "guest_name": "ゲスト",
     "guest_preset": "standard", "guest_box": "none",   # 相手の見た目割当
 }
@@ -373,6 +375,14 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"devices": list_input_devices()})
             except Exception as e:
                 self._json({"devices": [], "error": str(e)})
+        elif path == "/api/loopback-apps":
+            # 音声セッションを持つアプリ一覧（コラボ方式2の対象選択用）
+            try:
+                import proc_loopback
+                self._json({"supported": proc_loopback.is_supported(),
+                            "apps": proc_loopback.list_audio_apps()})
+            except Exception as e:
+                self._json({"supported": False, "apps": [], "error": str(e)})
         elif path == "/api/status":
             self._json(_engine_state)
         else:
@@ -405,6 +415,9 @@ class Handler(BaseHTTPRequestHandler):
                     return
             if "theme" in body and body.get("theme") not in ("dark", "light"):
                 body["theme"] = "dark"   # 未知値はダークへ（既定）
+            if ("collab_source" in body
+                    and body.get("collab_source") not in ("process", "device")):
+                body["collab_source"] = "process"   # 未知値は推奨方式へ
             cfg = load_config()
             cfg.update({k: v for k, v in body.items() if k in DEFAULT_CONFIG})
             save_config(cfg)

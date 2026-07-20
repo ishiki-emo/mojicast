@@ -346,13 +346,24 @@ class CaptionEngine:
 
     def _resolve_sources(self, cfg):
         """入力ソースを決める。 [(device, speaker, is_primary), ...]
-        通常は1本（話者ラベル空＝従来どおり）。1対1コラボ時のみ2本目（相手）を足す。"""
+        通常は1本（話者ラベル空＝従来どおり）。1対1コラボ時のみ2本目（相手）を足す。
+        相手のソースは2方式: 入力デバイス（仮想ケーブル） or
+        ("process", exe名) のプロセスループバック（方式2・仮想ケーブル不要）。"""
         dev = cfg.get("device", None)
-        cdev = cfg.get("collab_device", None)
-        if cfg.get("collab") and cdev not in (None, "", "default"):
-            self_name = (cfg.get("self_name") or "自分").strip() or "自分"
-            guest_name = (cfg.get("guest_name") or "ゲスト").strip() or "ゲスト"
-            return [(dev, self_name, True), (cdev, guest_name, False)]
+        if cfg.get("collab"):
+            guest_src = None
+            if cfg.get("collab_source", "process") == "process":
+                pname = (cfg.get("collab_process") or "").strip()
+                if pname:
+                    guest_src = ("process", pname)
+            if guest_src is None:      # デバイス方式 or プロセス未指定のフォールバック
+                cdev = cfg.get("collab_device", None)
+                if cdev not in (None, "", "default"):
+                    guest_src = cdev
+            if guest_src is not None:
+                self_name = (cfg.get("self_name") or "自分").strip() or "自分"
+                guest_name = (cfg.get("guest_name") or "ゲスト").strip() or "ゲスト"
+                return [(dev, self_name, True), (guest_src, guest_name, False)]
         return [(dev, "", True)]
 
     def _stream_loop(self, cfg, device, speaker, is_primary):
@@ -364,8 +375,7 @@ class CaptionEngine:
             audio_q: "queue.Queue[np.ndarray]" = queue.Queue()
             last_level_t = [0.0]
 
-            def callback(indata, frames, time_info, status):
-                mono = indata[:, 0].copy()
+            def handle_mono(mono):
                 audio_q.put(mono)
                 if is_primary:   # レベルメーターは主入力（自分のマイク）だけ流す
                     now = time.time()
@@ -374,17 +384,31 @@ class CaptionEngine:
                         rms = float(np.sqrt(np.mean(mono ** 2)))
                         self.on_level(min(1.0, rms * 8), speaker)
 
+            def callback(indata, frames, time_info, status):
+                handle_mono(indata[:, 0].copy())
+
             interval_samples = int(cfg.get("interval", 0.4) * SAMPLE_RATE)
             max_samples = int(cfg.get("max_utt", 12.0) * SAMPLE_RATE)
-            dev = None if device in ("", "default") else device
+
+            # 入力ストリームを開く: ("process", exe名) → プロセスループバック（方式2）
+            #                       それ以外 → 通常の入力デバイス
+            if isinstance(device, tuple) and device[0] == "process":
+                from proc_loopback import ProcessLoopbackCapture
+                stream = ProcessLoopbackCapture(device[1], on_audio=handle_mono)
+            else:
+                dev = None if device in ("", "default") else device
+                stream = sd.InputStream(samplerate=SAMPLE_RATE, channels=1,
+                                        dtype="float32", blocksize=WINDOW_SIZE,
+                                        device=dev, callback=callback)
 
             buffer = np.empty(0, dtype=np.float32)
             last_partial_len = 0
 
-            with sd.InputStream(samplerate=SAMPLE_RATE, channels=1,
-                                dtype="float32", blocksize=WINDOW_SIZE,
-                                device=dev, callback=callback):
+            with stream:
                 while not self._stop.is_set():
+                    err = getattr(stream, "error", None)
+                    if err:                      # ループバック側の実行時エラー
+                        raise RuntimeError(err)
                     try:
                         block = audio_q.get(timeout=0.2)
                     except queue.Empty:

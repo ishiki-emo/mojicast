@@ -375,6 +375,22 @@
           <input type="checkbox" id="collabOn"></label>
         <div id="collabBody" style="display:none">
           <div class="row">
+            <label>相手の音の取り込み方</label>
+            <select id="collabSource">
+              <option value="process">アプリの音を直接（推奨・追加ソフト不要）</option>
+              <option value="device">入力デバイス（仮想ケーブル）</option>
+            </select>
+          </div>
+          <div class="row" id="rowCollabProc">
+            <label>相手の声が鳴るアプリ</label>
+            <div style="display:flex;gap:6px">
+              <select id="collabProcess" style="flex:1;min-width:0"></select>
+              <button onclick="loadApps()" title="アプリ一覧を更新">↻</button>
+            </div>
+            <div class="hint">Discord等を起動してから ↻ で更新。通話中だと確実に出ます</div>
+            <div class="hint" id="procHint" style="display:none;color:var(--warn)"></div>
+          </div>
+          <div class="row" id="rowCollabDev">
             <label>相手の音声入力</label>
             <select id="collabDevice"></select>
             <div class="hint">Discordの出力先にした仮想ケーブル（VB-CABLE等）を選ぶ</div>
@@ -519,14 +535,54 @@
   });
 
   // ---------- 1対1コラボ ----------
+  function syncCollabRows() {
+    const proc = (cfg.collab_source || "process") === "process";
+    $("rowCollabProc").style.display = proc ? "" : "none";
+    $("rowCollabDev").style.display = proc ? "none" : "";
+  }
   $("collabOn").addEventListener("change", e => {
     cfg.collab = e.target.checked;
     $("collabBody").style.display = cfg.collab ? "" : "none";
+    if (cfg.collab) loadApps();
     saveCfg();
+  });
+  $("collabSource").addEventListener("change", e => {
+    cfg.collab_source = e.target.value;
+    syncCollabRows();
+    if (cfg.collab_source === "process") loadApps();
+    saveCfg();
+  });
+  $("collabProcess").addEventListener("change", e => {
+    cfg.collab_process = e.target.value; saveCfg();
   });
   $("collabDevice").addEventListener("change", e => {
     cfg.collab_device = e.target.value === "" ? null : +e.target.value; saveCfg();
   });
+
+  // 音声セッションを持つアプリ一覧を取得して選択肢に反映
+  async function loadApps() {
+    const d = await api("/api/loopback-apps");
+    const sel = $("collabProcess");
+    const cur = cfg.collab_process || "";
+    const apps = d.apps || [];
+    sel.innerHTML = '<option value="">（未選択）</option>' +
+      apps.map(a => `<option value="${escHtml(a.name)}">` +
+        `${a.active ? "🔊 " : ""}${escHtml(a.name)}</option>`).join("");
+    // 保存済みの対象が今の一覧に無くても選択は維持（次回起動待ちの場合など）
+    if (cur && !apps.some(a => a.name === cur)) {
+      const o = document.createElement("option");
+      o.value = cur; o.textContent = cur + "（未起動）";
+      sel.appendChild(o);
+    }
+    sel.value = cur;
+    const hint = $("procHint");
+    if (d.supported === false) {
+      hint.textContent = "⚠ このWindowsは未対応です（Windows 10 2004以降が必要）。仮想ケーブル方式をお使いください";
+      hint.style.display = "block";
+    } else {
+      hint.style.display = "none";
+    }
+  }
   $("selfName").addEventListener("input", e => { cfg.self_name = e.target.value; saveCfg(); });
   $("guestName").addEventListener("input", e => { cfg.guest_name = e.target.value; saveCfg(); });
   $("guestPreset").addEventListener("change", e => { cfg.guest_preset = e.target.value; saveCfg(); });
@@ -593,6 +649,9 @@
       csel.value = cfg.collab_device;
     $("collabOn").checked = !!cfg.collab;
     $("collabBody").style.display = cfg.collab ? "" : "none";
+    $("collabSource").value = cfg.collab_source || "process";
+    syncCollabRows();
+    if (cfg.collab) loadApps();
     $("selfName").value = cfg.self_name || "";
     $("guestName").value = cfg.guest_name || "";
 
