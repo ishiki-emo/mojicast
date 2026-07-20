@@ -654,9 +654,11 @@
     const s = Number(st && st.size) || 40;
     return Math.max(18, Math.min(30, s));
   }
-  function styleLine(div, text) {
+  function styleLine(div, text, plainWords) {
     if (window.FX && previewStyle) {
-      FX.renderWords(div, text, previewTable, previewStyle);
+      // plainWords=true なら単語ハイライト/エフェクトなし（基本スタイルのみ）
+      if (plainWords) div.textContent = text || "";
+      else FX.renderWords(div, text, previewTable, previewStyle);
       FX.applyLineStyle(div, previewStyle, previewSize(previewStyle));
     } else {
       div.textContent = text;
@@ -689,7 +691,8 @@
       partialDiv.className = "p";
       monitor.appendChild(partialDiv);
     }
-    styleLine(partialDiv, text || "");
+    // 認識中(薄文字)は既定でエフェクトなし＝プレーン。partialFx が真のときだけ装飾
+    styleLine(partialDiv, text || "", !(previewStyle && previewStyle.partialFx));
     if (previewStyle) partialDiv.style.opacity = previewStyle.partialOpacity ?? 0.55;
     monitor.scrollTop = monitor.scrollHeight;
   }
