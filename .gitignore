@@ -53,3 +53,6 @@ logs/
 Thumbs.db
 .vscode/
 .idea/
+
+# マニュアル用スクショ（tools/manual/shoot.py で再生成可能）
+tools/manual/shots/
