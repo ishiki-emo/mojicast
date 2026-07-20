@@ -237,7 +237,9 @@
   .obs input { flex: 1; font-size: 12px; color: var(--dim); }
   footer { padding: 6px 16px; color: var(--dim); font-size: 11px; border-top: 1px solid var(--line); background: var(--panel); }
   .hint { color: var(--dim); font-size: 11px; margin-top: 4px; }
+  .mon-note { font-size: 11px; color: var(--dim); }
 </style>
+<script src="/ui/fx.js"></script>
 </head>
 <body>
   <header>
@@ -292,6 +294,7 @@
       <section class="panel" id="centerPanel">
       <div class="mon-head">
         <h2 style="margin:0;border:0;padding:0">字幕モニタ</h2>
+        <span class="mon-note">本番の見た目（動く演出は省略）</span>
         <span class="rec" id="rec">● REC</span>
       </div>
       <div class="montoggles" title="字幕の処理オン/オフ">
@@ -640,6 +643,40 @@
     } catch (e) {}
   })();
 
+  // ---------- 静的スタイルプレビュー ----------
+  // 本番の文字スタイル（フォント/色/縁取り/グロー/単語ハイライト）を各行へ適用。
+  // パーティクル等の動く演出・レイアウト（位置）は省略＝二重描画の負荷を避ける。
+  let previewStyle = null;   // 現在の文字スタイル（SSEのinit/styleから）
+  let previewTable = [];     // 単語→装飾テーブル（buildTable）
+
+  function previewSize(st) {
+    // モニタに収まるよう本番サイズをほどよく丸める（縁取り等の見た目は保つ）
+    const s = Number(st && st.size) || 40;
+    return Math.max(18, Math.min(30, s));
+  }
+  function styleLine(div, text) {
+    if (window.FX && previewStyle) {
+      FX.renderWords(div, text, previewTable, previewStyle);
+      FX.applyLineStyle(div, previewStyle, previewSize(previewStyle));
+    } else {
+      div.textContent = text;
+    }
+  }
+  function styleEnLine(el) {
+    const st = previewStyle || {};
+    el.style.fontSize = (st.enScale ?? 0.6) + "em";
+    el.style.opacity = st.enOpacity ?? 0.82;
+    el.style.color = st.enColor || "";
+    el.style.fontFamily = st.enFont || "";
+  }
+  function setPreviewStyle(m) {
+    if (m.style) previewStyle = m.style;
+    if (window.FX) previewTable = FX.buildTable(m.hotwords, m.effects, previewStyle || {});
+    if (window.FX && previewStyle)     // 表示中の行にも即反映
+      for (const d of monitor.children)
+        FX.applyLineStyle(d, previewStyle, previewSize(previewStyle));
+  }
+
   // ---------- モニタ（SSE） ----------
   const MON_MAX = 6;
   const monitor = $("monitor");
@@ -652,7 +689,8 @@
       partialDiv.className = "p";
       monitor.appendChild(partialDiv);
     }
-    partialDiv.textContent = text || "";
+    styleLine(partialDiv, text || "");
+    if (previewStyle) partialDiv.style.opacity = previewStyle.partialOpacity ?? 0.55;
     monitor.scrollTop = monitor.scrollHeight;
   }
   function monFinal(text, id) {
@@ -661,7 +699,7 @@
     dismissGuide();
     const d = document.createElement("div");
     if (id != null) d.dataset.fid = id;
-    d.textContent = text;
+    styleLine(d, text);
     monitor.appendChild(d);
     while (monitor.children.length > MON_MAX) monitor.removeChild(monitor.firstChild);
     monitor.scrollTop = monitor.scrollHeight;
@@ -673,6 +711,7 @@
     let el = d.querySelector(".en");
     if (!el) { el = document.createElement("div"); el.className = "en"; d.appendChild(el); }
     el.textContent = en;
+    styleEnLine(el);
   }
 
   function connect() {
@@ -680,13 +719,13 @@
     es.onmessage = (e) => {
       const m = JSON.parse(e.data);
       if (m.type === "state") setState(m.state, m.detail);
-      else if (m.type === "init" && m.state) setState(m.state.state, m.state.detail);
+      else if (m.type === "init") { if (m.state) setState(m.state.state, m.state.detail); setPreviewStyle(m); }
       else if (m.type === "partial") monPartial(m.text);
       else if (m.type === "final") monFinal(m.text, m.id);
       else if (m.type === "translation") monTranslation(m.id, m.text);
       else if (m.type === "level") $("meterBar").style.width = (m.value * 100) + "%";
       else if (m.type === "clear") { monitor.innerHTML = ""; partialDiv = null; }
-      else if (m.type === "style") refreshPresets();
+      else if (m.type === "style") { setPreviewStyle(m); refreshPresets(); }
     };
     es.onerror = () => { es.close(); setTimeout(connect, 1000); };
   }
