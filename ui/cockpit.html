@@ -175,10 +175,12 @@
   }
   .gtitle { font-weight: 800; font-size: 13px; letter-spacing: .05em; }
   .gdesc { color: var(--dim); font-size: 11px; }
-  /* 右カラム: 「スタジオで編集 →」導線 */
-  .gedit { margin-left: auto; align-self: center; color: var(--accent); font-size: 11.5px;
-    font-weight: 700; text-decoration: none; white-space: nowrap; cursor: pointer; }
-  .gedit:hover { text-decoration: underline; }
+  /* 右カラム: 「✎ 編集」ボタン（スタジオで開く導線） */
+  .gedit { margin-left: auto; align-self: center; display: inline-flex; align-items: center; gap: 4px;
+    color: var(--dim); background: var(--panel2); border: 1px solid var(--line); border-radius: 7px;
+    padding: 4px 10px; font-size: 11.5px; font-weight: 700; text-decoration: none;
+    white-space: nowrap; cursor: pointer; transition: color .15s, border-color .15s; }
+  .gedit:hover { color: var(--accent); border-color: var(--accent); }
   .glink { color: var(--accent); font-weight: 700; cursor: pointer; }
   .glink:hover { text-decoration: underline; }
   /* 文字スタイル/レイアウトはプルダウンで選択（省スペース・OBS連携を押し出さない）。
@@ -330,7 +332,7 @@
             <div class="gtitle">文字スタイル</div>
             <div class="gdesc">字幕の見た目（フォント・色・エフェクト）</div>
           </div>
-          <a class="gedit" onclick="openStyle('preset=' + encodeURIComponent(cfg.preset || ''))">スタジオで編集 →</a>
+          <a class="gedit" onclick="openStyle('preset=' + encodeURIComponent(cfg.preset || ''))">✎ 編集</a>
         </div>
         <div id="presets"></div>
       </div>
@@ -341,7 +343,7 @@
             <div class="gtitle">レイアウト</div>
             <div class="gdesc">字幕の位置・大きさ・流れ方</div>
           </div>
-          <a class="gedit" onclick="openStyle('tab=box&box=' + encodeURIComponent(cfg.box || ''))">スタジオで編集 →</a>
+          <a class="gedit" onclick="openStyle('tab=box&box=' + encodeURIComponent(cfg.box || ''))">✎ 編集</a>
         </div>
         <div id="boxes"></div>
       </div>
@@ -352,7 +354,7 @@
             <div class="gtitle">単語プロファイル</div>
             <div class="gdesc">「共通」に足す単語セット</div>
           </div>
-          <a class="gedit" onclick="openWords()">スタジオで編集 →</a>
+          <a class="gedit" onclick="openWords()">✎ 編集</a>
         </div>
         <div class="selrow"><select id="wordProfile"></select></div>
       </div>
