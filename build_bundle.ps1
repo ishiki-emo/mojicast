@@ -27,7 +27,8 @@ Copy-Item (Join-Path $root "ui") (Join-Path $app "ui") -Recurse -Force
 Write-Host "  asset : ui\"
 
 # --- ドキュメント / ヘルパー ---
-foreach ($f in @("README_TESTER.txt", "マニュアル.html", "ブロック解除.bat")) {
+foreach ($f in @("README_TESTER.txt", "マニュアル.html",
+                 "スタイルガイド.html", "エフェクトガイド.html", "ブロック解除.bat")) {
     Copy-Item (Join-Path $root $f) $app -Force
     Write-Host "  doc   : $f"
 }
