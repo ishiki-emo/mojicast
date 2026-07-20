@@ -126,6 +126,11 @@
   }
   #monitor .p { opacity: .45; }
   #monitor .en { font-size: .62em; font-weight: 600; opacity: .6; color: var(--dim); }
+  /* コラボ時の話者名チップ（字幕ログの行頭） */
+  #monitor .spk { display: inline-block; font-size: 11px; font-weight: 800;
+    border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px;
+    margin-right: 8px; vertical-align: middle; background: var(--panel2);
+    color: var(--spkc, var(--dim)); border-color: color-mix(in srgb, var(--spkc, var(--dim)) 45%, transparent); }
   .mon-head { display: flex; align-items: center; margin-bottom: 8px; gap: 8px; }
   .mon-head .rec { color: var(--err); font-size: 11px; letter-spacing: .15em; opacity: 0; }
   .mon-head .rec.on { opacity: 1; animation: blink 1.2s infinite; }
@@ -360,6 +365,44 @@
       </div>
       <div class="group">
         <div class="ghead">
+          <span class="gicon" style="background:rgba(164,112,255,.12)">🎧</span>
+          <div>
+            <div class="gtitle">1対1コラボ</div>
+            <div class="gdesc">相手の声（Discord出力）も字幕化</div>
+          </div>
+        </div>
+        <label class="toggle">コラボを有効化
+          <input type="checkbox" id="collabOn"></label>
+        <div id="collabBody" style="display:none">
+          <div class="row">
+            <label>相手の音声入力</label>
+            <select id="collabDevice"></select>
+            <div class="hint">Discordの出力先にした仮想ケーブル（VB-CABLE等）を選ぶ</div>
+          </div>
+          <div class="row" style="display:flex;gap:8px;margin-bottom:14px">
+            <div style="flex:1;min-width:0">
+              <label>自分の表示名</label>
+              <input type="text" id="selfName" maxlength="20">
+            </div>
+            <div style="flex:1;min-width:0">
+              <label>相手の表示名</label>
+              <input type="text" id="guestName" maxlength="20">
+            </div>
+          </div>
+          <div class="row">
+            <label>相手の文字スタイル</label>
+            <select id="guestPreset"></select>
+          </div>
+          <div class="row">
+            <label>相手のレイアウト</label>
+            <select id="guestBox"></select>
+            <div class="hint">自分と重ならない位置のレイアウトを推奨</div>
+          </div>
+          <div class="hint">⚠ ヘッドホン必須（スピーカーだと相手の声をマイクが拾い二重字幕に）</div>
+        </div>
+      </div>
+      <div class="group">
+        <div class="ghead">
           <span class="gicon" style="background:rgba(61,255,160,.12)">🎬</span>
           <div>
             <div class="gtitle">OBS 連携</div>
@@ -475,6 +518,32 @@
     $("portHint").style.display = "block";
   });
 
+  // ---------- 1対1コラボ ----------
+  $("collabOn").addEventListener("change", e => {
+    cfg.collab = e.target.checked;
+    $("collabBody").style.display = cfg.collab ? "" : "none";
+    saveCfg();
+  });
+  $("collabDevice").addEventListener("change", e => {
+    cfg.collab_device = e.target.value === "" ? null : +e.target.value; saveCfg();
+  });
+  $("selfName").addEventListener("input", e => { cfg.self_name = e.target.value; saveCfg(); });
+  $("guestName").addEventListener("input", e => { cfg.guest_name = e.target.value; saveCfg(); });
+  $("guestPreset").addEventListener("change", e => { cfg.guest_preset = e.target.value; saveCfg(); });
+  $("guestBox").addEventListener("change", e => { cfg.guest_box = e.target.value; saveCfg(); });
+
+  // 相手の見た目割当（プリセット/ボックス一覧から選ぶ）
+  function renderCollabStyles() {
+    const fill = (sel, items, cur) => {
+      sel.innerHTML = items.map(x =>
+        `<option value="${escHtml(x.id)}">${escHtml(x.name)}</option>`).join("");
+      sel.value = cur;
+      if (sel.selectedIndex < 0 && items[0]) sel.value = items[0].id;
+    };
+    fill($("guestPreset"), presets, cfg.guest_preset);
+    fill($("guestBox"), boxes, cfg.guest_box);
+  }
+
   // innerHTML への埋め込み用（要素内容・二重引用符の属性値の両方で安全）
   const escHtml = (s) => String(s).replace(/&/g, "&amp;")
     .replace(/</g, "&lt;").replace(/"/g, "&quot;");
@@ -512,12 +581,28 @@
     }
     if (cfg.device !== null && cfg.device !== undefined) sel.value = cfg.device;
 
+    // コラボ: 相手の音声入力（同じデバイス一覧・未選択なら開始してもソロ動作）
+    const csel = $("collabDevice");
+    csel.innerHTML = '<option value="">（未選択）</option>';
+    for (const d of dv.devices || []) {
+      const o = document.createElement("option");
+      o.value = d.index; o.textContent = d.name;
+      csel.appendChild(o);
+    }
+    if (cfg.collab_device !== null && cfg.collab_device !== undefined)
+      csel.value = cfg.collab_device;
+    $("collabOn").checked = !!cfg.collab;
+    $("collabBody").style.display = cfg.collab ? "" : "none";
+    $("selfName").value = cfg.self_name || "";
+    $("guestName").value = cfg.guest_name || "";
+
     await loadWordProfiles();
 
     presets = (await api("/api/presets")).presets || [];
     boxes = (await api("/api/boxes")).boxes || [];
     renderPresets();
     renderBoxes();
+    renderCollabStyles();
   }
 
   // ---------- プリセット（プルダウン＋色見本） ----------
@@ -554,6 +639,7 @@
     boxes = (await api("/api/boxes")).boxes || [];
     renderPresets();
     renderBoxes();
+    renderCollabStyles();
   }
 
   // ---------- レイアウト（プルダウン＋概要ミニ図） ----------
@@ -674,35 +760,66 @@
   function setPreviewStyle(m) {
     if (m.style) previewStyle = m.style;
     if (window.FX) previewTable = FX.buildTable(m.hotwords, m.effects, previewStyle || {});
+    // コラボ中は話者ごとにチップ色を割当（speakers のキー順: 自分→相手）
+    spkColor = {};
+    if (m.speakers) {
+      const cols = ["var(--accent)", "var(--accent2)", "var(--ok)", "var(--warn)"];
+      Object.keys(m.speakers).forEach((n, i) => { spkColor[n] = cols[i % cols.length]; });
+    }
     if (window.FX && previewStyle)     // 表示中の行にも即反映
       for (const d of monitor.children)
-        FX.applyLineStyle(d, previewStyle, previewSize(previewStyle));
+        FX.applyLineStyle(d._txt || d, previewStyle, previewSize(previewStyle));
   }
 
   // ---------- モニタ（SSE） ----------
   const MON_MAX = 6;
   const monitor = $("monitor");
-  let partialDiv = null;
+  const partials = new Map();   // 話者名 → 認識中(薄文字)の行（"" = ソロ）
+  let spkColor = {};            // 話者名 → チップ色
 
-  function monPartial(text) {
-    if (text) dismissGuide();   // 認識が始まったら案内は役目を終える
-    if (!partialDiv) {
-      partialDiv = document.createElement("div");
-      partialDiv.className = "p";
-      monitor.appendChild(partialDiv);
+  // 行を [話者チップ][本文スパン] の構造で作る（ソロはチップなし）
+  function monLine(spk) {
+    const d = document.createElement("div");
+    if (spk) {
+      const c = document.createElement("span");
+      c.className = "spk";
+      c.textContent = spk;
+      if (spkColor[spk]) c.style.setProperty("--spkc", spkColor[spk]);
+      d.appendChild(c);
+    }
+    d._txt = document.createElement("span");
+    d.appendChild(d._txt);
+    return d;
+  }
+
+  function monPartial(text, spk) {
+    spk = spk || "";
+    let pd = partials.get(spk);
+    if (!text) {   // 空パーシャル = その話者の薄文字を消す合図
+      if (pd) { pd.remove(); partials.delete(spk); }
+      return;
+    }
+    dismissGuide();   // 認識が始まったら案内は役目を終える
+    if (!pd || !pd.isConnected) {
+      pd = monLine(spk);
+      pd.className = "p";
+      partials.set(spk, pd);
+      monitor.appendChild(pd);
     }
     // 認識中(薄文字)は既定でエフェクトなし＝プレーン。partialFx が真のときだけ装飾
-    styleLine(partialDiv, text || "", !(previewStyle && previewStyle.partialFx));
-    if (previewStyle) partialDiv.style.opacity = previewStyle.partialOpacity ?? 0.55;
+    styleLine(pd._txt, text, !(previewStyle && previewStyle.partialFx));
+    if (previewStyle) pd.style.opacity = previewStyle.partialOpacity ?? 0.55;
     monitor.scrollTop = monitor.scrollHeight;
   }
-  function monFinal(text, id) {
-    if (partialDiv) { partialDiv.remove(); partialDiv = null; }
+  function monFinal(text, id, spk) {
+    spk = spk || "";
+    const pd = partials.get(spk);
+    if (pd) { pd.remove(); partials.delete(spk); }
     if (!text) return;
     dismissGuide();
-    const d = document.createElement("div");
+    const d = monLine(spk);
     if (id != null) d.dataset.fid = id;
-    styleLine(d, text);
+    styleLine(d._txt, text);
     monitor.appendChild(d);
     while (monitor.children.length > MON_MAX) monitor.removeChild(monitor.firstChild);
     monitor.scrollTop = monitor.scrollHeight;
@@ -723,11 +840,11 @@
       const m = JSON.parse(e.data);
       if (m.type === "state") setState(m.state, m.detail);
       else if (m.type === "init") { if (m.state) setState(m.state.state, m.state.detail); setPreviewStyle(m); }
-      else if (m.type === "partial") monPartial(m.text);
-      else if (m.type === "final") monFinal(m.text, m.id);
+      else if (m.type === "partial") monPartial(m.text, m.speaker);
+      else if (m.type === "final") monFinal(m.text, m.id, m.speaker);
       else if (m.type === "translation") monTranslation(m.id, m.text);
       else if (m.type === "level") $("meterBar").style.width = (m.value * 100) + "%";
-      else if (m.type === "clear") { monitor.innerHTML = ""; partialDiv = null; }
+      else if (m.type === "clear") { monitor.innerHTML = ""; partials.clear(); }
       else if (m.type === "style") { setPreviewStyle(m); refreshPresets(); }
     };
     es.onerror = () => { es.close(); setTimeout(connect, 1000); };
