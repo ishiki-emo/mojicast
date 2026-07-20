@@ -7,7 +7,9 @@ _A fully-offline real-time captioning app for live streaming: Japanese speech re
 日本語の話し声をリアルタイムに字幕化し、OBS のブラウザソースに重ねられます。音声はネットに送られず、
 モデルの推論も含めてすべてお使いの PC の中だけで動きます。
 
-![字幕オーバーレイの表示例（1対1コラボ・左右分割レイアウト）](docs/images/overlay_collab.png)
+[![字幕オーバーレイの表示例（1対1コラボ・左右分割レイアウト）— クリックでデモ動画へ](docs/images/overlay_collab.png)](https://youtu.be/GObqilowmkU)
+
+<p align="center">▶ <b><a href="https://youtu.be/GObqilowmkU">30秒デモ動画を見る（YouTube）</a></b> — 2人の字幕・翻訳・エフェクトが動く様子</p>
 
 | コックピット（メイン画面） | 1対1コラボ中（自分/相手の見た目を個別に割当） |
 |---|---|
