@@ -82,13 +82,6 @@
     <section class="sec">
       <h2>相手の音の取り込み</h2>
       <div class="row">
-        <label>取り込み方</label>
-        <select id="collabSource">
-          <option value="process">アプリの音を直接（推奨・追加ソフト不要）</option>
-          <option value="device">入力デバイス（仮想ケーブル）</option>
-        </select>
-      </div>
-      <div class="row" id="rowProc">
         <label>相手の声が鳴るアプリ</label>
         <div style="display:flex;gap:6px">
           <select id="collabProcess" style="flex:1;min-width:0"></select>
@@ -96,11 +89,6 @@
         </div>
         <div class="hint">Discord等を起動してから ↻ で更新。🔊 は今音を再生中のアプリ。通話中だと確実に出ます</div>
         <div class="hint warn" id="procHint" style="display:none"></div>
-      </div>
-      <div class="row" id="rowDev" style="display:none">
-        <label>相手の音声入力</label>
-        <select id="collabDevice"></select>
-        <div class="hint">Discordの出力先にした仮想ケーブル（VB-CABLE等）を選ぶ</div>
       </div>
     </section>
 
@@ -135,7 +123,7 @@
 
   <footer>
     ⚠ ヘッドホン必須（スピーカーだと相手の声をマイクが拾い二重字幕に）<br>
-    取り込み方・アプリ・デバイス・表示名の変更は、認識中なら次回 ▶開始 時に反映されます
+    取り込むアプリ・表示名の変更は、認識中なら次回 ▶開始 時に反映されます
   </footer>
 
 <script>
@@ -165,20 +153,8 @@
   }
   const saveDebounced = debounce(save, 400);
 
-  function syncRows() {
-    const proc = (cfg.collab_source || "process") === "process";
-    $("rowProc").style.display = proc ? "" : "none";
-    $("rowDev").style.display = proc ? "none" : "";
-  }
-
-  $("collabSource").addEventListener("change", e => {
-    save({ collab_source: e.target.value });
-    syncRows();
-    if (e.target.value === "process") loadApps();
-  });
-  $("collabProcess").addEventListener("change", e => save({ collab_process: e.target.value }));
-  $("collabDevice").addEventListener("change", e =>
-    save({ collab_device: e.target.value === "" ? null : +e.target.value }));
+  $("collabProcess").addEventListener("change", e =>
+    save({ collab_process: e.target.value, collab_source: "process" }));
   $("selfName").addEventListener("input", e => saveDebounced({ self_name: e.target.value }));
   $("guestName").addEventListener("input", e => saveDebounced({ guest_name: e.target.value }));
   $("guestPreset").addEventListener("change", e => save({ guest_preset: e.target.value }));
@@ -202,7 +178,7 @@
     sel.value = cur;
     const hint = $("procHint");
     if (d.supported === false) {
-      hint.textContent = "⚠ このWindowsは未対応です（Windows 10 2004以降が必要）。仮想ケーブル方式をお使いください";
+      hint.textContent = "⚠ このWindowsは1対1コラボに未対応です（Windows 10 2004 以降が必要です）";
       hint.style.display = "block";
     } else {
       hint.style.display = "none";
@@ -214,21 +190,8 @@
     if (cfg.theme === "light") document.documentElement.dataset.theme = "light";
     else delete document.documentElement.dataset.theme;
 
-    $("collabSource").value = cfg.collab_source || "process";
-    syncRows();
     $("selfName").value = cfg.self_name || "";
     $("guestName").value = cfg.guest_name || "";
-
-    const dv = await api("/api/devices");
-    const csel = $("collabDevice");
-    csel.innerHTML = '<option value="">（未選択）</option>';
-    for (const d of dv.devices || []) {
-      const o = document.createElement("option");
-      o.value = d.index; o.textContent = d.name;
-      csel.appendChild(o);
-    }
-    if (cfg.collab_device !== null && cfg.collab_device !== undefined)
-      csel.value = cfg.collab_device;
 
     const fill = (sel, items, cur) => {
       sel.innerHTML = items.map(x =>

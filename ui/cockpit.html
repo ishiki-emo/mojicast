@@ -506,9 +506,10 @@
     $("collabOn").checked = !!cfg.collab;
     const s = $("collabSummary");
     if (!cfg.collab) { s.style.display = "none"; return; }
+    // 仮想ケーブル表示はUI非公開の保険設定（config直編集）のときだけ
     const src = (cfg.collab_source || "process") === "process"
-      ? "アプリ直接" + (cfg.collab_process ? "・" + cfg.collab_process : "（アプリ未選択）")
-      : "仮想ケーブル";
+      ? "相手の音: " + (cfg.collab_process || "アプリ未選択")
+      : "相手の音: 仮想ケーブル";
     s.textContent = src + " ／ 相手: " + ((cfg.guest_name || "").trim() || "ゲスト");
     s.style.display = "block";
   }
