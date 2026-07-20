@@ -126,6 +126,11 @@
   }
   #monitor .p { opacity: .45; }
   #monitor .en { font-size: .62em; font-weight: 600; opacity: .6; color: var(--dim); }
+  /* コラボ時の話者名チップ（字幕ログの行頭） */
+  #monitor .spk { display: inline-block; font-size: 11px; font-weight: 800;
+    border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px;
+    margin-right: 8px; vertical-align: middle; background: var(--panel2);
+    color: var(--spkc, var(--dim)); border-color: color-mix(in srgb, var(--spkc, var(--dim)) 45%, transparent); }
   .mon-head { display: flex; align-items: center; margin-bottom: 8px; gap: 8px; }
   .mon-head .rec { color: var(--err); font-size: 11px; letter-spacing: .15em; opacity: 0; }
   .mon-head .rec.on { opacity: 1; animation: blink 1.2s infinite; }
@@ -186,7 +191,9 @@
   /* 文字スタイル/レイアウトはプルダウンで選択（省スペース・OBS連携を押し出さない）。
      選択肢内に図は描けないので、選択中の概要を隣に小さく表示する */
   .selrow { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+  .selrow + .selrow { margin-top: 7px; }
   .selrow select { flex: 1; min-width: 0; }
+  .selrow .who { flex: none; width: 30px; font-size: 11px; color: var(--dim); }
   .colorsw { flex: none; width: 22px; height: 22px; border-radius: 5px;
     border: 1px solid rgba(128,128,128,.45); }
   .boxmini { flex: none; position: relative; width: 40px; height: 23px;
@@ -360,6 +367,19 @@
       </div>
       <div class="group">
         <div class="ghead">
+          <span class="gicon" style="background:rgba(164,112,255,.12)">🎧</span>
+          <div>
+            <div class="gtitle">1対1コラボ</div>
+            <div class="gdesc">相手の声（Discord出力）も字幕化</div>
+          </div>
+          <a class="gedit" onclick="openCollab()">✎ 設定</a>
+        </div>
+        <label class="toggle">コラボを有効化
+          <input type="checkbox" id="collabOn"></label>
+        <div class="hint" id="collabSummary" style="display:none;margin-top:0"></div>
+      </div>
+      <div class="group">
+        <div class="ghead">
           <span class="gicon" style="background:rgba(61,255,160,.12)">🎬</span>
           <div>
             <div class="gtitle">OBS 連携</div>
@@ -475,6 +495,35 @@
     $("portHint").style.display = "block";
   });
 
+  // ---------- 1対1コラボ（詳細設定は別窓 /ui/collab） ----------
+  function openCollab() {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.open_collab) {
+      window.pywebview.api.open_collab();
+    } else {
+      window.open("/ui/collab", "_blank", "width=560,height=720");
+    }
+  }
+  // トグル状態と「方式／相手名」の1行サマリを反映
+  function syncCollab() {
+    $("collabOn").checked = !!cfg.collab;
+    const s = $("collabSummary");
+    if (!cfg.collab) { s.style.display = "none"; return; }
+    // 仮想ケーブル表示はUI非公開の保険設定（config直編集）のときだけ
+    const src = (cfg.collab_source || "process") === "process"
+      ? "相手の音: " + (cfg.collab_process || "アプリ未選択")
+      : "相手の音: 仮想ケーブル";
+    s.textContent = src + " ／ 相手: " + ((cfg.guest_name || "").trim() || "ゲスト");
+    s.style.display = "block";
+  }
+  $("collabOn").addEventListener("change", e => {
+    cfg.collab = e.target.checked;
+    syncCollab();
+    renderPresets();   // 自分/相手の2行表示を切替
+    renderBoxes();
+    if (cfg.collab) openCollab();   // 有効化と同時に設定窓を開く（取り込みアプリ等）
+    saveCfg();
+  });
+
   // innerHTML への埋め込み用（要素内容・二重引用符の属性値の両方で安全）
   const escHtml = (s) => String(s).replace(/&/g, "&amp;")
     .replace(/</g, "&lt;").replace(/"/g, "&quot;");
@@ -512,6 +561,8 @@
     }
     if (cfg.device !== null && cfg.device !== undefined) sel.value = cfg.device;
 
+    syncCollab();   // コラボのトグル＋サマリ（詳細は別窓）
+
     await loadWordProfiles();
 
     presets = (await api("/api/presets")).presets || [];
@@ -521,12 +572,13 @@
   }
 
   // ---------- プリセット（プルダウン＋色見本） ----------
-  function renderPresets() {
+  // 1行ぶんの「プリセット選択＋色見本」。コラボ時は自分/相手の2行になる
+  function presetRow(cur, who, onPick) {
     const sel = document.createElement("select");
     sel.innerHTML = presets.map(p =>
       `<option value="${escHtml(p.id)}">${escHtml(p.name)}</option>`).join("");
-    sel.value = cfg.preset;
-    if (sel.selectedIndex < 0 && presets[0]) { sel.value = presets[0].id; cfg.preset = sel.value; }
+    sel.value = cur;
+    if (sel.selectedIndex < 0 && presets[0]) { sel.value = presets[0].id; onPick(sel.value, true); }
     const sw = document.createElement("span");
     sw.className = "colorsw";
     const paint = () => {
@@ -535,34 +587,46 @@
       sw.style.boxShadow = p.glow ? "0 0 6px " + p.glow : "none";
     };
     paint();
-    sel.onchange = async () => {
-      cfg.preset = sel.value; paint();
-      await api("/api/config", { preset: sel.value });
-    };
+    sel.onchange = () => { paint(); onPick(sel.value); };
     const row = document.createElement("div");
     row.className = "selrow";
+    if (who) {
+      const w = document.createElement("span");
+      w.className = "who"; w.textContent = who;
+      row.appendChild(w);
+    }
     row.append(sel, sw);
-    const box = $("presets");
-    box.innerHTML = "";
-    box.appendChild(row);
+    return row;
   }
 
-  async function refreshPresets() {   // スタイル/単語スタジオでの保存を反映
+  function renderPresets() {
+    const box = $("presets");
+    box.innerHTML = "";
+    box.appendChild(presetRow(cfg.preset, cfg.collab ? "自分" : "",
+      (v, silent) => { cfg.preset = v; if (!silent) api("/api/config", { preset: v }); }));
+    if (cfg.collab)
+      box.appendChild(presetRow(cfg.guest_preset, "相手",
+        (v, silent) => { cfg.guest_preset = v; if (!silent) api("/api/config", { guest_preset: v }); }));
+  }
+
+  async function refreshPresets() {   // スタイル/単語/コラボ窓での保存を反映
     cfg = await api("/api/config");
     await loadWordProfiles();
     presets = (await api("/api/presets")).presets || [];
     boxes = (await api("/api/boxes")).boxes || [];
     renderPresets();
     renderBoxes();
+    syncCollab();   // コラボ窓で変えた方式/相手名をサマリへ反映
   }
 
   // ---------- レイアウト（プルダウン＋概要ミニ図） ----------
-  function renderBoxes() {
+  // 1行ぶんの「レイアウト選択＋位置ミニ図」。コラボ時は自分/相手の2行になる
+  function boxRow(cur, who, onPick) {
     const sel = document.createElement("select");
     sel.innerHTML = boxes.map(b =>
       `<option value="${escHtml(b.id)}">${escHtml(b.name)}</option>`).join("");
-    sel.value = cfg.box;
-    if (sel.selectedIndex < 0 && boxes[0]) { sel.value = boxes[0].id; cfg.box = sel.value; }
+    sel.value = cur;
+    if (sel.selectedIndex < 0 && boxes[0]) { sel.value = boxes[0].id; onPick(sel.value, true); }
     const mini = document.createElement("span");
     mini.className = "boxmini";
     mini.title = "画面内での字幕の位置・大きさ";
@@ -577,16 +641,26 @@
       mini.appendChild(i);
     };
     draw();
-    sel.onchange = async () => {
-      cfg.box = sel.value; draw();
-      await api("/api/config", { box: sel.value });
-    };
+    sel.onchange = () => { draw(); onPick(sel.value); };
     const row = document.createElement("div");
     row.className = "selrow";
+    if (who) {
+      const w = document.createElement("span");
+      w.className = "who"; w.textContent = who;
+      row.appendChild(w);
+    }
     row.append(sel, mini);
+    return row;
+  }
+
+  function renderBoxes() {
     const el = $("boxes");
     el.innerHTML = "";
-    el.appendChild(row);
+    el.appendChild(boxRow(cfg.box, cfg.collab ? "自分" : "",
+      (v, silent) => { cfg.box = v; if (!silent) api("/api/config", { box: v }); }));
+    if (cfg.collab)
+      el.appendChild(boxRow(cfg.guest_box, "相手",
+        (v, silent) => { cfg.guest_box = v; if (!silent) api("/api/config", { guest_box: v }); }));
   }
 
   // ---------- エンジン ----------
@@ -674,35 +748,66 @@
   function setPreviewStyle(m) {
     if (m.style) previewStyle = m.style;
     if (window.FX) previewTable = FX.buildTable(m.hotwords, m.effects, previewStyle || {});
+    // コラボ中は話者ごとにチップ色を割当（speakers のキー順: 自分→相手）
+    spkColor = {};
+    if (m.speakers) {
+      const cols = ["var(--accent)", "var(--accent2)", "var(--ok)", "var(--warn)"];
+      Object.keys(m.speakers).forEach((n, i) => { spkColor[n] = cols[i % cols.length]; });
+    }
     if (window.FX && previewStyle)     // 表示中の行にも即反映
       for (const d of monitor.children)
-        FX.applyLineStyle(d, previewStyle, previewSize(previewStyle));
+        FX.applyLineStyle(d._txt || d, previewStyle, previewSize(previewStyle));
   }
 
   // ---------- モニタ（SSE） ----------
   const MON_MAX = 6;
   const monitor = $("monitor");
-  let partialDiv = null;
+  const partials = new Map();   // 話者名 → 認識中(薄文字)の行（"" = ソロ）
+  let spkColor = {};            // 話者名 → チップ色
 
-  function monPartial(text) {
-    if (text) dismissGuide();   // 認識が始まったら案内は役目を終える
-    if (!partialDiv) {
-      partialDiv = document.createElement("div");
-      partialDiv.className = "p";
-      monitor.appendChild(partialDiv);
+  // 行を [話者チップ][本文スパン] の構造で作る（ソロはチップなし）
+  function monLine(spk) {
+    const d = document.createElement("div");
+    if (spk) {
+      const c = document.createElement("span");
+      c.className = "spk";
+      c.textContent = spk;
+      if (spkColor[spk]) c.style.setProperty("--spkc", spkColor[spk]);
+      d.appendChild(c);
+    }
+    d._txt = document.createElement("span");
+    d.appendChild(d._txt);
+    return d;
+  }
+
+  function monPartial(text, spk) {
+    spk = spk || "";
+    let pd = partials.get(spk);
+    if (!text) {   // 空パーシャル = その話者の薄文字を消す合図
+      if (pd) { pd.remove(); partials.delete(spk); }
+      return;
+    }
+    dismissGuide();   // 認識が始まったら案内は役目を終える
+    if (!pd || !pd.isConnected) {
+      pd = monLine(spk);
+      pd.className = "p";
+      partials.set(spk, pd);
+      monitor.appendChild(pd);
     }
     // 認識中(薄文字)は既定でエフェクトなし＝プレーン。partialFx が真のときだけ装飾
-    styleLine(partialDiv, text || "", !(previewStyle && previewStyle.partialFx));
-    if (previewStyle) partialDiv.style.opacity = previewStyle.partialOpacity ?? 0.55;
+    styleLine(pd._txt, text, !(previewStyle && previewStyle.partialFx));
+    if (previewStyle) pd.style.opacity = previewStyle.partialOpacity ?? 0.55;
     monitor.scrollTop = monitor.scrollHeight;
   }
-  function monFinal(text, id) {
-    if (partialDiv) { partialDiv.remove(); partialDiv = null; }
+  function monFinal(text, id, spk) {
+    spk = spk || "";
+    const pd = partials.get(spk);
+    if (pd) { pd.remove(); partials.delete(spk); }
     if (!text) return;
     dismissGuide();
-    const d = document.createElement("div");
+    const d = monLine(spk);
     if (id != null) d.dataset.fid = id;
-    styleLine(d, text);
+    styleLine(d._txt, text);
     monitor.appendChild(d);
     while (monitor.children.length > MON_MAX) monitor.removeChild(monitor.firstChild);
     monitor.scrollTop = monitor.scrollHeight;
@@ -723,11 +828,11 @@
       const m = JSON.parse(e.data);
       if (m.type === "state") setState(m.state, m.detail);
       else if (m.type === "init") { if (m.state) setState(m.state.state, m.state.detail); setPreviewStyle(m); }
-      else if (m.type === "partial") monPartial(m.text);
-      else if (m.type === "final") monFinal(m.text, m.id);
+      else if (m.type === "partial") monPartial(m.text, m.speaker);
+      else if (m.type === "final") monFinal(m.text, m.id, m.speaker);
       else if (m.type === "translation") monTranslation(m.id, m.text);
       else if (m.type === "level") $("meterBar").style.width = (m.value * 100) + "%";
-      else if (m.type === "clear") { monitor.innerHTML = ""; partialDiv = null; }
+      else if (m.type === "clear") { monitor.innerHTML = ""; partials.clear(); }
       else if (m.type === "style") { setPreviewStyle(m); refreshPresets(); }
     };
     es.onerror = () => { es.close(); setTimeout(connect, 1000); };

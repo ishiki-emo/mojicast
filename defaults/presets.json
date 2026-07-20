@@ -74,6 +74,24 @@
       "letterSpacing": 0.08
     },
     {
+      "id": "collab",
+      "name": "コラボ（小さめ）",
+      "desc": "小さめでも読みやすいUD文字。左右ハーフのレイアウトと一緒に",
+      "font": "'BIZ UDPGothic','BIZ UDGothic','Yu Gothic UI',sans-serif",
+      "weight": 800,
+      "size": 30,
+      "color": "#ffffff",
+      "outlineColor": "#000000",
+      "outlineWidth": 2,
+      "glow": "",
+      "glowSize": 0,
+      "shadow": true,
+      "hotColor": "#ffd400",
+      "animIn": "slide",
+      "partialOpacity": 0.55,
+      "letterSpacing": 0.01
+    },
+    {
       "id": "telop",
       "name": "極太テロップ",
       "desc": "バラエティ番組風の黄色極太",

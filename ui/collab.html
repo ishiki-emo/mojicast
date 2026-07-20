@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>コラボ設定</title>
+<script>
+  // 起動モニタに合わせたUI縮小＋テーマ先読み（cockpitと同じ流儀）
+  (function () {
+    const s = parseFloat(new URLSearchParams(location.search).get("s"));
+    if (s > 0 && s < 1) document.documentElement.style.zoom = s;
+    try { if (localStorage.getItem("mojicast-theme") === "light")
+      document.documentElement.dataset.theme = "light"; } catch (e) {}
+  })();
+</script>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161c26; --panel2: #1c2432;
+    --line: #2a3547; --text: #dce6f5; --dim: #7d8ba1;
+    --accent: #00e5ff; --accent2: #ff2d95; --ok: #3dffa0; --warn: #ffb84d; --err: #ff5c5c;
+  }
+  :root[data-theme="light"] {
+    --bg: #f7f9fc; --panel: #ffffff; --panel2: #eef2f8;
+    --line: #dbe2ec; --text: #16202e; --dim: #5c6b80;
+    --accent: #0499bd; --accent2: #d4247a; --ok: #12a05f; --warn: #b5761a; --err: #d94141;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'Yu Gothic UI', 'Meiryo', sans-serif; font-size: 14px;
+    min-height: 100vh; display: flex; flex-direction: column; user-select: none;
+  }
+  header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 18px; background: var(--panel); border-bottom: 1px solid var(--line);
+  }
+  header .t { font-weight: 900; letter-spacing: .06em; }
+  header .d { color: var(--dim); font-size: 12px; }
+  main { flex: 1; padding: 14px 18px; overflow-y: auto; }
+  .sec {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px; margin-bottom: 12px;
+  }
+  .sec h2 {
+    font-size: 11px; letter-spacing: .2em; color: var(--dim);
+    margin-bottom: 12px; border-bottom: 1px solid var(--line); padding-bottom: 6px;
+  }
+  .row { margin-bottom: 14px; }
+  .row:last-child { margin-bottom: 0; }
+  .row > label { display: block; color: var(--dim); margin-bottom: 5px; }
+  select, input[type=text] {
+    width: 100%; background: var(--panel2); color: var(--text);
+    border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px;
+    font-family: inherit; font-size: 13px;
+  }
+  button {
+    background: var(--panel2); color: var(--text);
+    border: 1px solid var(--line); border-radius: 8px;
+    padding: 7px 13px; cursor: pointer; font-family: inherit; font-size: 13px;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  .hint { color: var(--dim); font-size: 11px; margin-top: 5px; line-height: 1.6; }
+  .hint.warn { color: var(--warn); }
+  .cols { display: flex; gap: 10px; }
+  .cols > div { flex: 1; min-width: 0; }
+  footer {
+    padding: 10px 18px; color: var(--dim); font-size: 11px; line-height: 1.7;
+    border-top: 1px solid var(--line); background: var(--panel);
+  }
+  #saved { color: var(--ok); font-size: 12px; margin-left: auto; opacity: 0; transition: opacity .3s; }
+</style>
+</head>
+<body>
+  <header>
+    <div>
+      <div class="t">🎧 1対1コラボ設定</div>
+      <div class="d">相手の声（Discord等の出力）も字幕化する</div>
+    </div>
+    <span id="saved">✓ 保存しました</span>
+  </header>
+
+  <main>
+    <section class="sec">
+      <h2>相手の音の取り込み</h2>
+      <div class="row">
+        <label>相手の声が鳴るアプリ</label>
+        <div style="display:flex;gap:6px">
+          <select id="collabProcess" style="flex:1;min-width:0"></select>
+          <button onclick="loadApps()" title="アプリ一覧を更新">↻</button>
+        </div>
+        <div class="hint">Discord等を起動してから ↻ で更新。🔊 は今音を再生中のアプリ。通話中だと確実に出ます</div>
+        <div class="hint warn" id="procHint" style="display:none"></div>
+      </div>
+    </section>
+
+    <section class="sec">
+      <h2>表示名</h2>
+      <div class="cols">
+        <div>
+          <label style="display:block;color:var(--dim);margin-bottom:5px">自分</label>
+          <input type="text" id="selfName" maxlength="20" placeholder="自分">
+        </div>
+        <div>
+          <label style="display:block;color:var(--dim);margin-bottom:5px">相手</label>
+          <input type="text" id="guestName" maxlength="20" placeholder="ゲスト">
+        </div>
+      </div>
+      <div class="hint">字幕ログの行頭チップと、話者ごとの表示の振り分けに使います</div>
+    </section>
+
+  </main>
+
+  <footer>
+    ⚠ ヘッドホン必須（スピーカーだと相手の声をマイクが拾い二重字幕に）<br>
+    取り込むアプリ・表示名の変更は、認識中なら次回 ▶開始 時に反映されます
+  </footer>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  let cfg = {};
+
+  async function api(path, body) {
+    const opt = body ? { method: "POST", body: JSON.stringify(body) } : {};
+    const r = await fetch(path, opt);
+    return r.json();
+  }
+
+  const escHtml = (s) => String(s).replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;").replace(/"/g, "&quot;");
+
+  let savedTimer = null;
+  async function save(patch) {
+    Object.assign(cfg, patch);
+    await api("/api/config", patch);
+    const el = $("saved");
+    el.style.opacity = 1;
+    clearTimeout(savedTimer);
+    savedTimer = setTimeout(() => { el.style.opacity = 0; }, 1200);
+  }
+  function debounce(fn, ms) {
+    let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+  }
+  const saveDebounced = debounce(save, 400);
+
+  $("collabProcess").addEventListener("change", e =>
+    save({ collab_process: e.target.value, collab_source: "process" }));
+  $("selfName").addEventListener("input", e => saveDebounced({ self_name: e.target.value }));
+  $("guestName").addEventListener("input", e => saveDebounced({ guest_name: e.target.value }));
+  // 相手の文字スタイル/レイアウトの割当はコックピット側（自分の下の「相手」行）
+
+  // 音声セッションを持つアプリ一覧を取得して選択肢に反映
+  async function loadApps() {
+    const d = await api("/api/loopback-apps");
+    const sel = $("collabProcess");
+    const cur = cfg.collab_process || "";
+    const apps = d.apps || [];
+    sel.innerHTML = '<option value="">（未選択）</option>' +
+      apps.map(a => `<option value="${escHtml(a.name)}">` +
+        `${a.active ? "🔊 " : ""}${escHtml(a.name)}</option>`).join("");
+    // 保存済みの対象が今の一覧に無くても選択は維持（未起動の場合など）
+    if (cur && !apps.some(a => a.name === cur)) {
+      const o = document.createElement("option");
+      o.value = cur; o.textContent = cur + "（未起動）";
+      sel.appendChild(o);
+    }
+    sel.value = cur;
+    const hint = $("procHint");
+    if (d.supported === false) {
+      hint.textContent = "⚠ このWindowsは1対1コラボに未対応です（Windows 10 2004 以降が必要です）";
+      hint.style.display = "block";
+    } else {
+      hint.style.display = "none";
+    }
+  }
+
+  async function load() {
+    cfg = await api("/api/config");
+    if (cfg.theme === "light") document.documentElement.dataset.theme = "light";
+    else delete document.documentElement.dataset.theme;
+
+    $("selfName").value = cfg.self_name || "";
+    $("guestName").value = cfg.guest_name || "";
+
+    await loadApps();
+  }
+  load();
+</script>
+</body>
+</html>

@@ -7,10 +7,13 @@ _A fully-offline real-time captioning app for live streaming: Japanese speech re
 日本語の話し声をリアルタイムに字幕化し、OBS のブラウザソースに重ねられます。音声はネットに送られず、
 モデルの推論も含めてすべてお使いの PC の中だけで動きます。
 
-<!-- TODO: スクリーンショット/GIF を docs/ に置いてここに貼る
-![cockpit](docs/screenshot-cockpit.png)
-![overlay](docs/screenshot-overlay.png)
--->
+![字幕オーバーレイの表示例（1対1コラボ・左右分割レイアウト）](docs/images/overlay_collab.png)
+
+| コックピット（メイン画面） | 1対1コラボ中（自分/相手の見た目を個別に割当） |
+|---|---|
+| ![コックピット](docs/images/cockpit_solo.png) | ![コラボ中のコックピット](docs/images/cockpit_collab.png) |
+
+📖 **画像つきの詳しい使い方は [docs/MANUAL.md](docs/MANUAL.md)**（配布版には同内容の `マニュアル.html` を同梱）
 
 ## 特長
 
@@ -18,6 +21,8 @@ _A fully-offline real-time captioning app for live streaming: Japanese speech re
 - ✍️ **句読点の自動付与**（日本語 BERT）・**数字の算用数字化**（三十五→35、1万5000円）
 - 🌐 **英訳の併記**（FuguMT）— 配信用語の組み込み辞書つき（配信→stream 等）、
   固有名詞はユーザー英訳辞書で固定可能
+- 🎧 **1対1コラボ字幕** — Discord 等の通話音声から**相手の字幕も表示**
+  （WASAPI プロセスループバックで通話アプリの音だけを取り込み。相手側の準備は一切不要・仮想ケーブルも不要）
 - 🗂 **単語プロファイル** — 雑談用・ゲーム用・歌枠用など、配信の性質ごとに単語セットを切替
 - ✨ **エフェクト/スタイル** — 単語装飾・パーティクル・プリセット・レイアウト。
   `.mojipack` ファイルでスタイルの配布・取り込みも可能
@@ -50,11 +55,13 @@ _A fully-offline real-time captioning app for live streaming: Japanese speech re
 
 | | 最低 | 推奨 |
 |---|---|---|
-| OS | Windows 10（64bit） | Windows 11 |
-| CPU | 4コア8スレッド（2017年以降の Core i5 / Ryzen 5 相当） | 6コア以上（ゲーム配信と併用時） |
+| OS | Windows 10 2004 以降（64bit） | Windows 11 |
+| CPU | 4コア8スレッド・AVX2対応（2017年以降の Core i5 / Ryzen 5 相当） | Ryzen 7000/9000（最適）/ Intel 12世代以降 |
 | メモリ | 8GB | 16GB |
-| ストレージ | 空き3GB | SSD |
+| ストレージ | 空き5GB | SSD |
 
+負荷の本体は int8 の ONNX 推論のため、コア数より **CPU の世代**（AVX-512 VNNI / AVX-VNNI 対応）が
+効きます。世代別の適性表は [docs/MANUAL.md](docs/MANUAL.md) を参照。
 ほか: マイク / WebView2（Win11標準搭載） / 初回のみネット接続（モデル約1.2GB DL）。
 OBS併用時はGPUエンコード（NVENC / AMF）推奨。開発には Python 3.11。
 

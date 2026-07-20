@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mojicast マニュアル</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161c26; --line: #2a3342;
+    --fg: #e6edf3; --dim: #8b98a9; --acc: #71e7fe; --warn: #ffd400;
+    --ok: #7dff8a; --pink: #ff7ab8;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font-family: "Yu Gothic UI", "Meiryo", sans-serif;
+    line-height: 1.8; font-size: 15px;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 32px 20px 80px; }
+  header { text-align: center; padding: 28px 0 8px; }
+  header h1 { font-size: 28px; letter-spacing: .04em; }
+  header h1 .accent { color: var(--acc); }
+  header .sub { color: var(--dim); margin-top: 6px; font-size: 13px; }
+  .badges { margin-top: 14px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .badge {
+    font-size: 12px; padding: 3px 12px; border-radius: 20px;
+    border: 1px solid var(--line); color: var(--dim); background: var(--panel);
+  }
+  nav {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 16px 22px; margin: 26px 0;
+  }
+  nav b { color: var(--dim); font-size: 12px; letter-spacing: .1em; }
+  nav ol { margin: 8px 0 0 22px; }
+  nav a { color: var(--acc); text-decoration: none; }
+  nav a:hover { text-decoration: underline; }
+  section { margin-top: 46px; }
+  h2 {
+    font-size: 20px; padding-bottom: 8px; margin-bottom: 16px;
+    border-bottom: 2px solid var(--line);
+  }
+  h2 .no { color: var(--acc); margin-right: 8px; }
+  h3 { font-size: 16px; margin: 24px 0 8px; color: var(--acc); }
+  p { margin: 8px 0; }
+  ul, ol { margin: 8px 0 8px 24px; }
+  li { margin: 4px 0; }
+  code, .kbd {
+    background: #1f2733; border: 1px solid var(--line); border-radius: 5px;
+    padding: 1px 7px; font-family: Consolas, monospace; font-size: 13px; color: #9fd8ff;
+  }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px 18px; margin: 12px 0;
+  }
+  .card.warn { border-left: 4px solid var(--warn); }
+  .card.ok { border-left: 4px solid var(--ok); }
+  .card b.tag { font-size: 12px; letter-spacing: .08em; color: var(--dim); display: block; margin-bottom: 4px; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 14px; }
+  th, td { border: 1px solid var(--line); padding: 8px 12px; text-align: left; vertical-align: top; }
+  th { background: #1a212d; color: var(--dim); font-weight: 600; white-space: nowrap; }
+  td:first-child { white-space: nowrap; }
+  .step { display: flex; gap: 14px; margin: 14px 0; align-items: flex-start; }
+  .step .n {
+    flex: 0 0 30px; height: 30px; border-radius: 50%; background: var(--acc);
+    color: #06222b; font-weight: 800; display: flex; align-items: center; justify-content: center;
+  }
+  footer { margin-top: 60px; text-align: center; color: var(--dim); font-size: 12px; }
+  .dim { color: var(--dim); }
+  .overflow { overflow-x: auto; }
+  /* スクリーンショット */
+  .shot {
+    display: block; width: 100%; height: auto; margin: 14px 0 4px;
+    border: 1px solid var(--line); border-radius: 10px;
+  }
+  .shot.narrow { max-width: 400px; }
+  .shot.mid { max-width: 640px; }
+  .cap { display: block; text-align: center; color: var(--dim); font-size: 12px; margin: 2px 0 14px; }
+  .shotrow { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-start; }
+  .shotrow > div { flex: 1; min-width: 260px; }
+  /* CPU適性ランク */
+  .rank { font-weight: 800; white-space: nowrap; }
+  .rank.r1 { color: var(--ok); } .rank.r2 { color: var(--acc); }
+  .rank.r3 { color: var(--warn); } .rank.r4 { color: #ff5c5c; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Moji<span class="accent">cast</span></h1>
+  <div class="sub">配信用リアルタイム字幕アプリ — マニュアル（v0.4）</div>
+  <div class="badges">
+    <span class="badge">🔌 完全オフライン</span>
+    <span class="badge">🎙 日本語音声認識</span>
+    <span class="badge">🌐 英訳の併記</span>
+    <span class="badge">🎧 1対1コラボ字幕</span>
+    <span class="badge">🎬 OBS 連携</span>
+  </div>
+</header>
+
+<nav>
+  <b>目次</b>
+  <ol>
+    <li><a href="#start">はじめに・起動方法</a></li>
+    <li><a href="#env">動作環境と CPU の目安</a></li>
+    <li><a href="#cockpit">コックピット（メイン画面）</a></li>
+    <li><a href="#obs">OBS に字幕を出す</a></li>
+    <li><a href="#studio">スタジオ（見た目のカスタマイズと単語登録）</a></li>
+    <li><a href="#translate">英訳の併記</a></li>
+    <li><a href="#collab">1対1コラボ字幕</a></li>
+    <li><a href="#files">フォルダとアップデート</a></li>
+    <li><a href="#trouble">困ったときは</a></li>
+    <li><a href="#feedback">フィードバックのお願い</a></li>
+  </ol>
+</nav>
+
+<!-- ============================================================ -->
+<section id="start">
+  <h2><span class="no">1</span>はじめに・起動方法</h2>
+  <p>Mojicast は、マイクの音声をリアルタイムに文字起こしして配信画面に字幕として表示するアプリです。
+     音声認識・句読点付け・英訳・コラボ相手の字幕化まで、<b>すべてお使いのPCの中だけで動きます</b>。
+     音声がネットに送られることはありません。</p>
+
+  <img class="shot" src="{{IMG:overlay_collab}}" alt="オーバーレイ表示例">
+  <span class="cap">OBSに重ねる字幕の表示例（1対1コラボ・左右分割レイアウト時）</span>
+
+  <div class="card"><b class="tag">初回起動</b>
+    初回だけ「WindowsによってPCが保護されました」(SmartScreen)が出ることがあります。
+    未署名アプリのためで、<b>「詳細情報」→「実行」</b>で起動できます。<br>
+    ダウンロード由来のブロック(MOTW)は<b>アプリが起動時に自動解除</b>するので、手動の解除操作は不要です。
+  </div>
+
+  <h3>起動手順</h3>
+  <div class="step"><div class="n">1</div><div>このフォルダを<b>丸ごとローカルディスクにコピー</b>する（Zip 内や共有ドライブから直接起動しない）</div></div>
+  <div class="step"><div class="n">2</div><div><code>Mojicast.exe</code> をダブルクリック</div></div>
+  <div class="step"><div class="n">3</div><div>コックピット画面が開いたら、案内の3ステップどおりに進める</div></div>
+
+  <img class="shot" src="{{IMG:cockpit_guide}}" alt="初回起動時の案内">
+  <span class="cap">初回起動時は「はじめの3ステップ」の案内が出ます</span>
+
+  <div class="card warn"><b class="tag">初回のみ</b>
+    初回の ▶開始 時に認識モデル（約1.2GB）を自動ダウンロードし、読み込みに少し時間がかかります。
+    2回目以降はダウンロード無し・完全オフラインで動きます。</div>
+</section>
+
+<!-- ============================================================ -->
+<section id="env">
+  <h2><span class="no">2</span>動作環境と CPU の目安</h2>
+  <div class="overflow">
+  <table>
+    <tr><th></th><th>最低</th><th>推奨</th></tr>
+    <tr><td>OS</td><td>Windows 10 2004 以降（64bit）</td><td>Windows 11</td></tr>
+    <tr><td>CPU</td><td>4コア8スレッド・AVX2対応<br>（2017年以降の Core i5 / Ryzen 5 相当）</td><td>下の適性表で ◎〜○ のCPU</td></tr>
+    <tr><td>メモリ</td><td>8GB<br><span class="dim">（英訳ON時、本アプリが約2GB使用）</span></td><td>16GB</td></tr>
+    <tr><td>ストレージ</td><td>空き5GB</td><td>SSD</td></tr>
+    <tr><td>その他</td><td colspan="2">マイク / WebView2ランタイム（Win11標準搭載） / 初回のみネット接続（モデルDL）</td></tr>
+  </table>
+  </div>
+
+  <h3>CPU の向き・不向き</h3>
+  <p>Mojicast の負荷の本体は音声認識のAI推論（int8）で、<b>CPUの世代によって速さが数倍違います</b>。
+     「コア数」より「世代（対応命令）」が効きます。</p>
+  <div class="overflow">
+  <table>
+    <tr><th>適性</th><th>CPU の例</th><th>目安</th></tr>
+    <tr><td><span class="rank r1">◎ 快適</span></td>
+        <td>AMD Ryzen 7000 / 9000 シリーズ（Zen 4/5）</td>
+        <td>余裕。コラボ・英訳を全部ONでも軽い</td></tr>
+    <tr><td><span class="rank r2">○ 実用</span></td>
+        <td>Intel 12〜14世代 / Core Ultra</td>
+        <td>通常配信は問題なし。コラボで2人とも喋りっぱなしだと負荷高め</td></tr>
+    <tr><td><span class="rank r3">△ 動くが重め</span></td>
+        <td>Intel 8〜11世代 / Ryzen 2000〜5000</td>
+        <td>ソロ配信なら実用。「重いときは」（<a style="color:var(--acc)" href="#trouble">9章</a>）の軽量化設定を推奨</td></tr>
+    <tr><td><span class="rank r4">✕ 非推奨</span></td>
+        <td>AVX2非対応の古いCPU（2013年以前）・N100等の省電力CPU</td>
+        <td>リアルタイム認識が追いつきません</td></tr>
+  </table>
+  </div>
+  <p class="dim">理由: 最近のAMD（Zen 4以降）はint8推論専用の命令（AVX-512 VNNI）を使えるため、
+     同価格帯のIntelより認識処理が数倍速く走ります。CPU使用率は「誰かが喋っている間」だけ上がり、
+     無音の間はほぼゼロです。</p>
+
+  <div class="card"><b class="tag">配信との同時利用</b>
+    OBSの映像エンコードは<b>GPUエンコード（NVENC / AMF）推奨</b>。Mojicast はGPUをほぼ使わないため、
+    ゲーム・Live2D・OBSとはCPU/GPUの棲み分けができます。
+    x264（CPUエンコード）と併用する場合は ◎〜○ のCPUでお使いください。</div>
+</section>
+
+<!-- ============================================================ -->
+<section id="cockpit">
+  <h2><span class="no">3</span>コックピット（メイン画面）</h2>
+  <p>起動して最初に出る画面です。上が設定バー、中央が字幕ログ、右が見た目と連携の設定です。</p>
+
+  <img class="shot" src="{{IMG:cockpit_solo}}" alt="コックピット">
+  <span class="cap">認識中のコックピット。中央の字幕ログで表示内容を確認できます</span>
+
+  <h3>ヘッダー・設定バー</h3>
+  <div class="overflow">
+  <table>
+    <tr><th>項目</th><th>説明</th></tr>
+    <tr><td>▶開始 / ■停止</td><td>音声認識のオン・オフ（右上）</td></tr>
+    <tr><td>🌙 / ☀</td><td>画面のダーク／ライトテーマ切替（字幕の見た目には影響しません）</td></tr>
+    <tr><td>🛠 スタジオ</td><td>見た目と単語登録の編集画面を別窓で開く（<a style="color:var(--acc)" href="#studio">5章</a>）</td></tr>
+    <tr><td>マイク</td><td>入力デバイスの選択。「既定のマイク」で通常はOK</td></tr>
+    <tr><td>入力レベル</td><td>マイクの音が届いているかのメーター。喋っても動かないときはマイク選択を見直す</td></tr>
+  </table>
+  </div>
+
+  <h3>⚙ 詳細設定（設定バー右端）</h3>
+  <div class="overflow">
+  <table>
+    <tr><th>項目</th><th>説明</th></tr>
+    <tr><td>無音で文を区切る</td><td>この長さ黙ると1行が確定する。短いほどテンポが良く、長いほど1行が長くなる</td></tr>
+    <tr><td>途中経過の更新間隔</td><td>話している最中の「薄文字」の更新頻度</td></tr>
+    <tr><td>一区切りの最長</td><td>喋り続けたとき、この秒数で強制的に確定する。<b>重いPCでは短め（8s）推奨</b></td></tr>
+    <tr><td>登録した単語の出やすさ</td><td>スタジオで登録した単語の効きの強さ。効かない→上げる / 誤爆する→下げる</td></tr>
+  </table>
+  </div>
+  <div class="card"><b class="tag">ヒント</b>
+    詳細設定とマイクは<b>次回 ▶開始 時に反映</b>されます。認識中に変えたら、いったん停止→開始してください。</div>
+
+  <h3>字幕ログ上のチップ（字幕処理のオン・オフ）</h3>
+  <img class="shot mid" src="{{IMG:cockpit_chips}}" alt="字幕処理チップ">
+  <div class="overflow">
+  <table>
+    <tr><th>チップ</th><th>説明</th></tr>
+    <tr><td>句読点</td><td>確定文に「、」「。」を自動で付ける</td></tr>
+    <tr><td>英訳</td><td>確定した字幕の下に英訳を併記（<a style="color:var(--acc)" href="#translate">6章</a>）</td></tr>
+    <tr><td>ログ保存</td><td>配信の文字起こしを <code>logs\</code> にテキスト保存</td></tr>
+    <tr><td>漢数字→数字</td><td>漢数字を算用数字へ変換（三十五→35 など）。「一緒」「十分(じゅうぶん)」等は変換しない</td></tr>
+    <tr><td>高精度</td><td>認識精度がわずかに上がるが<b>数倍重くなる</b>。通常はオフ推奨</td></tr>
+  </table>
+  </div>
+
+  <h3>右カラム</h3>
+  <ul>
+    <li><b>文字スタイル</b> … 字幕の見た目プリセットの切替。✎編集でスタジオへ</li>
+    <li><b>レイアウト</b> … 字幕の位置・大きさ・流れ方の切替（ミニ図は画面内での位置）</li>
+    <li><b>単語プロファイル</b> … 配信の種類ごとの単語セット切替（雑談用・ゲーム用など）</li>
+    <li><b>1対1コラボ</b> … コラボ相手の字幕化（<a style="color:var(--acc)" href="#collab">7章</a>）</li>
+    <li><b>OBS 連携</b> … OBSに貼るURLのコピーとポート変更</li>
+  </ul>
+</section>
+
+<!-- ============================================================ -->
+<section id="obs">
+  <h2><span class="no">4</span>OBS に字幕を出す</h2>
+  <div class="step"><div class="n">1</div><div>OBS で「ソース追加」→「<b>ブラウザ</b>」を選ぶ</div></div>
+  <div class="step"><div class="n">2</div><div>URL に <code>http://localhost:8765</code> を入力（コックピット右下の「コピー」ボタンでも取得可）</div></div>
+  <div class="step"><div class="n">3</div><div>幅・高さを<b>配信解像度と同じ</b>にする（例: 1920 × 1080）</div></div>
+  <p>アプリ側で ▶開始 すると、喋った内容が OBS 側にも表示されます。スタイルやレイアウトの変更も即座に反映されます。</p>
+  <div class="card"><b class="tag">表示の流れ</b>
+    話している間は<b>薄い文字</b>で途中経過が出て、ひと呼吸おくと<b>確定文字</b>に変わりエフェクトが発動します。
+    長く喋り続けると薄文字の頭に「…」が付くことがあります（表示の省略で、確定文には全文が入ります）。</div>
+</section>
+
+<!-- ============================================================ -->
+<section id="studio">
+  <h2><span class="no">5</span>スタジオ（見た目のカスタマイズと単語登録）</h2>
+  <p>ヘッダーの「🛠 スタジオ」または各項目の「✎ 編集」から開きます。タブは4つです。</p>
+
+  <h3>🎨 文字スタイル</h3>
+  <img class="shot" src="{{IMG:studio_style}}" alt="スタジオ 文字スタイル">
+  <ul>
+    <li>フォント・サイズ・色・フチ・グロー・登場アニメなどを調整。下のプレビューで確認できます</li>
+    <li>「複製」で自分用プリセットを作るのがおすすめ。<b>保存でOBSへ即反映</b></li>
+    <li>コラボ用には小さめで読みやすい「<b>コラボ（小さめ）</b>」プリセットが最初から入っています</li>
+  </ul>
+
+  <h3>📐 レイアウト</h3>
+  <ul>
+    <li>字幕の表示位置・サイズ・背景・行数などを定義</li>
+    <li>「流れる字幕」のほか、縦書き・画面に文字が散る「リリック」モードもあります</li>
+    <li>コラボ用に画面下段を左右で分け合う「<b>左下ハーフ</b>」「<b>右下ハーフ</b>」が入っています</li>
+  </ul>
+
+  <h3>📖 単語（誤認識対策・エフェクト・伏せ字・英訳固定）</h3>
+  <img class="shot" src="{{IMG:studio_words}}" alt="スタジオ 単語">
+  <div class="overflow">
+  <table>
+    <tr><th>タブ</th><th>役割</th></tr>
+    <tr><td>認識させる単語</td><td>名前・チャンネル名・ゲームタイトルなど、よく誤認識される固有名詞を登録すると認識が改善。
+        「読み」欄にはひらがなの読みのほか、<b>実際に出てしまう誤変換の形</b>も入れられます。変更は次回 ▶開始 時に反映</td></tr>
+    <tr><td>強調する単語</td><td>特定の単語が出たとき色・サイズ・アニメ・パーティクルで装飾。「ありがとう」など定番は登録済み。保存で即反映</td></tr>
+    <tr><td>伏せ字にする単語</td><td>字幕に出したくない単語を「○○○」に置き換える</td></tr>
+    <tr><td>英訳を固定する単語</td><td>人名などの英訳を固定（例: 星野ひかり → Hikari Hoshino）。次回開始時に反映</td></tr>
+  </table>
+  </div>
+  <p>上部の「編集する単語セット」で<b>単語プロファイル</b>（雑談用・ゲーム用など）を作れます。
+     プロファイルは「共通」への<b>加算</b>なので、いつも使う単語は共通に入れておけば全プロファイルで有効です。</p>
+
+  <h3>🔗 共有（mojipack）</h3>
+  <p>「📤 エクスポート」で文字スタイルやレイアウトを <code>.mojipack</code> ファイルに書き出して配布できます。
+     もらったファイルは「📥 インポート」で取り込み。既存の定義は上書きされず追加されます。</p>
+</section>
+
+<!-- ============================================================ -->
+<section id="translate">
+  <h2><span class="no">6</span>英訳の併記</h2>
+  <p>字幕ログ上の「<b>英訳</b>」チップをオンにすると、確定した字幕の下に英訳が小さく併記されます。
+     海外リスナー向けの配信にどうぞ。</p>
+  <ul>
+    <li>翻訳もローカルで動きます（ネット不要・追加料金なし）</li>
+    <li>日本語の字幕が先に出て、英訳がひと呼吸おいて追いつきます</li>
+    <li>オンにして最初の ▶開始 時だけ「翻訳モデルをロード中...」と数秒待ちが入ります</li>
+  </ul>
+  <div class="card ok"><b class="tag">配信用語は組み込みで対応</b>
+    「配信→stream」「スパチャ→Super Chat」「同接→concurrent viewers」「歌枠→singing stream」など、
+    誤訳されがちな配信用語はアプリに組み込みで正しく訳されます。
+    人名などはスタジオの「英訳を固定する単語」で訳を固定できます。</div>
+  <div class="card"><b class="tag">品質について</b>
+    軽量な翻訳モデルのため、辞書に無い固有名詞はうまく訳せないことがあります。
+    気になった誤訳があればぜひフィードバックしてください。</div>
+</section>
+
+<!-- ============================================================ -->
+<section id="collab">
+  <h2><span class="no">7</span>1対1コラボ字幕</h2>
+  <p>Discord等で通話しながらのコラボ配信で、<b>自分と相手の両方の字幕</b>を別々のスタイル・位置で表示できます。
+     相手の声は「通話アプリの音」から直接取り込むので、<b>相手側の準備は一切不要</b>です
+     （相手がスマホ・ゲーム機でもOK）。</p>
+
+  <div class="overflow">
+  <table>
+    <tr><th>できること</th><th>制約</th></tr>
+    <tr><td>相手はアプリ導入・設定不要<br>相手の字幕に専用のスタイル・位置を割当<br>字幕ログに話者名チップ表示</td>
+        <td><b>1対1限定</b>（3人以上は相手全員の声が1つにまとまる）<br>相手の音は通話品質のため、認識精度は自分よりやや低め<br>Windows 10 2004 以降が必要</td></tr>
+  </table>
+  </div>
+
+  <h3>設定手順</h3>
+  <div class="step"><div class="n">1</div><div>右カラムの「1対1コラボ」で<b>「コラボを有効化」にチェック</b> → 設定窓が自動で開く</div></div>
+  <div class="step"><div class="n">2</div><div>Discord等の通話アプリを起動してから <b>↻</b> を押し、
+      「相手の声が鳴るアプリ」で <b>Discord.exe</b> などを選ぶ（🔊 は今音が鳴っているアプリ）</div></div>
+  <div class="step"><div class="n">3</div><div>自分と相手の<b>表示名</b>を決める（字幕ログのチップに使われます）</div></div>
+  <div class="step"><div class="n">4</div><div>コックピットに戻り、「文字スタイル」「レイアウト」の<b>「相手」の行</b>で相手の見た目を選ぶ。
+      おすすめは 自分=<b>右下ハーフ</b> / 相手=<b>左下ハーフ</b>（立ち絵が左右に並ぶ配置向け）</div></div>
+  <div class="step"><div class="n">5</div><div><b>ヘッドホンを着けて</b> ▶開始</div></div>
+
+  <div class="shotrow">
+    <div>
+      <img class="shot" src="{{IMG:collab_window}}" alt="コラボ設定窓">
+      <span class="cap">コラボ設定窓（取り込むアプリと表示名）</span>
+    </div>
+    <div>
+      <img class="shot" src="{{IMG:cockpit_collab_right}}" alt="自分/相手の見た目割当">
+      <span class="cap">コラボ中は「自分」「相手」の2行になる</span>
+    </div>
+  </div>
+
+  <img class="shot" src="{{IMG:cockpit_collab}}" alt="コラボ中のコックピット">
+  <span class="cap">コラボ中のコックピット。字幕ログに話者名チップが付きます</span>
+
+  <div class="card warn"><b class="tag">ヘッドホン必須</b>
+    スピーカーで聞くと、相手の声をマイクが拾って<b>二重に字幕化</b>されます。コラボ中は必ずヘッドホン・イヤホンで。</div>
+  <div class="card"><b class="tag">負荷について</b>
+    コラボ中は認識が2人分になるため、CPU負荷は最大で通常の約2倍になります（2章の適性表で ○ 以上を推奨）。
+    重い場合は「高精度」チップをオフ、英訳をオフ、「一区切りの最長」を8秒程度に。</div>
+</section>
+
+<!-- ============================================================ -->
+<section id="files">
+  <h2><span class="no">8</span>フォルダとアップデート</h2>
+  <div class="overflow">
+  <table>
+    <tr><th>ファイル / フォルダ</th><th>内容</th></tr>
+    <tr><td><code>Mojicast.exe</code></td><td>アプリ本体</td></tr>
+    <tr><td><code>_internal\</code></td><td>実行に必要なファイル（触らない）</td></tr>
+    <tr><td><code>models\</code></td><td>AIモデル一式。初回起動時に自動DL（触らない）</td></tr>
+    <tr><td><code>data\</code></td><td>あなたの設定・単語帳・スタイル一式。初回起動時に自動生成。
+        <b>バックアップはこのフォルダをコピーするだけ</b></td></tr>
+    <tr><td><code>data\profiles\</code></td><td>単語プロファイル（雑談用・ゲーム用など）</td></tr>
+    <tr><td><code>logs\</code></td><td>「ログ保存」オン時の文字起こしテキスト</td></tr>
+    <tr><td><code>ui\</code> / <code>overlay.html</code></td><td>画面ファイル（触らない）</td></tr>
+  </table>
+  </div>
+  <h3>アップデート方法</h3>
+  <div class="step"><div class="n">1</div><div>Mojicast を終了する</div></div>
+  <div class="step"><div class="n">2</div><div>旧フォルダ内の <code>_internal</code> フォルダを削除する</div></div>
+  <div class="step"><div class="n">3</div><div>新しいZipを同じフォルダに上書き展開する</div></div>
+  <p class="dim">設定・単語帳・スタイル・AIモデル（models）はそのまま引き継がれます。
+     新しいZipにはデータファイルが含まれないため、あなたのカスタマイズは上書きされません。
+     アップデートで追加された新しい既定スタイルは、初回起動時に自動で一覧へ追加されます。</p>
+  <p class="dim">アンインストールはフォルダごと削除するだけです。レジストリ等は使いません。</p>
+</section>
+
+<!-- ============================================================ -->
+<section id="trouble">
+  <h2><span class="no">9</span>困ったときは</h2>
+  <div class="overflow">
+  <table>
+    <tr><th>症状</th><th>対処</th></tr>
+    <tr><td>動作が重い</td><td>①「高精度」チップをオフ（効果大） ② 使わないなら「英訳」をオフ
+        ③ 詳細設定の「一区切りの最長」を8秒程度に ④ 2章のCPU適性を確認。
+        CPU使用率が上がるのは「誰かが喋っている間」だけです</td></tr>
+    <tr><td>画面が真っ白</td><td>「Microsoft Edge WebView2 ランタイム」をインストール（Web検索で公式Microsoftサイトから）。Windows 11 では通常発生しません</td></tr>
+    <tr><td>「ポート ○○ は使用中」</td><td>アプリが既に起動しています。タスクトレイやタスクマネージャーで確認して二重起動を解消。
+        別アプリとの衝突ならコックピットの「OBS連携 → ポート」で変更（次回起動時反映・OBS側のURLも更新）</td></tr>
+    <tr><td>マイクを拾わない</td><td>Windows 設定 → プライバシー → マイクの許可を確認。他アプリの占有も確認。マイク選択を「既定のマイク」に戻すのも有効</td></tr>
+    <tr><td>認識が変・遅い</td><td>詳細設定の「無音で文を区切る」「途中経過の更新間隔」を調整。固有名詞の誤認識はスタジオの「認識させる単語」で改善</td></tr>
+    <tr><td>コラボで相手の字幕が出ない</td><td>通話アプリを起動してからコラボ設定の ↻ →選び直し。相手が喋ったときに出ます。
+        アプリを選び直したら、いったん ■停止 → ▶開始</td></tr>
+    <tr><td>コラボで字幕が二重に出る</td><td>スピーカーの音をマイクが拾っています。ヘッドホンを使ってください</td></tr>
+    <tr><td>OBS に何も出ない</td><td>アプリが起動しているか、URL が <code>http://localhost:8765</code> か、▶開始 しているかを確認。ブラウザソースを右クリック→「再読み込み」も有効</td></tr>
+    <tr><td>起動時に .NET / clr / Python.Runtime のエラー</td><td>通常は起動時に自動解除されますが、まれに残ることがあります。フォルダ内の <code>ブロック解除.bat</code> を一度実行してください</td></tr>
+    <tr><td>起動しない・すぐ落ちる</td><td>フォルダをローカルディスクに置いているか確認（Zip内・ネットワークドライブは不可）。ウイルス対策ソフトの誤検知の場合は除外設定へ</td></tr>
+  </table>
+  </div>
+  <p class="dim">上級者向け: 認識中にブラウザで <code>http://localhost:8765/api/perf</code> を開くと、
+     認識処理の回数と平均所要時間(ms)を確認できます。不具合報告の際に添えていただけると原因特定が早くなります。</p>
+</section>
+
+<!-- ============================================================ -->
+<section id="feedback">
+  <h2><span class="no">10</span>フィードバックのお願い</h2>
+  <p>使ってくれてありがとうございます！ 以下のような情報が特に助かります。</p>
+  <ul>
+    <li>誤認識・誤訳の具体例（何と言ったら何と表示されたか）</li>
+    <li>操作していて落ちた・固まったときの直前の操作</li>
+    <li>「ここが分かりにくい」「こういう機能が欲しい」という率直な感想</li>
+    <li>お使いのPCのスペック（CPU・メモリ）と、動作の軽さ・重さの体感</li>
+  </ul>
+</section>
+
+<footer>
+  Mojicast — ReazonSpeech k2 + Silero VAD + BERT句読点 + FuguMT英訳 / ローカル完結・オフライン動作
+</footer>
+
+</div>
+</body>
+</html>

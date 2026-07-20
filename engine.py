@@ -26,6 +26,7 @@ from numnorm import normalize_numbers
 
 SAMPLE_RATE = 16000
 WINDOW_SIZE = 512
+PARTIAL_WINDOW_SEC = 6.0   # 途中経過(薄文字)がデコードする末尾の秒数
 VAD_MODEL_PATH = os.path.join(BASE, "silero_vad.onnx")
 
 # 初回DLの進捗表示に使う、各モデルのおおよそのDLサイズ（MB）
@@ -57,11 +58,15 @@ def _dir_size_mb(path):
 class CaptionEngine:
     def __init__(self, on_partial=None, on_final=None,
                  on_level=None, on_state=None, on_translation=None):
-        self.on_partial = on_partial or (lambda t: None)
-        self.on_final = on_final or (lambda t, fid: None)
-        self.on_level = on_level or (lambda v: None)
+        self.on_partial = on_partial or (lambda t, spk="": None)
+        self.on_final = on_final or (lambda t, fid, spk="": None)
+        self.on_level = on_level or (lambda v, spk="": None)
         self.on_state = on_state or (lambda s, d="": None)
         self.on_translation = on_translation or (lambda fid, en: None)
+        self._rec_lock = threading.Lock()   # 単一Recognizerへの decode を直列化（2話者共有）
+        self._fid_lock = threading.Lock()   # fid採番の排他（話者をまたいで一意に）
+        self._translate_on = False
+        self._stream_error = None           # ストリームスレッドで起きた致命的エラー
         self._model = None
         self._model_sig = None      # (precision, hotwords mtime, score) 変更検知
         self._replacer = None
@@ -77,6 +82,12 @@ class CaptionEngine:
         self._thread = None
         self._stop = threading.Event()
         self.running = False
+        self.perf = self._fresh_perf()   # デコード計測（/api/perf 用）
+
+    @staticmethod
+    def _fresh_perf():
+        return {"partial_n": 0, "partial_ms": 0.0,
+                "final_n": 0, "final_ms": 0.0, "since": time.time()}
 
     # ---------------- 文字起こしログ ----------------
 
@@ -94,13 +105,14 @@ class CaptionEngine:
         except OSError:
             self._logf = None       # 書けなくても認識は続行
 
-    def _log_final(self, text):
-        """確定行を [発言時刻] 本文 で追記（例外は握りつぶす）"""
+    def _log_final(self, text, speaker=""):
+        """確定行を [発言時刻] (話者) 本文 で追記（例外は握りつぶす）"""
         if self._logf is None:
             return
         try:
             ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            self._logf.write(f"[{ts}] {text}\n")
+            who = f"[{speaker}] " if speaker else ""
+            self._logf.write(f"[{ts}] {who}{text}\n")
             self._logf.flush()      # クラッシュしても残るよう都度フラッシュ
         except OSError:
             pass
@@ -273,10 +285,17 @@ class CaptionEngine:
 
     def _recognize(self, samples):
         from reazonspeech.k2.asr import transcribe, audio_from_numpy
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            return transcribe(self._model,
-                              audio_from_numpy(samples, SAMPLE_RATE)).text.strip()
+        # 単一Recognizerを2話者で共有するため decode を直列化（交互会話ならほぼ待ち無し）
+        with self._rec_lock:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                return transcribe(self._model,
+                                  audio_from_numpy(samples, SAMPLE_RATE)).text.strip()
+
+    def _next_fid(self):
+        with self._fid_lock:
+            self._fid += 1
+            return self._fid
 
     # ---------------- 開始 / 停止 ----------------
 
@@ -332,6 +351,146 @@ class CaptionEngine:
         self._tworker = None
         self._tq = None
 
+    def _resolve_sources(self, cfg):
+        """入力ソースを決める。 [(device, speaker, is_primary), ...]
+        通常は1本（話者ラベル空＝従来どおり）。1対1コラボ時のみ2本目（相手）を足す。
+        相手のソースは2方式: 入力デバイス（仮想ケーブル） or
+        ("process", exe名) のプロセスループバック（方式2・仮想ケーブル不要）。"""
+        dev = cfg.get("device", None)
+        if cfg.get("collab"):
+            guest_src = None
+            if cfg.get("collab_source", "process") == "process":
+                pname = (cfg.get("collab_process") or "").strip()
+                if pname:
+                    guest_src = ("process", pname)
+            if guest_src is None:      # デバイス方式 or プロセス未指定のフォールバック
+                cdev = cfg.get("collab_device", None)
+                if cdev not in (None, "", "default"):
+                    guest_src = cdev
+            if guest_src is not None:
+                self_name = (cfg.get("self_name") or "自分").strip() or "自分"
+                guest_name = (cfg.get("guest_name") or "ゲスト").strip() or "ゲスト"
+                return [(dev, self_name, True), (guest_src, guest_name, False)]
+        return [(dev, "", True)]
+
+    def _stream_loop(self, cfg, device, speaker, is_primary):
+        """1入力ソースの取り込み→VAD→認識ループ（話者ラベル付き）。ソースごとに1スレッド。
+        認識は共有Recognizerを _recognize 内のロックで直列化する。"""
+        try:
+            import sounddevice as sd
+            vad = self._build_vad(cfg.get("silence_ms", 300))
+            audio_q: "queue.Queue[np.ndarray]" = queue.Queue()
+            last_level_t = [0.0]
+
+            def handle_mono(mono):
+                audio_q.put(mono)
+                if is_primary:   # レベルメーターは主入力（自分のマイク）だけ流す
+                    now = time.time()
+                    if now - last_level_t[0] >= 0.1:
+                        last_level_t[0] = now
+                        rms = float(np.sqrt(np.mean(mono ** 2)))
+                        self.on_level(min(1.0, rms * 8), speaker)
+
+            def callback(indata, frames, time_info, status):
+                handle_mono(indata[:, 0].copy())
+
+            interval_samples = int(cfg.get("interval", 0.4) * SAMPLE_RATE)
+            max_samples = int(cfg.get("max_utt", 12.0) * SAMPLE_RATE)
+
+            # 入力ストリームを開く: ("process", exe名) → プロセスループバック（方式2）
+            #                       それ以外 → 通常の入力デバイス
+            if isinstance(device, tuple) and device[0] == "process":
+                from proc_loopback import ProcessLoopbackCapture
+                stream = ProcessLoopbackCapture(device[1], on_audio=handle_mono)
+            else:
+                dev = None if device in ("", "default") else device
+                stream = sd.InputStream(samplerate=SAMPLE_RATE, channels=1,
+                                        dtype="float32", blocksize=WINDOW_SIZE,
+                                        device=dev, callback=callback)
+
+            buffer = np.empty(0, dtype=np.float32)
+            last_partial_len = 0
+            partial_gap = interval_samples   # 次の途中経過までに要る新規音声量（適応）
+
+            with stream:
+                while not self._stop.is_set():
+                    err = getattr(stream, "error", None)
+                    if err:                      # ループバック側の実行時エラー
+                        raise RuntimeError(err)
+                    try:
+                        block = audio_q.get(timeout=0.2)
+                    except queue.Empty:
+                        continue
+                    buffer = np.concatenate([buffer, block])
+                    while len(buffer) >= WINDOW_SIZE:
+                        vad.accept_waveform(buffer[:WINDOW_SIZE])
+                        buffer = buffer[WINDOW_SIZE:]
+
+                    # 確定した発話
+                    while not vad.empty():
+                        samples = np.array(vad.front.samples, dtype=np.float32)
+                        vad.pop()
+                        t0 = time.time()
+                        text = self._recognize(samples)
+                        self.perf["final_n"] += 1
+                        self.perf["final_ms"] += (time.time() - t0) * 1000
+                        if text:
+                            if self._replacer is not None:
+                                text = self._replacer(text)
+                            if cfg.get("num_arabic", True):   # 三十五 → 35
+                                text = normalize_numbers(text)
+                            if self._punct is not None and cfg.get("punctuate", True):
+                                text = self._punct(text)
+                            if self._mask is not None:      # 禁止ワードを伏せ字化
+                                text = self._mask(text)
+                        if text:
+                            fid = self._next_fid()
+                            self.on_final(text, fid, speaker)
+                            self._log_final(text, speaker)
+                            if self._translate_on:
+                                self._tq.put((fid, text))
+                        else:
+                            # 後処理で空になった発話は出さず、薄文字だけ消す
+                            self.on_partial("", speaker)
+                        last_partial_len = 0
+                        partial_gap = interval_samples   # 新しい発話は素早く出す
+
+                    # 発話中の途中経過
+                    if vad.is_speech_detected():
+                        cur = np.array(vad.current_segment.samples,
+                                       dtype=np.float32)
+                        if (len(cur) - last_partial_len >= partial_gap
+                                and len(cur) >= int(0.3 * SAMPLE_RATE)):
+                            last_partial_len = len(cur)
+                            # 薄文字は末尾だけデコード（長発話でも1回のコストを一定に。
+                            # 確定字幕は従来どおり発話全体をデコードするので精度不変）
+                            win = int(PARTIAL_WINDOW_SEC * SAMPLE_RATE)
+                            tail = cur[-win:] if len(cur) > win else cur
+                            t0 = time.time()
+                            p = self._recognize(tail)
+                            dt = time.time() - t0
+                            self.perf["partial_n"] += 1
+                            self.perf["partial_ms"] += dt * 1000
+                            # 適応スロットリング: デコードが interval に収まらない
+                            # 遅いCPUでも張り付かないよう、所要時間×2 ぶんの新規音声が
+                            # 貯まるまで次の途中経過を待つ（＝途中経過デコードの占有率を
+                            # 最大50%に制限。速いCPUでは gap=interval のまま挙動不変）
+                            partial_gap = max(interval_samples,
+                                              int(dt * 2.0 * SAMPLE_RATE))
+                            if cfg.get("num_arabic", True):
+                                p = normalize_numbers(p)
+                            if self._mask is not None:      # 認識中(薄文字)も伏せ字化
+                                p = self._mask(p)
+                            if len(cur) > win and p:
+                                p = "…" + p   # 冒頭が省略されていることを示す
+                            self.on_partial(p, speaker)
+                        if len(cur) >= max_samples:
+                            vad.flush()
+        except Exception as e:
+            # このソースで致命的エラー → 全体を止めて _run 側で通知
+            self._stream_error = f"実行エラー（{speaker or '入力'}）: {e}"
+            self._stop.set()
+
     def _run(self, cfg):
         try:
             self._load(cfg)
@@ -350,10 +509,10 @@ class CaptionEngine:
             return
 
         # 英訳ワーカー起動（この設定で有効なときだけ）。確定行を別スレッドで翻訳し認識を止めない
-        translate_on = cfg.get("translate", False) and self._translate is not None
+        self._translate_on = cfg.get("translate", False) and self._translate is not None
         self._tq = queue.Queue()
         self._tworker = None
-        if translate_on:
+        if self._translate_on:
             self._tworker = threading.Thread(target=self._translate_loop,
                                              daemon=True)
             self._tworker.start()
@@ -361,99 +520,43 @@ class CaptionEngine:
         self._open_log(cfg)             # 文字起こしログをこのセッション用に開く
         self._mask = self._build_masker(cfg)   # 禁止ワードの伏せ字化を用意
         self._gloss = self._build_glossary(cfg)   # 英訳辞書（固有名詞の訳を固定）
+        self._stream_error = None
+        self.perf = self._fresh_perf()   # セッションごとに計測をリセット
 
-        try:
-            import sounddevice as sd
-            vad = self._build_vad(cfg.get("silence_ms", 300))
-            audio_q: "queue.Queue[np.ndarray]" = queue.Queue()
-            last_level_t = [0.0]
-
-            def callback(indata, frames, time_info, status):
-                mono = indata[:, 0].copy()
-                audio_q.put(mono)
-                now = time.time()
-                if now - last_level_t[0] >= 0.1:   # レベルは約10回/秒に間引き
-                    last_level_t[0] = now
-                    rms = float(np.sqrt(np.mean(mono ** 2)))
-                    self.on_level(min(1.0, rms * 8))
-
-            interval_samples = int(cfg.get("interval", 0.4) * SAMPLE_RATE)
-            max_samples = int(cfg.get("max_utt", 12.0) * SAMPLE_RATE)
-            device = cfg.get("device", None)
-            if device in ("", "default"):
-                device = None
-
-            buffer = np.empty(0, dtype=np.float32)
-            last_partial_len = 0
-
-            with sd.InputStream(samplerate=SAMPLE_RATE, channels=1,
-                                dtype="float32", blocksize=WINDOW_SIZE,
-                                device=device, callback=callback):
-                self.running = True
-                self.on_state("running",
-                              "認識中" + (f"  ※{self._load_warn}" if self._load_warn else ""))
-                while not self._stop.is_set():
-                    try:
-                        block = audio_q.get(timeout=0.2)
-                    except queue.Empty:
-                        continue
-                    buffer = np.concatenate([buffer, block])
-                    while len(buffer) >= WINDOW_SIZE:
-                        vad.accept_waveform(buffer[:WINDOW_SIZE])
-                        buffer = buffer[WINDOW_SIZE:]
-
-                    # 確定した発話
-                    while not vad.empty():
-                        samples = np.array(vad.front.samples, dtype=np.float32)
-                        vad.pop()
-                        text = self._recognize(samples)
-                        if text:
-                            if self._replacer is not None:
-                                text = self._replacer(text)
-                            if cfg.get("num_arabic", True):   # 三十五 → 35
-                                text = normalize_numbers(text)
-                            if self._punct is not None and cfg.get("punctuate", True):
-                                text = self._punct(text)
-                            if self._mask is not None:      # 禁止ワードを伏せ字化
-                                text = self._mask(text)
-                        if text:
-                            self._fid += 1
-                            self.on_final(text, self._fid)
-                            self._log_final(text)
-                            if translate_on:
-                                self._tq.put((self._fid, text))
-                        else:
-                            # 後処理で空になった発話は出さず、薄文字だけ消す
-                            self.on_partial("")
-                        last_partial_len = 0
-
-                    # 発話中の途中経過
-                    if vad.is_speech_detected():
-                        cur = np.array(vad.current_segment.samples,
-                                       dtype=np.float32)
-                        if (len(cur) - last_partial_len >= interval_samples
-                                and len(cur) >= int(0.3 * SAMPLE_RATE)):
-                            last_partial_len = len(cur)
-                            p = self._recognize(cur)
-                            if cfg.get("num_arabic", True):
-                                p = normalize_numbers(p)
-                            if self._mask is not None:      # 認識中(薄文字)も伏せ字化
-                                p = self._mask(p)
-                            self.on_partial(p)
-                        if len(cur) >= max_samples:
-                            vad.flush()
-        except Exception as e:
+        # 入力ソース（通常=1本 / 1対1コラボ=2本）ごとにスレッドを起こす
+        sources = self._resolve_sources(cfg)
+        threads = [threading.Thread(target=self._stream_loop,
+                                    args=(cfg, dev, spk, prim), daemon=True)
+                   for dev, spk, prim in sources]
+        for t in threads:
+            t.start()
+        # スレッドが1本でも走り出すまで少し待ち、致命的エラーが無ければ「認識中」に
+        time.sleep(0.3)
+        if self._stream_error:
             self.running = False
             self._stop_translate_worker()
             self._close_log()
-            self.on_state("error", f"実行エラー: {e}")
+            self.on_state("error", self._stream_error)
             return
+        self.running = True
+        self.on_state("running",
+                      "認識中" + (f"  ※{self._load_warn}" if self._load_warn else ""))
+
+        # 停止指示、または全ソースが（エラー等で）終了するまで待つ
+        while not self._stop.is_set() and any(t.is_alive() for t in threads):
+            self._stop.wait(0.2)
+        for t in threads:
+            t.join(timeout=5)
+
         self.running = False
         self._stop_translate_worker()
         self._close_log()
-        self.on_level(0.0)
-        self.on_partial("")
-        self.on_state("stopped", "停止しました")
+        self.on_level(0.0, "")
+        self.on_partial("", "")
+        if self._stream_error:
+            self.on_state("error", self._stream_error)
+        else:
+            self.on_state("stopped", "停止しました")
 
 
 def list_input_devices():

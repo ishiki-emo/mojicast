@@ -20,7 +20,7 @@ from urllib.parse import urlparse, parse_qs
 from apppaths import BASE
 import wordstore
 
-APP_VERSION = "0.3.1"
+APP_VERSION = "0.4.0"
 
 DEFAULT_CONFIG = {
     "silence_ms": 300, "interval": 0.4, "max_utt": 12.0,
@@ -30,6 +30,12 @@ DEFAULT_CONFIG = {
     "preset": "standard", "box": "none", "port": 8765,
     "word_profile": "",     # 使用中の単語プロファイル（"" = 共通のみ）
     "theme": "dark",        # GUI窓のテーマ（dark / light）。overlayは対象外
+    # 1対1コラボ（案A改・出力キャプチャ）。collab=Trueで②の入力を相手話者として取り込む
+    # collab_source: "process"=アプリ音声を直接取り込み（方式2・推奨）/ "device"=仮想ケーブル
+    "collab": False, "collab_source": "process",
+    "collab_process": "", "collab_device": None,
+    "self_name": "自分", "guest_name": "ゲスト",
+    "guest_preset": "collab", "guest_box": "half-left",   # 相手の見た目割当
 }
 
 _clients = []
@@ -70,6 +76,39 @@ def _presets_path():
 
 def _boxes_path():
     return wordstore.data_path("boxes.json")
+
+
+def _seed_style_defaults():
+    """アップデートで増えた既定プリセット/ボックスを既存環境へ一度だけ追加する。
+
+    defaults/ は新規インストール時にしか複製されないため、後から足した既定は
+    ここで既存の data/ にマージする。提供済みIDは config の seeded_styles に
+    記録し、ユーザーが意図して消したものは二度と復活させない。
+    """
+    cfg = load_config()
+    seeded = set(cfg.get("seeded_styles", []))
+    changed = False
+    for fname, key, path_fn in (("presets.json", "presets", _presets_path),
+                                ("boxes.json", "boxes", _boxes_path)):
+        defaults = _read_json(os.path.join(BASE, "defaults", fname),
+                              {}).get(key, [])
+        cur = _read_json(path_fn(), {key: []})[key]
+        have = {x.get("id") for x in cur}
+        added = False
+        for item in defaults:
+            mark = f"{key}:{item.get('id')}"
+            if mark in seeded:
+                continue
+            if item.get("id") not in have:
+                cur.append(item)
+                added = True
+            seeded.add(mark)
+            changed = True
+        if added:
+            _write_json(path_fn(), {key: cur})
+    if changed:
+        cfg["seeded_styles"] = sorted(seeded)
+        save_config(cfg)
 
 
 # ---------------- mojipack（スタイルのエクスポート/インポート） ----------------
@@ -136,22 +175,38 @@ def import_mojipack(data):
     return {"presets": np_, "boxes": nb}, None
 
 
+def _pick(items, key, wanted):
+    """items から key==wanted を探す。無ければ先頭（空なら {}）"""
+    return next((x for x in items if x.get(key) == wanted),
+                items[0] if items else {})
+
+
 def resolve_style(cfg):
     """現在のプリセット＋ボックス＋エフェクト＋ハイライト単語をまとめて返す
 
-    エフェクト・ハイライト単語は「共通＋使用中プロファイル」の合成。
+    エフェクト・ハイライト単語は「共通＋使用中プロファイル」の合成（話者間で共有）。
+    コラボON時は speakers に「自分／相手それぞれの style・box」を載せる
+    （overlay/字幕ログが speaker で振り分けて描画）。
     """
     presets = _read_json(_presets_path(), {"presets": []})["presets"]
-    style = next((p for p in presets if p["id"] == cfg.get("preset")),
-                 presets[0] if presets else {})
     boxes = _read_json(_boxes_path(), {"boxes": []})["boxes"]
-    box = next((b for b in boxes if b["id"] == cfg.get("box")),
-               boxes[0] if boxes else {})
+    style = _pick(presets, "id", cfg.get("preset"))
+    box = _pick(boxes, "id", cfg.get("box"))
     profile = cfg.get("word_profile", "")
     effects = wordstore.merged_effects(profile)
     hot_surfaces = [s for s, _r, _sc in wordstore.merged_hotwords(profile)]
-    return {"style": style, "box": box, "effects": effects,
-            "hotwords": hot_surfaces}
+    out = {"style": style, "box": box, "effects": effects,
+           "hotwords": hot_surfaces}
+    if cfg.get("collab"):
+        self_name = (cfg.get("self_name") or "自分").strip() or "自分"
+        guest_name = (cfg.get("guest_name") or "ゲスト").strip() or "ゲスト"
+        gstyle = _pick(presets, "id", cfg.get("guest_preset"))
+        gbox = _pick(boxes, "id", cfg.get("guest_box"))
+        out["speakers"] = {
+            self_name: {"style": style, "box": box},
+            guest_name: {"style": gstyle, "box": gbox},
+        }
+    return out
 
 
 # ---------------- システムフォント列挙（Windows GDI） ----------------
@@ -227,9 +282,12 @@ def get_engine():
     if _engine is None:
         from engine import CaptionEngine
         _engine = CaptionEngine(
-            on_partial=lambda t: broadcast({"type": "partial", "text": t}),
-            on_final=lambda t, fid: broadcast({"type": "final", "text": t, "id": fid}),
-            on_level=lambda v: broadcast({"type": "level", "value": round(v, 3)}),
+            on_partial=lambda t, spk="": broadcast(
+                {"type": "partial", "text": t, "speaker": spk}),
+            on_final=lambda t, fid, spk="": broadcast(
+                {"type": "final", "text": t, "id": fid, "speaker": spk}),
+            on_level=lambda v, spk="": broadcast(
+                {"type": "level", "value": round(v, 3), "speaker": spk}),
             on_state=_on_state,
             on_translation=lambda fid, en: broadcast(
                 {"type": "translation", "id": fid, "text": en}),
@@ -350,8 +408,33 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"devices": list_input_devices()})
             except Exception as e:
                 self._json({"devices": [], "error": str(e)})
+        elif path == "/api/loopback-apps":
+            # 音声セッションを持つアプリ一覧（コラボ方式2の対象選択用）
+            try:
+                import proc_loopback
+                self._json({"supported": proc_loopback.is_supported(),
+                            "apps": proc_loopback.list_audio_apps()})
+            except Exception as e:
+                self._json({"supported": False, "apps": [], "error": str(e)})
         elif path == "/api/status":
             self._json(_engine_state)
+        elif path == "/api/perf":
+            # リモート切り分け用: デコード回数・平均所要時間（今セッション累計）
+            p = getattr(_engine, "perf", None) if _engine else None
+            if not p:
+                self._json({"state": _engine_state, "perf": None})
+                return
+            import time as _t
+            self._json({
+                "state": _engine_state,
+                "uptime_sec": round(_t.time() - p["since"], 1),
+                "partial": {"count": p["partial_n"],
+                            "avg_ms": round(p["partial_ms"] / p["partial_n"], 1)
+                            if p["partial_n"] else 0},
+                "final": {"count": p["final_n"],
+                          "avg_ms": round(p["final_ms"] / p["final_n"], 1)
+                          if p["final_n"] else 0},
+            })
         else:
             self._send_body(404, b"not found", "text/plain")
 
@@ -382,6 +465,9 @@ class Handler(BaseHTTPRequestHandler):
                     return
             if "theme" in body and body.get("theme") not in ("dark", "light"):
                 body["theme"] = "dark"   # 未知値はダークへ（既定）
+            if ("collab_source" in body
+                    and body.get("collab_source") not in ("process", "device")):
+                body["collab_source"] = "process"   # 未知値は推奨方式へ
             cfg = load_config()
             cfg.update({k: v for k, v in body.items() if k in DEFAULT_CONFIG})
             save_config(cfg)
@@ -579,6 +665,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def start(port: int = 8765):
     wordstore.ensure_data()   # data/ 作成・旧配置からの移行・既定データの複製
+    _seed_style_defaults()    # 後から増えた既定スタイルを既存環境へ一度だけ追加
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server
