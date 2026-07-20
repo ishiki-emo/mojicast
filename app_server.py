@@ -35,7 +35,7 @@ DEFAULT_CONFIG = {
     "collab": False, "collab_source": "process",
     "collab_process": "", "collab_device": None,
     "self_name": "自分", "guest_name": "ゲスト",
-    "guest_preset": "standard", "guest_box": "none",   # 相手の見た目割当
+    "guest_preset": "collab", "guest_box": "half-left",   # 相手の見た目割当
 }
 
 _clients = []
@@ -76,6 +76,39 @@ def _presets_path():
 
 def _boxes_path():
     return wordstore.data_path("boxes.json")
+
+
+def _seed_style_defaults():
+    """アップデートで増えた既定プリセット/ボックスを既存環境へ一度だけ追加する。
+
+    defaults/ は新規インストール時にしか複製されないため、後から足した既定は
+    ここで既存の data/ にマージする。提供済みIDは config の seeded_styles に
+    記録し、ユーザーが意図して消したものは二度と復活させない。
+    """
+    cfg = load_config()
+    seeded = set(cfg.get("seeded_styles", []))
+    changed = False
+    for fname, key, path_fn in (("presets.json", "presets", _presets_path),
+                                ("boxes.json", "boxes", _boxes_path)):
+        defaults = _read_json(os.path.join(BASE, "defaults", fname),
+                              {}).get(key, [])
+        cur = _read_json(path_fn(), {key: []})[key]
+        have = {x.get("id") for x in cur}
+        added = False
+        for item in defaults:
+            mark = f"{key}:{item.get('id')}"
+            if mark in seeded:
+                continue
+            if item.get("id") not in have:
+                cur.append(item)
+                added = True
+            seeded.add(mark)
+            changed = True
+        if added:
+            _write_json(path_fn(), {key: cur})
+    if changed:
+        cfg["seeded_styles"] = sorted(seeded)
+        save_config(cfg)
 
 
 # ---------------- mojipack（スタイルのエクスポート/インポート） ----------------
@@ -615,6 +648,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def start(port: int = 8765):
     wordstore.ensure_data()   # data/ 作成・旧配置からの移行・既定データの複製
+    _seed_style_defaults()    # 後から増えた既定スタイルを既存環境へ一度だけ追加
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server
