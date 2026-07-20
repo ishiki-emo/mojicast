@@ -26,6 +26,7 @@ from numnorm import normalize_numbers
 
 SAMPLE_RATE = 16000
 WINDOW_SIZE = 512
+PARTIAL_WINDOW_SEC = 6.0   # 途中経過(薄文字)がデコードする末尾の秒数
 VAD_MODEL_PATH = os.path.join(BASE, "silero_vad.onnx")
 
 # 初回DLの進捗表示に使う、各モデルのおおよそのDLサイズ（MB）
@@ -81,6 +82,12 @@ class CaptionEngine:
         self._thread = None
         self._stop = threading.Event()
         self.running = False
+        self.perf = self._fresh_perf()   # デコード計測（/api/perf 用）
+
+    @staticmethod
+    def _fresh_perf():
+        return {"partial_n": 0, "partial_ms": 0.0,
+                "final_n": 0, "final_ms": 0.0, "since": time.time()}
 
     # ---------------- 文字起こしログ ----------------
 
@@ -423,7 +430,10 @@ class CaptionEngine:
                     while not vad.empty():
                         samples = np.array(vad.front.samples, dtype=np.float32)
                         vad.pop()
+                        t0 = time.time()
                         text = self._recognize(samples)
+                        self.perf["final_n"] += 1
+                        self.perf["final_ms"] += (time.time() - t0) * 1000
                         if text:
                             if self._replacer is not None:
                                 text = self._replacer(text)
@@ -452,19 +462,27 @@ class CaptionEngine:
                         if (len(cur) - last_partial_len >= partial_gap
                                 and len(cur) >= int(0.3 * SAMPLE_RATE)):
                             last_partial_len = len(cur)
+                            # 薄文字は末尾だけデコード（長発話でも1回のコストを一定に。
+                            # 確定字幕は従来どおり発話全体をデコードするので精度不変）
+                            win = int(PARTIAL_WINDOW_SEC * SAMPLE_RATE)
+                            tail = cur[-win:] if len(cur) > win else cur
                             t0 = time.time()
-                            p = self._recognize(cur)
+                            p = self._recognize(tail)
+                            dt = time.time() - t0
+                            self.perf["partial_n"] += 1
+                            self.perf["partial_ms"] += dt * 1000
                             # 適応スロットリング: デコードが interval に収まらない
                             # 遅いCPUでも張り付かないよう、所要時間×2 ぶんの新規音声が
                             # 貯まるまで次の途中経過を待つ（＝途中経過デコードの占有率を
                             # 最大50%に制限。速いCPUでは gap=interval のまま挙動不変）
                             partial_gap = max(interval_samples,
-                                              int((time.time() - t0)
-                                                  * 2.0 * SAMPLE_RATE))
+                                              int(dt * 2.0 * SAMPLE_RATE))
                             if cfg.get("num_arabic", True):
                                 p = normalize_numbers(p)
                             if self._mask is not None:      # 認識中(薄文字)も伏せ字化
                                 p = self._mask(p)
+                            if len(cur) > win and p:
+                                p = "…" + p   # 冒頭が省略されていることを示す
                             self.on_partial(p, speaker)
                         if len(cur) >= max_samples:
                             vad.flush()
@@ -503,6 +521,7 @@ class CaptionEngine:
         self._mask = self._build_masker(cfg)   # 禁止ワードの伏せ字化を用意
         self._gloss = self._build_glossary(cfg)   # 英訳辞書（固有名詞の訳を固定）
         self._stream_error = None
+        self.perf = self._fresh_perf()   # セッションごとに計測をリセット
 
         # 入力ソース（通常=1本 / 1対1コラボ=2本）ごとにスレッドを起こす
         sources = self._resolve_sources(cfg)

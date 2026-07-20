@@ -20,7 +20,7 @@ from urllib.parse import urlparse, parse_qs
 from apppaths import BASE
 import wordstore
 
-APP_VERSION = "0.4.0-beta2"
+APP_VERSION = "0.4.0-beta3"
 
 DEFAULT_CONFIG = {
     "silence_ms": 300, "interval": 0.4, "max_utt": 12.0,
@@ -418,6 +418,23 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"supported": False, "apps": [], "error": str(e)})
         elif path == "/api/status":
             self._json(_engine_state)
+        elif path == "/api/perf":
+            # リモート切り分け用: デコード回数・平均所要時間（今セッション累計）
+            p = getattr(_engine, "perf", None) if _engine else None
+            if not p:
+                self._json({"state": _engine_state, "perf": None})
+                return
+            import time as _t
+            self._json({
+                "state": _engine_state,
+                "uptime_sec": round(_t.time() - p["since"], 1),
+                "partial": {"count": p["partial_n"],
+                            "avg_ms": round(p["partial_ms"] / p["partial_n"], 1)
+                            if p["partial_n"] else 0},
+                "final": {"count": p["final_n"],
+                          "avg_ms": round(p["final_ms"] / p["final_n"], 1)
+                          if p["final_n"] else 0},
+            })
         else:
             self._send_body(404, b"not found", "text/plain")
 
