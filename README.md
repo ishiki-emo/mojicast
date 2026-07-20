@@ -78,7 +78,7 @@ _A fully-offline real-time captioning app for live streaming: Japanese speech re
 | | 最低 | 推奨 |
 |---|---|---|
 | OS | Windows 10 2004 以降（64bit） | Windows 11 |
-| CPU | 4コア8スレッド・AVX2対応（2017年以降の Core i5 / Ryzen 5 相当） | Ryzen 7000/9000（最適）/ Intel 12世代以降 |
+| CPU | 4コア8スレッド・AVX2対応（2017年以降の Core i5 / Ryzen 5 相当） | Ryzen 7000/9000（最適）/ Intel 12世代以降・AVX-512対応の10〜11世代 |
 | メモリ | 8GB | 16GB |
 | ストレージ | 空き5GB | SSD |
 

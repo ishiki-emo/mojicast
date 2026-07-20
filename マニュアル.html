@@ -194,19 +194,22 @@
         <td>AMD Ryzen 7000 / 9000 シリーズ（Zen 4/5）</td>
         <td>余裕。コラボ・英訳を全部ONでも軽い</td></tr>
     <tr><td><span class="rank r2">○ 実用</span></td>
-        <td>Intel 12〜14世代 / Core Ultra</td>
+        <td>Intel 12〜14世代 / Core Ultra ／ AVX-512対応の Intel 10〜11世代※</td>
         <td>通常配信は問題なし。コラボで2人とも喋りっぱなしだと負荷高め</td></tr>
     <tr><td><span class="rank r3">△ 動くが重め</span></td>
-        <td>Intel 8〜11世代 / Ryzen 2000〜5000</td>
+        <td>Intel 8〜10世代（AVX-512非対応モデル） / Ryzen 2000〜5000</td>
         <td>ソロ配信なら実用。「重いときは」（<a style="color:var(--acc)" href="#trouble">9章</a>）の軽量化設定を推奨</td></tr>
     <tr><td><span class="rank r4">✕ 非推奨</span></td>
         <td>AVX2非対応の古いCPU（2013年以前）・N100等の省電力CPU</td>
         <td>リアルタイム認識が追いつきません</td></tr>
   </table>
   </div>
-  <p class="dim">理由: 最近のAMD（Zen 4以降）はint8推論専用の命令（AVX-512 VNNI）を使えるため、
-     同価格帯のIntelより認識処理が数倍速く走ります。CPU使用率は「誰かが喋っている間」だけ上がり、
-     無音の間はほぼゼロです。</p>
+  <p class="dim">※ <b>11世代</b>（デスクトップ Rocket Lake / ノート Tiger Lake）と<b>10世代ノート</b>（Ice Lake）は
+     int8推論専用命令の <b>AVX-512 VNNI に対応</b>しており、見た目の世代より速く動きます
+     （10世代デスクトップ Comet Lake は非対応なので △）。</p>
+  <p class="dim">理由: AVX-512 VNNI を使えるCPU（Zen 4以降・上記のIntel 10〜11世代）は認識処理が数倍速く走ります。
+     Intel 12世代以降ではAVX-512が無効化され、256bit版の AVX-VNNI に置き換わりました（それでも○）。
+     CPU使用率は「誰かが喋っている間」だけ上がり、無音の間はほぼゼロです。</p>
 
   <div class="card"><b class="tag">配信との同時利用</b>
     OBSの映像エンコードは<b>GPUエンコード（NVENC / AMF）推奨</b>。Mojicast はGPUをほぼ使わないため、
