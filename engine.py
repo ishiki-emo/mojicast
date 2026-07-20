@@ -403,6 +403,7 @@ class CaptionEngine:
 
             buffer = np.empty(0, dtype=np.float32)
             last_partial_len = 0
+            partial_gap = interval_samples   # 次の途中経過までに要る新規音声量（適応）
 
             with stream:
                 while not self._stop.is_set():
@@ -442,15 +443,24 @@ class CaptionEngine:
                             # 後処理で空になった発話は出さず、薄文字だけ消す
                             self.on_partial("", speaker)
                         last_partial_len = 0
+                        partial_gap = interval_samples   # 新しい発話は素早く出す
 
                     # 発話中の途中経過
                     if vad.is_speech_detected():
                         cur = np.array(vad.current_segment.samples,
                                        dtype=np.float32)
-                        if (len(cur) - last_partial_len >= interval_samples
+                        if (len(cur) - last_partial_len >= partial_gap
                                 and len(cur) >= int(0.3 * SAMPLE_RATE)):
                             last_partial_len = len(cur)
+                            t0 = time.time()
                             p = self._recognize(cur)
+                            # 適応スロットリング: デコードが interval に収まらない
+                            # 遅いCPUでも張り付かないよう、所要時間×2 ぶんの新規音声が
+                            # 貯まるまで次の途中経過を待つ（＝途中経過デコードの占有率を
+                            # 最大50%に制限。速いCPUでは gap=interval のまま挙動不変）
+                            partial_gap = max(interval_samples,
+                                              int((time.time() - t0)
+                                                  * 2.0 * SAMPLE_RATE))
                             if cfg.get("num_arabic", True):
                                 p = normalize_numbers(p)
                             if self._mask is not None:      # 認識中(薄文字)も伏せ字化
