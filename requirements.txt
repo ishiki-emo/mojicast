@@ -1,13 +1,10 @@
 # Mojicast 依存パッケージ（Python 3.11 で検証）
 #
-# 【重要】ReazonSpeech k2-asr は上流リポジトリから先にインストールしてください:
+#   pip install -r requirements.txt
 #
-#   git clone https://github.com/reazon-research/ReazonSpeech
-#   pip install ./ReazonSpeech/pkg/k2-asr
-#
-# その後に:  pip install -r requirements.txt
-#
-# ※ torch / transformers は不要になりました（v0.3系: 句読点=ONNX Runtime、
+# ※ ReazonSpeech k2-asr パッケージは不要になりました（v0.4系:
+#   推論ラッパーを engine.py へインライン化。モデル本体はHFから自動DL）。
+# ※ torch / transformers も不要（v0.3系: 句読点=ONNX Runtime、
 #   翻訳=CTranslate2 へ移行済み）。モデルを変換し直す開発作業のときだけ
 #   tools/convert_models.py のコメントに従って別途インストールしてください。
 

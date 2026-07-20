@@ -15,7 +15,6 @@ import os
 import time
 import queue
 import threading
-import warnings
 from datetime import datetime
 
 import numpy as np
@@ -283,14 +282,19 @@ class CaptionEngine:
         c.sample_rate = SAMPLE_RATE
         return sherpa_onnx.VoiceActivityDetector(c, buffer_size_in_seconds=30)
 
+    # 上流 reazonspeech.k2.asr.transcribe と同じ無音パディング（k2の認識精度に効く）。
+    # ラッパー2関数のためだけに librosa→sklearn/scipy 系が配布物に入っていたため、
+    # 実体（パディング＋sherpa_onnxデコード）をここへインライン化した。
+    PAD_SECONDS = 0.9
+
     def _recognize(self, samples):
-        from reazonspeech.k2.asr import transcribe, audio_from_numpy
         # 単一Recognizerを2話者で共有するため decode を直列化（交互会話ならほぼ待ち無し）
         with self._rec_lock:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                return transcribe(self._model,
-                                  audio_from_numpy(samples, SAMPLE_RATE)).text.strip()
+            padded = np.pad(samples, int(self.PAD_SECONDS * SAMPLE_RATE))
+            stream = self._model.create_stream()
+            stream.accept_waveform(SAMPLE_RATE, padded)
+            self._model.decode_stream(stream)
+            return stream.result.text.strip()
 
     def _next_fid(self):
         with self._fid_lock:

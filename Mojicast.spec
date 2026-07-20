@@ -13,21 +13,28 @@ datas, binaries, hiddenimports = [], [], []
 
 # ネイティブ拡張やデータファイルを丸ごと取り込む重量級パッケージ群
 # ※ torch / transformers は排除済み（句読点=onnxruntime / 翻訳=ctranslate2）
+# ※ reazonspeech はラッパー2関数を engine にインライン化して排除
+#   （librosa→sklearn/scipy の玉突き同梱で約600ファイル膨らんでいたため）
+# ※ onnxruntime は標準フックで足りる（collect_all だと training/tools まで入る）
 for pkg in (
-    "onnxruntime", "ctranslate2", "sentencepiece", "huggingface_hub",
+    "ctranslate2", "sentencepiece", "huggingface_hub",
     "sherpa_onnx", "sounddevice",
-    "webview", "pythonnet", "clr_loader", "reazonspeech",
+    "webview", "pythonnet", "clr_loader",
 ):
     d, b, h = collect_all(pkg)
     datas += d
     binaries += b
     hiddenimports += h
 
+# ビルド用の残骸（インポートライブラリ等・実行時不要）を落とす
+datas = [x for x in datas if not x[0].lower().endswith((".lib", ".pdb", ".exp"))]
+binaries = [x for x in binaries if not x[0].lower().endswith((".lib", ".pdb", ".exp"))]
+
 # 動的 import で拾い漏れやすいもの
 hiddenimports += [
     "clr",                       # pythonnet（pywebview の WinForms/WebView2 バックエンド）
     "bottle", "proxy_tools",     # pywebview の内部依存
-    "reazonspeech.k2.asr",       # ネームスペースパッケージの明示
+    "onnxruntime",               # 句読点（punct.py）が使用・標準フックでDLL収集
     "sherpa_onnx",
 ]
 
@@ -44,7 +51,11 @@ a = Analysis(
     excludes=["tkinter", "matplotlib", "PyQt5", "PyQt6", "PySide2", "PySide6",
               "pytest", "IPython", "notebook",
               "torch", "transformers", "tokenizers", "safetensors",
-              "fugashi", "unidic_lite", "MeCab"],
+              "fugashi", "unidic_lite", "MeCab",
+              # reazonspeech(k2)排除に伴い不要になった科学計算系の玉突き依存
+              "reazonspeech", "librosa", "sklearn", "scipy", "soundfile",
+              "numba", "llvmlite", "audioread", "pooch", "joblib",
+              "threadpoolctl", "lazy_loader", "msgpack"],
     noarchive=False,
 )
 pyz = PYZ(a.pure)

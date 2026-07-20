@@ -31,7 +31,7 @@ _A fully-offline real-time captioning app for live streaming: Japanese speech re
   `.mojipack` ファイルでスタイルの配布・取り込みも可能
 - 🎬 **OBS 連携** — ブラウザソースに URL を入れるだけ
 - 🔌 **完全オフライン** — 音声もテキストも外部送信なし
-- 🖥 **Windows でダブルクリック起動**（配布版は Python 不要・Zip 約180MB）
+- 🖥 **Windows でダブルクリック起動**（配布版は Python 不要・Zip 約90MB）
 
 ## 仕組み
 
@@ -84,11 +84,7 @@ git clone <this-repo>
 cd mojicast
 python -m venv .venv && . .venv/Scripts/activate   # Windows
 
-# 1) ReazonSpeech k2-asr（上流から）
-git clone https://github.com/reazon-research/ReazonSpeech
-pip install ./ReazonSpeech/pkg/k2-asr
-
-# 2) 残りの依存（torch / transformers は不要）
+# 依存を入れる（torch / transformers / ReazonSpeechパッケージは不要）
 pip install -r requirements.txt
 
 # 起動
@@ -106,7 +102,7 @@ python app.py
 
 ```powershell
 pyinstaller --noconfirm Mojicast.spec
-.\build_bundle.ps1 -NoModels    # 軽量版（モデル無し・初回DL・約0.43GB / Zip 約178MB）
+.\build_bundle.ps1 -NoModels    # 軽量版（モデル無し・初回DL・約0.22GB / Zip 約91MB）
 .\build_bundle.ps1              # 同梱版（モデル込み・完全オフライン・約1.7GB）
 .\smoke_test.ps1 -Fresh         # リリース前検証（新規ユーザーのDL経路を再現）
 ```
