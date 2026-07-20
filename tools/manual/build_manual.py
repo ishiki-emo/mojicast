@@ -45,13 +45,36 @@ for name in ("cockpit_guide", "cockpit_solo", "cockpit_collab",
 for name, (src, box) in CROPS.items():
     pil_images[name] = load(src).crop(box)
 
+# 静的アセット（動画フレーム等・shoot.py では再生成されないもの）。
+# 写真的な絵なので幅1280へ縮小のうえ JPEG で出す（PNGだと数倍重い）
+static_images = {}
+STATIC = os.path.join(HERE, "static")
+if os.path.isdir(STATIC):
+    for fn in os.listdir(STATIC):
+        if fn.lower().endswith(".png"):
+            img = Image.open(os.path.join(STATIC, fn))
+            if img.width > 1280:
+                img = img.resize((1280, round(img.height * 1280 / img.width)),
+                                 Image.LANCZOS)
+            static_images[os.path.splitext(fn)[0]] = img.convert("RGB")
+
+
+def to_jpeg_uri(img):
+    buf = io.BytesIO()
+    img.save(buf, "JPEG", quality=86, optimize=True)
+    return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
 # README / docs/MANUAL.md 用の画像ファイルも更新
 os.makedirs(DOCS_IMAGES, exist_ok=True)
 for name, img in pil_images.items():
     img.save(os.path.join(DOCS_IMAGES, name + ".png"), optimize=True)
-print(f"docs/images/ へ {len(pil_images)} 枚書き出し")
+for name, img in static_images.items():
+    img.save(os.path.join(DOCS_IMAGES, name + ".jpg"), quality=86, optimize=True)
+print(f"docs/images/ へ {len(pil_images) + len(static_images)} 枚書き出し")
 
 images = {name: to_data_uri(img) for name, img in pil_images.items()}
+images.update({name: to_jpeg_uri(img) for name, img in static_images.items()})
 
 with open(TEMPLATE, encoding="utf-8") as f:
     html = f.read()

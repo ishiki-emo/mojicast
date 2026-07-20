@@ -5,9 +5,10 @@
 > 配布版には同じ内容の `マニュアル.html`（オフラインで読める単一ファイル版）が同梱されています。
 > 画像は `tools/manual/shoot.py` → `build_manual.py` で実画面から自動生成しています。
 
-[![字幕オーバーレイの表示例 — クリックでデモ動画へ](images/overlay_collab.png)](https://youtu.be/GObqilowmkU)
+[![1対1コラボ字幕のデモ — クリックでデモ動画へ](images/hero_video.jpg)](https://youtu.be/GObqilowmkU)
 
 ▶ **[30秒デモ動画（YouTube）](https://youtu.be/GObqilowmkU)** — 2人の字幕・翻訳・エフェクトが動く様子
+／ テスト協力: [絵咲まくらさん](https://x.com/oftunlab)
 
 ## 目次
 
