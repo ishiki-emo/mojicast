@@ -30,6 +30,9 @@ DEFAULT_CONFIG = {
     "preset": "standard", "box": "none", "port": 8765,
     "word_profile": "",     # 使用中の単語プロファイル（"" = 共通のみ）
     "theme": "dark",        # GUI窓のテーマ（dark / light）。overlayは対象外
+    # 1対1コラボ（案A改・出力キャプチャ）。collab=Trueで②の入力を相手話者として取り込む
+    "collab": False, "collab_device": None,
+    "self_name": "自分", "guest_name": "ゲスト",
 }
 
 _clients = []
@@ -227,9 +230,12 @@ def get_engine():
     if _engine is None:
         from engine import CaptionEngine
         _engine = CaptionEngine(
-            on_partial=lambda t: broadcast({"type": "partial", "text": t}),
-            on_final=lambda t, fid: broadcast({"type": "final", "text": t, "id": fid}),
-            on_level=lambda v: broadcast({"type": "level", "value": round(v, 3)}),
+            on_partial=lambda t, spk="": broadcast(
+                {"type": "partial", "text": t, "speaker": spk}),
+            on_final=lambda t, fid, spk="": broadcast(
+                {"type": "final", "text": t, "id": fid, "speaker": spk}),
+            on_level=lambda v, spk="": broadcast(
+                {"type": "level", "value": round(v, 3), "speaker": spk}),
             on_state=_on_state,
             on_translation=lambda fid, en: broadcast(
                 {"type": "translation", "id": fid, "text": en}),

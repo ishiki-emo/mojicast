@@ -57,11 +57,15 @@ def _dir_size_mb(path):
 class CaptionEngine:
     def __init__(self, on_partial=None, on_final=None,
                  on_level=None, on_state=None, on_translation=None):
-        self.on_partial = on_partial or (lambda t: None)
-        self.on_final = on_final or (lambda t, fid: None)
-        self.on_level = on_level or (lambda v: None)
+        self.on_partial = on_partial or (lambda t, spk="": None)
+        self.on_final = on_final or (lambda t, fid, spk="": None)
+        self.on_level = on_level or (lambda v, spk="": None)
         self.on_state = on_state or (lambda s, d="": None)
         self.on_translation = on_translation or (lambda fid, en: None)
+        self._rec_lock = threading.Lock()   # 単一Recognizerへの decode を直列化（2話者共有）
+        self._fid_lock = threading.Lock()   # fid採番の排他（話者をまたいで一意に）
+        self._translate_on = False
+        self._stream_error = None           # ストリームスレッドで起きた致命的エラー
         self._model = None
         self._model_sig = None      # (precision, hotwords mtime, score) 変更検知
         self._replacer = None
@@ -94,13 +98,14 @@ class CaptionEngine:
         except OSError:
             self._logf = None       # 書けなくても認識は続行
 
-    def _log_final(self, text):
-        """確定行を [発言時刻] 本文 で追記（例外は握りつぶす）"""
+    def _log_final(self, text, speaker=""):
+        """確定行を [発言時刻] (話者) 本文 で追記（例外は握りつぶす）"""
         if self._logf is None:
             return
         try:
             ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            self._logf.write(f"[{ts}] {text}\n")
+            who = f"[{speaker}] " if speaker else ""
+            self._logf.write(f"[{ts}] {who}{text}\n")
             self._logf.flush()      # クラッシュしても残るよう都度フラッシュ
         except OSError:
             pass
@@ -273,10 +278,17 @@ class CaptionEngine:
 
     def _recognize(self, samples):
         from reazonspeech.k2.asr import transcribe, audio_from_numpy
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            return transcribe(self._model,
-                              audio_from_numpy(samples, SAMPLE_RATE)).text.strip()
+        # 単一Recognizerを2話者で共有するため decode を直列化（交互会話ならほぼ待ち無し）
+        with self._rec_lock:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                return transcribe(self._model,
+                                  audio_from_numpy(samples, SAMPLE_RATE)).text.strip()
+
+    def _next_fid(self):
+        with self._fid_lock:
+            self._fid += 1
+            return self._fid
 
     # ---------------- 開始 / 停止 ----------------
 
@@ -332,36 +344,20 @@ class CaptionEngine:
         self._tworker = None
         self._tq = None
 
-    def _run(self, cfg):
-        try:
-            self._load(cfg)
-        except Exception as e:  # モデル・単語帳のエラーをGUIへ
-            info = (type(e).__name__ + " " + str(e)).lower()
-            netish = any(k in info for k in (
-                "connection", "download", "resolve", "timeout", "network",
-                "getaddrinfo", "maxretry", "httperror", "localentrynotfound",
-                "offline", "temporarily", "ssl"))
-            if netish:
-                self.on_state("error", "モデルのダウンロードに失敗しました。"
-                              "ネット接続を確認して、もう一度 ▶開始 してください"
-                              "（ダウンロード済みの分は続きから取得します）")
-            else:
-                self.on_state("error", f"ロード失敗: {e}")
-            return
+    def _resolve_sources(self, cfg):
+        """入力ソースを決める。 [(device, speaker, is_primary), ...]
+        通常は1本（話者ラベル空＝従来どおり）。1対1コラボ時のみ2本目（相手）を足す。"""
+        dev = cfg.get("device", None)
+        cdev = cfg.get("collab_device", None)
+        if cfg.get("collab") and cdev not in (None, "", "default"):
+            self_name = (cfg.get("self_name") or "自分").strip() or "自分"
+            guest_name = (cfg.get("guest_name") or "ゲスト").strip() or "ゲスト"
+            return [(dev, self_name, True), (cdev, guest_name, False)]
+        return [(dev, "", True)]
 
-        # 英訳ワーカー起動（この設定で有効なときだけ）。確定行を別スレッドで翻訳し認識を止めない
-        translate_on = cfg.get("translate", False) and self._translate is not None
-        self._tq = queue.Queue()
-        self._tworker = None
-        if translate_on:
-            self._tworker = threading.Thread(target=self._translate_loop,
-                                             daemon=True)
-            self._tworker.start()
-
-        self._open_log(cfg)             # 文字起こしログをこのセッション用に開く
-        self._mask = self._build_masker(cfg)   # 禁止ワードの伏せ字化を用意
-        self._gloss = self._build_glossary(cfg)   # 英訳辞書（固有名詞の訳を固定）
-
+    def _stream_loop(self, cfg, device, speaker, is_primary):
+        """1入力ソースの取り込み→VAD→認識ループ（話者ラベル付き）。ソースごとに1スレッド。
+        認識は共有Recognizerを _recognize 内のロックで直列化する。"""
         try:
             import sounddevice as sd
             vad = self._build_vad(cfg.get("silence_ms", 300))
@@ -371,27 +367,23 @@ class CaptionEngine:
             def callback(indata, frames, time_info, status):
                 mono = indata[:, 0].copy()
                 audio_q.put(mono)
-                now = time.time()
-                if now - last_level_t[0] >= 0.1:   # レベルは約10回/秒に間引き
-                    last_level_t[0] = now
-                    rms = float(np.sqrt(np.mean(mono ** 2)))
-                    self.on_level(min(1.0, rms * 8))
+                if is_primary:   # レベルメーターは主入力（自分のマイク）だけ流す
+                    now = time.time()
+                    if now - last_level_t[0] >= 0.1:
+                        last_level_t[0] = now
+                        rms = float(np.sqrt(np.mean(mono ** 2)))
+                        self.on_level(min(1.0, rms * 8), speaker)
 
             interval_samples = int(cfg.get("interval", 0.4) * SAMPLE_RATE)
             max_samples = int(cfg.get("max_utt", 12.0) * SAMPLE_RATE)
-            device = cfg.get("device", None)
-            if device in ("", "default"):
-                device = None
+            dev = None if device in ("", "default") else device
 
             buffer = np.empty(0, dtype=np.float32)
             last_partial_len = 0
 
             with sd.InputStream(samplerate=SAMPLE_RATE, channels=1,
                                 dtype="float32", blocksize=WINDOW_SIZE,
-                                device=device, callback=callback):
-                self.running = True
-                self.on_state("running",
-                              "認識中" + (f"  ※{self._load_warn}" if self._load_warn else ""))
+                                device=dev, callback=callback):
                 while not self._stop.is_set():
                     try:
                         block = audio_q.get(timeout=0.2)
@@ -417,14 +409,14 @@ class CaptionEngine:
                             if self._mask is not None:      # 禁止ワードを伏せ字化
                                 text = self._mask(text)
                         if text:
-                            self._fid += 1
-                            self.on_final(text, self._fid)
-                            self._log_final(text)
-                            if translate_on:
-                                self._tq.put((self._fid, text))
+                            fid = self._next_fid()
+                            self.on_final(text, fid, speaker)
+                            self._log_final(text, speaker)
+                            if self._translate_on:
+                                self._tq.put((fid, text))
                         else:
                             # 後処理で空になった発話は出さず、薄文字だけ消す
-                            self.on_partial("")
+                            self.on_partial("", speaker)
                         last_partial_len = 0
 
                     # 発話中の途中経過
@@ -439,21 +431,79 @@ class CaptionEngine:
                                 p = normalize_numbers(p)
                             if self._mask is not None:      # 認識中(薄文字)も伏せ字化
                                 p = self._mask(p)
-                            self.on_partial(p)
+                            self.on_partial(p, speaker)
                         if len(cur) >= max_samples:
                             vad.flush()
         except Exception as e:
+            # このソースで致命的エラー → 全体を止めて _run 側で通知
+            self._stream_error = f"実行エラー（{speaker or '入力'}）: {e}"
+            self._stop.set()
+
+    def _run(self, cfg):
+        try:
+            self._load(cfg)
+        except Exception as e:  # モデル・単語帳のエラーをGUIへ
+            info = (type(e).__name__ + " " + str(e)).lower()
+            netish = any(k in info for k in (
+                "connection", "download", "resolve", "timeout", "network",
+                "getaddrinfo", "maxretry", "httperror", "localentrynotfound",
+                "offline", "temporarily", "ssl"))
+            if netish:
+                self.on_state("error", "モデルのダウンロードに失敗しました。"
+                              "ネット接続を確認して、もう一度 ▶開始 してください"
+                              "（ダウンロード済みの分は続きから取得します）")
+            else:
+                self.on_state("error", f"ロード失敗: {e}")
+            return
+
+        # 英訳ワーカー起動（この設定で有効なときだけ）。確定行を別スレッドで翻訳し認識を止めない
+        self._translate_on = cfg.get("translate", False) and self._translate is not None
+        self._tq = queue.Queue()
+        self._tworker = None
+        if self._translate_on:
+            self._tworker = threading.Thread(target=self._translate_loop,
+                                             daemon=True)
+            self._tworker.start()
+
+        self._open_log(cfg)             # 文字起こしログをこのセッション用に開く
+        self._mask = self._build_masker(cfg)   # 禁止ワードの伏せ字化を用意
+        self._gloss = self._build_glossary(cfg)   # 英訳辞書（固有名詞の訳を固定）
+        self._stream_error = None
+
+        # 入力ソース（通常=1本 / 1対1コラボ=2本）ごとにスレッドを起こす
+        sources = self._resolve_sources(cfg)
+        threads = [threading.Thread(target=self._stream_loop,
+                                    args=(cfg, dev, spk, prim), daemon=True)
+                   for dev, spk, prim in sources]
+        for t in threads:
+            t.start()
+        # スレッドが1本でも走り出すまで少し待ち、致命的エラーが無ければ「認識中」に
+        time.sleep(0.3)
+        if self._stream_error:
             self.running = False
             self._stop_translate_worker()
             self._close_log()
-            self.on_state("error", f"実行エラー: {e}")
+            self.on_state("error", self._stream_error)
             return
+        self.running = True
+        self.on_state("running",
+                      "認識中" + (f"  ※{self._load_warn}" if self._load_warn else ""))
+
+        # 停止指示、または全ソースが（エラー等で）終了するまで待つ
+        while not self._stop.is_set() and any(t.is_alive() for t in threads):
+            self._stop.wait(0.2)
+        for t in threads:
+            t.join(timeout=5)
+
         self.running = False
         self._stop_translate_worker()
         self._close_log()
-        self.on_level(0.0)
-        self.on_partial("")
-        self.on_state("stopped", "停止しました")
+        self.on_level(0.0, "")
+        self.on_partial("", "")
+        if self._stream_error:
+            self.on_state("error", self._stream_error)
+        else:
+            self.on_state("stopped", "停止しました")
 
 
 def list_input_devices():
