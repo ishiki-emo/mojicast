@@ -107,18 +107,6 @@
       <div class="hint">字幕ログの行頭チップと、話者ごとの表示の振り分けに使います</div>
     </section>
 
-    <section class="sec">
-      <h2>相手の見た目</h2>
-      <div class="row">
-        <label>文字スタイル</label>
-        <select id="guestPreset"></select>
-      </div>
-      <div class="row">
-        <label>レイアウト</label>
-        <select id="guestBox"></select>
-        <div class="hint">自分と重ならない位置のレイアウトを推奨。見た目の変更はすぐ反映されます</div>
-      </div>
-    </section>
   </main>
 
   <footer>
@@ -157,8 +145,7 @@
     save({ collab_process: e.target.value, collab_source: "process" }));
   $("selfName").addEventListener("input", e => saveDebounced({ self_name: e.target.value }));
   $("guestName").addEventListener("input", e => saveDebounced({ guest_name: e.target.value }));
-  $("guestPreset").addEventListener("change", e => save({ guest_preset: e.target.value }));
-  $("guestBox").addEventListener("change", e => save({ guest_box: e.target.value }));
+  // 相手の文字スタイル/レイアウトの割当はコックピット側（自分の下の「相手」行）
 
   // 音声セッションを持つアプリ一覧を取得して選択肢に反映
   async function loadApps() {
@@ -192,15 +179,6 @@
 
     $("selfName").value = cfg.self_name || "";
     $("guestName").value = cfg.guest_name || "";
-
-    const fill = (sel, items, cur) => {
-      sel.innerHTML = items.map(x =>
-        `<option value="${escHtml(x.id)}">${escHtml(x.name)}</option>`).join("");
-      sel.value = cur;
-      if (sel.selectedIndex < 0 && items[0]) sel.value = items[0].id;
-    };
-    fill($("guestPreset"), (await api("/api/presets")).presets || [], cfg.guest_preset);
-    fill($("guestBox"), (await api("/api/boxes")).boxes || [], cfg.guest_box);
 
     await loadApps();
   }

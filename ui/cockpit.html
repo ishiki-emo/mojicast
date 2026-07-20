@@ -191,7 +191,9 @@
   /* 文字スタイル/レイアウトはプルダウンで選択（省スペース・OBS連携を押し出さない）。
      選択肢内に図は描けないので、選択中の概要を隣に小さく表示する */
   .selrow { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+  .selrow + .selrow { margin-top: 7px; }
   .selrow select { flex: 1; min-width: 0; }
+  .selrow .who { flex: none; width: 30px; font-size: 11px; color: var(--dim); }
   .colorsw { flex: none; width: 22px; height: 22px; border-radius: 5px;
     border: 1px solid rgba(128,128,128,.45); }
   .boxmini { flex: none; position: relative; width: 40px; height: 23px;
@@ -516,7 +518,9 @@
   $("collabOn").addEventListener("change", e => {
     cfg.collab = e.target.checked;
     syncCollab();
-    if (cfg.collab) openCollab();   // 有効化と同時に設定窓を開く
+    renderPresets();   // 自分/相手の2行表示を切替
+    renderBoxes();
+    if (cfg.collab) openCollab();   // 有効化と同時に設定窓を開く（取り込みアプリ等）
     saveCfg();
   });
 
@@ -568,12 +572,13 @@
   }
 
   // ---------- プリセット（プルダウン＋色見本） ----------
-  function renderPresets() {
+  // 1行ぶんの「プリセット選択＋色見本」。コラボ時は自分/相手の2行になる
+  function presetRow(cur, who, onPick) {
     const sel = document.createElement("select");
     sel.innerHTML = presets.map(p =>
       `<option value="${escHtml(p.id)}">${escHtml(p.name)}</option>`).join("");
-    sel.value = cfg.preset;
-    if (sel.selectedIndex < 0 && presets[0]) { sel.value = presets[0].id; cfg.preset = sel.value; }
+    sel.value = cur;
+    if (sel.selectedIndex < 0 && presets[0]) { sel.value = presets[0].id; onPick(sel.value, true); }
     const sw = document.createElement("span");
     sw.className = "colorsw";
     const paint = () => {
@@ -582,16 +587,26 @@
       sw.style.boxShadow = p.glow ? "0 0 6px " + p.glow : "none";
     };
     paint();
-    sel.onchange = async () => {
-      cfg.preset = sel.value; paint();
-      await api("/api/config", { preset: sel.value });
-    };
+    sel.onchange = () => { paint(); onPick(sel.value); };
     const row = document.createElement("div");
     row.className = "selrow";
+    if (who) {
+      const w = document.createElement("span");
+      w.className = "who"; w.textContent = who;
+      row.appendChild(w);
+    }
     row.append(sel, sw);
+    return row;
+  }
+
+  function renderPresets() {
     const box = $("presets");
     box.innerHTML = "";
-    box.appendChild(row);
+    box.appendChild(presetRow(cfg.preset, cfg.collab ? "自分" : "",
+      (v, silent) => { cfg.preset = v; if (!silent) api("/api/config", { preset: v }); }));
+    if (cfg.collab)
+      box.appendChild(presetRow(cfg.guest_preset, "相手",
+        (v, silent) => { cfg.guest_preset = v; if (!silent) api("/api/config", { guest_preset: v }); }));
   }
 
   async function refreshPresets() {   // スタイル/単語/コラボ窓での保存を反映
@@ -605,12 +620,13 @@
   }
 
   // ---------- レイアウト（プルダウン＋概要ミニ図） ----------
-  function renderBoxes() {
+  // 1行ぶんの「レイアウト選択＋位置ミニ図」。コラボ時は自分/相手の2行になる
+  function boxRow(cur, who, onPick) {
     const sel = document.createElement("select");
     sel.innerHTML = boxes.map(b =>
       `<option value="${escHtml(b.id)}">${escHtml(b.name)}</option>`).join("");
-    sel.value = cfg.box;
-    if (sel.selectedIndex < 0 && boxes[0]) { sel.value = boxes[0].id; cfg.box = sel.value; }
+    sel.value = cur;
+    if (sel.selectedIndex < 0 && boxes[0]) { sel.value = boxes[0].id; onPick(sel.value, true); }
     const mini = document.createElement("span");
     mini.className = "boxmini";
     mini.title = "画面内での字幕の位置・大きさ";
@@ -625,16 +641,26 @@
       mini.appendChild(i);
     };
     draw();
-    sel.onchange = async () => {
-      cfg.box = sel.value; draw();
-      await api("/api/config", { box: sel.value });
-    };
+    sel.onchange = () => { draw(); onPick(sel.value); };
     const row = document.createElement("div");
     row.className = "selrow";
+    if (who) {
+      const w = document.createElement("span");
+      w.className = "who"; w.textContent = who;
+      row.appendChild(w);
+    }
     row.append(sel, mini);
+    return row;
+  }
+
+  function renderBoxes() {
     const el = $("boxes");
     el.innerHTML = "";
-    el.appendChild(row);
+    el.appendChild(boxRow(cfg.box, cfg.collab ? "自分" : "",
+      (v, silent) => { cfg.box = v; if (!silent) api("/api/config", { box: v }); }));
+    if (cfg.collab)
+      el.appendChild(boxRow(cfg.guest_box, "相手",
+        (v, silent) => { cfg.guest_box = v; if (!silent) api("/api/config", { guest_box: v }); }));
   }
 
   // ---------- エンジン ----------
