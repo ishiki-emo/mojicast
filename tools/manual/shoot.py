@@ -189,6 +189,17 @@ try:
     t.shot("collab_window")
     t.close()
 
+    # ============ 4b) AIモデル設定窓 ============
+    post("/api/config", {"collab": False, "asr_model": "sensevoice",
+                         "asr_lang": "zh", "translate_lang": "en"})
+    t = Tab(BASE + "/ui/model")
+    t.size(560, 640)
+    time.sleep(1.2)
+    t.shot("model_win")
+    t.close()
+    post("/api/config", {"asr_model": "k2-ja", "asr_lang": "auto",
+                         "translate_lang": "en"})
+
     # ============ 5) スタジオ（文字スタイル / 単語） ============
     t = Tab(BASE + "/ui/studio")
     t.size(1120, 800)

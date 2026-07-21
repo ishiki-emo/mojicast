@@ -39,7 +39,7 @@ def to_data_uri(img):
 
 pil_images = {}
 for name in ("cockpit_guide", "cockpit_solo", "cockpit_collab",
-             "collab_window", "studio_style", "studio_words",
+             "collab_window", "model_win", "studio_style", "studio_words",
              "overlay_collab"):
     pil_images[name] = load(name)
 for name, (src, box) in CROPS.items():
