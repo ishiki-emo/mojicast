@@ -196,10 +196,24 @@ def save_hotwords(entries, profile=""):
 
 
 def merged_hotwords(profile=""):
-    """共通＋プロファイルの合成 → [(表記, 読み, スコア)]（同じ表記はプロファイル優先）"""
-    merged = {s: (s, r, sc) for s, r, sc in load_hotwords_raw("")}
+    """共通＋プロファイルの合成 → [(表記, 読み, スコア)]
+
+    同じ表記の行が複数あるときは読みを「／」区切りで合算する
+    （＝1行に並記したのと同じ扱い。誤変換形を行を分けて登録できる）。
+    スコアは後勝ち＝プロファイル優先。
+    """
+    from vocab import _split_readings
+    rows = load_hotwords_raw("")
     if profile and profile_exists(profile):
-        for s, r, sc in load_hotwords_raw(profile):
+        rows = rows + load_hotwords_raw(profile)
+    merged = {}
+    for s, r, sc in rows:
+        if s in merged:
+            _s, r0, sc0 = merged[s]
+            readings = _split_readings(r0)
+            readings += [x for x in _split_readings(r) if x not in readings]
+            merged[s] = (s, "／".join(readings), sc or sc0)
+        else:
             merged[s] = (s, r, sc)
     return list(merged.values())
 
