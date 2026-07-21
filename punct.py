@@ -77,6 +77,10 @@ def load_punctuator(num_threads: int = 4):
     import onnxruntime as ort
     so = ort.SessionOptions()
     so.intra_op_num_threads = num_threads
+    # スピンウェイト（仕事の合間の空回り待機）を無効化。字幕はチャンク間の待ち時間が
+    # 長いワークロードで、スピンはCPU使用率を水増しして配信ソフト等と競合するだけ。
+    # スリープ起床の遅延増は数µs〜msで、音声チャンク（数百ms）に対して無視できる。
+    so.add_session_config_entry("session.intra_op.allow_spinning", "0")
     sess = ort.InferenceSession(_resolve("punct_bert.onnx"), so,
                                 providers=["CPUExecutionProvider"])
     _sess = sess
