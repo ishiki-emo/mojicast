@@ -27,11 +27,12 @@ Copy-Item (Join-Path $root "ui") (Join-Path $app "ui") -Recurse -Force
 Write-Host "  asset : ui\"
 
 # --- ドキュメント / ヘルパー ---
-foreach ($f in @("README_TESTER.txt", "マニュアル.html",
-                 "スタイルガイド.html", "エフェクトガイド.html", "ブロック解除.bat")) {
+foreach ($f in @("README_TESTER.txt", "マニュアル.html", "ブロック解除.bat")) {
     Copy-Item (Join-Path $root $f) $app -Force
     Write-Host "  doc   : $f"
 }
+Copy-Item (Join-Path $root "ガイド") (Join-Path $app "ガイド") -Recurse -Force
+Write-Host "  doc   : ガイド\  (スタイルガイド / エフェクトガイド)"
 
 # --- モデルを配置（-NoModels 指定時はスキップ＝初回起動時にDL）---
 # ASR: HFキャッシュ構造 / 句読点・翻訳: 変換済みモデル (models_conv\, tools\convert_models.py で生成)

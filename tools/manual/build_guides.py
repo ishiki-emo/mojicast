@@ -20,6 +20,7 @@ from markdown.extensions.toc import TocExtension
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 DOCS = os.path.join(ROOT, "docs")
+OUT_DIR = os.path.join(ROOT, "ガイド")   # 入口のマニュアル.htmlだけルート、ガイドはここへ
 
 GUIDES = [
     ("STYLE_GUIDE.md", "スタイルガイド.html", "スタイル・レイアウト作成ガイド",
@@ -28,11 +29,11 @@ GUIDES = [
      "単語単位の演出を作る — アニメ13種・パーティクル6種"),
 ]
 
-# .md 間の相互リンク → 同梱HTMLのファイル名へ
+# .md 間の相互リンク → 同梱HTMLのパスへ（ガイド同士は同フォルダ、マニュアルは1つ上）
 LINK_MAP = {
     "STYLE_GUIDE.md": "スタイルガイド.html",
     "EFFECT_GUIDE.md": "エフェクトガイド.html",
-    "MANUAL.md": "マニュアル.html",
+    "MANUAL.md": "../マニュアル.html",
 }
 
 CSS = """
@@ -160,7 +161,8 @@ for src, out_name, title, sub in GUIDES:
 
     html = PAGE.format(title=title, sub=sub, css=CSS,
                        toc=build_toc(md), body=embed_images(body), src=src)
-    out = os.path.join(ROOT, out_name)
+    os.makedirs(OUT_DIR, exist_ok=True)
+    out = os.path.join(OUT_DIR, out_name)
     with open(out, "w", encoding="utf-8") as f:
         f.write(html)
     print(f"OK: {out} ({os.path.getsize(out)//1024} KB)")
