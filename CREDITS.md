@@ -18,6 +18,7 @@
 | BERT base Japanese char v3 | 句読点付けの土台（ONNX変換して利用） | Apache-2.0 | [tohoku-nlp/bert-base-japanese-char-v3](https://huggingface.co/tohoku-nlp/bert-base-japanese-char-v3) |
 | BERT Japanese punctuation | 句読点の重み（同上） | Apache-2.0 | [bobfromjapan/bert_japanese_punctuation](https://huggingface.co/bobfromjapan/bert_japanese_punctuation) |
 | FuguMT ja-en | 日→英翻訳（CTranslate2変換して利用） | **CC BY-SA 4.0** | [staka/fugumt-ja-en](https://huggingface.co/staka/fugumt-ja-en) |
+| M2M-100 418M | 日→中翻訳（CTranslate2変換して利用） | MIT | [facebook/m2m100_418M](https://huggingface.co/facebook/m2m100_418M) |
 | Silero VAD | 無音（発話区間）検出 | MIT | [snakers4/silero-vad](https://github.com/snakers4/silero-vad) |
 
 > **FuguMT の変換版について**: 変換済みモデルの配布は**派生物の再配布**にあたるため、

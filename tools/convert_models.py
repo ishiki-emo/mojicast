@@ -89,10 +89,34 @@ def convert_fugumt():
             shutil.copyfile(hf.hf_hub_download("staka/fugumt-ja-en", f), dst)
 
 
+def convert_m2m100():
+    """M2M-100 418M → CT2 (int8)。多言語翻訳（ja→zh 等）用。
+    FuguMTと違い418Mと大きいため int8 量子化で 1.9GB → 約450MB に落とす。"""
+    out_dir = os.path.join(OUT, "m2m100-418m-ct2")
+    if os.path.exists(os.path.join(out_dir, "model.bin")):
+        print(f"m2m100: スキップ（既存: {out_dir}）")
+    else:
+        print("m2m100: CTranslate2 (int8) へ変換中...")
+        conv = os.path.join(os.path.dirname(sys.executable),
+                            "ct2-transformers-converter.exe")
+        subprocess.run([conv, "--model", "facebook/m2m100_418M",
+                        "--output_dir", out_dir,
+                        "--quantization", "int8", "--force"], check=True)
+        print(f"m2m100: → {out_dir}")
+    # SentencePiece モデルも同じフォルダへ（アプリはこのフォルダだけで自己完結）
+    import huggingface_hub as hf
+    dst = os.path.join(out_dir, "sentencepiece.model")
+    if not os.path.exists(dst):
+        shutil.copyfile(
+            hf.hf_hub_download("facebook/m2m100_418M",
+                               "sentencepiece.bpe.model"), dst)
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     convert_punct()
     convert_fugumt()
+    convert_m2m100()
     total = 0
     print("\n=== 出力一覧 ===")
     for root, _dirs, files in os.walk(OUT):

@@ -1,8 +1,8 @@
-"""日本語→英語のローカル翻訳（FuguMT / CTranslate2版）
+"""確定字幕のローカル翻訳（CTranslate2版）。CPUで動作・完全オフライン。
 
-確定字幕を英訳して併記するためのモジュール。CPUで動作・完全オフライン。
-モデル: staka/fugumt-ja-en を tools/convert_models.py で CTranslate2 (fp32) 化したもの。
-torch / transformers 非依存。トークナイザは SentencePiece を直接使う。
+2系統を持つ（どちらも tools/convert_models.py で変換・torch/transformers 非依存）:
+  - 英訳:     FuguMT (staka/fugumt-ja-en, fp32)        … ja→en 専用・実績枠
+  - 中国語訳: M2M-100 418M (facebook/m2m100_418M, int8) … 多言語枠の第一弾 ja→zh
 
 k2 の確定テキスト（句読点適用済み）をそのまま渡す想定。
 翻訳は認識ループとは別スレッドから呼ぶこと（engine.CaptionEngine が担当）。
@@ -118,6 +118,98 @@ def translate(text: str, max_new_tokens: int = 96) -> str:
     return _sp_tgt.decode(out).strip()
 
 
+# ---------------- 中国語訳（M2M-100 418M / int8） ----------------
+# M2M-100 は100言語の相互翻訳モデル。言語トークン（__ja__ 等）で方向を指定する。
+# 将来 zh→ja / zh→en 等へ広げるときも同じモデル・同じ仕組みで対応できる。
+
+_REPO_ID_M2M = "ishiki-emo/mojicast-m2m100-ct2"   # 変換済みモデルの配布リポジトリ
+_SUBDIR_M2M = "m2m100-418m-ct2"                    # ローカル models_conv/ 内のフォルダ名
+
+# 配信ドメインの組み込み用語（中国語版）。英訳側の _STREAM_TERMS と同思想で、
+# M2M-100が誤訳しがちな配信用語を翻訳前に中国語へ置換する（例: 配信→传递 を防ぐ）。
+# 注意: 置換した中国語がモデルに再翻訳されて壊れる語がある（歌回→歌曲回归、
+# 点赞→赞赞 を実測で確認）。実測で置換後も生き残った語だけ登録する。
+_STREAM_TERMS_ZH = [
+    (re.compile(r"配信者"), "主播"),
+    (re.compile(r"生配信|配信"), "直播"),
+    (re.compile(r"チャンネル登録(?!者)"), "订阅"),
+    (re.compile(r"コメ欄"), "评论区"),
+]
+
+_m2m = None
+_sp_m2m = None
+
+
+def _resolve_dir_m2m(download=True):
+    """CT2モデルフォルダの解決: models_conv/ → HFキャッシュ → DL（FuguMTと同型）"""
+    local = os.path.join(BASE, "models_conv", _SUBDIR_M2M)
+    if os.path.exists(os.path.join(local, "model.bin")):
+        return local
+    try:
+        d = hf.snapshot_download(_REPO_ID_M2M, local_files_only=True)
+    except Exception:
+        if not download:
+            raise
+        d = hf.snapshot_download(_REPO_ID_M2M)
+    if not os.path.exists(os.path.join(d, "model.bin")):
+        raise FileNotFoundError(f"CT2モデルが不完全です: {d}")
+    return d
+
+
+def cached_zh() -> bool:
+    """中国語訳モデルがローカルにあるか（DLはしない。初回DLサイズ見積り用）"""
+    try:
+        _resolve_dir_m2m(download=False)
+        return True
+    except Exception:
+        return False
+
+
+def load_translator_zh(num_threads: int = 4):
+    """M2M-100 のモデルとトークナイザをロード（初回のみ実行）"""
+    global _m2m, _sp_m2m
+    if _m2m is not None:
+        return
+    import ctranslate2
+    import sentencepiece as spm
+    d = _resolve_dir_m2m()
+    # 非ASCIIパス対策で model_proto 渡し（FuguMT側と同じ理由）
+    with open(os.path.join(d, "sentencepiece.model"), "rb") as f:
+        _sp_m2m = spm.SentencePieceProcessor(model_proto=f.read())
+    _m2m = ctranslate2.Translator(d, device="cpu",
+                                  compute_type="int8",
+                                  inter_threads=1,
+                                  intra_threads=num_threads)
+    if not translate_zh("これはテストです。").strip():
+        _m2m = None
+        raise RuntimeError("中国語訳モデルの自己診断に失敗（出力が空）")
+
+
+def translate_zh(text: str, max_new_tokens: int = 96) -> str:
+    """日本語テキストを中国語（簡体字）へ翻訳して返す。空文字は空文字を返す。
+
+    英訳用の配信用語置換（_STREAM_TERMS）は英単語を注入してしまうため適用せず、
+    中国語版の用語置換（_STREAM_TERMS_ZH）を使う。
+    """
+    if not text or not text.strip():
+        return ""
+    if _m2m is None:
+        load_translator_zh()
+    for pat, zh in _STREAM_TERMS_ZH:
+        text = pat.sub(zh, text)
+    tokens = _sp_m2m.encode(text, out_type=str)
+    if len(tokens) > 510:
+        tokens = tokens[:510]
+    source = ["__ja__"] + tokens + ["</s>"]
+    res = _m2m.translate_batch([source], target_prefix=[["__zh__"]],
+                               beam_size=1,
+                               max_decoding_length=max_new_tokens)
+    out = [t for t in res[0].hypotheses[0]
+           if not (t.startswith("__") and t.endswith("__"))
+           and t not in ("</s>", "<pad>", "<unk>")]
+    return _sp_m2m.decode(out).strip()
+
+
 if __name__ == "__main__":
     import sys
     if sys.stdout.encoding.lower() != "utf-8":
@@ -126,4 +218,9 @@ if __name__ == "__main__":
               "今日は新しい機能のテストをしていきます。",
               "配信を見てくれてありがとう、めっちゃ嬉しいです。"]:
         print("JA:", s)
-        print("EN:", translate(s), "\n")
+        print("EN:", translate(s))
+        try:
+            print("ZH:", translate_zh(s))
+        except Exception as e:
+            print("ZH: (モデル未変換:", e, ")")
+        print()
