@@ -92,7 +92,7 @@
   <div class="badges">
     <span class="badge">🔌 完全オフライン</span>
     <span class="badge">🎙 日本語音声認識</span>
-    <span class="badge">🌐 英訳の併記</span>
+    <span class="badge">🌐 翻訳の併記（英/中）</span>
     <span class="badge">🎧 1対1コラボ字幕</span>
     <span class="badge">🎬 OBS 連携</span>
   </div>
@@ -106,7 +106,7 @@
     <li><a href="#cockpit">コックピット（メイン画面）</a></li>
     <li><a href="#obs">OBS に字幕を出す</a></li>
     <li><a href="#studio">スタジオ（見た目のカスタマイズと単語登録）</a></li>
-    <li><a href="#translate">英訳の併記</a></li>
+    <li><a href="#translate">翻訳の併記（英訳・中国語訳）</a></li>
     <li><a href="#collab">1対1コラボ字幕</a></li>
     <li><a href="#files">フォルダとアップデート</a></li>
     <li><a href="#trouble">困ったときは</a></li>
@@ -125,7 +125,7 @@
     <tr><td>自分だけの字幕デザインを作りたい</td><td>同梱の <a href="ガイド/スタイルガイド.html"><b>スタイルガイド.html</b></a></td></tr>
     <tr><td>「ありがとう」でキラキラを飛ばしたい</td><td>同梱の <a href="ガイド/エフェクトガイド.html"><b>エフェクトガイド.html</b></a></td></tr>
     <tr><td>名前・ゲーム名が誤認識される</td><td>認識させる単語 — <a href="#studio">5章 スタジオ</a></td></tr>
-    <tr><td>英語の字幕も併記したい</td><td><a href="#translate">6章 英訳の併記</a></td></tr>
+    <tr><td>英語・中国語の字幕も併記したい</td><td><a href="#translate">6章 翻訳の併記</a></td></tr>
     <tr><td>コラボ相手の字幕も出したい</td><td><a href="#collab">7章 1対1コラボ字幕</a></td></tr>
     <tr><td>歌枠で歌詞みたいに散らしたい</td><td>リリックモード — <a href="ガイド/スタイルガイド.html">スタイルガイド.html</a></td></tr>
     <tr><td>作ったスタイルを配りたい・もらいたい</td><td>mojipack — <a href="#studio">5章 スタジオ</a> / <a href="ガイド/スタイルガイド.html">スタイルガイド.html</a></td></tr>
@@ -269,6 +269,7 @@
     <tr><td>途中経過の更新間隔</td><td>話している最中の「薄文字」の更新頻度</td></tr>
     <tr><td>一区切りの最長</td><td>喋り続けたとき、この秒数で強制的に確定する。<b>重いPCでは短め（8s）推奨</b></td></tr>
     <tr><td>登録した単語の出やすさ</td><td>スタジオで登録した単語の効きの強さ。効かない→上げる / 誤爆する→下げる</td></tr>
+    <tr><td>翻訳先</td><td>翻訳チップの言語。英語（FuguMT）/ 中国語・簡体字（M2M-100）</td></tr>
   </table>
   </div>
   <div class="card"><b class="tag">ヒント</b>
@@ -280,7 +281,7 @@
   <table>
     <tr><th>チップ</th><th>説明</th></tr>
     <tr><td>句読点</td><td>確定文に「、」「。」を自動で付ける</td></tr>
-    <tr><td>英訳</td><td>確定した字幕の下に英訳を併記（<a style="color:var(--acc)" href="#translate">6章</a>）</td></tr>
+    <tr><td>翻訳（英訳/中国語訳）</td><td>確定した字幕の下に翻訳を併記。翻訳先は詳細設定で切替（<a style="color:var(--acc)" href="#translate">6章</a>）</td></tr>
     <tr><td>ログ保存</td><td>配信の文字起こしを <code>logs\</code> にテキスト保存（詳細は<a style="color:var(--acc)" href="#files">8章</a>）</td></tr>
     <tr><td>漢数字→数字</td><td>漢数字を算用数字へ変換（三十五→35 など）。「一緒」「十分(じゅうぶん)」等は変換しない</td></tr>
     <tr><td>単語エフェクト</td><td>強調単語の光り・アニメ・パーティクル表示をまとめてオン/オフ。<b>オフでも単語の認識誘導・置換・伏せ字はそのまま有効</b></td></tr>
@@ -354,18 +355,29 @@
 
 <!-- ============================================================ -->
 <section id="translate">
-  <h2><span class="no">6</span>英訳の併記</h2>
-  <p>字幕ログ上の「<b>英訳</b>」チップをオンにすると、確定した字幕の下に英訳が小さく併記されます。
-     海外リスナー向けの配信にどうぞ。</p>
+  <h2><span class="no">6</span>翻訳の併記（英訳・中国語訳）</h2>
+  <p>字幕ログ上の翻訳チップをオンにすると、確定した字幕の下に翻訳が小さく併記されます。
+     海外リスナー向けの配信にどうぞ。翻訳先は「⚙ 詳細設定 → 翻訳先」で切り替えられます
+     （チップ名も「英訳」⇔「中国語訳」に変わります）。</p>
+  <div class="overflow">
+  <table>
+    <tr><th>翻訳先</th><th>モデル</th><th>補足</th></tr>
+    <tr><td>英語（既定）</td><td>FuguMT</td>
+        <td>人名などはスタジオの「英訳を固定する単語」で訳を固定できます</td></tr>
+    <tr><td>中国語（簡体字）</td><td>M2M-100</td>
+        <td>選択後の初回 ▶開始 時にモデルを自動DL（約470MB）。「英訳を固定する単語」は適用されません</td></tr>
+  </table>
+  </div>
   <ul>
     <li>翻訳もローカルで動きます（ネット不要・追加料金なし）</li>
-    <li>日本語の字幕が先に出て、英訳がひと呼吸おいて追いつきます</li>
+    <li>日本語の字幕が先に出て、翻訳がひと呼吸おいて追いつきます</li>
     <li>オンにして最初の ▶開始 時だけ「翻訳モデルをロード中...」と数秒待ちが入ります</li>
+    <li>翻訳の見た目（サイズ・色・フチ）は文字スタイルの「英訳」設定が使われます（中国語訳も同じ）</li>
   </ul>
   <div class="card ok"><b class="tag">配信用語は組み込みで対応</b>
-    「配信→stream」「スパチャ→Super Chat」「同接→concurrent viewers」「歌枠→singing stream」など、
-    誤訳されがちな配信用語はアプリに組み込みで正しく訳されます。
-    人名などはスタジオの「英訳を固定する単語」で訳を固定できます。</div>
+    「配信→stream」「スパチャ→Super Chat」「歌枠→singing stream」（英訳）、
+    「配信→直播」「コメ欄→评论区」（中国語訳）など、
+    誤訳されがちな配信用語はアプリに組み込みで正しく訳されます。</div>
   <div class="card"><b class="tag">品質について</b>
     軽量な翻訳モデルのため、辞書に無い固有名詞はうまく訳せないことがあります。
     気になった誤訳があればぜひフィードバックしてください。</div>
