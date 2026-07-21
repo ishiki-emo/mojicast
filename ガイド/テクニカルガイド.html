@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mojicast テクニカルガイド</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161c26; --line: #2a3342;
+    --fg: #e6edf3; --dim: #8b98a9; --acc: #71e7fe; --warn: #ffd400;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font-family: "Yu Gothic UI", "Meiryo", sans-serif;
+    line-height: 1.8; font-size: 15px;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 32px 20px 80px; }
+  header { text-align: center; padding: 28px 0 8px; }
+  header h1 { font-size: 26px; letter-spacing: .04em; }
+  header h1 .accent { color: var(--acc); }
+  header .sub { color: var(--dim); margin-top: 6px; font-size: 13px; }
+  nav.toc {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 16px 22px; margin: 26px 0;
+  }
+  nav.toc b { color: var(--dim); font-size: 12px; letter-spacing: .1em; }
+  nav.toc ol { margin: 8px 0 0 22px; }
+  a { color: var(--acc); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  h2 {
+    font-size: 20px; padding-bottom: 8px; margin: 46px 0 16px;
+    border-bottom: 2px solid var(--line);
+  }
+  h3 { font-size: 16px; margin: 24px 0 8px; color: var(--acc); }
+  h4 { font-size: 15px; margin: 18px 0 6px; }
+  p { margin: 8px 0; }
+  ul, ol { margin: 8px 0 8px 24px; }
+  li { margin: 4px 0; }
+  code {
+    background: #1f2733; border: 1px solid var(--line); border-radius: 5px;
+    padding: 1px 7px; font-family: Consolas, monospace; font-size: 13px; color: #9fd8ff;
+  }
+  blockquote {
+    background: var(--panel); border: 1px solid var(--line);
+    border-left: 4px solid var(--warn); border-radius: 10px;
+    padding: 10px 18px; margin: 12px 0;
+  }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 14px; }
+  th, td { border: 1px solid var(--line); padding: 8px 12px; text-align: left; vertical-align: top; }
+  th { background: #1a212d; color: var(--dim); font-weight: 600; }
+  img {
+    max-width: 100%; height: auto; margin: 8px 0;
+    border: 1px solid var(--line); border-radius: 10px;
+  }
+  footer { margin-top: 60px; text-align: center; color: var(--dim); font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Moji<span class="accent">cast</span> テクニカルガイド</h1>
+  <div class="sub">詳しく知りたい人向け — CPU適性・搭載AIモデル・翻訳の経路・診断</div>
+</header>
+<nav class="toc"><b>目次</b><ol><li><a href="#1-cpuと性能">CPUと性能</a></li><li><a href="#2-搭載aiモデル">搭載AIモデル</a></li><li><a href="#3-翻訳の経路">翻訳の経路</a></li><li><a href="#4-診断ツール">診断ツール</a></li></ol></nav>
+<p>仕組みやスペックを詳しく知りたい人向けのページです。
+<strong>普段使いに読む必要はありません</strong> — ふだんの操作は <a href="../マニュアル.html">マニュアル</a> へ。</p>
+<h2 id="1-cpuと性能">1. CPUと性能</h2>
+<h3 id="適性の目安">適性の目安</h3>
+<p>Mojicastの負荷の本体は音声認識のAI推論（int8）で、<strong>CPUの世代によって速さが数倍違います</strong>。
+「コア数」より「世代（対応命令）」が効きます。</p>
+<table>
+<thead>
+<tr>
+<th>適性</th>
+<th>CPU の例</th>
+<th>目安</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>◎ 快適</td>
+<td>AMD Ryzen 7000 / 9000（Zen 4/5）</td>
+<td>余裕。コラボ・翻訳を全部ONでも軽い</td>
+</tr>
+<tr>
+<td>○ 実用</td>
+<td>Intel 12〜14世代 / Core Ultra ／ AVX-512対応の Intel 10〜11世代※</td>
+<td>通常配信は問題なし。コラボで2人とも喋りっぱなしだと負荷高め</td>
+</tr>
+<tr>
+<td>△ 動くが重め</td>
+<td>Intel 8〜10世代（AVX-512非対応モデル） / Ryzen 2000〜5000</td>
+<td>ソロ配信なら実用。軽量化設定を推奨</td>
+</tr>
+<tr>
+<td>✕ 非推奨</td>
+<td>AVX2非対応の古いCPU・N100等の省電力CPU</td>
+<td>標準モデルでは連続発話に追いつかない。多言語モデルなら条件付きで動作（下の実測）</td>
+</tr>
+</tbody>
+</table>
+<p>※ <strong>11世代</strong>（デスクトップ Rocket Lake / ノート Tiger Lake）と<strong>10世代ノート</strong>（Ice Lake）は
+int8 推論専用命令の <strong>AVX-512 VNNI に対応</strong>しており、見た目の世代より速く動きます
+（10世代デスクトップ Comet Lake は非対応なので △）。</p>
+<p>この命令を使えるCPU（Zen 4以降・上記のIntel 10〜11世代）は認識処理が数倍速く走ります。
+Intel 12世代以降ではAVX-512が無効化され、256bit版の AVX-VNNI に置き換わりました（それでも○）。
+CPU使用率は「誰かが喋っている間」だけ上がり、無音の間はほぼゼロです。</p>
+<blockquote>
+<p><strong>実測例</strong>（テスター報告・ソロ配信時）:
+- <strong>Intel Core i7-13700HX</strong>（16コア・○の帯）— 認識中のCPU使用率 33〜40%（翻訳OFF・通常精度）。
+  翻訳ON＋高精度の全部盛りでも 37〜45%。<strong>多言語モデルなら翻訳ON込みで 13〜20%</strong>
+- <strong>Intel N100</strong>（省電力4コア・✕の帯）— 標準モデル（k2）は CPU 90%超に張り付き、連続発話で
+  字幕の遅れが蓄積して実用不可。<strong>多言語モデルなら CPU 80〜90% で概ね追従</strong>
+  （長い文の直後は次の文が遅れるが回復する）。メモリは約1.3GB（ボトルネックはCPU馬力のみ）
+- コラボ（認識2人分）でも、多言語モデルは負荷がほぼ増えないことを実測確認</p>
+</blockquote>
+<h3 id="世代の見方自分のcpuがどれか分からないとき">世代の見方（自分のCPUがどれか分からないとき）</h3>
+<p>自分のCPU名は「設定 → システム → バージョン情報」で見られます。</p>
+<table>
+<thead>
+<tr>
+<th>CPU名の例</th>
+<th>世代の読み方</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Intel Core i9-<strong>11</strong>900 / i5-<strong>10</strong>400</td>
+<td>ハイフンの後ろ、<strong>末尾3桁を除いた数字が世代</strong>（11900→11世代、10400→10世代、8700→8世代）</td>
+</tr>
+<tr>
+<td>Intel Core i7-<strong>11</strong>65G7（ノート）</td>
+<td>同じく先頭2桁が世代（1165G7→11世代。末尾G7はIce Lake/Tiger Lake系＝AVX-512対応の目印）</td>
+</tr>
+<tr>
+<td>Intel Core <strong>Ultra</strong> 7 155H</td>
+<td>「Core Ultra」と付けば新世代（12世代以降相当）で ○</td>
+</tr>
+<tr>
+<td>AMD Ryzen 7 <strong>7</strong>700X（デスクトップ）</td>
+<td>先頭1桁が数字世代。<strong>7</strong>000/<strong>9</strong>000番台なら ◎</td>
+</tr>
+<tr>
+<td>AMD Ryzen 7 78<strong>4</strong>0HS（ノート）</td>
+<td>ノート用は中身が混在。<strong>十の位が4以上</strong>（7640/7840/8840等）なら Zen 4 相当で ◎</td>
+</tr>
+</tbody>
+</table>
+<p>初回起動時の「おすすめ設定」は、この判定をアプリが自動で行って提案しています
+（確信のない型番では何も提案しません）。</p>
+<h3 id="重いときの選択肢効果順">重いときの選択肢（効果順）</h3>
+<ol>
+<li><strong>認識モデルを「多言語」に</strong>（負荷が約1/3。精度はわずかに下がる）</li>
+<li>「高精度」チップをオフ（既定でオフ）</li>
+<li>翻訳チップをオフ</li>
+<li>詳細設定の「一区切りの最長」を8秒に</li>
+<li>コラボ時: 上記1が特に有効（2人分でも負荷がほぼ増えない）</li>
+</ol>
+<h2 id="2-搭載aiモデル">2. 搭載AIモデル</h2>
+<p>すべてローカル動作・初回選択時に自動ダウンロードされます。ライセンスの詳細は
+<a href="https://github.com/ishiki-emo/mojicast/blob/main/CREDITS.md">CREDITS</a> を参照。</p>
+<table>
+<thead>
+<tr>
+<th>役割</th>
+<th>モデル</th>
+<th>DLサイズ</th>
+<th>備考</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>日本語認識（標準）</td>
+<td>ReazonSpeech k2 v2</td>
+<td>約740MB</td>
+<td>最高精度。「認識させる単語」の認識誘導（コンテキストバイアス）対応</td>
+</tr>
+<tr>
+<td>多言語認識</td>
+<td>SenseVoice small</td>
+<td>約240MB</td>
+<td>中・英・日・韓・広東語。句読点・数字正規化を内蔵。非自己回帰型で軽い</td>
+</tr>
+<tr>
+<td>発話区間検出</td>
+<td>Silero VAD</td>
+<td>同梱</td>
+<td>言語非依存</td>
+</tr>
+<tr>
+<td>句読点</td>
+<td>日本語BERT</td>
+<td>約360MB</td>
+<td>標準モデル使用時のみ（多言語モデルは句読点内蔵のため未使用）</td>
+</tr>
+<tr>
+<td>日→英翻訳</td>
+<td>FuguMT</td>
+<td>約120MB</td>
+<td>配信用語の組み込み辞書つき</td>
+</tr>
+<tr>
+<td>多方向翻訳</td>
+<td>M2M-100 418M</td>
+<td>約470MB</td>
+<td>中・日・韓方向。100言語相互翻訳モデル</td>
+</tr>
+</tbody>
+</table>
+<h3 id="多言語モデル選択時の内部動作">多言語モデル選択時の内部動作</h3>
+<ul>
+<li>句読点BERT・漢数字変換は<strong>自動でスキップ</strong>（モデルが句読点と数字正規化を内蔵しているため）。
+  未使用のBERTはメモリからも解放されます</li>
+<li>認識結果のCJK文字間に入る余分な空白は自動除去（英語の空白は保持）</li>
+<li>「認識させる単語」の<strong>認識誘導は効きません</strong>（transducer構造専用の機能のため）。
+  代わりに読み欄→表記の<strong>置換</strong>が全モデル共通で働きます。読み欄は「／」区切りで
+  複数の誤変換形を並記でき、単語の途中に句読点が挟まっても照合されます</li>
+</ul>
+<h2 id="3-翻訳の経路">3. 翻訳の経路</h2>
+<p>翻訳モデルは「認識している言語 × 翻訳先」から自動選択されます
+（AIモデル設定窓に「使用モデル: 〜」として表示）。</p>
+<ul>
+<li><strong>日→英</strong> だけは日英特化の FuguMT、それ以外の方向はすべて M2M-100</li>
+<li>認識言語と翻訳先が同じ組み合わせは翻訳をスキップ</li>
+<li>広東語認識時の翻訳は、書き起こしが中文字であることを利用して<strong>中国語扱い</strong>で翻訳</li>
+<li>韓国語訳はgreedy探索の反復暴走対策として反復ペナルティを自動適用（それでも品質は発展途上のため「試験的」表記）</li>
+<li>翻訳は認識とは別スレッドで動くため、翻訳が遅れても字幕本体は詰まりません</li>
+</ul>
+<h2 id="4-診断ツール">4. 診断ツール</h2>
+<table>
+<thead>
+<tr>
+<th>ツール</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>http://localhost:8765/api/perf</code></td>
+<td>認識処理の回数・平均所要時間(ms)。重さの切り分けに</td>
+</tr>
+<tr>
+<td><code>logs\load_error.log</code></td>
+<td>句読点・翻訳モデルのロード失敗の詳細（報告時に添付を）</td>
+</tr>
+<tr>
+<td><code>translate_error.log</code></td>
+<td>翻訳の実行時エラーの詳細</td>
+</tr>
+<tr>
+<td><code>logs\日付\*.log</code></td>
+<td>文字起こしログ（マニュアル8章参照）</td>
+</tr>
+</tbody>
+</table>
+<footer>Mojicast — このHTMLは docs/TECH_GUIDE.md から生成されています</footer>
+</div>
+</body>
+</html>

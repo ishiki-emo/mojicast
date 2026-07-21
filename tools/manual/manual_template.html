@@ -103,7 +103,7 @@
   <b>目次</b>
   <ol>
     <li><a href="#start">はじめに・起動方法</a></li>
-    <li><a href="#env">動作環境と CPU の目安</a></li>
+    <li><a href="#env">動作環境</a></li>
     <li><a href="#cockpit">コックピット（メイン画面）</a></li>
     <li><a href="#obs">OBS に字幕を出す</a></li>
     <li><a href="#studio">スタジオ（見た目のカスタマイズと単語登録）</a></li>
@@ -134,7 +134,8 @@
     <tr><td>作ったスタイルを配りたい・もらいたい</td><td>mojipack — <a href="#studio">5章 スタジオ</a> / <a href="ガイド/スタイルガイド.html">スタイルガイド.html</a></td></tr>
     <tr><td>配信後の文字起こしが欲しい</td><td>ログ保存 — <a href="#files">8章 フォルダとアップデート</a></td></tr>
     <tr><td>設定をバックアップしたい</td><td><code>data\</code> をコピーするだけ — <a href="#files">8章</a></td></tr>
-    <tr><td>動作が重い</td><td><a href="#env">2章 動作環境と CPU の目安</a></td></tr>
+    <tr><td>動作が重い</td><td><a href="#trouble">9章 困ったときは</a>（認識モデルを「多言語」にすると約1/3に）</td></tr>
+    <tr><td>仕組みやスペックを詳しく知りたい</td><td>同梱の <a href="ガイド/テクニカルガイド.html">テクニカルガイド.html</a></td></tr>
     <tr><td>うまく動かない</td><td><a href="#trouble">9章 困ったときは</a></td></tr>
   </table>
   </div>
@@ -179,75 +180,26 @@
 
 <!-- ============================================================ -->
 <section id="env">
-  <h2><span class="no">2</span>動作環境と CPU の目安</h2>
+  <h2><span class="no">2</span>動作環境</h2>
   <div class="overflow">
   <table>
-    <tr><th></th><th>最低</th><th>推奨</th></tr>
-    <tr><td>OS</td><td>Windows 10 2004 以降（64bit）</td><td>Windows 11</td></tr>
-    <tr><td>CPU</td><td>4コア8スレッド・AVX2対応<br>（2017年以降の Core i5 / Ryzen 5 相当）</td><td>下の適性表で ◎〜○ のCPU</td></tr>
-    <tr><td>メモリ</td><td>8GB<br><span class="dim">（英訳ON時、本アプリが約2GB使用）</span></td><td>16GB</td></tr>
-    <tr><td>ストレージ</td><td>空き5GB</td><td>SSD</td></tr>
-    <tr><td>その他</td><td colspan="2">マイク / WebView2ランタイム（Win11標準搭載） / 初回のみネット接続（モデルDL）</td></tr>
+    <tr><th></th><th>目安</th></tr>
+    <tr><td>OS</td><td>Windows 10（2020年以降のアップデート適用）/ Windows 11</td></tr>
+    <tr><td>PC</td><td><b>2017年以降の一般的なPC</b>なら動きます。新しいほど快適</td></tr>
+    <tr><td>メモリ</td><td>8GB以上（16GB推奨）</td></tr>
+    <tr><td>ストレージ</td><td>空き5GB</td></tr>
+    <tr><td>その他</td><td>マイク / WebView2ランタイム（Win11標準搭載） / 初回のみネット接続（AIの部品を自動DL）</td></tr>
   </table>
   </div>
-
-  <h3>CPU の向き・不向き</h3>
-  <p>Mojicast の負荷の本体は音声認識のAI推論（int8）で、<b>CPUの世代によって速さが数倍違います</b>。
-     「コア数」より「世代（対応命令）」が効きます。</p>
-  <div class="overflow">
-  <table>
-    <tr><th>適性</th><th>CPU の例</th><th>目安</th></tr>
-    <tr><td><span class="rank r1">◎ 快適</span></td>
-        <td>AMD Ryzen 7000 / 9000 シリーズ（Zen 4/5）</td>
-        <td>余裕。コラボ・英訳を全部ONでも軽い</td></tr>
-    <tr><td><span class="rank r2">○ 実用</span></td>
-        <td>Intel 12〜14世代 / Core Ultra ／ AVX-512対応の Intel 10〜11世代※</td>
-        <td>通常配信は問題なし。コラボで2人とも喋りっぱなしだと負荷高め</td></tr>
-    <tr><td><span class="rank r3">△ 動くが重め</span></td>
-        <td>Intel 8〜10世代（AVX-512非対応モデル） / Ryzen 2000〜5000</td>
-        <td>ソロ配信なら実用。「重いときは」（<a style="color:var(--acc)" href="#trouble">9章</a>）の軽量化設定を推奨</td></tr>
-    <tr><td><span class="rank r4">✕ 非推奨</span></td>
-        <td>AVX2非対応の古いCPU（2013年以前）・N100等の省電力CPU</td>
-        <td>標準モデルでは連続発話に追いつかず字幕の遅れが溜まります。認識モデルを「多言語」にすると条件付きで動作（下の実測）</td></tr>
-  </table>
-  </div>
-  <p class="dim">※ <b>11世代</b>（デスクトップ Rocket Lake / ノート Tiger Lake）と<b>10世代ノート</b>（Ice Lake）は
-     int8推論専用命令の <b>AVX-512 VNNI に対応</b>しており、見た目の世代より速く動きます
-     （10世代デスクトップ Comet Lake は非対応なので △）。</p>
-  <p class="dim">理由: AVX-512 VNNI を使えるCPU（Zen 4以降・上記のIntel 10〜11世代）は認識処理が数倍速く走ります。
-     Intel 12世代以降ではAVX-512が無効化され、256bit版の AVX-VNNI に置き換わりました（それでも○）。
-     CPU使用率は「誰かが喋っている間」だけ上がり、無音の間はほぼゼロです。</p>
-
-  <div class="card ok"><b class="tag">実測例（テスター報告・ソロ配信時）</b>
-    <b>Intel Core i7-13700HX</b>（16コア・○の帯）— 認識中のCPU使用率 33〜40%（英訳OFF・通常精度）。
-    英訳ON＋高精度の全部盛りでも 37〜45% と、+5%前後の上乗せで収まる。
-    <b>認識モデルを「多言語」にすると翻訳ON込みで 13〜20%</b>（精度と引き換えの軽量モードとしても使える）。<br>
-    <b>Intel N100</b>（省電力4コア・✕の帯）— 標準モデル（k2）は CPU 90%超に張り付き、連続発話で字幕の遅れが
-    蓄積して実用不可。<b>認識モデルを「多言語」にすると CPU 80〜90% で概ね追従</b>（長い文の直後は次の文が
-    遅れるが回復する）。精度と引き換えの低スペック救済ルートとして条件付きで動作。メモリは約1.3GB。</div>
-
-  <h3>世代の見方（自分のCPUがどれか分からないとき）</h3>
-  <p>自分のCPU名は「設定 → システム → バージョン情報」で見られます。</p>
-  <div class="overflow">
-  <table>
-    <tr><th>CPU名の例</th><th>世代の読み方</th></tr>
-    <tr><td>Intel Core i9-<b>11</b>900 / i5-<b>10</b>400</td>
-        <td>ハイフンの後ろ、<b>末尾3桁を除いた数字が世代</b>（11900→11世代、10400→10世代、8700→8世代）</td></tr>
-    <tr><td>Intel Core i7-<b>11</b>65G7（ノート）</td>
-        <td>同じく先頭2桁が世代（1165G7→11世代。末尾G7は Ice Lake / Tiger Lake 系＝AVX-512対応の目印）</td></tr>
-    <tr><td>Intel Core <b>Ultra</b> 7 155H</td>
-        <td>「Core Ultra」と付けば新世代（12世代以降相当）で ○</td></tr>
-    <tr><td>AMD Ryzen 7 <b>7</b>700X（デスクトップ）</td>
-        <td>先頭1桁が数字世代。<b>7</b>000 / <b>9</b>000番台なら ◎</td></tr>
-    <tr><td>AMD Ryzen 7 78<b>4</b>0HS（ノート）</td>
-        <td>ノート用は中身が混在。<b>十の位が4以上</b>（7640 / 7840 / 8840 等）なら Zen 4 相当で ◎</td></tr>
-  </table>
-  </div>
-
+  <ul>
+    <li><b>初回起動時に、あなたのPCに合わせた「おすすめ設定」をアプリが提案します</b>（適用するかは自由）</li>
+    <li>使ってみて重いと感じたら →「困ったときは」（<a style="color:var(--acc)" href="#trouble">9章</a>）。ワンクリックで軽くできます</li>
+  </ul>
   <div class="card"><b class="tag">配信との同時利用</b>
     OBSの映像エンコードは<b>GPUエンコード（NVENC / AMF）推奨</b>。Mojicast はGPUをほぼ使わないため、
-    ゲーム・Live2D・OBSとはCPU/GPUの棲み分けができます。
-    x264（CPUエンコード）と併用する場合は ◎〜○ のCPUでお使いください。</div>
+    ゲーム・Live2D・OBSとはCPU/GPUの棲み分けができます。</div>
+  <p class="dim">CPU世代ごとの詳しい適性表・実測データ・世代の見方は、同梱の
+    <a href="ガイド/テクニカルガイド.html"><b>テクニカルガイド.html</b></a> へ。</p>
 </section>
 
 <!-- ============================================================ -->
@@ -301,7 +253,8 @@
     ①中国語・英語など日本語以外の配信 ②低スペック機で標準モデルが重すぎるときの救済、の2つ。
     多言語モデルでは「認識させる単語」の認識誘導が効かないため、固有名詞の誤変換は
     読み欄への登録（置換）で直します。日本語の精度は日本語特化のほうが上です。
-    初回選択時にモデル（約240MB）を自動DLします。</div>
+    初回選択時にモデル（約240MB）を自動DLします。
+    モデルの中身や内部動作を知りたい方は <a style="color:var(--acc)" href="ガイド/テクニカルガイド.html">テクニカルガイド.html</a> へ。</div>
 
   <h3>字幕ログ上のチップ（字幕処理のオン・オフ）</h3>
   <img class="shot mid" src="{{IMG:cockpit_chips}}" alt="字幕処理チップ">
@@ -461,8 +414,9 @@
   <div class="card warn"><b class="tag">ヘッドホン必須</b>
     スピーカーで聞くと、相手の声をマイクが拾って<b>二重に字幕化</b>されます。コラボ中は必ずヘッドホン・イヤホンで。</div>
   <div class="card"><b class="tag">負荷について</b>
-    コラボ中は認識が2人分になるため、CPU負荷は最大で通常の約2倍になります（2章の適性表で ○ 以上を推奨）。
-    重い場合は認識モデルを「多言語」にするのも有効（<b>2人分でも負荷がほぼ増えないことを実測確認</b>。精度は少し下がります）。
+    コラボ中は認識が2人分になるため、PCによっては重くなります。
+    重い場合は認識モデルを「多言語」にするのが効果的（<b>2人分でも負荷がほぼ増えません</b>。精度は少し下がります）。
+    詳しい実測データは <a href="ガイド/テクニカルガイド.html">テクニカルガイド.html</a> へ。
     重い場合は「高精度」チップをオフ、英訳をオフ、「一区切りの最長」を8秒程度に。</div>
 </section>
 
@@ -516,9 +470,10 @@
   <div class="overflow">
   <table>
     <tr><th>症状</th><th>対処</th></tr>
-    <tr><td>動作が重い</td><td>①「高精度」チップをオフ（効果大） ② 使わないなら「英訳」をオフ
-        ③ 詳細設定の「一区切りの最長」を8秒程度に ④ 2章のCPU適性を確認。
-        CPU使用率が上がるのは「誰かが喋っている間」だけです</td></tr>
+    <tr><td>動作が重い</td><td>① 認識モデルを「多言語」に（負荷が約1/3・精度は少し下がる。右カラムの「AIモデル」から）
+        ②「高精度」チップをオフ ③ 使わないなら翻訳をオフ ④ 詳細設定の「一区切りの最長」を8秒程度に。
+        CPU使用率が上がるのは「誰かが喋っている間」だけです。詳しくは
+        <a style="color:var(--acc)" href="ガイド/テクニカルガイド.html">テクニカルガイド.html</a></td></tr>
     <tr><td>画面が真っ白</td><td>「Microsoft Edge WebView2 ランタイム」をインストール（Web検索で公式Microsoftサイトから）。Windows 11 では通常発生しません</td></tr>
     <tr><td>「ポート ○○ は使用中」</td><td>アプリが既に起動しています。タスクトレイやタスクマネージャーで確認して二重起動を解消。
         別アプリとの衝突ならコックピットの「OBS連携 → ポート」で変更（次回起動時反映・OBS側のURLも更新）</td></tr>

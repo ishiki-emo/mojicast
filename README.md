@@ -36,7 +36,7 @@ _A fully-offline real-time captioning app for live streaming: Japanese speech re
 | 作ったスタイルを配りたい・もらいたい | mojipack — [スタイルガイド 7章](docs/STYLE_GUIDE.md#7-書き出し取り込みmojipack-みんなで使おう) |
 | 配信後の文字起こしが欲しい | ログ保存 — [マニュアル 8章](docs/MANUAL.md#8-フォルダとアップデート) |
 | 設定をバックアップしたい | `data\` をコピーするだけ — [マニュアル 8章](docs/MANUAL.md#8-フォルダとアップデート) |
-| 動作が重い | [マニュアル 2章](docs/MANUAL.md#2-動作環境と-cpu-の目安) |
+| 動作が重い | 認識モデルを「多言語」に（負荷約1/3）— [マニュアル 9章](docs/MANUAL.md#9-困ったときは) / [テクニカルガイド](docs/TECH_GUIDE.md) |
 | うまく動かない | [マニュアル 9章](docs/MANUAL.md#9-困ったときは) |
 
 ## 特長
@@ -88,7 +88,7 @@ _A fully-offline real-time captioning app for live streaming: Japanese speech re
 | ストレージ | 空き5GB | SSD |
 
 負荷の本体は int8 の ONNX 推論のため、コア数より **CPU の世代**（AVX-512 VNNI / AVX-VNNI 対応）が
-効きます。世代別の適性表は [docs/MANUAL.md](docs/MANUAL.md) を参照。
+効きます。世代別の適性表・実測データは [docs/TECH_GUIDE.md](docs/TECH_GUIDE.md) を参照。
 ほか: マイク / WebView2（Win11標準搭載） / 初回のみネット接続（モデル約1.2GB DL）。
 OBS併用時はGPUエンコード（NVENC / AMF）推奨。開発には Python 3.11。
 

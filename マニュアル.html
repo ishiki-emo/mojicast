@@ -103,7 +103,7 @@
   <b>目次</b>
   <ol>
     <li><a href="#start">はじめに・起動方法</a></li>
-    <li><a href="#env">動作環境と CPU の目安</a></li>
+    <li><a href="#env">動作環境</a></li>
     <li><a href="#cockpit">コックピット（メイン画面）</a></li>
     <li><a href="#obs">OBS に字幕を出す</a></li>
     <li><a href="#studio">スタジオ（見た目のカスタマイズと単語登録）</a></li>
@@ -134,7 +134,8 @@
     <tr><td>作ったスタイルを配りたい・もらいたい</td><td>mojipack — <a href="#studio">5章 スタジオ</a> / <a href="ガイド/スタイルガイド.html">スタイルガイド.html</a></td></tr>
     <tr><td>配信後の文字起こしが欲しい</td><td>ログ保存 — <a href="#files">8章 フォルダとアップデート</a></td></tr>
     <tr><td>設定をバックアップしたい</td><td><code>data\</code> をコピーするだけ — <a href="#files">8章</a></td></tr>
-    <tr><td>動作が重い</td><td><a href="#env">2章 動作環境と CPU の目安</a></td></tr>
+    <tr><td>動作が重い</td><td><a href="#trouble">9章 困ったときは</a>（認識モデルを「多言語」にすると約1/3に）</td></tr>
+    <tr><td>仕組みやスペックを詳しく知りたい</td><td>同梱の <a href="ガイド/テクニカルガイド.html">テクニカルガイド.html</a></td></tr>
     <tr><td>うまく動かない</td><td><a href="#trouble">9章 困ったときは</a></td></tr>
   </table>
   </div>
@@ -179,75 +180,26 @@
 
 <!-- ============================================================ -->
 <section id="env">
-  <h2><span class="no">2</span>動作環境と CPU の目安</h2>
+  <h2><span class="no">2</span>動作環境</h2>
   <div class="overflow">
   <table>
-    <tr><th></th><th>最低</th><th>推奨</th></tr>
-    <tr><td>OS</td><td>Windows 10 2004 以降（64bit）</td><td>Windows 11</td></tr>
-    <tr><td>CPU</td><td>4コア8スレッド・AVX2対応<br>（2017年以降の Core i5 / Ryzen 5 相当）</td><td>下の適性表で ◎〜○ のCPU</td></tr>
-    <tr><td>メモリ</td><td>8GB<br><span class="dim">（英訳ON時、本アプリが約2GB使用）</span></td><td>16GB</td></tr>
-    <tr><td>ストレージ</td><td>空き5GB</td><td>SSD</td></tr>
-    <tr><td>その他</td><td colspan="2">マイク / WebView2ランタイム（Win11標準搭載） / 初回のみネット接続（モデルDL）</td></tr>
+    <tr><th></th><th>目安</th></tr>
+    <tr><td>OS</td><td>Windows 10（2020年以降のアップデート適用）/ Windows 11</td></tr>
+    <tr><td>PC</td><td><b>2017年以降の一般的なPC</b>なら動きます。新しいほど快適</td></tr>
+    <tr><td>メモリ</td><td>8GB以上（16GB推奨）</td></tr>
+    <tr><td>ストレージ</td><td>空き5GB</td></tr>
+    <tr><td>その他</td><td>マイク / WebView2ランタイム（Win11標準搭載） / 初回のみネット接続（AIの部品を自動DL）</td></tr>
   </table>
   </div>
-
-  <h3>CPU の向き・不向き</h3>
-  <p>Mojicast の負荷の本体は音声認識のAI推論（int8）で、<b>CPUの世代によって速さが数倍違います</b>。
-     「コア数」より「世代（対応命令）」が効きます。</p>
-  <div class="overflow">
-  <table>
-    <tr><th>適性</th><th>CPU の例</th><th>目安</th></tr>
-    <tr><td><span class="rank r1">◎ 快適</span></td>
-        <td>AMD Ryzen 7000 / 9000 シリーズ（Zen 4/5）</td>
-        <td>余裕。コラボ・英訳を全部ONでも軽い</td></tr>
-    <tr><td><span class="rank r2">○ 実用</span></td>
-        <td>Intel 12〜14世代 / Core Ultra ／ AVX-512対応の Intel 10〜11世代※</td>
-        <td>通常配信は問題なし。コラボで2人とも喋りっぱなしだと負荷高め</td></tr>
-    <tr><td><span class="rank r3">△ 動くが重め</span></td>
-        <td>Intel 8〜10世代（AVX-512非対応モデル） / Ryzen 2000〜5000</td>
-        <td>ソロ配信なら実用。「重いときは」（<a style="color:var(--acc)" href="#trouble">9章</a>）の軽量化設定を推奨</td></tr>
-    <tr><td><span class="rank r4">✕ 非推奨</span></td>
-        <td>AVX2非対応の古いCPU（2013年以前）・N100等の省電力CPU</td>
-        <td>標準モデルでは連続発話に追いつかず字幕の遅れが溜まります。認識モデルを「多言語」にすると条件付きで動作（下の実測）</td></tr>
-  </table>
-  </div>
-  <p class="dim">※ <b>11世代</b>（デスクトップ Rocket Lake / ノート Tiger Lake）と<b>10世代ノート</b>（Ice Lake）は
-     int8推論専用命令の <b>AVX-512 VNNI に対応</b>しており、見た目の世代より速く動きます
-     （10世代デスクトップ Comet Lake は非対応なので △）。</p>
-  <p class="dim">理由: AVX-512 VNNI を使えるCPU（Zen 4以降・上記のIntel 10〜11世代）は認識処理が数倍速く走ります。
-     Intel 12世代以降ではAVX-512が無効化され、256bit版の AVX-VNNI に置き換わりました（それでも○）。
-     CPU使用率は「誰かが喋っている間」だけ上がり、無音の間はほぼゼロです。</p>
-
-  <div class="card ok"><b class="tag">実測例（テスター報告・ソロ配信時）</b>
-    <b>Intel Core i7-13700HX</b>（16コア・○の帯）— 認識中のCPU使用率 33〜40%（英訳OFF・通常精度）。
-    英訳ON＋高精度の全部盛りでも 37〜45% と、+5%前後の上乗せで収まる。
-    <b>認識モデルを「多言語」にすると翻訳ON込みで 13〜20%</b>（精度と引き換えの軽量モードとしても使える）。<br>
-    <b>Intel N100</b>（省電力4コア・✕の帯）— 標準モデル（k2）は CPU 90%超に張り付き、連続発話で字幕の遅れが
-    蓄積して実用不可。<b>認識モデルを「多言語」にすると CPU 80〜90% で概ね追従</b>（長い文の直後は次の文が
-    遅れるが回復する）。精度と引き換えの低スペック救済ルートとして条件付きで動作。メモリは約1.3GB。</div>
-
-  <h3>世代の見方（自分のCPUがどれか分からないとき）</h3>
-  <p>自分のCPU名は「設定 → システム → バージョン情報」で見られます。</p>
-  <div class="overflow">
-  <table>
-    <tr><th>CPU名の例</th><th>世代の読み方</th></tr>
-    <tr><td>Intel Core i9-<b>11</b>900 / i5-<b>10</b>400</td>
-        <td>ハイフンの後ろ、<b>末尾3桁を除いた数字が世代</b>（11900→11世代、10400→10世代、8700→8世代）</td></tr>
-    <tr><td>Intel Core i7-<b>11</b>65G7（ノート）</td>
-        <td>同じく先頭2桁が世代（1165G7→11世代。末尾G7は Ice Lake / Tiger Lake 系＝AVX-512対応の目印）</td></tr>
-    <tr><td>Intel Core <b>Ultra</b> 7 155H</td>
-        <td>「Core Ultra」と付けば新世代（12世代以降相当）で ○</td></tr>
-    <tr><td>AMD Ryzen 7 <b>7</b>700X（デスクトップ）</td>
-        <td>先頭1桁が数字世代。<b>7</b>000 / <b>9</b>000番台なら ◎</td></tr>
-    <tr><td>AMD Ryzen 7 78<b>4</b>0HS（ノート）</td>
-        <td>ノート用は中身が混在。<b>十の位が4以上</b>（7640 / 7840 / 8840 等）なら Zen 4 相当で ◎</td></tr>
-  </table>
-  </div>
-
+  <ul>
+    <li><b>初回起動時に、あなたのPCに合わせた「おすすめ設定」をアプリが提案します</b>（適用するかは自由）</li>
+    <li>使ってみて重いと感じたら →「困ったときは」（<a style="color:var(--acc)" href="#trouble">9章</a>）。ワンクリックで軽くできます</li>
+  </ul>
   <div class="card"><b class="tag">配信との同時利用</b>
     OBSの映像エンコードは<b>GPUエンコード（NVENC / AMF）推奨</b>。Mojicast はGPUをほぼ使わないため、
-    ゲーム・Live2D・OBSとはCPU/GPUの棲み分けができます。
-    x264（CPUエンコード）と併用する場合は ◎〜○ のCPUでお使いください。</div>
+    ゲーム・Live2D・OBSとはCPU/GPUの棲み分けができます。</div>
+  <p class="dim">CPU世代ごとの詳しい適性表・実測データ・世代の見方は、同梱の
+    <a href="ガイド/テクニカルガイド.html"><b>テクニカルガイド.html</b></a> へ。</p>
 </section>
 
 <!-- ============================================================ -->
@@ -301,7 +253,8 @@
     ①中国語・英語など日本語以外の配信 ②低スペック機で標準モデルが重すぎるときの救済、の2つ。
     多言語モデルでは「認識させる単語」の認識誘導が効かないため、固有名詞の誤変換は
     読み欄への登録（置換）で直します。日本語の精度は日本語特化のほうが上です。
-    初回選択時にモデル（約240MB）を自動DLします。</div>
+    初回選択時にモデル（約240MB）を自動DLします。
+    モデルの中身や内部動作を知りたい方は <a style="color:var(--acc)" href="ガイド/テクニカルガイド.html">テクニカルガイド.html</a> へ。</div>
 
   <h3>字幕ログ上のチップ（字幕処理のオン・オフ）</h3>
   <img class="shot mid" src="data:image/png;base64,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" alt="字幕処理チップ">
@@ -461,8 +414,9 @@
   <div class="card warn"><b class="tag">ヘッドホン必須</b>
     スピーカーで聞くと、相手の声をマイクが拾って<b>二重に字幕化</b>されます。コラボ中は必ずヘッドホン・イヤホンで。</div>
   <div class="card"><b class="tag">負荷について</b>
-    コラボ中は認識が2人分になるため、CPU負荷は最大で通常の約2倍になります（2章の適性表で ○ 以上を推奨）。
-    重い場合は認識モデルを「多言語」にするのも有効（<b>2人分でも負荷がほぼ増えないことを実測確認</b>。精度は少し下がります）。
+    コラボ中は認識が2人分になるため、PCによっては重くなります。
+    重い場合は認識モデルを「多言語」にするのが効果的（<b>2人分でも負荷がほぼ増えません</b>。精度は少し下がります）。
+    詳しい実測データは <a href="ガイド/テクニカルガイド.html">テクニカルガイド.html</a> へ。
     重い場合は「高精度」チップをオフ、英訳をオフ、「一区切りの最長」を8秒程度に。</div>
 </section>
 
@@ -516,9 +470,10 @@
   <div class="overflow">
   <table>
     <tr><th>症状</th><th>対処</th></tr>
-    <tr><td>動作が重い</td><td>①「高精度」チップをオフ（効果大） ② 使わないなら「英訳」をオフ
-        ③ 詳細設定の「一区切りの最長」を8秒程度に ④ 2章のCPU適性を確認。
-        CPU使用率が上がるのは「誰かが喋っている間」だけです</td></tr>
+    <tr><td>動作が重い</td><td>① 認識モデルを「多言語」に（負荷が約1/3・精度は少し下がる。右カラムの「AIモデル」から）
+        ②「高精度」チップをオフ ③ 使わないなら翻訳をオフ ④ 詳細設定の「一区切りの最長」を8秒程度に。
+        CPU使用率が上がるのは「誰かが喋っている間」だけです。詳しくは
+        <a style="color:var(--acc)" href="ガイド/テクニカルガイド.html">テクニカルガイド.html</a></td></tr>
     <tr><td>画面が真っ白</td><td>「Microsoft Edge WebView2 ランタイム」をインストール（Web検索で公式Microsoftサイトから）。Windows 11 では通常発生しません</td></tr>
     <tr><td>「ポート ○○ は使用中」</td><td>アプリが既に起動しています。タスクトレイやタスクマネージャーで確認して二重起動を解消。
         別アプリとの衝突ならコックピットの「OBS連携 → ポート」で変更（次回起動時反映・OBS側のURLも更新）</td></tr>

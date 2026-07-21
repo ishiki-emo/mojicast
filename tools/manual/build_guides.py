@@ -27,13 +27,18 @@ GUIDES = [
      "自分だけの字幕デザインを作る — 目安とコツ集"),
     ("EFFECT_GUIDE.md", "エフェクトガイド.html", "エフェクトガイド",
      "単語単位の演出を作る — アニメ13種・パーティクル6種"),
+    ("TECH_GUIDE.md", "テクニカルガイド.html", "テクニカルガイド",
+     "詳しく知りたい人向け — CPU適性・搭載AIモデル・翻訳の経路・診断"),
 ]
 
 # .md 間の相互リンク → 同梱HTMLのパスへ（ガイド同士は同フォルダ、マニュアルは1つ上）
 LINK_MAP = {
     "STYLE_GUIDE.md": "スタイルガイド.html",
     "EFFECT_GUIDE.md": "エフェクトガイド.html",
+    "TECH_GUIDE.md": "テクニカルガイド.html",
     "MANUAL.md": "../マニュアル.html",
+    # リポジトリ外のファイルはGitHubへ（CREDITSは配布物に含まれないため）
+    "../CREDITS.md": "https://github.com/ishiki-emo/mojicast/blob/main/CREDITS.md",
 }
 
 CSS = """
