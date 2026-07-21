@@ -27,6 +27,7 @@ DEFAULT_CONFIG = {
     "device": None, "precision": "int8-fp32", "punctuate": True,
     "use_hotwords": True, "hotwords_score": 2.0, "translate": False,
     "save_log": True, "mask_char": "○", "num_arabic": True,
+    "word_fx": True,        # 単語エフェクトの表示（OFFでも認識誘導・置換は有効）
     "preset": "standard", "box": "none", "port": 8765,
     "word_profile": "",     # 使用中の単語プロファイル（"" = 共通のみ）
     "theme": "dark",        # GUI窓のテーマ（dark / light）。overlayは対象外
@@ -193,8 +194,13 @@ def resolve_style(cfg):
     style = _pick(presets, "id", cfg.get("preset"))
     box = _pick(boxes, "id", cfg.get("box"))
     profile = cfg.get("word_profile", "")
-    effects = wordstore.merged_effects(profile)
-    hot_surfaces = [s for s, _r, _sc in wordstore.merged_hotwords(profile)]
+    # 単語エフェクトOFF時は表示用の装飾情報だけ空にする（描画側が全ペインで
+    # プレーン表示になる）。認識誘導・単語置換・伏せ字はエンジン側の経路なので影響しない
+    if cfg.get("word_fx", True):
+        effects = wordstore.merged_effects(profile)
+        hot_surfaces = [s for s, _r, _sc in wordstore.merged_hotwords(profile)]
+    else:
+        effects, hot_surfaces = [], []
     out = {"style": style, "box": box, "effects": effects,
            "hotwords": hot_surfaces}
     if cfg.get("collab"):
