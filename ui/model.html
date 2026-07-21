@@ -55,6 +55,12 @@
   }
   .hint { color: var(--dim); font-size: 11px; margin-top: 5px; line-height: 1.6; }
   .hint.warn { color: var(--warn); }
+  .warnbar {
+    margin-bottom: 12px; padding: 9px 12px; border-radius: 8px; font-size: 12px;
+    color: var(--warn); font-weight: 700; line-height: 1.6;
+    border: 1px solid color-mix(in srgb, var(--warn) 50%, transparent);
+    background: color-mix(in srgb, var(--warn) 9%, transparent);
+  }
   .route {
     margin-top: 8px; padding: 8px 10px; border-radius: 8px;
     background: var(--panel2); border: 1px solid var(--line);
@@ -76,6 +82,10 @@
   </header>
 
   <main>
+    <div class="warnbar" id="runWarn" style="display:none">
+      ⚠ 認識が動作中です。ここでの変更は<b>「■ 停止 → ▶ 開始」で反映</b>されます
+      （コックピットに出る黄色いバーの「今すぐ反映」からも再起動できます）
+    </div>
     <div class="sec">
       <h2>🎙 認識モデル</h2>
       <div class="row">
@@ -178,9 +188,20 @@
     save({ translate_lang: $("transLang").value }); sync();
   });
 
+  // 認識が動作中なら「停止→開始で反映」の警告を出す（保存のたびに再確認）
+  async function checkRunning() {
+    try {
+      const st = await api("/api/status");
+      $("runWarn").style.display = st.state === "running" ? "" : "none";
+    } catch (e) {}
+  }
+  for (const id of ["asrModel", "asrLang", "transLang"])
+    $(id).addEventListener("change", checkRunning);
+
   (async () => {
     cfg = await api("/api/config");
     sync();
+    checkRunning();
   })();
 </script>
 </body>

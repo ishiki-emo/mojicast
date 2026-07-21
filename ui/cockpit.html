@@ -135,6 +135,16 @@
   .mon-head .rec { color: var(--err); font-size: 11px; letter-spacing: .15em; opacity: 0; }
   .mon-head .rec.on { opacity: 1; animation: blink 1.2s infinite; }
   #centerPanel { display: flex; flex-direction: column; }
+  /* 次回反映の警告バー（動作中に設定を変えたとき。再起動ボタンつき） */
+  #restartHint { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin-top: 10px; padding: 8px 12px; border-radius: 8px; font-size: 12px;
+    color: var(--warn); font-weight: 700;
+    border: 1px solid color-mix(in srgb, var(--warn) 50%, transparent);
+    background: color-mix(in srgb, var(--warn) 9%, transparent); }
+  #restartHint button { margin-left: auto; font-family: inherit; font-size: 12px;
+    font-weight: 700; padding: 4px 12px; border-radius: 7px; cursor: pointer;
+    border: 1px solid var(--warn); background: var(--warn); color: #221600; }
+  #restartHint button:disabled { opacity: .5; cursor: wait; }
   /* 初回のおすすめ設定バナー（環境検出→ユーザーの了解で適用） */
   #suggestBar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
     margin-bottom: 8px; padding: 8px 12px; border-radius: 8px; font-size: 12px;
@@ -305,7 +315,10 @@
             </div>
           </div>
         </div>
-        <div class="hint" id="restartHint" style="display:none">⚠ 設定変更は次回開始時に反映</div>
+        <div id="restartHint" style="display:none">
+          <span>⚠ 変更は次の ▶開始 から反映されます</span>
+          <button id="restartNow" onclick="restartEngine()">⏹→▶ 今すぐ反映（再起動）</button>
+        </div>
       </section>
 
       <!-- 字幕モニタ -->
@@ -450,7 +463,7 @@
 
   const saveCfg = debounce(async () => {
     await api("/api/config", cfg);
-    if (running) $("restartHint").style.display = "block";
+    if (running) $("restartHint").style.display = "";
   }, 400);
 
   function debounce(fn, ms) {
@@ -737,8 +750,18 @@
         (v, silent) => { cfg.guest_preset = v; if (!silent) api("/api/config", { guest_preset: v }); }));
   }
 
+  // 反映に再起動（停止→開始）が必要な設定キー。別窓（モデル/コラボ等）での
+  // 変更もSSE経由でここを通るので、変化を見つけたら警告バーを出す
+  const RESTART_KEYS = ["asr_model", "asr_lang", "translate_lang", "precision",
+    "device", "silence_ms", "interval", "max_utt", "hotwords_score",
+    "use_hotwords", "word_profile", "collab", "collab_source",
+    "collab_process", "collab_device", "self_name", "guest_name"];
+
   async function refreshPresets() {   // スタイル/単語/コラボ/モデル窓での保存を反映
+    const prev = cfg;
     cfg = await api("/api/config");
+    if (running && RESTART_KEYS.some(k => prev[k] !== cfg[k]))
+      $("restartHint").style.display = "";
     await loadWordProfiles();
     presets = (await api("/api/presets")).presets || [];
     boxes = (await api("/api/boxes")).boxes || [];
@@ -797,6 +820,20 @@
     $("btnEngine").disabled = true;
     await api("/api/engine", { action: running ? "stop" : "start" });
     setTimeout(() => { $("btnEngine").disabled = false; }, 800);
+  }
+
+  // 「今すぐ反映」= 停止→開始（変更した設定でロードし直す）
+  async function restartEngine() {
+    const b = $("restartNow");
+    b.disabled = true;
+    $("btnEngine").disabled = true;
+    try {
+      await api("/api/engine", { action: "stop" });
+      await api("/api/engine", { action: "start" });
+    } finally {
+      b.disabled = false;
+      setTimeout(() => { $("btnEngine").disabled = false; }, 800);
+    }
   }
 
   function setState(state, detail) {
