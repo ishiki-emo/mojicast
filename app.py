@@ -67,6 +67,10 @@ class JsApi:
         """1対1コラボの設定窓を開く（コックピットを散らかさない別窓）"""
         self._open("collab", "コラボ設定", "/ui/collab", 560, 720)
 
+    def open_model(self):
+        """AIモデル設定窓（認識モデル・翻訳先）を開く"""
+        self._open("model", "AIモデル設定", "/ui/model", 560, 620)
+
     # 後方互換: 旧エントリはすべて統合スタジオへ委譲
     def open_words(self):
         self.open_studio("tab=words")

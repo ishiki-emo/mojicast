@@ -88,11 +88,6 @@
   .adv.open { display: block; }
   .advgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px 18px; }
   .advgrid .row { margin-bottom: 0; }
-  /* 詳細設定内のグループ見出し（グリッド全幅・スタジオの.fsecと同じ流儀） */
-  .advsec { grid-column: 1 / -1; font-size: 11px; font-weight: 800; letter-spacing: .12em;
-    color: var(--accent); border-bottom: 1px solid var(--line); padding-bottom: 4px; margin-top: 4px; }
-  .advsec:first-child { margin-top: 0; }
-  .advgrid .wide { grid-column: 1 / -1; }
   @media (max-width: 1000px) { .advgrid { grid-template-columns: 1fr 1fr; } }
   /* 表示クリア（字幕モニタ内・右上・ふだんは控えめ／ホバーで明瞭） */
   .clr-in { position: absolute; top: 8px; right: 8px; z-index: 4; font-family: inherit;
@@ -282,29 +277,6 @@
         </div>
         <div class="adv" id="advBody">
           <div class="advgrid">
-            <div class="advsec">🎙 認識モデル</div>
-            <div class="row">
-              <label>認識モデル</label>
-              <select id="asrModel">
-                <option value="k2-ja">日本語特化（既定・単語の認識誘導が使える）</option>
-                <option value="sensevoice">多言語（中・英・日・韓・広東語 / 軽め）</option>
-              </select>
-            </div>
-            <div class="row" id="asrLangRow" style="display:none">
-              <label>認識する言語</label>
-              <select id="asrLang">
-                <option value="auto">自動判定</option>
-                <option value="zh">中国語</option>
-                <option value="en">英語</option>
-                <option value="ja">日本語</option>
-                <option value="ko">韓国語</option>
-                <option value="yue">広東語</option>
-              </select>
-            </div>
-            <div class="hint wide" id="asrModelHint" style="display:none">
-              ※多言語モデルでは「認識させる単語」の認識誘導は効きません（表記置換・伏せ字は有効）</div>
-
-            <div class="advsec">✂ 区切りと反応</div>
             <div class="row">
               <label>無音で文を区切る <output id="oSilence">300ms</output></label>
               <input type="range" id="silence" min="100" max="800" step="50" value="300">
@@ -321,16 +293,6 @@
               <label>登録した単語の出やすさ <output id="oScore">2.0</output></label>
               <input type="range" id="score" min="1.0" max="4.0" step="0.5" value="2.0">
             </div>
-
-            <div class="advsec">🌐 翻訳</div>
-            <div class="row">
-              <label>翻訳先（翻訳チップの言語）</label>
-              <select id="transLang">
-                <option value="en">英語</option>
-                <option value="zh">中国語（簡体字）</option>
-              </select>
-            </div>
-            <div class="hint wide" id="transRouteHint"></div>
           </div>
         </div>
         <div class="hint" id="restartHint" style="display:none">⚠ 設定変更は次回開始時に反映</div>
@@ -403,6 +365,17 @@
           <a class="gedit" onclick="openWords()">✎ 編集</a>
         </div>
         <div class="selrow"><select id="wordProfile"></select></div>
+      </div>
+      <div class="group">
+        <div class="ghead">
+          <span class="gicon" style="background:rgba(0,140,255,.12)">🧠</span>
+          <div>
+            <div class="gtitle">AIモデル</div>
+            <div class="gdesc">認識モデルと翻訳先</div>
+          </div>
+          <a class="gedit" onclick="openModel()">✎ 設定</a>
+        </div>
+        <div class="hint" id="modelSummary" style="margin-top:0"></div>
       </div>
       <div class="group">
         <div class="ghead">
@@ -501,45 +474,26 @@
   bindRange("maxUtt", "max_utt", "oMax", v => v + "s");
   bindRange("score", "hotwords_score", "oScore", v => (+v).toFixed(1));
 
-  // 翻訳先の切替（英訳チップの中身が変わる。モデルは次回開始時にロード）
-  function syncTransLabel() {
+  // ---------- AIモデル（詳細は別窓 /ui/model） ----------
+  function openModel() {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.open_model) {
+      window.pywebview.api.open_model();
+    } else {
+      window.open("/ui/model", "_blank", "width=560,height=620");
+    }
+  }
+
+  // 翻訳チップの表示名（英訳/中国語訳）と右ペインのAIモデルサマリを設定に同期
+  function syncModelCard() {
     $("transChipLabel").textContent =
       cfg.translate_lang === "zh" ? "中国語訳" : "英訳";
-    // 実際に使われる翻訳モデルと方向（engine._translate_plan と同じ判定）
-    const tgt = cfg.translate_lang || "en";
-    let src = "ja";
-    if (cfg.asr_model === "sensevoice" &&
-        cfg.asr_lang && !["auto", "ja"].includes(cfg.asr_lang))
-      src = cfg.asr_lang;
-    const L = { ja: "日", zh: "中", en: "英", ko: "韓", yue: "広東" };
-    $("transRouteHint").textContent = (src === tgt)
-      ? "認識言語と翻訳先が同じため、翻訳はスキップされます"
-      : `使用モデル: ${src === "ja" && tgt === "en" ? "FuguMT" : "M2M-100"}` +
-        `（${L[src] || src}→${L[tgt] || tgt}）`;
-  }
-  $("transLang").addEventListener("change", () => {
-    cfg.translate_lang = $("transLang").value;
-    syncTransLabel();
-    saveCfg();
-  });
-
-  // 認識モデルの切替（sensevoice時のみ言語選択と注意書きを表示）
-  function syncAsrModel() {
     const sv = cfg.asr_model === "sensevoice";
-    $("asrLangRow").style.display = sv ? "" : "none";
-    $("asrModelHint").style.display = sv ? "" : "none";
+    const L = { auto: "自動判定", ja: "日本語", zh: "中国語", en: "英語",
+                ko: "韓国語", yue: "広東語" };
+    const rec = sv ? `多言語（${L[cfg.asr_lang || "auto"]}）` : "日本語特化";
+    const tr = cfg.translate_lang === "zh" ? "中国語訳" : "英訳";
+    $("modelSummary").textContent = `認識: ${rec} ／ 翻訳先: ${tr}`;
   }
-  $("asrModel").addEventListener("change", () => {
-    cfg.asr_model = $("asrModel").value;
-    syncAsrModel();
-    syncTransLabel();   // 翻訳経路の表示も認識モデルに連動
-    saveCfg();
-  });
-  $("asrLang").addEventListener("change", () => {
-    cfg.asr_lang = $("asrLang").value;
-    syncTransLabel();
-    saveCfg();
-  });
 
   // 字幕処理トグル（モニタ上のチップ）。cfgのキーを直接切り替える
   function mtogOn(k) {
@@ -626,11 +580,7 @@
     $("score").value = cfg.hotwords_score; $("oScore").textContent = (+cfg.hotwords_score).toFixed(1);
     if (cfg.num_arabic === undefined) cfg.num_arabic = true;   // 既定ON（チップ表示用）
     if (cfg.save_log === undefined) cfg.save_log = true;
-    $("transLang").value = cfg.translate_lang || "en";
-    syncTransLabel();
-    $("asrModel").value = cfg.asr_model || "k2-ja";
-    $("asrLang").value = cfg.asr_lang || "auto";
-    syncAsrModel();
+    syncModelCard();
     syncMTog();   // 字幕処理チップ（句読点/翻訳/ログ/漢数字/高精度）を反映
     $("obsUrl").value = location.origin + "/";
     $("port").value = cfg.port;
@@ -693,14 +643,15 @@
         (v, silent) => { cfg.guest_preset = v; if (!silent) api("/api/config", { guest_preset: v }); }));
   }
 
-  async function refreshPresets() {   // スタイル/単語/コラボ窓での保存を反映
+  async function refreshPresets() {   // スタイル/単語/コラボ/モデル窓での保存を反映
     cfg = await api("/api/config");
     await loadWordProfiles();
     presets = (await api("/api/presets")).presets || [];
     boxes = (await api("/api/boxes")).boxes || [];
     renderPresets();
     renderBoxes();
-    syncCollab();   // コラボ窓で変えた方式/相手名をサマリへ反映
+    syncCollab();      // コラボ窓で変えた方式/相手名をサマリへ反映
+    syncModelCard();   // モデル窓で変えた認識モデル/翻訳先をサマリとチップ名へ反映
   }
 
   // ---------- レイアウト（プルダウン＋概要ミニ図） ----------
