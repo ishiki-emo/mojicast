@@ -135,6 +135,16 @@
   .mon-head .rec { color: var(--err); font-size: 11px; letter-spacing: .15em; opacity: 0; }
   .mon-head .rec.on { opacity: 1; animation: blink 1.2s infinite; }
   #centerPanel { display: flex; flex-direction: column; }
+  /* 初回のおすすめ設定バナー（環境検出→ユーザーの了解で適用） */
+  #suggestBar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin-bottom: 8px; padding: 8px 12px; border-radius: 8px; font-size: 12px;
+    border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+    background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  #suggestBar .sgbtns { margin-left: auto; display: flex; gap: 6px; }
+  #suggestBar button { font-family: inherit; font-size: 12px; font-weight: 700;
+    padding: 4px 12px; border-radius: 7px; cursor: pointer;
+    border: 1px solid var(--accent); background: var(--accent); color: #06222b; }
+  #suggestBar button.ghost { background: none; color: var(--dim); border-color: var(--line); }
   /* 字幕処理トグル（モニタ上の小さなチップ帯・字幕を邪魔しない） */
   .montoggles { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
   .mtog { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700;
@@ -303,6 +313,13 @@
       <div class="mon-head">
         <h2 style="margin:0;border:0;padding:0">字幕ログ（簡易）</h2>
         <span class="rec" id="rec">● REC</span>
+      </div>
+      <div id="suggestBar" style="display:none">
+        <span id="suggestMsg"></span>
+        <span class="sgbtns">
+          <button id="suggestApply"></button>
+          <button id="suggestSkip" class="ghost"></button>
+        </span>
       </div>
       <div class="montoggles" title="字幕の処理オン/オフ">
         <span class="mtog" data-k="punctuate"><span class="dot"></span>句読点</span>
@@ -474,6 +491,82 @@
   bindRange("maxUtt", "max_utt", "oMax", v => v + "s");
   bindRange("score", "hotwords_score", "oScore", v => (+v).toFixed(1));
 
+  // ---------- 初回のおすすめ設定（環境検出 → ユーザーの了解で適用） ----------
+  // OS言語が中国語/英語ならその言語の定型文で提案する（UI本体は日本語のまま）
+  const SUGGEST_TEXT = {
+    ja: { lead: "💡 おすすめ設定", apply: "この設定にする", skip: "今のまま使う",
+          multi: l => `認識モデル=多言語（${l}）`, light: "認識モデル=多言語（軽量）",
+          maxutt: "一区切りの最長=8秒",
+          note: "あとから「AIモデル」や詳細設定でいつでも変えられます",
+          langName: { zh: "中国語", en: "英語" } },
+    zh: { lead: "💡 推荐设置", apply: "应用此设置", skip: "保持现状",
+          multi: l => `识别模型=多语言（${l}）`, light: "识别模型=多语言（轻量）",
+          maxutt: "单段最长=8秒",
+          note: "之后可随时在「AIモデル」面板中更改",
+          langName: { zh: "中文", en: "英语" } },
+    en: { lead: "💡 Recommended setup", apply: "Apply", skip: "Keep current",
+          multi: l => `Recognition model = Multilingual (${l})`,
+          light: "Recognition model = Multilingual (lightweight)",
+          maxutt: "Max segment length = 8s",
+          note: "You can change these anytime in the AI Model panel",
+          langName: { zh: "Chinese", en: "English" } },
+  };
+
+  function buildSuggestion(env) {
+    const uiLang = ["zh", "en"].includes(env.os_lang) ? env.os_lang : "ja";
+    const T = SUGGEST_TEXT[uiLang];
+    const tier = env.cpu && env.cpu.tier;
+    const patch = {};
+    const items = [];
+    if (env.os_lang === "zh" || env.os_lang === "en") {
+      if (cfg.asr_model !== "sensevoice") {   // OS言語に合わせた多言語認識を提案
+        patch.asr_model = "sensevoice";
+        patch.asr_lang = env.os_lang;
+        items.push(T.multi(T.langName[env.os_lang]));
+      }
+    } else if (tier === "x" && cfg.asr_model !== "sensevoice") {
+      patch.asr_model = "sensevoice";         // 低スペック救済（軽量モード）
+      patch.asr_lang = "ja";
+      items.push(T.light);
+    }
+    if ((tier === "x" || tier === "delta") && cfg.max_utt > 8) {
+      patch.max_utt = 8;
+      items.push(T.maxutt);
+    }
+    return items.length ? { patch, items, T } : null;
+  }
+
+  async function initSuggest() {
+    try { showSuggest(await api("/api/env-suggest")); } catch (e) {}
+  }
+
+  function showSuggest(env) {
+    const s = buildSuggestion(env);
+    const done = () => {
+      cfg.setup_suggested = true;
+      $("suggestBar").style.display = "none";
+    };
+    if (!s) {   // 提案なし → 記録して次回から評価しない
+      done();
+      api("/api/config", { setup_suggested: true });
+      return;
+    }
+    $("suggestMsg").textContent = `${s.T.lead}: ${s.items.join(" / ")}｜${s.T.note}`;
+    $("suggestApply").textContent = s.T.apply;
+    $("suggestSkip").textContent = s.T.skip;
+    $("suggestBar").style.display = "";
+    $("suggestApply").onclick = async () => {
+      Object.assign(cfg, s.patch);
+      done();
+      await api("/api/config", { ...s.patch, setup_suggested: true });
+      syncModelCard();
+    };
+    $("suggestSkip").onclick = () => {
+      done();
+      api("/api/config", { setup_suggested: true });
+    };
+  }
+
   // ---------- AIモデル（詳細は別窓 /ui/model） ----------
   function openModel() {
     if (window.pywebview && window.pywebview.api && window.pywebview.api.open_model) {
@@ -582,6 +675,7 @@
     if (cfg.save_log === undefined) cfg.save_log = true;
     syncModelCard();
     syncMTog();   // 字幕処理チップ（句読点/翻訳/ログ/漢数字/高精度）を反映
+    if (!cfg.setup_suggested) initSuggest();   // 初回のみ: 環境に合わせた提案
     $("obsUrl").value = location.origin + "/";
     $("port").value = cfg.port;
 
