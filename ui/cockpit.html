@@ -296,9 +296,10 @@
             <div class="row">
               <label>翻訳先（翻訳チップの言語）</label>
               <select id="transLang">
-                <option value="en">英語（FuguMT）</option>
-                <option value="zh">中国語・簡体字（M2M-100）</option>
+                <option value="en">英語</option>
+                <option value="zh">中国語（簡体字）</option>
               </select>
+              <div class="hint" id="transRouteHint"></div>
             </div>
             <div class="row">
               <label>認識モデル</label>
@@ -494,6 +495,17 @@
   function syncTransLabel() {
     $("transChipLabel").textContent =
       cfg.translate_lang === "zh" ? "中国語訳" : "英訳";
+    // 実際に使われる翻訳モデルと方向（engine._translate_plan と同じ判定）
+    const tgt = cfg.translate_lang || "en";
+    let src = "ja";
+    if (cfg.asr_model === "sensevoice" &&
+        cfg.asr_lang && !["auto", "ja"].includes(cfg.asr_lang))
+      src = cfg.asr_lang;
+    const L = { ja: "日", zh: "中", en: "英", ko: "韓", yue: "広東" };
+    $("transRouteHint").textContent = (src === tgt)
+      ? "認識言語と翻訳先が同じため、翻訳はスキップされます"
+      : `使用モデル: ${src === "ja" && tgt === "en" ? "FuguMT" : "M2M-100"}` +
+        `（${L[src] || src}→${L[tgt] || tgt}）`;
   }
   $("transLang").addEventListener("change", () => {
     cfg.translate_lang = $("transLang").value;
@@ -510,10 +522,12 @@
   $("asrModel").addEventListener("change", () => {
     cfg.asr_model = $("asrModel").value;
     syncAsrModel();
+    syncTransLabel();   // 翻訳経路の表示も認識モデルに連動
     saveCfg();
   });
   $("asrLang").addEventListener("change", () => {
     cfg.asr_lang = $("asrLang").value;
+    syncTransLabel();
     saveCfg();
   });
 
