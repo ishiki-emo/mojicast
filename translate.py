@@ -187,15 +187,18 @@ def load_translator_zh(num_threads: int = 4):
 
 def translate_m2m(text: str, src: str = "ja", tgt: str = "zh",
                   max_new_tokens: int = 96,
-                  repetition_penalty: float = 1.0) -> str:
-    """M2M-100 で src → tgt に翻訳する（言語コードは m2m100 準拠: ja/zh/en/ko/yue 等）。
+                  repetition_penalty: float | None = None) -> str:
+    """M2M-100 で src → tgt に翻訳する（言語コードは m2m100 準拠: ja/zh/en/ko 等。
+    広東語 yue は M2M-100 非対応のため翻訳先には使えない＝認識のみ）。
 
     - ja→zh のときだけ配信用語の事前置換（_STREAM_TERMS_ZH）を適用
-    - 韓国語など一部ターゲットは greedy だと反復暴走するため、その言語を
-      追加するときは repetition_penalty=1.2 前後を指定すること（実測 2026-07-22）
+    - repetition_penalty 省略時は言語別の既定を使う: 韓国語は greedy だと
+      反復暴走するため 1.2（実測 2026-07-22）、他は 1.0
     """
     if not text or not text.strip():
         return ""
+    if repetition_penalty is None:
+        repetition_penalty = 1.2 if tgt == "ko" else 1.0
     if _m2m is None:
         load_translator_zh()
     if src == "ja" and tgt == "zh":

@@ -189,6 +189,8 @@ class CaptionEngine:
             al = cfg.get("asr_lang", "auto")
             if al not in ("auto", "ja"):
                 src = al
+        if src == "yue":
+            src = "zh"   # M2M-100は広東語非対応。書き起こしは中文字なのでzh扱いで翻訳
         if src == tgt:
             return None
         eng = "fugumt" if (src, tgt) == ("ja", "en") else "m2m"
@@ -314,7 +316,8 @@ class CaptionEngine:
 
             if need_trans:
                 eng, src, tgt = plan
-                label = {"en": "英訳", "zh": "中国語訳"}.get(tgt, f"{tgt}訳")
+                label = {"en": "英訳", "zh": "中国語訳", "ja": "日本語訳",
+                         "ko": "韓国語訳"}.get(tgt, f"{tgt}訳")
                 self.on_state("loading", f"翻訳モデル({label})をロード中...")
                 try:
                     if eng == "fugumt":

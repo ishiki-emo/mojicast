@@ -107,8 +107,12 @@
         <select id="transLang">
           <option value="en">英語</option>
           <option value="zh">中国語（簡体字）</option>
+          <option value="ja">日本語（海外配信の認識と組み合わせて）</option>
+          <option value="ko">韓国語（試験的）</option>
         </select>
         <div class="route" id="routeHint"></div>
+        <div class="hint">広東語は認識のみ対応です（翻訳モデル側が非対応）。
+          認識言語と同じ翻訳先を選ぶと翻訳はスキップされます。</div>
       </div>
     </div>
   </main>
@@ -156,7 +160,8 @@
     let src = "ja";
     if (sv && cfg.asr_lang && !["auto", "ja"].includes(cfg.asr_lang))
       src = cfg.asr_lang;
-    const L = { ja: "日", zh: "中", en: "英", ko: "韓", yue: "広東" };
+    if (src === "yue") src = "zh";   // 広東語は中文字扱いで翻訳（engineと同じ判定）
+    const L = { ja: "日", zh: "中", en: "英", ko: "韓" };
     $("routeHint").textContent = (src === tgt)
       ? "認識言語と翻訳先が同じため、翻訳はスキップされます"
       : `使用モデル: ${src === "ja" && tgt === "en" ? "FuguMT" : "M2M-100"}` +
