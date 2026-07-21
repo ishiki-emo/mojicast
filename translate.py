@@ -220,6 +220,19 @@ def translate_zh(text: str, max_new_tokens: int = 96) -> str:
     return translate_m2m(text, "ja", "zh", max_new_tokens)
 
 
+def unload(which: str):
+    """使わなくなった翻訳バックエンドを解放してメモリを返す（次回使用時に再ロード）。
+
+    翻訳経路の切替（FuguMT⇔M2M）で旧バックエンドが常駐し続けるのを防ぐ。
+    which: "fugumt" | "m2m"
+    """
+    global _translator, _sp_src, _sp_tgt, _m2m, _sp_m2m
+    if which == "fugumt":
+        _translator = _sp_src = _sp_tgt = None
+    elif which == "m2m":
+        _m2m = _sp_m2m = None
+
+
 if __name__ == "__main__":
     import sys
     if sys.stdout.encoding.lower() != "utf-8":

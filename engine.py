@@ -197,14 +197,17 @@ class CaptionEngine:
     def _expected_download_mb(self, cfg):
         """この設定で未キャッシュのモデルの合計DLサイズ(MB)と、DLが要るかを返す"""
         total = 0
-        if cfg.get("asr_model", "k2-ja") == "sensevoice":
-            import asr_model
+        import asr_model
+        model_id = cfg.get("asr_model", "k2-ja")
+        caps = asr_model.MODELS.get(model_id, asr_model.MODELS["k2-ja"])["caps"]
+        if model_id == "sensevoice":
             if not asr_model.cached("sensevoice"):
                 total += _MODEL_SIZES_MB["asr_sv"]
         elif not os.path.isdir(os.path.join(
                 _hub_dir(), "models--reazon-research--reazonspeech-k2-v2")):
             total += _MODEL_SIZES_MB["asr"]
-        if cfg.get("punctuate", True):
+        # 句読点内蔵モデル（SenseVoice等）ではBERTを使わないためDLも不要
+        if cfg.get("punctuate", True) and not caps["punct"]:
             import punct
             if not punct.cached():
                 total += _MODEL_SIZES_MB["punct"]
@@ -241,8 +244,18 @@ class CaptionEngine:
 
         # 各モデルの「ロードが要るか」を個別判定（ASRの再利用判定に引きずられない）。
         # 一度ロードしたモデルは保持し、ON/OFFの実効切替は _run 側が cfg で行う。
+        from asr_model import MODELS
+        model_id = cfg.get("asr_model", "k2-ja")
+        model_caps = MODELS.get(model_id, MODELS["k2-ja"])["caps"]
         reload_asr = self._model is None or sig != self._model_sig
-        need_punct = cfg.get("punctuate", True) and self._punct is None
+        # 句読点内蔵モデル（SenseVoice等）ではBERTを使わない。ロードを省き、
+        # モデル切替で不要になった常駐BERTはここで解放する（メモリ返却）
+        if model_caps["punct"] and self._punct is not None:
+            import punct
+            punct.unload()
+            self._punct = None
+        need_punct = (cfg.get("punctuate", True)
+                      and not model_caps["punct"] and self._punct is None)
         plan = self._translate_plan(cfg)
         need_trans = plan is not None and self._translate_sig != plan
         if cfg.get("translate", False) and plan is None:
@@ -267,9 +280,7 @@ class CaptionEngine:
         try:
             if reload_asr:
                 self.on_state("loading", "認識モデルをロード中...")
-                from asr_model import load_by_config, MODELS
-                model_id = cfg.get("asr_model", "k2-ja")
-                caps = MODELS.get(model_id, MODELS["k2-ja"])["caps"]
+                from asr_model import load_by_config
                 hw_path = ""
                 self._replacer = None
                 if hw_entries:
@@ -277,7 +288,7 @@ class CaptionEngine:
                     # 表記置換はどのモデルでも有効。認識誘導（hotwords_file）は
                     # transducer系（k2）のみ対応
                     self._replacer = build_replacer(hw_entries)
-                    if caps["hotwords"]:
+                    if model_caps["hotwords"]:
                         # 固定パスに書き出す（mkstempだと毎回%TEMP%に溜まるため）
                         hw_path = write_hotwords(
                             hw_entries, wordstore.data_path("_hotwords_gen.txt"))
@@ -316,6 +327,9 @@ class CaptionEngine:
                         self._translate = (lambda t, _s=src, _t=tgt:
                                            translate_m2m(t, _s, _t))
                     self._translate_sig = plan
+                    # 切替で使わなくなった側の翻訳バックエンドを解放（メモリ返却）
+                    from translate import unload as unload_translator
+                    unload_translator("m2m" if eng == "fugumt" else "fugumt")
                 except Exception:
                     self._translate = None
                     self._translate_sig = None
