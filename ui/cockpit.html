@@ -135,6 +135,26 @@
   .mon-head .rec { color: var(--err); font-size: 11px; letter-spacing: .15em; opacity: 0; }
   .mon-head .rec.on { opacity: 1; animation: blink 1.2s infinite; }
   #centerPanel { display: flex; flex-direction: column; }
+  /* 次回反映の警告バー（動作中に設定を変えたとき。再起動ボタンつき） */
+  #restartHint { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin-top: 10px; padding: 8px 12px; border-radius: 8px; font-size: 12px;
+    color: var(--warn); font-weight: 700;
+    border: 1px solid color-mix(in srgb, var(--warn) 50%, transparent);
+    background: color-mix(in srgb, var(--warn) 9%, transparent); }
+  #restartHint button { margin-left: auto; font-family: inherit; font-size: 12px;
+    font-weight: 700; padding: 4px 12px; border-radius: 7px; cursor: pointer;
+    border: 1px solid var(--warn); background: var(--warn); color: #221600; }
+  #restartHint button:disabled { opacity: .5; cursor: wait; }
+  /* 初回のおすすめ設定バナー（環境検出→ユーザーの了解で適用） */
+  #suggestBar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin-bottom: 8px; padding: 8px 12px; border-radius: 8px; font-size: 12px;
+    border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+    background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  #suggestBar .sgbtns { margin-left: auto; display: flex; gap: 6px; }
+  #suggestBar button { font-family: inherit; font-size: 12px; font-weight: 700;
+    padding: 4px 12px; border-radius: 7px; cursor: pointer;
+    border: 1px solid var(--accent); background: var(--accent); color: #06222b; }
+  #suggestBar button.ghost { background: none; color: var(--dim); border-color: var(--line); }
   /* 字幕処理トグル（モニタ上の小さなチップ帯・字幕を邪魔しない） */
   .montoggles { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
   .mtog { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700;
@@ -293,16 +313,12 @@
               <label>登録した単語の出やすさ <output id="oScore">2.0</output></label>
               <input type="range" id="score" min="1.0" max="4.0" step="0.5" value="2.0">
             </div>
-            <div class="row">
-              <label>翻訳先（翻訳チップの言語）</label>
-              <select id="transLang">
-                <option value="en">英語（FuguMT）</option>
-                <option value="zh">中国語・簡体字（M2M-100）</option>
-              </select>
-            </div>
           </div>
         </div>
-        <div class="hint" id="restartHint" style="display:none">⚠ 設定変更は次回開始時に反映</div>
+        <div id="restartHint" style="display:none">
+          <span>⚠ 変更は次の ▶開始 から反映されます</span>
+          <button id="restartNow" onclick="restartEngine()">⏹→▶ 今すぐ反映（再起動）</button>
+        </div>
       </section>
 
       <!-- 字幕モニタ -->
@@ -310,6 +326,13 @@
       <div class="mon-head">
         <h2 style="margin:0;border:0;padding:0">字幕ログ（簡易）</h2>
         <span class="rec" id="rec">● REC</span>
+      </div>
+      <div id="suggestBar" style="display:none">
+        <span id="suggestMsg"></span>
+        <span class="sgbtns">
+          <button id="suggestApply"></button>
+          <button id="suggestSkip" class="ghost"></button>
+        </span>
       </div>
       <div class="montoggles" title="字幕の処理オン/オフ">
         <span class="mtog" data-k="punctuate"><span class="dot"></span>句読点</span>
@@ -375,6 +398,17 @@
       </div>
       <div class="group">
         <div class="ghead">
+          <span class="gicon" style="background:rgba(0,140,255,.12)">🧠</span>
+          <div>
+            <div class="gtitle">AIモデル</div>
+            <div class="gdesc">認識モデルと翻訳先</div>
+          </div>
+          <a class="gedit" onclick="openModel()">✎ 設定</a>
+        </div>
+        <div class="hint" id="modelSummary" style="margin-top:0"></div>
+      </div>
+      <div class="group">
+        <div class="ghead">
           <span class="gicon" style="background:rgba(164,112,255,.12)">🎧</span>
           <div>
             <div class="gtitle">1対1コラボ</div>
@@ -429,7 +463,7 @@
 
   const saveCfg = debounce(async () => {
     await api("/api/config", cfg);
-    if (running) $("restartHint").style.display = "block";
+    if (running) $("restartHint").style.display = "";
   }, 400);
 
   function debounce(fn, ms) {
@@ -470,16 +504,102 @@
   bindRange("maxUtt", "max_utt", "oMax", v => v + "s");
   bindRange("score", "hotwords_score", "oScore", v => (+v).toFixed(1));
 
-  // 翻訳先の切替（英訳チップの中身が変わる。モデルは次回開始時にロード）
-  function syncTransLabel() {
-    $("transChipLabel").textContent =
-      cfg.translate_lang === "zh" ? "中国語訳" : "英訳";
+  // ---------- 初回のおすすめ設定（環境検出 → ユーザーの了解で適用） ----------
+  // OS言語が中国語/英語ならその言語の定型文で提案する（UI本体は日本語のまま）
+  const SUGGEST_TEXT = {
+    ja: { lead: "💡 おすすめ設定", apply: "この設定にする", skip: "今のまま使う",
+          multi: l => `認識モデル=多言語（${l}）`, light: "認識モデル=多言語（軽量）",
+          maxutt: "一区切りの最長=8秒",
+          note: "あとから「AIモデル」や詳細設定でいつでも変えられます",
+          langName: { zh: "中国語", en: "英語" } },
+    zh: { lead: "💡 推荐设置", apply: "应用此设置", skip: "保持现状",
+          multi: l => `识别模型=多语言（${l}）`, light: "识别模型=多语言（轻量）",
+          maxutt: "单段最长=8秒",
+          note: "之后可随时在「AIモデル」面板中更改",
+          langName: { zh: "中文", en: "英语" } },
+    en: { lead: "💡 Recommended setup", apply: "Apply", skip: "Keep current",
+          multi: l => `Recognition model = Multilingual (${l})`,
+          light: "Recognition model = Multilingual (lightweight)",
+          maxutt: "Max segment length = 8s",
+          note: "You can change these anytime in the AI Model panel",
+          langName: { zh: "Chinese", en: "English" } },
+  };
+
+  function buildSuggestion(env) {
+    const uiLang = ["zh", "en"].includes(env.os_lang) ? env.os_lang : "ja";
+    const T = SUGGEST_TEXT[uiLang];
+    const tier = env.cpu && env.cpu.tier;
+    const patch = {};
+    const items = [];
+    if (env.os_lang === "zh" || env.os_lang === "en") {
+      if (cfg.asr_model !== "sensevoice") {   // OS言語に合わせた多言語認識を提案
+        patch.asr_model = "sensevoice";
+        patch.asr_lang = env.os_lang;
+        items.push(T.multi(T.langName[env.os_lang]));
+      }
+    } else if (tier === "x" && cfg.asr_model !== "sensevoice") {
+      patch.asr_model = "sensevoice";         // 低スペック救済（軽量モード）
+      patch.asr_lang = "ja";
+      items.push(T.light);
+    }
+    if ((tier === "x" || tier === "delta") && cfg.max_utt > 8) {
+      patch.max_utt = 8;
+      items.push(T.maxutt);
+    }
+    return items.length ? { patch, items, T } : null;
   }
-  $("transLang").addEventListener("change", () => {
-    cfg.translate_lang = $("transLang").value;
-    syncTransLabel();
-    saveCfg();
-  });
+
+  async function initSuggest() {
+    try { showSuggest(await api("/api/env-suggest")); } catch (e) {}
+  }
+
+  function showSuggest(env) {
+    const s = buildSuggestion(env);
+    const done = () => {
+      cfg.setup_suggested = true;
+      $("suggestBar").style.display = "none";
+    };
+    if (!s) {   // 提案なし → 記録して次回から評価しない
+      done();
+      api("/api/config", { setup_suggested: true });
+      return;
+    }
+    $("suggestMsg").textContent = `${s.T.lead}: ${s.items.join(" / ")}｜${s.T.note}`;
+    $("suggestApply").textContent = s.T.apply;
+    $("suggestSkip").textContent = s.T.skip;
+    $("suggestBar").style.display = "";
+    $("suggestApply").onclick = async () => {
+      Object.assign(cfg, s.patch);
+      done();
+      await api("/api/config", { ...s.patch, setup_suggested: true });
+      syncModelCard();
+    };
+    $("suggestSkip").onclick = () => {
+      done();
+      api("/api/config", { setup_suggested: true });
+    };
+  }
+
+  // ---------- AIモデル（詳細は別窓 /ui/model） ----------
+  function openModel() {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.open_model) {
+      window.pywebview.api.open_model();
+    } else {
+      window.open("/ui/model", "_blank", "width=560,height=620");
+    }
+  }
+
+  // 翻訳チップの表示名（英訳/中国語訳など）と右ペインのAIモデルサマリを設定に同期
+  const TR_NAMES = { en: "英訳", zh: "中国語訳", ja: "日本語訳", ko: "韓国語訳" };
+  function syncModelCard() {
+    const tr = TR_NAMES[cfg.translate_lang] || "英訳";
+    $("transChipLabel").textContent = tr;
+    const sv = cfg.asr_model === "sensevoice";
+    const L = { auto: "自動判定", ja: "日本語", zh: "中国語", en: "英語",
+                ko: "韓国語", yue: "広東語" };
+    const rec = sv ? `多言語（${L[cfg.asr_lang || "auto"]}）` : "日本語特化";
+    $("modelSummary").textContent = `認識: ${rec} ／ 翻訳先: ${tr}`;
+  }
 
   // 字幕処理トグル（モニタ上のチップ）。cfgのキーを直接切り替える
   function mtogOn(k) {
@@ -566,9 +686,9 @@
     $("score").value = cfg.hotwords_score; $("oScore").textContent = (+cfg.hotwords_score).toFixed(1);
     if (cfg.num_arabic === undefined) cfg.num_arabic = true;   // 既定ON（チップ表示用）
     if (cfg.save_log === undefined) cfg.save_log = true;
-    $("transLang").value = cfg.translate_lang || "en";
-    syncTransLabel();
+    syncModelCard();
     syncMTog();   // 字幕処理チップ（句読点/翻訳/ログ/漢数字/高精度）を反映
+    if (!cfg.setup_suggested) initSuggest();   // 初回のみ: 環境に合わせた提案
     $("obsUrl").value = location.origin + "/";
     $("port").value = cfg.port;
 
@@ -630,14 +750,25 @@
         (v, silent) => { cfg.guest_preset = v; if (!silent) api("/api/config", { guest_preset: v }); }));
   }
 
-  async function refreshPresets() {   // スタイル/単語/コラボ窓での保存を反映
+  // 反映に再起動（停止→開始）が必要な設定キー。別窓（モデル/コラボ等）での
+  // 変更もSSE経由でここを通るので、変化を見つけたら警告バーを出す
+  const RESTART_KEYS = ["asr_model", "asr_lang", "translate_lang", "precision",
+    "device", "silence_ms", "interval", "max_utt", "hotwords_score",
+    "use_hotwords", "word_profile", "collab", "collab_source",
+    "collab_process", "collab_device", "self_name", "guest_name"];
+
+  async function refreshPresets() {   // スタイル/単語/コラボ/モデル窓での保存を反映
+    const prev = cfg;
     cfg = await api("/api/config");
+    if (running && RESTART_KEYS.some(k => prev[k] !== cfg[k]))
+      $("restartHint").style.display = "";
     await loadWordProfiles();
     presets = (await api("/api/presets")).presets || [];
     boxes = (await api("/api/boxes")).boxes || [];
     renderPresets();
     renderBoxes();
-    syncCollab();   // コラボ窓で変えた方式/相手名をサマリへ反映
+    syncCollab();      // コラボ窓で変えた方式/相手名をサマリへ反映
+    syncModelCard();   // モデル窓で変えた認識モデル/翻訳先をサマリとチップ名へ反映
   }
 
   // ---------- レイアウト（プルダウン＋概要ミニ図） ----------
@@ -689,6 +820,20 @@
     $("btnEngine").disabled = true;
     await api("/api/engine", { action: running ? "stop" : "start" });
     setTimeout(() => { $("btnEngine").disabled = false; }, 800);
+  }
+
+  // 「今すぐ反映」= 停止→開始（変更した設定でロードし直す）
+  async function restartEngine() {
+    const b = $("restartNow");
+    b.disabled = true;
+    $("btnEngine").disabled = true;
+    try {
+      await api("/api/engine", { action: "stop" });
+      await api("/api/engine", { action: "start" });
+    } finally {
+      b.disabled = false;
+      setTimeout(() => { $("btnEngine").disabled = false; }, 800);
+    }
   }
 
   function setState(state, detail) {

@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>AIモデル設定</title>
+<script>
+  // 起動モニタに合わせたUI縮小＋テーマ先読み（cockpitと同じ流儀）
+  (function () {
+    const s = parseFloat(new URLSearchParams(location.search).get("s"));
+    if (s > 0 && s < 1) document.documentElement.style.zoom = s;
+    try { if (localStorage.getItem("mojicast-theme") === "light")
+      document.documentElement.dataset.theme = "light"; } catch (e) {}
+  })();
+</script>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161c26; --panel2: #1c2432;
+    --line: #2a3547; --text: #dce6f5; --dim: #7d8ba1;
+    --accent: #00e5ff; --ok: #3dffa0; --warn: #ffb84d;
+  }
+  :root[data-theme="light"] {
+    --bg: #f7f9fc; --panel: #ffffff; --panel2: #eef2f8;
+    --line: #dbe2ec; --text: #16202e; --dim: #5c6b80;
+    --accent: #0499bd; --ok: #12a05f; --warn: #b5761a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'Yu Gothic UI', 'Meiryo', sans-serif; font-size: 14px;
+    min-height: 100vh; display: flex; flex-direction: column; user-select: none;
+  }
+  header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 18px; background: var(--panel); border-bottom: 1px solid var(--line);
+  }
+  header .t { font-weight: 900; letter-spacing: .06em; }
+  header .d { color: var(--dim); font-size: 12px; }
+  #saved { color: var(--ok); font-size: 12px; margin-left: auto; opacity: 0; transition: opacity .3s; }
+  main { flex: 1; padding: 14px 18px; overflow-y: auto; }
+  .sec {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px; margin-bottom: 12px;
+  }
+  .sec h2 {
+    font-size: 11px; letter-spacing: .2em; color: var(--dim);
+    margin-bottom: 12px; border-bottom: 1px solid var(--line); padding-bottom: 6px;
+  }
+  .row { margin-bottom: 14px; }
+  .row:last-child { margin-bottom: 0; }
+  .row > label { display: block; color: var(--dim); margin-bottom: 5px; }
+  select {
+    width: 100%; background: var(--panel2); color: var(--text);
+    border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px;
+    font-family: inherit; font-size: 13px;
+  }
+  .hint { color: var(--dim); font-size: 11px; margin-top: 5px; line-height: 1.6; }
+  .hint.warn { color: var(--warn); }
+  .warnbar {
+    margin-bottom: 12px; padding: 9px 12px; border-radius: 8px; font-size: 12px;
+    color: var(--warn); font-weight: 700; line-height: 1.6;
+    border: 1px solid color-mix(in srgb, var(--warn) 50%, transparent);
+    background: color-mix(in srgb, var(--warn) 9%, transparent);
+  }
+  .route {
+    margin-top: 8px; padding: 8px 10px; border-radius: 8px;
+    background: var(--panel2); border: 1px solid var(--line);
+    font-size: 12px; color: var(--accent); font-weight: 700;
+  }
+  footer {
+    padding: 10px 18px; color: var(--dim); font-size: 11px; line-height: 1.7;
+    border-top: 1px solid var(--line); background: var(--panel);
+  }
+</style>
+</head>
+<body>
+  <header>
+    <div>
+      <div class="t">🧠 AIモデル設定</div>
+      <div class="d">認識モデルと翻訳先を選ぶ</div>
+    </div>
+    <span id="saved">✓ 保存しました</span>
+  </header>
+
+  <main>
+    <div class="warnbar" id="runWarn" style="display:none">
+      ⚠ 認識が動作中です。ここでの変更は<b>「■ 停止 → ▶ 開始」で反映</b>されます
+      （コックピットに出る黄色いバーの「今すぐ反映」からも再起動できます）
+    </div>
+    <div class="sec">
+      <h2>🎙 認識モデル</h2>
+      <div class="row">
+        <label>使用するモデル</label>
+        <select id="asrModel">
+          <option value="k2-ja">日本語特化（既定）</option>
+          <option value="sensevoice">多言語（中・英・日・韓・広東語）</option>
+        </select>
+        <div class="hint" id="modelDesc"></div>
+      </div>
+      <div class="row" id="asrLangRow">
+        <label>認識する言語</label>
+        <select id="asrLang">
+          <option value="auto">自動判定</option>
+          <option value="zh">中国語</option>
+          <option value="en">英語</option>
+          <option value="ja">日本語</option>
+          <option value="ko">韓国語</option>
+          <option value="yue">広東語</option>
+        </select>
+        <div class="hint">言語が決まっている配信では固定がおすすめ（判定ミスがなくなります）</div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h2>🌐 翻訳</h2>
+      <div class="row">
+        <label>翻訳先（字幕ログ上の翻訳チップでオン/オフ）</label>
+        <select id="transLang">
+          <option value="en">英語</option>
+          <option value="zh">中国語（簡体字）</option>
+          <option value="ja">日本語（海外配信の認識と組み合わせて）</option>
+          <option value="ko">韓国語（試験的）</option>
+        </select>
+        <div class="route" id="routeHint"></div>
+        <div class="hint">広東語は認識のみ対応です（翻訳モデル側が非対応）。
+          認識言語と同じ翻訳先を選ぶと翻訳はスキップされます。</div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    変更は<b>次回 ▶開始 時</b>に反映されます。モデルが未ダウンロードの場合は
+    初回の ▶開始 時に自動DLします（多言語モデル 約240MB / 中国語訳モデル 約470MB）。
+  </footer>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  let cfg = {};
+
+  async function api(path, body) {
+    const opt = body ? { method: "POST", body: JSON.stringify(body) } : {};
+    return (await fetch(path, opt)).json();
+  }
+
+  let savedTimer = null;
+  async function save(patch) {
+    Object.assign(cfg, patch);
+    await api("/api/config", patch);
+    const el = $("saved");
+    el.style.opacity = 1;
+    clearTimeout(savedTimer);
+    savedTimer = setTimeout(() => { el.style.opacity = 0; }, 1200);
+  }
+
+  const DESCS = {
+    "k2-ja": "日本語の精度が最も高く、「認識させる単語」の認識誘導が使えます。迷ったらこれ。",
+    "sensevoice": "中・英・日・韓・広東語に対応し、負荷も軽め（低スペック機の救済にも）。" +
+      "認識誘導は効かないため、固有名詞の誤変換は単語の読み欄（「／」区切りで複数OK）への登録で直します。" +
+      "日本語の精度は日本語特化がやや上。",
+  };
+
+  function sync() {
+    const sv = cfg.asr_model === "sensevoice";
+    $("asrModel").value = cfg.asr_model || "k2-ja";
+    $("asrLang").value = cfg.asr_lang || "auto";
+    $("transLang").value = cfg.translate_lang || "en";
+    $("modelDesc").textContent = DESCS[$("asrModel").value];
+    $("asrLangRow").style.display = sv ? "" : "none";
+    // 実際に使われる翻訳モデルと方向（engine._translate_plan と同じ判定）
+    const tgt = cfg.translate_lang || "en";
+    let src = "ja";
+    if (sv && cfg.asr_lang && !["auto", "ja"].includes(cfg.asr_lang))
+      src = cfg.asr_lang;
+    if (src === "yue") src = "zh";   // 広東語は中文字扱いで翻訳（engineと同じ判定）
+    const L = { ja: "日", zh: "中", en: "英", ko: "韓" };
+    $("routeHint").textContent = (src === tgt)
+      ? "認識言語と翻訳先が同じため、翻訳はスキップされます"
+      : `使用モデル: ${src === "ja" && tgt === "en" ? "FuguMT" : "M2M-100"}` +
+        `（${L[src] || src}→${L[tgt] || tgt}）`;
+  }
+
+  $("asrModel").addEventListener("change", () => {
+    save({ asr_model: $("asrModel").value }); sync();
+  });
+  $("asrLang").addEventListener("change", () => {
+    save({ asr_lang: $("asrLang").value }); sync();
+  });
+  $("transLang").addEventListener("change", () => {
+    save({ translate_lang: $("transLang").value }); sync();
+  });
+
+  // 認識が動作中なら「停止→開始で反映」の警告を出す（保存のたびに再確認）
+  async function checkRunning() {
+    try {
+      const st = await api("/api/status");
+      $("runWarn").style.display = st.state === "running" ? "" : "none";
+    } catch (e) {}
+  }
+  for (const id of ["asrModel", "asrLang", "transLang"])
+    $(id).addEventListener("change", checkRunning);
+
+  (async () => {
+    cfg = await api("/api/config");
+    sync();
+    checkRunning();
+  })();
+</script>
+</body>
+</html>

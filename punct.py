@@ -57,6 +57,13 @@ def cached() -> bool:
         return False
 
 
+def unload():
+    """句読点モデルを解放してメモリを返す（次回使用時に再ロード）。
+    句読点内蔵の認識モデル（SenseVoice等）へ切り替えたときにBERTを常駐させないため。"""
+    global _sess
+    _sess = None
+
+
 def load_punctuator(num_threads: int = 4):
     """モデルと語彙をロード（初回のみ実行）"""
     global _sess, _vocab, _cls_id, _sep_id, _unk_id

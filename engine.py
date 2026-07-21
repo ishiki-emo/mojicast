@@ -31,6 +31,7 @@ VAD_MODEL_PATH = os.path.join(BASE, "silero_vad.onnx")
 # 初回DLの進捗表示に使う、各モデルのおおよそのDLサイズ（MB）
 _MODEL_SIZES_MB = {
     "asr": 739,           # ReazonSpeech k2 v2
+    "asr_sv": 240,        # SenseVoice small（int8＋語彙）
     "punct": 364,         # 句読点BERT（ONNX変換済み・単一ファイル）
     "translate": 124,     # FuguMT（CTranslate2変換済み＋SentencePiece）
     "translate_zh": 470,  # M2M-100 418M（CT2 int8＋SentencePiece）
@@ -72,7 +73,9 @@ class CaptionEngine:
         self._replacer = None
         self._punct = None
         self._translate = None      # 翻訳関数（無効時 None。ロード済みなら再利用）
-        self._translate_lang = None # ロード済み翻訳モデルの言語（en / zh）
+        self._translate_sig = None  # ロード済み翻訳経路 (engine, src, tgt)
+        self._asr_caps = {"hotwords": True, "punct": False,
+                          "spaces": False, "multilang": False}  # 既定=k2
         self._tq = None             # 翻訳ジョブのキュー
         self._tworker = None        # 翻訳ワーカースレッド
         self._fid = 0               # 確定行の通し番号（英訳の対応付け用）
@@ -172,19 +175,48 @@ class CaptionEngine:
         except OSError:
             pass                    # ログが書けなくても本体は続行
 
+    def _translate_plan(self, cfg):
+        """cfg から翻訳経路を決める → ("fugumt"|"m2m", 原文言語, 翻訳先) / 不要なら None
+
+        原文言語は通常 ja。SenseVoiceで認識言語を明示している場合はそれに合わせる
+        （例: 中国語認識＋英訳 → M2Mの zh→en）。原文=翻訳先のときは None（翻訳不要）。
+        """
+        if not cfg.get("translate", False):
+            return None
+        tgt = cfg.get("translate_lang", "en")
+        src = "ja"
+        if cfg.get("asr_model", "k2-ja") == "sensevoice":
+            al = cfg.get("asr_lang", "auto")
+            if al not in ("auto", "ja"):
+                src = al
+        if src == "yue":
+            src = "zh"   # M2M-100は広東語非対応。書き起こしは中文字なのでzh扱いで翻訳
+        if src == tgt:
+            return None
+        eng = "fugumt" if (src, tgt) == ("ja", "en") else "m2m"
+        return (eng, src, tgt)
+
     def _expected_download_mb(self, cfg):
         """この設定で未キャッシュのモデルの合計DLサイズ(MB)と、DLが要るかを返す"""
         total = 0
-        if not os.path.isdir(os.path.join(
+        import asr_model
+        model_id = cfg.get("asr_model", "k2-ja")
+        caps = asr_model.MODELS.get(model_id, asr_model.MODELS["k2-ja"])["caps"]
+        if model_id == "sensevoice":
+            if not asr_model.cached("sensevoice"):
+                total += _MODEL_SIZES_MB["asr_sv"]
+        elif not os.path.isdir(os.path.join(
                 _hub_dir(), "models--reazon-research--reazonspeech-k2-v2")):
             total += _MODEL_SIZES_MB["asr"]
-        if cfg.get("punctuate", True):
+        # 句読点内蔵モデル（SenseVoice等）ではBERTを使わないためDLも不要
+        if cfg.get("punctuate", True) and not caps["punct"]:
             import punct
             if not punct.cached():
                 total += _MODEL_SIZES_MB["punct"]
-        if cfg.get("translate", False):
+        plan = self._translate_plan(cfg)
+        if plan:
             import translate
-            if cfg.get("translate_lang", "en") == "zh":
+            if plan[0] == "m2m":
                 if not translate.cached_zh():
                     total += _MODEL_SIZES_MB["translate_zh"]
             elif not translate.cached():
@@ -209,15 +241,30 @@ class CaptionEngine:
         hw_entries = (wordstore.merged_hotwords(cfg.get("word_profile", ""))
                       if cfg.get("use_hotwords", True) else [])
         sig = (cfg.get("precision", "int8-fp32"), tuple(hw_entries),
-               cfg.get("hotwords_score", 2.0))
+               cfg.get("hotwords_score", 2.0),
+               cfg.get("asr_model", "k2-ja"), cfg.get("asr_lang", "auto"))
 
         # 各モデルの「ロードが要るか」を個別判定（ASRの再利用判定に引きずられない）。
         # 一度ロードしたモデルは保持し、ON/OFFの実効切替は _run 側が cfg で行う。
+        from asr_model import MODELS
+        model_id = cfg.get("asr_model", "k2-ja")
+        model_caps = MODELS.get(model_id, MODELS["k2-ja"])["caps"]
         reload_asr = self._model is None or sig != self._model_sig
-        need_punct = cfg.get("punctuate", True) and self._punct is None
-        need_trans = cfg.get("translate", False) and (
-            self._translate is None
-            or self._translate_lang != cfg.get("translate_lang", "en"))
+        # 句読点内蔵モデル（SenseVoice等）ではBERTを使わない。ロードを省き、
+        # モデル切替で不要になった常駐BERTはここで解放する（メモリ返却）
+        if model_caps["punct"] and self._punct is not None:
+            import punct
+            punct.unload()
+            self._punct = None
+        need_punct = (cfg.get("punctuate", True)
+                      and not model_caps["punct"] and self._punct is None)
+        plan = self._translate_plan(cfg)
+        need_trans = plan is not None and self._translate_sig != plan
+        if cfg.get("translate", False) and plan is None:
+            # 認識言語と翻訳先が同じ（例: 中国語認識＋中国語訳）→ 翻訳は無意味
+            self._translate = None
+            self._translate_sig = None
+            self._load_warn = "認識言語と翻訳先が同じため、翻訳はスキップされます"
         if not (reload_asr or need_punct or need_trans):
             return  # ロード対象なし（設定のON/OFFは次の _run で即反映）
 
@@ -235,19 +282,23 @@ class CaptionEngine:
         try:
             if reload_asr:
                 self.on_state("loading", "認識モデルをロード中...")
-                from asr_model import load_model
+                from asr_model import load_by_config
                 hw_path = ""
                 self._replacer = None
                 if hw_entries:
                     from vocab import write_hotwords, build_replacer
-                    # 固定パスに書き出す（mkstempだと毎回%TEMP%に溜まるため）
-                    hw_path = write_hotwords(
-                        hw_entries, wordstore.data_path("_hotwords_gen.txt"))
+                    # 表記置換はどのモデルでも有効。認識誘導（hotwords_file）は
+                    # transducer系（k2）のみ対応
                     self._replacer = build_replacer(hw_entries)
-                self._model = load_model(
-                    device="cpu", hotwords_file=hw_path,
+                    if model_caps["hotwords"]:
+                        # 固定パスに書き出す（mkstempだと毎回%TEMP%に溜まるため）
+                        hw_path = write_hotwords(
+                            hw_entries, wordstore.data_path("_hotwords_gen.txt"))
+                self._model, self._asr_caps = load_by_config(
+                    model_id, hotwords_file=hw_path,
                     hotwords_score=cfg.get("hotwords_score", 2.0),
-                    precision=cfg.get("precision", "int8-fp32"))
+                    precision=cfg.get("precision", "int8-fp32"),
+                    language=cfg.get("asr_lang", "auto"))
                 self._model_sig = sig
 
             # 句読点・英訳は「付加機能」。ロードに失敗しても ASR（本体）は落とさず、
@@ -264,22 +315,27 @@ class CaptionEngine:
                     self._log_load_error("句読点モデル")
 
             if need_trans:
-                lang = cfg.get("translate_lang", "en")
-                label = "中国語訳" if lang == "zh" else "英訳"
+                eng, src, tgt = plan
+                label = {"en": "英訳", "zh": "中国語訳", "ja": "日本語訳",
+                         "ko": "韓国語訳"}.get(tgt, f"{tgt}訳")
                 self.on_state("loading", f"翻訳モデル({label})をロード中...")
                 try:
-                    if lang == "zh":
-                        from translate import (translate_zh as _tr,
-                                               load_translator_zh as _loadfn)
+                    if eng == "fugumt":
+                        from translate import translate as _tr, load_translator
+                        load_translator()
+                        self._translate = _tr
                     else:
-                        from translate import (translate as _tr,
-                                               load_translator as _loadfn)
-                    _loadfn()
-                    self._translate = _tr
-                    self._translate_lang = lang
+                        from translate import translate_m2m, load_translator_zh
+                        load_translator_zh()
+                        self._translate = (lambda t, _s=src, _t=tgt:
+                                           translate_m2m(t, _s, _t))
+                    self._translate_sig = plan
+                    # 切替で使わなくなった側の翻訳バックエンドを解放（メモリ返却）
+                    from translate import unload as unload_translator
+                    unload_translator("m2m" if eng == "fugumt" else "fugumt")
                 except Exception:
                     self._translate = None
-                    self._translate_lang = None
+                    self._translate_sig = None
                     self._load_warn = f"{label}の読み込みに失敗（翻訳なしで続行）"
                     self._log_load_error(f"翻訳モデル({label})")
         finally:
@@ -342,8 +398,8 @@ class CaptionEngine:
                 break
             fid, text = item
             # 英訳辞書: 翻訳前に日本語側で英訳語へ置換（固有名詞の訳を固定）。
-            # 中国語訳では英単語を注入してしまうため適用しない
-            if self._gloss and self._translate_lang != "zh":
+            # 適用は日→英（FuguMT）のみ。他方向では英単語を注入してしまうため
+            if self._gloss and (self._translate_sig or ("",))[0] == "fugumt":
                 for ja, en_word in self._gloss:
                     if ja in text:
                         text = text.replace(ja, en_word)
@@ -456,11 +512,19 @@ class CaptionEngine:
                         self.perf["final_n"] += 1
                         self.perf["final_ms"] += (time.time() - t0) * 1000
                         if text:
+                            if self._asr_caps.get("spaces"):
+                                from asr_model import strip_cjk_spaces
+                                text = strip_cjk_spaces(text)
                             if self._replacer is not None:
                                 text = self._replacer(text)
-                            if cfg.get("num_arabic", True):   # 三十五 → 35
-                                text = normalize_numbers(text)
-                            if self._punct is not None and cfg.get("punctuate", True):
+                            # SenseVoice系は句読点・数字正規化(ITN)を内蔵しているため
+                            # 後段のnumnorm/BERTはスキップ（日本語以外にBERTは使えない）
+                            if (cfg.get("num_arabic", True)
+                                    and not self._asr_caps.get("punct")):
+                                text = normalize_numbers(text)   # 三十五 → 35
+                            if (self._punct is not None
+                                    and cfg.get("punctuate", True)
+                                    and not self._asr_caps.get("punct")):
                                 text = self._punct(text)
                             if self._mask is not None:      # 禁止ワードを伏せ字化
                                 text = self._mask(text)
@@ -498,7 +562,11 @@ class CaptionEngine:
                             # 最大50%に制限。速いCPUでは gap=interval のまま挙動不変）
                             partial_gap = max(interval_samples,
                                               int(dt * 2.0 * SAMPLE_RATE))
-                            if cfg.get("num_arabic", True):
+                            if self._asr_caps.get("spaces"):
+                                from asr_model import strip_cjk_spaces
+                                p = strip_cjk_spaces(p)
+                            if (cfg.get("num_arabic", True)
+                                    and not self._asr_caps.get("punct")):
                                 p = normalize_numbers(p)
                             if self._mask is not None:      # 認識中(薄文字)も伏せ字化
                                 p = self._mask(p)

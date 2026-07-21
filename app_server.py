@@ -25,6 +25,9 @@ APP_VERSION = "0.4.0"
 DEFAULT_CONFIG = {
     "silence_ms": 300, "interval": 0.4, "max_utt": 12.0,
     "device": None, "precision": "int8-fp32", "punctuate": True,
+    "asr_model": "k2-ja",   # 認識モデル（k2-ja=日本語特化 / sensevoice=多言語）
+    "asr_lang": "auto",     # sensevoice時の認識言語（auto/ja/zh/en/ko/yue）
+    "setup_suggested": False,  # 初回の「おすすめ設定」提案を表示済みか
     "use_hotwords": True, "hotwords_score": 2.0, "translate": False,
     "translate_lang": "en",  # 翻訳チップの翻訳先（en=英訳 / zh=中国語訳）
     "save_log": True, "mask_char": "○", "num_arabic": True,
@@ -111,6 +114,65 @@ def _seed_style_defaults():
     if changed:
         cfg["seeded_styles"] = sorted(seeded)
         save_config(cfg)
+
+
+# ---------------- 環境検出（初回のおすすめ設定用） ----------------
+
+def _os_ui_lang():
+    """OSの表示言語 → 'ja'/'zh'/'en'/'ko'/'other'"""
+    try:
+        import ctypes
+        lid = ctypes.windll.kernel32.GetUserDefaultUILanguage() & 0xFF
+        return {0x11: "ja", 0x04: "zh", 0x09: "en", 0x12: "ko"}.get(lid, "other")
+    except Exception:
+        return "other"
+
+
+def _cpu_name():
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                            r"HARDWARE\DESCRIPTION\System\CentralProcessor\0") as k:
+            return winreg.QueryValueEx(k, "ProcessorNameString")[0].strip()
+    except OSError:
+        return ""
+
+
+def cpu_tier(name):
+    """CPU名 → 適性帯 'best'|'ok'|'delta'|'x'|None（判定不能）
+
+    マニュアル2章「CPUの向き・不向き / 世代の見方」のコード化。
+    誤った提案は無提案より悪いため、確信のない型番は None（＝何も提案しない）。
+    """
+    import re
+    n = name.lower()
+    if re.search(r"\b(n\d{2,3}\b|celeron|atom|pentium)", n):
+        return "x"                                   # 省電力系
+    m = re.search(r"ryzen\s*[3579]\s*(\d{4})(x3d|[a-z]{0,2})", n)
+    if m:
+        num, suf = m.group(1), m.group(2)
+        mobile = suf not in ("", "x", "xt", "x3d")   # U/HS/H/G等はモバイル/APU
+        if num[0] in "789":
+            if mobile:                               # ノート用は中身が混在
+                return "best" if num[2] >= "4" else "delta"   # 十の位4以上=Zen4
+            return "best"
+        if num[0] in "2345":
+            return "delta"
+        return None
+    if "core" in n and "ultra" in n:
+        return "ok"                                  # Core Ultra世代
+    m = re.search(r"i[3579]-(\d{4,5})(g\d)?", n)
+    if m:
+        num, gsuf = m.group(1), m.group(2)
+        gen = int(num[:2]) if (len(num) == 5 or gsuf) else int(num[0])
+        if gen >= 11:
+            return "ok"                              # 11世代=AVX-512 / 12以降=AVX-VNNI
+        if gen == 10:
+            return "ok" if gsuf else "delta"         # G付き=Ice Lake(AVX-512)
+        if gen >= 4:
+            return "delta"
+        return "x"                                   # AVX2非対応世代
+    return None
 
 
 # ---------------- mojipack（スタイルのエクスポート/インポート） ----------------
@@ -379,6 +441,11 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/profiles":
             self._json({"profiles": wordstore.list_profiles(),
                         "active": load_config().get("word_profile", "")})
+        elif path == "/api/env-suggest":
+            # 初回のおすすめ設定用の環境情報。lang/cpu クエリはテスト・サポート用の上書き
+            name = query.get("cpu", _cpu_name())
+            self._json({"os_lang": query.get("lang", _os_ui_lang()),
+                        "cpu": {"name": name, "tier": cpu_tier(name)}})
         elif path == "/api/hotwords":
             p = self._profile_arg(query.get("profile"))
             if p is None:

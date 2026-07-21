@@ -185,29 +185,55 @@ def load_translator_zh(num_threads: int = 4):
         raise RuntimeError("中国語訳モデルの自己診断に失敗（出力が空）")
 
 
-def translate_zh(text: str, max_new_tokens: int = 96) -> str:
-    """日本語テキストを中国語（簡体字）へ翻訳して返す。空文字は空文字を返す。
+def translate_m2m(text: str, src: str = "ja", tgt: str = "zh",
+                  max_new_tokens: int = 96,
+                  repetition_penalty: float | None = None) -> str:
+    """M2M-100 で src → tgt に翻訳する（言語コードは m2m100 準拠: ja/zh/en/ko 等。
+    広東語 yue は M2M-100 非対応のため翻訳先には使えない＝認識のみ）。
 
-    英訳用の配信用語置換（_STREAM_TERMS）は英単語を注入してしまうため適用せず、
-    中国語版の用語置換（_STREAM_TERMS_ZH）を使う。
+    - ja→zh のときだけ配信用語の事前置換（_STREAM_TERMS_ZH）を適用
+    - repetition_penalty 省略時は言語別の既定を使う: 韓国語は greedy だと
+      反復暴走するため 1.2（実測 2026-07-22）、他は 1.0
     """
     if not text or not text.strip():
         return ""
+    if repetition_penalty is None:
+        repetition_penalty = 1.2 if tgt == "ko" else 1.0
     if _m2m is None:
         load_translator_zh()
-    for pat, zh in _STREAM_TERMS_ZH:
-        text = pat.sub(zh, text)
+    if src == "ja" and tgt == "zh":
+        for pat, zh in _STREAM_TERMS_ZH:
+            text = pat.sub(zh, text)
     tokens = _sp_m2m.encode(text, out_type=str)
     if len(tokens) > 510:
         tokens = tokens[:510]
-    source = ["__ja__"] + tokens + ["</s>"]
-    res = _m2m.translate_batch([source], target_prefix=[["__zh__"]],
+    source = [f"__{src}__"] + tokens + ["</s>"]
+    res = _m2m.translate_batch([source], target_prefix=[[f"__{tgt}__"]],
                                beam_size=1,
+                               repetition_penalty=repetition_penalty,
                                max_decoding_length=max_new_tokens)
     out = [t for t in res[0].hypotheses[0]
            if not (t.startswith("__") and t.endswith("__"))
            and t not in ("</s>", "<pad>", "<unk>")]
     return _sp_m2m.decode(out).strip()
+
+
+def translate_zh(text: str, max_new_tokens: int = 96) -> str:
+    """日本語テキストを中国語（簡体字）へ翻訳して返す（translate_m2m の既定方向）"""
+    return translate_m2m(text, "ja", "zh", max_new_tokens)
+
+
+def unload(which: str):
+    """使わなくなった翻訳バックエンドを解放してメモリを返す（次回使用時に再ロード）。
+
+    翻訳経路の切替（FuguMT⇔M2M）で旧バックエンドが常駐し続けるのを防ぐ。
+    which: "fugumt" | "m2m"
+    """
+    global _translator, _sp_src, _sp_tgt, _m2m, _sp_m2m
+    if which == "fugumt":
+        _translator = _sp_src = _sp_tgt = None
+    elif which == "m2m":
+        _m2m = _sp_m2m = None
 
 
 if __name__ == "__main__":
