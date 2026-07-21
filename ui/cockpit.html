@@ -293,6 +293,13 @@
               <label>登録した単語の出やすさ <output id="oScore">2.0</output></label>
               <input type="range" id="score" min="1.0" max="4.0" step="0.5" value="2.0">
             </div>
+            <div class="row">
+              <label>翻訳先（翻訳チップの言語）</label>
+              <select id="transLang">
+                <option value="en">英語（FuguMT）</option>
+                <option value="zh">中国語・簡体字（M2M-100）</option>
+              </select>
+            </div>
           </div>
         </div>
         <div class="hint" id="restartHint" style="display:none">⚠ 設定変更は次回開始時に反映</div>
@@ -306,7 +313,7 @@
       </div>
       <div class="montoggles" title="字幕の処理オン/オフ">
         <span class="mtog" data-k="punctuate"><span class="dot"></span>句読点</span>
-        <span class="mtog" data-k="translate"><span class="dot"></span>英訳</span>
+        <span class="mtog" data-k="translate"><span class="dot"></span><span id="transChipLabel">英訳</span></span>
         <span class="mtog" data-k="save_log"><span class="dot"></span>ログ保存</span>
         <span class="mtog" data-k="num_arabic"><span class="dot"></span>漢数字→数字</span>
         <span class="mtog" data-k="word_fx"><span class="dot"></span>単語エフェクト</span>
@@ -463,6 +470,17 @@
   bindRange("maxUtt", "max_utt", "oMax", v => v + "s");
   bindRange("score", "hotwords_score", "oScore", v => (+v).toFixed(1));
 
+  // 翻訳先の切替（英訳チップの中身が変わる。モデルは次回開始時にロード）
+  function syncTransLabel() {
+    $("transChipLabel").textContent =
+      cfg.translate_lang === "zh" ? "中国語訳" : "英訳";
+  }
+  $("transLang").addEventListener("change", () => {
+    cfg.translate_lang = $("transLang").value;
+    syncTransLabel();
+    saveCfg();
+  });
+
   // 字幕処理トグル（モニタ上のチップ）。cfgのキーを直接切り替える
   function mtogOn(k) {
     return k === "precision" ? cfg.precision === "fp32" : !!cfg[k];
@@ -548,7 +566,9 @@
     $("score").value = cfg.hotwords_score; $("oScore").textContent = (+cfg.hotwords_score).toFixed(1);
     if (cfg.num_arabic === undefined) cfg.num_arabic = true;   // 既定ON（チップ表示用）
     if (cfg.save_log === undefined) cfg.save_log = true;
-    syncMTog();   // 字幕処理チップ（句読点/英訳/ログ/漢数字/高精度）を反映
+    $("transLang").value = cfg.translate_lang || "en";
+    syncTransLabel();
+    syncMTog();   // 字幕処理チップ（句読点/翻訳/ログ/漢数字/高精度）を反映
     $("obsUrl").value = location.origin + "/";
     $("port").value = cfg.port;
 

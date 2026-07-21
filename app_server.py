@@ -26,6 +26,7 @@ DEFAULT_CONFIG = {
     "silence_ms": 300, "interval": 0.4, "max_utt": 12.0,
     "device": None, "precision": "int8-fp32", "punctuate": True,
     "use_hotwords": True, "hotwords_score": 2.0, "translate": False,
+    "translate_lang": "en",  # 翻訳チップの翻訳先（en=英訳 / zh=中国語訳）
     "save_log": True, "mask_char": "○", "num_arabic": True,
     "word_fx": True,        # 単語エフェクトの表示（OFFでも認識誘導・置換は有効）
     "preset": "standard", "box": "none", "port": 8765,

@@ -30,9 +30,10 @@ VAD_MODEL_PATH = os.path.join(BASE, "silero_vad.onnx")
 
 # 初回DLの進捗表示に使う、各モデルのおおよそのDLサイズ（MB）
 _MODEL_SIZES_MB = {
-    "asr": 739,        # ReazonSpeech k2 v2
-    "punct": 364,      # 句読点BERT（ONNX変換済み・単一ファイル）
-    "translate": 124,  # FuguMT（CTranslate2変換済み＋SentencePiece）
+    "asr": 739,           # ReazonSpeech k2 v2
+    "punct": 364,         # 句読点BERT（ONNX変換済み・単一ファイル）
+    "translate": 124,     # FuguMT（CTranslate2変換済み＋SentencePiece）
+    "translate_zh": 470,  # M2M-100 418M（CT2 int8＋SentencePiece）
 }
 
 
@@ -70,7 +71,8 @@ class CaptionEngine:
         self._model_sig = None      # (precision, hotwords mtime, score) 変更検知
         self._replacer = None
         self._punct = None
-        self._translate = None      # 英訳関数（無効時 None。ロード済みなら再利用）
+        self._translate = None      # 翻訳関数（無効時 None。ロード済みなら再利用）
+        self._translate_lang = None # ロード済み翻訳モデルの言語（en / zh）
         self._tq = None             # 翻訳ジョブのキュー
         self._tworker = None        # 翻訳ワーカースレッド
         self._fid = 0               # 確定行の通し番号（英訳の対応付け用）
@@ -182,7 +184,10 @@ class CaptionEngine:
                 total += _MODEL_SIZES_MB["punct"]
         if cfg.get("translate", False):
             import translate
-            if not translate.cached():
+            if cfg.get("translate_lang", "en") == "zh":
+                if not translate.cached_zh():
+                    total += _MODEL_SIZES_MB["translate_zh"]
+            elif not translate.cached():
                 total += _MODEL_SIZES_MB["translate"]
         return total, total > 0
 
@@ -210,7 +215,9 @@ class CaptionEngine:
         # 一度ロードしたモデルは保持し、ON/OFFの実効切替は _run 側が cfg で行う。
         reload_asr = self._model is None or sig != self._model_sig
         need_punct = cfg.get("punctuate", True) and self._punct is None
-        need_trans = cfg.get("translate", False) and self._translate is None
+        need_trans = cfg.get("translate", False) and (
+            self._translate is None
+            or self._translate_lang != cfg.get("translate_lang", "en"))
         if not (reload_asr or need_punct or need_trans):
             return  # ロード対象なし（設定のON/OFFは次の _run で即反映）
 
@@ -257,15 +264,24 @@ class CaptionEngine:
                     self._log_load_error("句読点モデル")
 
             if need_trans:
-                self.on_state("loading", "翻訳モデル(英訳)をロード中...")
+                lang = cfg.get("translate_lang", "en")
+                label = "中国語訳" if lang == "zh" else "英訳"
+                self.on_state("loading", f"翻訳モデル({label})をロード中...")
                 try:
-                    from translate import translate as _tr, load_translator
-                    load_translator()
+                    if lang == "zh":
+                        from translate import (translate_zh as _tr,
+                                               load_translator_zh as _loadfn)
+                    else:
+                        from translate import (translate as _tr,
+                                               load_translator as _loadfn)
+                    _loadfn()
                     self._translate = _tr
+                    self._translate_lang = lang
                 except Exception:
                     self._translate = None
-                    self._load_warn = "英訳の読み込みに失敗（英訳なしで続行）"
-                    self._log_load_error("翻訳モデル(英訳)")
+                    self._translate_lang = None
+                    self._load_warn = f"{label}の読み込みに失敗（翻訳なしで続行）"
+                    self._log_load_error(f"翻訳モデル({label})")
         finally:
             stop_evt.set()
             if mon is not None:
@@ -325,8 +341,9 @@ class CaptionEngine:
             if item is None:      # 停止サインで終了
                 break
             fid, text = item
-            # 英訳辞書: 翻訳前に日本語側で英訳語へ置換（固有名詞の訳を固定）
-            if self._gloss:
+            # 英訳辞書: 翻訳前に日本語側で英訳語へ置換（固有名詞の訳を固定）。
+            # 中国語訳では英単語を注入してしまうため適用しない
+            if self._gloss and self._translate_lang != "zh":
                 for ja, en_word in self._gloss:
                     if ja in text:
                         text = text.replace(ja, en_word)
