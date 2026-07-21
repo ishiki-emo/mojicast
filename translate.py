@@ -185,29 +185,39 @@ def load_translator_zh(num_threads: int = 4):
         raise RuntimeError("中国語訳モデルの自己診断に失敗（出力が空）")
 
 
-def translate_zh(text: str, max_new_tokens: int = 96) -> str:
-    """日本語テキストを中国語（簡体字）へ翻訳して返す。空文字は空文字を返す。
+def translate_m2m(text: str, src: str = "ja", tgt: str = "zh",
+                  max_new_tokens: int = 96,
+                  repetition_penalty: float = 1.0) -> str:
+    """M2M-100 で src → tgt に翻訳する（言語コードは m2m100 準拠: ja/zh/en/ko/yue 等）。
 
-    英訳用の配信用語置換（_STREAM_TERMS）は英単語を注入してしまうため適用せず、
-    中国語版の用語置換（_STREAM_TERMS_ZH）を使う。
+    - ja→zh のときだけ配信用語の事前置換（_STREAM_TERMS_ZH）を適用
+    - 韓国語など一部ターゲットは greedy だと反復暴走するため、その言語を
+      追加するときは repetition_penalty=1.2 前後を指定すること（実測 2026-07-22）
     """
     if not text or not text.strip():
         return ""
     if _m2m is None:
         load_translator_zh()
-    for pat, zh in _STREAM_TERMS_ZH:
-        text = pat.sub(zh, text)
+    if src == "ja" and tgt == "zh":
+        for pat, zh in _STREAM_TERMS_ZH:
+            text = pat.sub(zh, text)
     tokens = _sp_m2m.encode(text, out_type=str)
     if len(tokens) > 510:
         tokens = tokens[:510]
-    source = ["__ja__"] + tokens + ["</s>"]
-    res = _m2m.translate_batch([source], target_prefix=[["__zh__"]],
+    source = [f"__{src}__"] + tokens + ["</s>"]
+    res = _m2m.translate_batch([source], target_prefix=[[f"__{tgt}__"]],
                                beam_size=1,
+                               repetition_penalty=repetition_penalty,
                                max_decoding_length=max_new_tokens)
     out = [t for t in res[0].hypotheses[0]
            if not (t.startswith("__") and t.endswith("__"))
            and t not in ("</s>", "<pad>", "<unk>")]
     return _sp_m2m.decode(out).strip()
+
+
+def translate_zh(text: str, max_new_tokens: int = 96) -> str:
+    """日本語テキストを中国語（簡体字）へ翻訳して返す（translate_m2m の既定方向）"""
+    return translate_m2m(text, "ja", "zh", max_new_tokens)
 
 
 if __name__ == "__main__":

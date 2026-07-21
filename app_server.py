@@ -25,6 +25,8 @@ APP_VERSION = "0.4.0"
 DEFAULT_CONFIG = {
     "silence_ms": 300, "interval": 0.4, "max_utt": 12.0,
     "device": None, "precision": "int8-fp32", "punctuate": True,
+    "asr_model": "k2-ja",   # 認識モデル（k2-ja=日本語特化 / sensevoice=多言語）
+    "asr_lang": "auto",     # sensevoice時の認識言語（auto/ja/zh/en/ko/yue）
     "use_hotwords": True, "hotwords_score": 2.0, "translate": False,
     "translate_lang": "en",  # 翻訳チップの翻訳先（en=英訳 / zh=中国語訳）
     "save_log": True, "mask_char": "○", "num_arabic": True,
