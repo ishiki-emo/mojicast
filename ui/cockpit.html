@@ -140,6 +140,12 @@
   .mon-head { display: flex; align-items: center; margin-bottom: 8px; gap: 8px; }
   .mon-head .rec { color: var(--err); font-size: 11px; letter-spacing: .15em; opacity: 0; }
   .mon-head .rec.on { opacity: 1; animation: blink 1.2s infinite; }
+  .mon-head .mode-switch { margin-left: auto; display: inline-flex; padding: 2px;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); }
+  .mon-head .mode-switch button { padding: 4px 9px; border: 0; border-radius: 6px;
+    background: transparent; color: var(--dim); font-size: 11px; font-weight: 800; }
+  .mon-head .mode-switch button:hover { color: var(--text); }
+  .mon-head .mode-switch button.active { color: #061117; background: var(--accent); }
   #centerPanel { display: flex; flex-direction: column; }
   /* 次回反映の警告バー（動作中に設定を変えたとき。再起動ボタンつき） */
   #restartHint { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
@@ -175,6 +181,22 @@
   /* はじめの3ステップ（初回のみ・モニタに重ねて表示） */
   .mon-wrap { position: relative; flex: 1; min-height: 0; display: flex; }
   .mon-wrap #monitor { flex: 1; }
+  #previewStage { display: none; position: relative; flex: 1; min-width: 0; min-height: 0;
+    overflow: hidden; border-radius: 8px; background:
+      linear-gradient(rgba(5,8,14,.2),rgba(5,8,14,.55)),
+      radial-gradient(circle at 68% 38%,rgba(76,105,170,.28),transparent 38%),
+      repeating-linear-gradient(45deg,#151c28 0 16px,#111722 16px 32px); }
+  :root[data-theme="light"] #previewStage { background:
+      linear-gradient(rgba(255,255,255,.08),rgba(20,30,46,.28)),
+      radial-gradient(circle at 68% 38%,rgba(76,105,170,.28),transparent 38%),
+      repeating-linear-gradient(45deg,#324159 0 16px,#29374d 16px 32px); }
+  #previewStage.active { display: block; }
+  #previewCanvas { position: absolute; width: 1920px; height: 1080px; transform-origin: 0 0;
+    overflow: hidden; background: transparent; box-shadow: 0 0 0 1px rgba(255,255,255,.12); }
+  #previewCanvas iframe { width: 100%; height: 100%; border: 0; background: transparent; pointer-events: none; }
+  .preview-badge { position: absolute; left: 8px; top: 8px; z-index: 2; padding: 4px 7px;
+    border-radius: 6px; color: rgba(255,255,255,.76); background: rgba(0,0,0,.48);
+    font-size: 10px; font-weight: 800; letter-spacing: .06em; pointer-events: none; }
   #guide {
     position: absolute; inset: 0; z-index: 5; border-radius: 8px;
     display: flex; flex-direction: column; justify-content: center; gap: 16px;
@@ -374,8 +396,12 @@
       <!-- 字幕モニタ -->
       <section class="panel" id="centerPanel">
       <div class="mon-head">
-        <h2 style="margin:0;border:0;padding:0">字幕ログ（簡易）</h2>
+        <h2 id="monitorTitle" style="margin:0;border:0;padding:0">字幕ログ</h2>
         <span class="rec" id="rec">● REC</span>
+        <div class="mode-switch" role="group" aria-label="字幕モニタの表示方法">
+          <button id="modeLog" class="active" aria-pressed="true" onclick="setMonitorMode('log')">簡易ログ</button>
+          <button id="modePreview" aria-pressed="false" onclick="setMonitorMode('preview')">配信プレビュー</button>
+        </div>
       </div>
       <div id="suggestBar" style="display:none">
         <span id="suggestMsg"></span>
@@ -386,6 +412,10 @@
       </div>
       <div class="mon-wrap">
         <div id="monitor"></div>
+        <div id="previewStage" aria-hidden="true">
+          <span class="preview-badge">OBS表示イメージ・1920×1080</span>
+          <div id="previewCanvas"><iframe src="/overlay?cockpit-preview=1" title="OBS字幕プレビュー"></iframe></div>
+        </div>
         <div id="guide">
           <div>
             <div class="g-title">はじめの3ステップ</div>
@@ -937,6 +967,44 @@
   const monitor = $("monitor");
   const partials = new Map();   // 話者名 → 認識中(薄文字)の行（"" = ソロ）
   let spkColor = {};            // 話者名 → チップ色
+
+  // ---------- 簡易ログ / OBS相当プレビュー ----------
+  let monitorMode = "log";
+  function sizePreviewCanvas() {
+    const stage = $("previewStage"), canvas = $("previewCanvas");
+    if (!stage || !canvas || !stage.classList.contains("active")) return;
+    const scale = Math.min(stage.clientWidth / 1920, stage.clientHeight / 1080);
+    const width = 1920 * scale, height = 1080 * scale;
+    canvas.style.left = Math.max(0, (stage.clientWidth - width) / 2) + "px";
+    canvas.style.top = Math.max(0, (stage.clientHeight - height) / 2) + "px";
+    canvas.style.transform = `scale(${scale})`;
+  }
+  function setMonitorMode(mode) {
+    monitorMode = mode === "preview" ? "preview" : "log";
+    const preview = monitorMode === "preview";
+    monitor.style.display = preview ? "none" : "flex";
+    $("previewStage").classList.toggle("active", preview);
+    $("previewStage").setAttribute("aria-hidden", String(!preview));
+    $("modeLog").classList.toggle("active", !preview);
+    $("modePreview").classList.toggle("active", preview);
+    $("modeLog").setAttribute("aria-pressed", String(!preview));
+    $("modePreview").setAttribute("aria-pressed", String(preview));
+    $("monitorTitle").textContent = preview ? "配信プレビュー" : "字幕ログ";
+    if (preview) {
+      const guide = $("guide"); if (guide) guide.style.display = "none";
+      requestAnimationFrame(sizePreviewCanvas);
+    } else {
+      try {
+        const guide = $("guide");
+        if (guide) guide.style.display = localStorage.getItem("mojicast-onboarded") === "1" ? "none" : "flex";
+      } catch (e) {}
+    }
+    try { localStorage.setItem("mojicast-monitor-mode", monitorMode); } catch (e) {}
+  }
+  try { monitorMode = localStorage.getItem("mojicast-monitor-mode") || "log"; } catch (e) {}
+  setMonitorMode(monitorMode);
+  if (window.ResizeObserver) new ResizeObserver(sizePreviewCanvas).observe($("previewStage"));
+  else window.addEventListener("resize", sizePreviewCanvas);
 
   // 行を [話者チップ][本文スパン] の構造で作る（ソロはチップなし）
   function monLine(spk) {
