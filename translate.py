@@ -2,7 +2,10 @@
 
 2系統を持つ（どちらも tools/convert_models.py で変換・torch/transformers 非依存）:
   - 英訳:     FuguMT (staka/fugumt-ja-en, fp32)        … ja→en 専用・実績枠
-  - 中国語訳: M2M-100 418M (facebook/m2m100_418M, int8) … 多言語枠の第一弾 ja→zh
+  - 多言語訳: M2M-100 418M (facebook/m2m100_418M, int8) … 中国語・インドネシア語等
+
+中国語はM2M-100の簡体字訳を基準にし、台湾・香港向けはOpenCCで地域表記へ
+後処理する。広東語はM2M-100非対応であり、繁体字変換では代用しない。
 
 k2 の確定テキスト（句読点適用済み）をそのまま渡す想定。
 翻訳は認識ループとは別スレッドから呼ぶこと（engine.CaptionEngine が担当）。
@@ -136,8 +139,42 @@ _STREAM_TERMS_ZH = [
     (re.compile(r"コメ欄"), "评论区"),
 ]
 
+# インドネシア語向け。M2M-100は「配信」を配送（pengiriman）と誤訳しやすいため、
+# インドネシアの配信文化でも一般的な借用語を先に入れて意味を固定する。
+# モデル通過後の実測で崩れにくかった語だけを登録する。
+_STREAM_TERMS_ID = [
+    (re.compile(r"スーパーチャット|スパチャ"), "Super Chat"),
+    (re.compile(r"配信者"), "streamer"),
+    (re.compile(r"生配信|配信"), "live stream"),
+    (re.compile(r"切り抜き"), "clip"),
+    (re.compile(r"歌枠"), "Karaoke Stream"),
+]
+
 _m2m = None
 _sp_m2m = None
+_zh_converters = {}
+
+_ZH_VARIANT_CONFIGS = {
+    "zh_tw": "s2twp.json",  # 台湾正体字＋台湾で一般的な語彙
+    "zh_hk": "s2hk.json",   # 香港繁体字
+}
+
+
+def convert_zh_variant(text: str, target: str) -> str:
+    """簡体字中国語を台湾／香港の地域表記へ変換する。
+
+    OpenCCは文字・地域語彙の変換であり、普通話→広東語の翻訳には使わない。
+    target: "zh"（無変換）| "zh_tw" | "zh_hk"
+    """
+    config = _ZH_VARIANT_CONFIGS.get(target)
+    if not config or not text:
+        return text
+    converter = _zh_converters.get(target)
+    if converter is None:
+        import opencc
+        converter = opencc.OpenCC(config)
+        _zh_converters[target] = converter
+    return converter.convert(text)
 
 
 def _resolve_dir_m2m(download=True):
@@ -188,8 +225,11 @@ def load_translator_zh(num_threads: int = 4):
 def translate_m2m(text: str, src: str = "ja", tgt: str = "zh",
                   max_new_tokens: int = 96,
                   repetition_penalty: float | None = None) -> str:
-    """M2M-100 で src → tgt に翻訳する（言語コードは m2m100 準拠: ja/zh/en/ko 等。
-    広東語 yue は M2M-100 非対応のため翻訳先には使えない＝認識のみ）。
+    """M2M-100 で src → tgt に翻訳する。
+
+    基本の言語コードはM2M-100準拠（ja/zh/en/ko/id等）。アプリ独自の
+    zh_tw/zh_hk はモデル上ではzhへ翻訳し、出力をOpenCCで地域表記へ変換する。
+    広東語yueはM2M-100非対応のため翻訳先には使わない（音声認識のみ）。
 
     - ja→zh のときだけ配信用語の事前置換（_STREAM_TERMS_ZH）を適用
     - repetition_penalty 省略時は言語別の既定を使う: 韓国語は greedy だと
@@ -197,25 +237,30 @@ def translate_m2m(text: str, src: str = "ja", tgt: str = "zh",
     """
     if not text or not text.strip():
         return ""
+    model_tgt = "zh" if tgt in _ZH_VARIANT_CONFIGS else tgt
     if repetition_penalty is None:
-        repetition_penalty = 1.2 if tgt == "ko" else 1.0
+        repetition_penalty = 1.2 if model_tgt == "ko" else 1.0
     if _m2m is None:
         load_translator_zh()
-    if src == "ja" and tgt == "zh":
+    if src == "ja" and model_tgt == "zh":
         for pat, zh in _STREAM_TERMS_ZH:
             text = pat.sub(zh, text)
+    elif src == "ja" and model_tgt == "id":
+        for pat, indonesian in _STREAM_TERMS_ID:
+            text = pat.sub(indonesian, text)
     tokens = _sp_m2m.encode(text, out_type=str)
     if len(tokens) > 510:
         tokens = tokens[:510]
     source = [f"__{src}__"] + tokens + ["</s>"]
-    res = _m2m.translate_batch([source], target_prefix=[[f"__{tgt}__"]],
+    res = _m2m.translate_batch([source], target_prefix=[[f"__{model_tgt}__"]],
                                beam_size=1,
                                repetition_penalty=repetition_penalty,
                                max_decoding_length=max_new_tokens)
     out = [t for t in res[0].hypotheses[0]
            if not (t.startswith("__") and t.endswith("__"))
            and t not in ("</s>", "<pad>", "<unk>")]
-    return _sp_m2m.decode(out).strip()
+    translated = _sp_m2m.decode(out).strip()
+    return convert_zh_variant(translated, tgt)
 
 
 def translate_zh(text: str, max_new_tokens: int = 96) -> str:

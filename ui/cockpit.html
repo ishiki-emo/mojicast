@@ -628,7 +628,8 @@
   }
 
   // 翻訳チップの表示名（英訳/中国語訳など）を設定に同期
-  const TR_NAMES = { en: "英訳", zh: "中国語訳", ja: "日本語訳", ko: "韓国語訳" };
+  const TR_NAMES = { en: "英訳", zh: "中国語訳", zh_tw: "台湾繁体字訳",
+    zh_hk: "香港繁体字訳", id: "インドネシア語訳", ja: "日本語訳", ko: "韓国語訳" };
   function syncModelCard() {
     const tr = TR_NAMES[cfg.translate_lang] || "英訳";
     $("transFeatureLabel").textContent = tr;

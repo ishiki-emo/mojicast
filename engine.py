@@ -193,6 +193,10 @@ class CaptionEngine:
             src = "zh"   # M2M-100は広東語非対応。書き起こしは中文字なのでzh扱いで翻訳
         if src == tgt:
             return None
+        # SenseVoiceの中国語認識結果を台湾／香港表記へ整えるだけなら、
+        # 翻訳モデルを通さずOpenCCの地域表記変換だけを使う。
+        if src == "zh" and tgt in ("zh_tw", "zh_hk"):
+            return ("opencc", src, tgt)
         eng = "fugumt" if (src, tgt) == ("ja", "en") else "m2m"
         return (eng, src, tgt)
 
@@ -219,7 +223,7 @@ class CaptionEngine:
             if plan[0] == "m2m":
                 if not translate.cached_zh():
                     total += _MODEL_SIZES_MB["translate_zh"]
-            elif not translate.cached():
+            elif plan[0] == "fugumt" and not translate.cached():
                 total += _MODEL_SIZES_MB["translate"]
         return total, total > 0
 
@@ -316,14 +320,23 @@ class CaptionEngine:
 
             if need_trans:
                 eng, src, tgt = plan
-                label = {"en": "英訳", "zh": "中国語訳", "ja": "日本語訳",
-                         "ko": "韓国語訳"}.get(tgt, f"{tgt}訳")
+                label = {"en": "英訳", "zh": "中国語（簡体字）訳",
+                         "zh_tw": "中国語（台湾繁体字）訳",
+                         "zh_hk": "中国語（香港繁体字）訳",
+                         "ja": "日本語訳", "ko": "韓国語訳",
+                         "id": "インドネシア語訳"}.get(tgt, f"{tgt}訳")
                 self.on_state("loading", f"翻訳モデル({label})をロード中...")
                 try:
                     if eng == "fugumt":
                         from translate import translate as _tr, load_translator
                         load_translator()
                         self._translate = _tr
+                    elif eng == "opencc":
+                        from translate import convert_zh_variant
+                        # 初回変換をここで行い、依存ファイル不足を字幕開始前に検出する。
+                        convert_zh_variant("测试", tgt)
+                        self._translate = (lambda t, _t=tgt:
+                                           convert_zh_variant(t, _t))
                     else:
                         from translate import translate_m2m, load_translator_zh
                         load_translator_zh()
@@ -332,7 +345,10 @@ class CaptionEngine:
                     self._translate_sig = plan
                     # 切替で使わなくなった側の翻訳バックエンドを解放（メモリ返却）
                     from translate import unload as unload_translator
-                    unload_translator("m2m" if eng == "fugumt" else "fugumt")
+                    if eng != "fugumt":
+                        unload_translator("fugumt")
+                    if eng != "m2m":
+                        unload_translator("m2m")
                 except Exception:
                     self._translate = None
                     self._translate_sig = None

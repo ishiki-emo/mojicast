@@ -306,7 +306,8 @@
     await refreshOverview();
   }
   const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");
-  const trNames = { en:"英語", zh:"中国語", ja:"日本語", ko:"韓国語" };
+  const trNames = { en:"英語", zh:"中国語（簡体字）", zh_tw:"中国語（台湾繁体字）",
+    zh_hk:"中国語（香港繁体字）", id:"インドネシア語", ja:"日本語", ko:"韓国語" };
   async function refreshOverview() {
     try {
       cfg = await api("/api/config");

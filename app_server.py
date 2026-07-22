@@ -30,7 +30,7 @@ DEFAULT_CONFIG = {
     "asr_lang": "auto",     # sensevoice時の認識言語（auto/ja/zh/en/ko/yue）
     "setup_suggested": False,  # 初回の「おすすめ設定」提案を表示済みか
     "use_hotwords": True, "hotwords_score": 2.0, "translate": False,
-    "translate_lang": "en",  # 翻訳チップの翻訳先（en=英訳 / zh=中国語訳）
+    "translate_lang": "en",  # 翻訳先（en/zh/zh_tw/zh_hk/id/ja/ko）
     "save_log": True, "mask_char": "○", "num_arabic": True,
     "word_fx": True,        # 単語エフェクトの表示（OFFでも認識誘導・置換は有効）
     "preset": "standard", "box": "none", "port": 8765,

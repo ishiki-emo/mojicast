@@ -149,9 +149,19 @@
       <div class="grid">
         <article class="card wide"><h2>翻訳の動作</h2><p>見た目と固定訳は字幕スタジオで編集できます。</p>
           <label class="checkrow"><input id="translate" type="checkbox"><span><b>翻訳字幕を使う</b><small>コックピットからもオン・オフできます</small></span></label>
-          <div class="field"><label for="translateLang">字幕を翻訳する言語</label><select id="translateLang"><option value="en">英語</option><option value="zh">中国語（簡体字）</option><option value="ja">日本語</option><option value="ko">韓国語（試験的）</option></select></div>
+          <div class="field"><label for="translateLang">字幕を翻訳する言語</label><select id="translateLang">
+            <option value="en">英語</option>
+            <optgroup label="中国語圏">
+              <option value="zh">中国語（簡体字・中国大陸）</option>
+              <option value="zh_tw">中国語（繁体字・台湾）</option>
+              <option value="zh_hk">中国語（繁体字・香港）</option>
+            </optgroup>
+            <option value="id">インドネシア語</option>
+            <option value="ja">日本語</option>
+            <option value="ko">韓国語（試験的）</option>
+          </select></div>
           <div class="route" id="translationRoute"></div>
-          <div class="note">翻訳モデルは、認識言語と翻訳先に合わせて自動で選ばれます。個別にモデル名を覚える必要はありません。</div>
+          <div class="note">翻訳モデルは、認識言語と翻訳先に合わせて自動で選ばれます。台湾・香港向けは地域ごとの漢字と語彙に整えます。</div>
         </article>
       </div>
     </section>
@@ -248,9 +258,19 @@
     const sv = cfg.asr_model === "sensevoice";
     let src = sv && cfg.asr_lang && !["auto","ja"].includes(cfg.asr_lang) ? cfg.asr_lang : "ja";
     if (src === "yue") src = "zh";
-    const tgt = cfg.translate_lang || "en"; const names = {ja:"日本語",zh:"中国語",en:"英語",ko:"韓国語"};
-    $("translationRoute").textContent = src === tgt ? "認識言語と翻訳先が同じため、翻訳はスキップされます" :
-      `使用モデル: ${src === "ja" && tgt === "en" ? "FuguMT" : "M2M-100"}（${names[src] || src} → ${names[tgt] || tgt}）`;
+    const tgt = cfg.translate_lang || "en";
+    const names = {ja:"日本語",zh:"中国語",en:"英語",ko:"韓国語",id:"インドネシア語",
+      zh_tw:"中国語（台湾繁体字）",zh_hk:"中国語（香港繁体字）"};
+    const regional = ["zh_tw", "zh_hk"].includes(tgt);
+    if (src === tgt) {
+      $("translationRoute").textContent = "認識言語と翻訳先が同じため、翻訳はスキップされます";
+    } else if (src === "zh" && regional) {
+      $("translationRoute").textContent = `使用処理: OpenCC（中国語 → ${names[tgt]}）`;
+    } else {
+      let model = src === "ja" && tgt === "en" ? "FuguMT" : "M2M-100";
+      if (regional) model += " ＋ OpenCC";
+      $("translationRoute").textContent = `使用モデル: ${model}（${names[src] || src} → ${names[tgt] || tgt}）`;
+    }
   }
   async function loadApps() {
     try {

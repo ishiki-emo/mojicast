@@ -17,7 +17,7 @@ datas, binaries, hiddenimports = [], [], []
 #   （librosa→sklearn/scipy の玉突き同梱で約600ファイル膨らんでいたため）
 # ※ onnxruntime は標準フックで足りる（collect_all だと training/tools まで入る）
 for pkg in (
-    "ctranslate2", "sentencepiece", "huggingface_hub",
+    "ctranslate2", "sentencepiece", "huggingface_hub", "opencc",
     "sherpa_onnx", "sounddevice",
     "webview", "pythonnet", "clr_loader",
 ):
