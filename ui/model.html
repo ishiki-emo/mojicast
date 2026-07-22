@@ -6,12 +6,16 @@
 <script>
   // 起動モニタに合わせたUI縮小＋テーマ先読み（cockpitと同じ流儀）
   (function () {
-    const s = parseFloat(new URLSearchParams(location.search).get("s"));
+    const qs = new URLSearchParams(location.search);
+    const s = parseFloat(qs.get("s"));
     if (s > 0 && s < 1) document.documentElement.style.zoom = s;
     try { if (localStorage.getItem("mojicast-theme") === "light")
       document.documentElement.dataset.theme = "light"; } catch (e) {}
+    if (qs.get("embed") === "1") document.documentElement.classList.add("embed");
+    if (qs.get("section") === "translation") document.documentElement.classList.add("translation-only");
   })();
 </script>
+<script src="/ui/theme-sync.js" defer></script>
 <style>
   :root {
     --bg: #0d1117; --panel: #161c26; --panel2: #1c2432;
@@ -26,7 +30,7 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     background: var(--bg); color: var(--text);
-    font-family: 'Yu Gothic UI', 'Meiryo', sans-serif; font-size: 14px;
+    font-family: 'Yu Gothic UI', 'Meiryo', sans-serif; font-size: 15px;
     min-height: 100vh; display: flex; flex-direction: column; user-select: none;
   }
   header {
@@ -70,6 +74,9 @@
     padding: 10px 18px; color: var(--dim); font-size: 11px; line-height: 1.7;
     border-top: 1px solid var(--line); background: var(--panel);
   }
+  :root.embed header { display: none; }
+  :root.embed main { padding: 18px; }
+  :root.translation-only #asrSection { display: none; }
 </style>
 </head>
 <body>
@@ -86,7 +93,7 @@
       ⚠ 認識が動作中です。ここでの変更は<b>「■ 停止 → ▶ 開始」で反映</b>されます
       （コックピットに出る黄色いバーの「今すぐ反映」からも再起動できます）
     </div>
-    <div class="sec">
+    <div class="sec" id="asrSection">
       <h2>🎙 認識モデル</h2>
       <div class="row">
         <label>使用するモデル</label>
@@ -113,7 +120,7 @@
     <div class="sec">
       <h2>🌐 翻訳</h2>
       <div class="row">
-        <label>翻訳先（字幕ログ上の翻訳チップでオン/オフ）</label>
+        <label>字幕を翻訳する言語</label>
         <select id="transLang">
           <option value="en">英語</option>
           <option value="zh">中国語（簡体字）</option>

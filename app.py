@@ -10,6 +10,7 @@ Mojicast — 配信用リアルタイム字幕アプリ
 """
 import sys
 import socket
+import time
 
 import apppaths  # noqa: F401  HF系より先に読み込み、凍結時のパス/オフライン設定を確定
 
@@ -31,6 +32,7 @@ def _ui_scale() -> float:
 
 
 UI_SCALE = _ui_scale()
+UI_SESSION = int(time.time())  # WebView2が前回のUIを復元しないための起動単位キャッシュキー
 
 
 class JsApi:
@@ -41,35 +43,59 @@ class JsApi:
         self._port = port    # 実際に起動しているポート（configの値ではなく起動時の実ポート）
 
     def _open(self, key, title, path, width, height):
-        if self._windows.get(key) is not None:
-            return
         # configを読み直さず起動時の実ポートを使う。ポート変更は次回起動時反映で、
         # 変更後・再起動前は config != 実ポートとなり、別窓が接続先を誤るため（見切れず要修正）
         port = self._port
         sep = "&" if "?" in path else "?"
+        url = f"http://127.0.0.1:{port}{path}{sep}s={UI_SCALE}&v={UI_SESSION}"
+        existing = self._windows.get(key)
+        if existing is not None:
+            # 同じ設定窓が開いていても、コックピットで押した入口へ切り替える。
+            # 例: 「字幕」表示中にコックピットから「翻訳」の設定を押した場合。
+            existing.load_url(url)
+            # show() はWindows実装で Activate() も呼ぶ。最小化されている場合も
+            # restore() してから前面へ戻し、内容だけ裏で変わる状態を防ぐ。
+            existing.restore()
+            existing.show()
+            return
         w = webview.create_window(
             f"{title} — Mojicast",
-            f"http://127.0.0.1:{port}{path}{sep}s={UI_SCALE}",
+            url,
             width=int(width * UI_SCALE), height=int(height * UI_SCALE),
-            background_color="#0d1117")
+            background_color="#0d1117", js_api=self)
         self._windows[key] = w
         w.events.closed += lambda: self._windows.pop(key, None)
 
     def open_studio(self, query=""):
-        """統合スタジオ（文字スタイル/レイアウト/単語/共有）を別窓で開く
+        """字幕の見た目と言葉を作るスタジオを別窓で開く
 
-        query 例: "tab=words" / "tab=box" / "preset=cute" / "tab=box&box=lower"
+        query 例: "pillar=captions" / "pillar=translation" / "detail=words"
         """
         path = "/ui/studio" + (f"?{query}" if query else "")
         self._open("studio", "スタジオ", path, 1120, 840)
 
+    def open_settings(self, query=""):
+        """機器・AI・接続を扱うアプリ設定を別窓で開く"""
+        path = "/ui/settings" + (f"?{query}" if query else "")
+        self._open("settings", "アプリ設定", path, 980, 760)
+
+    def close_window(self, key):
+        """WebView内の window.close() では閉じられない補助窓をネイティブに閉じる"""
+        if key not in ("studio", "settings"):
+            return {"ok": False}
+        window = self._windows.pop(key, None)
+        if window is None:
+            return {"ok": True}
+        window.destroy()
+        return {"ok": True}
+
     def open_collab(self):
-        """1対1コラボの設定窓を開く（コックピットを散らかさない別窓）"""
-        self._open("collab", "コラボ設定", "/ui/collab", 560, 720)
+        """後方互換: コラボ音声はアプリ設定へ集約"""
+        self.open_settings("section=collab")
 
     def open_model(self):
-        """AIモデル設定窓（認識モデル・翻訳先）を開く"""
-        self._open("model", "AIモデル設定", "/ui/model", 560, 620)
+        """後方互換: 認識モデルは聞き取り設定へ集約"""
+        self.open_settings("section=hearing")
 
     # 後方互換: 旧エントリはすべて統合スタジオへ委譲
     def open_words(self):
@@ -111,7 +137,7 @@ def main():
     api = JsApi(port)
     window = webview.create_window(
         "Mojicast",
-        f"http://127.0.0.1:{port}/ui/cockpit?s={UI_SCALE}",
+        f"http://127.0.0.1:{port}/ui/cockpit?s={UI_SCALE}&v={UI_SESSION}",
         width=int(1100 * UI_SCALE), height=int(720 * UI_SCALE),
         min_size=(int(900 * UI_SCALE), int(600 * UI_SCALE)),
         background_color="#0d1117", js_api=api)

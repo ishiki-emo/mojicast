@@ -35,7 +35,7 @@
   body {
     background: var(--bg); color: var(--text);
     font-family: 'Yu Gothic UI', 'Meiryo', sans-serif;
-    font-size: 14px; height: 100vh; display: flex; flex-direction: column;
+    font-size: 15px; height: 100vh; display: flex; flex-direction: column;
     user-select: none; overflow: hidden;
   }
   /* ---------- ヘッダー ---------- */
@@ -71,12 +71,12 @@
   #btnEngine.on { border-color: var(--err); color: var(--err); }
   #btnEngine:disabled { opacity: .5; cursor: wait; }
   /* ---------- レイアウト ---------- */
-  main { flex: 1; display: grid; grid-template-columns: 1fr 288px; gap: 10px; padding: 10px; min-height: 0; }
+  main { flex: 1; display: grid; grid-template-columns: 1fr 320px; gap: 12px; padding: 12px; min-height: 0; }
   .col { display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; }
   .col-right { overflow-y: auto; }
   #centerPanel { flex: 1; }
-  /* 設定バー（マイク／入力レベル／⚙詳細設定 を横並び） */
-  .setrow { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+  /* 設定バー（マイク／入力レベル／⚙聞き取りの調整 を横並び） */
+  .setrow { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
   .field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
   .field.mic { flex: 2; min-width: 180px; }
   .meterwrap { flex: 1; min-width: 130px; display: flex; flex-direction: column; gap: 5px; }
@@ -89,6 +89,12 @@
   .advgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px 18px; }
   .advgrid .row { margin-bottom: 0; }
   @media (max-width: 1000px) { .advgrid { grid-template-columns: 1fr 1fr; } }
+  /* 制御はフラットなツールバーに（枠を外し、字幕ログだけを枠付きの主役にする） */
+  .bar { background: transparent; border: 0; border-radius: 0; padding: 2px 4px; overflow: visible; }
+  .barrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .micicon { flex: none; font-size: 15px; opacity: .85; }
+  .clr-bar { font-size: 11.5px; font-weight: 700; padding: 5px 12px; border-radius: 8px; color: var(--dim); }
+  .clr-bar:hover { color: var(--accent); border-color: var(--accent); }
   /* 表示クリア（字幕モニタ内・右上・ふだんは控えめ／ホバーで明瞭） */
   .clr-in { position: absolute; top: 8px; right: 8px; z-index: 4; font-family: inherit;
     font-size: 11px; font-weight: 700; padding: 4px 9px; border-radius: 7px;
@@ -192,6 +198,62 @@
     border: 1px solid var(--line); border-radius: 12px;
     padding: 12px; background: rgba(255,255,255,.02);
   }
+  .group.primary { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+  .section-kicker { color: var(--accent); font-size: 10px; font-weight: 900;
+    letter-spacing: .18em; margin-bottom: 3px; }
+  .today-grid { display: grid; gap: 10px; }
+  .today-item { padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  .today-item:last-child { border-bottom: 0; padding-bottom: 0; }
+  .today-label { display: flex; align-items: baseline; justify-content: space-between;
+    gap: 8px; margin-bottom: 5px; }
+  .today-label b { font-size: 12.5px; }
+  .today-label span { color: var(--dim); font-size: 10.5px; }
+  .group-cta { width: 100%; margin-top: 12px; border-color: var(--accent);
+    color: var(--accent); font-weight: 800; }
+  .feature-list { display: flex; flex-direction: column; }
+  .feature-row { display: grid; grid-template-columns: 32px 1fr auto auto; align-items: center;
+    gap: 9px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .feature-row:last-child { border-bottom: 0; }
+  .feature-icon { width: 30px; height: 30px; display: grid; place-items: center;
+    border-radius: 8px; background: var(--panel2); }
+  .feature-copy b { display: block; font-size: 12.5px; }
+  .feature-copy span { color: var(--dim); font-size: 10.5px; }
+  .feature-row input { appearance:none; position:relative; width:39px; height:22px; padding:3px;
+    border:0; border-radius:999px; background:#344157; cursor:pointer; transition:.16s; }
+  .feature-row input::after { content:""; display:block; width:16px; height:16px; border-radius:50%;
+    background:#8b99ad; transition:.16s; }
+  .feature-row input:checked { background:color-mix(in srgb,var(--accent) 36%,#344157); }
+  .feature-row input:checked::after { transform:translateX(17px); background:var(--accent); }
+  .feature-edit { border: 0; background: transparent; color: var(--accent); padding: 4px;
+    font-size: 12px; font-weight: 800; }
+  .quick-today { flex: none; padding: 11px 12px; overflow: visible; }
+  .quick-today .today-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+  .quick-today .today-head b { font-size: 15px; }
+  .quick-today .today-head span { color: var(--dim); font-size: 12px; }
+  .quick-today .today-head button { margin-left: auto; padding: 6px 11px; font-size: 12px; }
+  .quick-today .today-grid { grid-template-columns: 1.3fr 1fr 1fr; }
+  .quick-today .today-item { min-width: 0; padding: 9px 10px; border: 1px solid var(--line);
+    border-radius: 10px; background: var(--panel2); }
+  .quick-today .today-item:last-child { border-bottom: 1px solid var(--line); padding-bottom: 9px; }
+  .quick-today .today-label { margin-bottom: 3px; }
+  .quick-today .today-label b { font-size: 11px; color: var(--dim); font-weight: 600; }
+  .quick-today .today-label span { display: none; }
+  .quick-today .selrow { margin-top: 0; }
+  .quick-today .selrow select { height: 31px; border: 0; padding: 0; background: transparent;
+    font-size: 14px; font-weight: 800; }
+  .quick-today .colorsw, .quick-today .boxmini { flex: none; }
+  .advanced-card { display: flex; align-items: center; gap: 10px; padding-top: 10px;
+    margin-top: 10px; border-top: 1px solid var(--line); }
+  .advanced-card > div { flex: 1; min-width: 0; }
+  .advanced-card b { display: block; font-size: 12px; }
+  .advanced-card .hint { white-space: normal; }
+  details.minor { margin-top: 10px; color: var(--dim); font-size: 11px; }
+  details.minor summary { cursor: pointer; }
+  #copyToast { position: fixed; right: 18px; bottom: 34px; z-index: 20;
+    background: var(--ok); color: #082116; border-radius: 999px; padding: 8px 14px;
+    font-size: 12px; font-weight: 800; opacity: 0; transform: translateY(8px);
+    pointer-events: none; transition: opacity .18s, transform .18s; }
+  #copyToast.show { opacity: 1; transform: translateY(0); }
   :root[data-theme="light"] .group { background: rgba(0,0,0,.02); }
   .ghead { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
   .gicon {
@@ -219,7 +281,7 @@
   .boxmini { flex: none; position: relative; width: 40px; height: 23px;
     border: 1px solid var(--line); border-radius: 4px; background: var(--panel2); overflow: hidden; }
   .boxmini i { position: absolute; background: var(--accent); opacity: .7; border-radius: 1px; }
-  /* 詳細設定（折りたたみ）: 難しい認識パラメータをここへ格納 */
+  /* 聞き取りの調整（折りたたみ）: 難しい認識パラメータをここへ格納 */
   details.adv { border: 1px solid var(--line); border-radius: 8px; background: var(--panel2);
     overflow: hidden; margin-bottom: 10px; }
   details.adv > summary { list-style: none; cursor: pointer; padding: 9px 11px; font-size: 12.5px;
@@ -276,49 +338,37 @@
     <div id="stateText">停止中</div>
     <div class="spacer"></div>
     <button id="themeBtn" onclick="toggleTheme()" title="ライト/ダーク切替">🌙</button>
-    <button onclick="openStudio('')">🛠 スタジオ</button>
     <button id="btnEngine" onclick="toggleEngine()">▶ 開始</button>
   </header>
 
   <main>
     <!-- ========== 左: 設定バー ＋ 字幕モニタ ========== -->
     <div class="col">
-      <section class="panel">
+      <section class="bar">
         <div class="setrow">
+          <span class="micicon" title="マイク">🎤</span>
           <div class="field mic">
-            <span class="cap">マイク</span>
             <select id="device"></select>
           </div>
           <div class="meterwrap">
-            <span class="cap">入力レベル</span>
             <div id="meter"><div id="meterBar"></div></div>
           </div>
-          <button class="advbtn" id="advBtn" onclick="toggleAdv()">⚙ 詳細設定 <span class="chev">▾</span></button>
-        </div>
-        <div class="adv" id="advBody">
-          <div class="advgrid">
-            <div class="row">
-              <label>無音で文を区切る <output id="oSilence">300ms</output></label>
-              <input type="range" id="silence" min="100" max="800" step="50" value="300">
-            </div>
-            <div class="row">
-              <label>途中経過の更新間隔 <output id="oInterval">0.4s</output></label>
-              <input type="range" id="interval" min="0.2" max="1.0" step="0.1" value="0.4">
-            </div>
-            <div class="row">
-              <label>一区切りの最長 <output id="oMax">12s</output></label>
-              <input type="range" id="maxUtt" min="5" max="30" step="1" value="12">
-            </div>
-            <div class="row">
-              <label>登録した単語の出やすさ <output id="oScore">2.0</output></label>
-              <input type="range" id="score" min="1.0" max="4.0" step="0.5" value="2.0">
-            </div>
-          </div>
+          <button class="advbtn" onclick="openSettings('hearing')">⚙ 聞き取り設定</button>
         </div>
         <div id="restartHint" style="display:none">
           <span>⚠ 変更は次の ▶開始 から反映されます</span>
           <button id="restartNow" onclick="restartEngine()">⏹→▶ 今すぐ反映（再起動）</button>
         </div>
+      </section>
+
+      <!-- 字幕ツールバー（配信中に切り替えるスイッチ＋表示クリア。プレビューとは独立） -->
+      <section class="bar barrow">
+        <div class="montoggles" title="配信中に切り替える処理" style="margin-bottom:0">
+          <span class="mtog" data-k="punctuate"><span class="dot"></span>句読点</span>
+          <span class="mtog" data-k="save_log"><span class="dot"></span>ログ保存</span>
+        </div>
+        <div class="spacer"></div>
+        <button class="clr-bar" onclick="clearCaptions()">表示クリア</button>
       </section>
 
       <!-- 字幕モニタ -->
@@ -334,17 +384,8 @@
           <button id="suggestSkip" class="ghost"></button>
         </span>
       </div>
-      <div class="montoggles" title="字幕の処理オン/オフ">
-        <span class="mtog" data-k="punctuate"><span class="dot"></span>句読点</span>
-        <span class="mtog" data-k="translate"><span class="dot"></span><span id="transChipLabel">英訳</span></span>
-        <span class="mtog" data-k="save_log"><span class="dot"></span>ログ保存</span>
-        <span class="mtog" data-k="num_arabic"><span class="dot"></span>漢数字→数字</span>
-        <span class="mtog" data-k="word_fx"><span class="dot"></span>単語エフェクト</span>
-        <span class="mtog" data-k="precision"><span class="dot"></span>高精度</span>
-      </div>
       <div class="mon-wrap">
         <div id="monitor"></div>
-        <button class="clr-in" onclick="clearCaptions()">表示クリア</button>
         <div id="guide">
           <div>
             <div class="g-title">はじめの3ステップ</div>
@@ -353,79 +394,76 @@
           <ol>
             <li><span class="g-n">1</span><div><b>マイクを選ぶ</b><span>上の設定バー</span></div></li>
             <li><span class="g-n">2</span><div><b>「▶ 開始」を押す</b><span>右上のボタン。字幕がここに出ます</span></div></li>
-            <li><span class="g-n">3</span><div><b>表示用のURLをOBSに貼る</b><span>右の「OBS 連携」からコピー</span></div></li>
+            <li><span class="g-n">3</span><div><b>表示用のURLをOBSに貼る</b><span>右の「OBSに字幕を出す」からコピー</span></div></li>
           </ol>
           <button class="g-close" onclick="dismissGuide()">閉じる</button>
         </div>
       </div>
       </section>
+
+      <!-- 配信前によく切り替える3項目。左ペインの3段目に固定して縦長化を防ぐ -->
+      <section class="panel quick-today">
+        <div class="today-head">
+          <b>今日の字幕</b><span>よく使う3つだけ</span>
+          <button onclick="openStudio('pillar=captions')">カスタマイズ</button>
+        </div>
+        <div class="today-grid">
+          <div class="today-item">
+            <div class="today-label"><b>字幕デザイン</b><span>フォント・色・動き</span></div>
+            <div id="presets"></div>
+          </div>
+          <div class="today-item">
+            <div class="today-label"><b>字幕の位置</b><span>画面内の表示場所</span></div>
+            <div id="boxes"></div>
+          </div>
+          <div class="today-item">
+            <div class="today-label"><b>配信セット</b><span>ゲーム・企画ごとの単語</span></div>
+            <div class="selrow"><select id="wordProfile"></select></div>
+          </div>
+        </div>
+      </section>
     </div>
 
-    <!-- ========== 右: 選んで設定（スタイル/レイアウト/単語/OBS）========== -->
+    <!-- ========== 右: 字幕に足す機能とOBS ========== -->
     <div class="col col-right">
       <div class="group">
+        <div class="section-kicker">ADD TO CAPTIONS</div>
         <div class="ghead">
-          <span class="gicon" style="background:rgba(0,229,255,.12)">🎨</span>
+          <span class="gicon" style="background:rgba(255,45,149,.12)">✦</span>
           <div>
-            <div class="gtitle">文字スタイル</div>
-            <div class="gdesc">字幕の見た目（フォント・色・エフェクト）</div>
+            <div class="gtitle">字幕に追加する</div>
+            <div class="gdesc">必要なものだけオン</div>
           </div>
-          <a class="gedit" onclick="openStyle('preset=' + encodeURIComponent(cfg.preset || ''))">✎ 編集</a>
         </div>
-        <div id="presets"></div>
-      </div>
-      <div class="group">
-        <div class="ghead">
-          <span class="gicon" style="background:rgba(255,45,149,.12)">📐</span>
-          <div>
-            <div class="gtitle">レイアウト</div>
-            <div class="gdesc">字幕の位置・大きさ・流れ方</div>
+        <div class="feature-list">
+          <div class="feature-row">
+            <span class="feature-icon">💥</span>
+            <span class="feature-copy"><b>ワード演出</b><span>好きな言葉を派手にする</span></span>
+            <button class="feature-edit" onclick="openStudio('pillar=effects')">設定</button>
+            <input type="checkbox" id="wordFx">
           </div>
-          <a class="gedit" onclick="openStyle('tab=box&box=' + encodeURIComponent(cfg.box || ''))">✎ 編集</a>
-        </div>
-        <div id="boxes"></div>
-      </div>
-      <div class="group">
-        <div class="ghead">
-          <span class="gicon" style="background:rgba(255,184,77,.12)">📖</span>
-          <div>
-            <div class="gtitle">単語プロファイル</div>
-            <div class="gdesc">「共通」に足す単語セット</div>
+          <div class="feature-row">
+            <span class="feature-icon">🌐</span>
+            <span class="feature-copy"><b id="transFeatureLabel">英訳</b><span>翻訳字幕を一緒に表示</span></span>
+            <button class="feature-edit" onclick="openStudio('pillar=translation')">設定</button>
+            <input type="checkbox" id="translateOn">
           </div>
-          <a class="gedit" onclick="openWords()">✎ 編集</a>
-        </div>
-        <div class="selrow"><select id="wordProfile"></select></div>
-      </div>
-      <div class="group">
-        <div class="ghead">
-          <span class="gicon" style="background:rgba(0,140,255,.12)">🧠</span>
-          <div>
-            <div class="gtitle">AIモデル</div>
-            <div class="gdesc">認識モデルと翻訳先</div>
+          <div class="feature-row">
+            <span class="feature-icon">🎧</span>
+            <span class="feature-copy"><b>1対1コラボ</b><span>相手の声も字幕にする</span></span>
+            <button class="feature-edit" onclick="openSettings('collab')">設定</button>
+            <input type="checkbox" id="collabOn">
           </div>
-          <a class="gedit" onclick="openModel()">✎ 設定</a>
+          <div class="hint" id="collabSummary" style="display:none"></div>
         </div>
-        <div class="hint" id="modelSummary" style="margin-top:0"></div>
       </div>
-      <div class="group">
-        <div class="ghead">
-          <span class="gicon" style="background:rgba(164,112,255,.12)">🎧</span>
-          <div>
-            <div class="gtitle">1対1コラボ</div>
-            <div class="gdesc">相手の声（Discord出力）も字幕化</div>
-          </div>
-          <a class="gedit" onclick="openCollab()">✎ 設定</a>
-        </div>
-        <label class="toggle">コラボを有効化
-          <input type="checkbox" id="collabOn"></label>
-        <div class="hint" id="collabSummary" style="display:none;margin-top:0"></div>
-      </div>
+
       <div class="group">
         <div class="ghead">
           <span class="gicon" style="background:rgba(61,255,160,.12)">🎬</span>
           <div>
-            <div class="gtitle">OBS 連携</div>
-            <div class="gdesc">「ブラウザソース」にこのURLを設定</div>
+            <div class="gtitle">OBSに表示</div>
+            <div class="gdesc">ブラウザソースにURLを貼り付け</div>
           </div>
         </div>
         <div class="obs">
@@ -433,19 +471,17 @@
           <button onclick="copyUrl()">コピー</button>
         </div>
         <div class="hint">推奨サイズ: 配信解像度と同じ（例 1920×1080）</div>
-        <div class="obs" style="align-items:center">
-          <span style="color:var(--dim);font-size:12px;white-space:nowrap">ポート</span>
-          <input type="number" id="port" min="1024" max="65535" step="1"
-                 style="width:90px;flex:none">
-          <span class="hint" style="margin:0">他アプリと衝突する場合のみ変更</span>
-        </div>
-        <div class="hint" id="portHint" style="display:none;color:var(--warn)">
-          ⚠ 次回起動時に反映。OBSブラウザソースのURLも新しいポートに更新してください</div>
+        <button class="feature-edit" onclick="openSettings('obs')" style="margin-top:10px">接続設定</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <button onclick="openStudio('pillar=captions')" style="text-align:left;color:var(--dim)">🎨 字幕スタジオ</button>
+        <button onclick="openSettings('hearing')" style="text-align:left;color:var(--dim)">⚙ アプリ設定</button>
       </div>
     </div>
   </main>
 
-  <footer>Mojicast <span id="verTag"></span> — ReazonSpeech k2 + Silero VAD + BERT句読点 / ローカル完結・オフライン動作</footer>
+  <footer>Mojicast <span id="verTag"></span></footer>
+  <div id="copyToast" role="status">OBS用URLをコピーしました</div>
 
 <script>
   const $ = (id) => document.getElementById(id);
@@ -470,12 +506,6 @@
     let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
   }
 
-  // 詳細設定（設定バーの開閉）
-  function toggleAdv() {
-    $("advBody").classList.toggle("open");
-    $("advBtn").classList.toggle("open");
-  }
-
   // ---------- テーマ（dark / light）----------
   function applyTheme(t) {
     const light = t === "light";
@@ -491,26 +521,13 @@
     api("/api/config", { theme: cfg.theme });   // 保存（次回起動・他窓の初期値に反映）
   }
 
-  function bindRange(id, key, outId, fmt, scale) {
-    const el = $(id);
-    el.addEventListener("input", () => {
-      $(outId).textContent = fmt(el.value);
-      cfg[key] = +el.value * (scale || 1);
-      saveCfg();
-    });
-  }
-  bindRange("silence", "silence_ms", "oSilence", v => v + "ms");
-  bindRange("interval", "interval", "oInterval", v => v + "s");
-  bindRange("maxUtt", "max_utt", "oMax", v => v + "s");
-  bindRange("score", "hotwords_score", "oScore", v => (+v).toFixed(1));
-
   // ---------- 初回のおすすめ設定（環境検出 → ユーザーの了解で適用） ----------
   // OS言語が中国語/英語ならその言語の定型文で提案する（UI本体は日本語のまま）
   const SUGGEST_TEXT = {
     ja: { lead: "💡 おすすめ設定", apply: "この設定にする", skip: "今のまま使う",
           multi: l => `認識モデル=多言語（${l}）`, light: "認識モデル=多言語（軽量）",
           maxutt: "一区切りの最長=8秒",
-          note: "あとから「AIモデル」や詳細設定でいつでも変えられます",
+          note: "あとから「アプリ設定 → 声の聞き取り」でいつでも変えられます",
           langName: { zh: "中国語", en: "英語" } },
     zh: { lead: "💡 推荐设置", apply: "应用此设置", skip: "保持现状",
           multi: l => `识别模型=多语言（${l}）`, light: "识别模型=多语言（轻量）",
@@ -580,31 +597,20 @@
     };
   }
 
-  // ---------- AIモデル（詳細は別窓 /ui/model） ----------
+  // ---------- 旧AIモデル入口（アプリ設定へ統合） ----------
   function openModel() {
-    if (window.pywebview && window.pywebview.api && window.pywebview.api.open_model) {
-      window.pywebview.api.open_model();
-    } else {
-      window.open("/ui/model", "_blank", "width=560,height=620");
-    }
+    openSettings("hearing");
   }
 
-  // 翻訳チップの表示名（英訳/中国語訳など）と右ペインのAIモデルサマリを設定に同期
+  // 翻訳チップの表示名（英訳/中国語訳など）を設定に同期
   const TR_NAMES = { en: "英訳", zh: "中国語訳", ja: "日本語訳", ko: "韓国語訳" };
   function syncModelCard() {
     const tr = TR_NAMES[cfg.translate_lang] || "英訳";
-    $("transChipLabel").textContent = tr;
-    const sv = cfg.asr_model === "sensevoice";
-    const L = { auto: "自動判定", ja: "日本語", zh: "中国語", en: "英語",
-                ko: "韓国語", yue: "広東語" };
-    const rec = sv ? `多言語（${L[cfg.asr_lang || "auto"]}）` : "日本語特化";
-    $("modelSummary").textContent = `認識: ${rec} ／ 翻訳先: ${tr}`;
+    $("transFeatureLabel").textContent = tr;
   }
 
-  // 字幕処理トグル（モニタ上のチップ）。cfgのキーを直接切り替える
-  function mtogOn(k) {
-    return k === "precision" ? cfg.precision === "fp32" : !!cfg[k];
-  }
+  // 字幕処理トグル（モニタ上のチップ: 句読点/英訳/ログ保存）。cfgのキーを直接切り替える
+  function mtogOn(k) { return !!cfg[k]; }
   function syncMTog() {
     for (const el of document.querySelectorAll(".mtog"))
       el.classList.toggle("on", mtogOn(el.dataset.k));
@@ -612,12 +618,19 @@
   for (const el of document.querySelectorAll(".mtog")) {
     el.addEventListener("click", () => {
       const k = el.dataset.k;
-      if (k === "precision") cfg.precision = mtogOn(k) ? "int8-fp32" : "fp32";
-      else cfg[k] = !cfg[k];
+      cfg[k] = !cfg[k];
       el.classList.toggle("on", mtogOn(k));
       saveCfg();
     });
   }
+
+  // コックピットに残す配信中の機能トグル
+  function syncMovedToggles() {
+    $("wordFx").checked = !!cfg.word_fx;
+    $("translateOn").checked = !!cfg.translate;
+  }
+  $("wordFx").addEventListener("change", e => { cfg.word_fx = e.target.checked; saveCfg(); });
+  $("translateOn").addEventListener("change", e => { cfg.translate = e.target.checked; saveCfg(); });
 
   $("device").addEventListener("change", e => {
     cfg.device = e.target.value === "default" ? null : +e.target.value; saveCfg();
@@ -625,22 +638,9 @@
   $("wordProfile").addEventListener("change", e => {
     cfg.word_profile = e.target.value; saveCfg();
   });
-  $("port").addEventListener("change", e => {
-    const v = Math.round(+e.target.value);
-    if (!(v >= 1024 && v <= 65535)) { e.target.value = cfg.port; return; }
-    e.target.value = v;
-    if (v === cfg.port) return;
-    cfg.port = v; saveCfg();
-    $("portHint").style.display = "block";
-  });
-
   // ---------- 1対1コラボ（詳細設定は別窓 /ui/collab） ----------
   function openCollab() {
-    if (window.pywebview && window.pywebview.api && window.pywebview.api.open_collab) {
-      window.pywebview.api.open_collab();
-    } else {
-      window.open("/ui/collab", "_blank", "width=560,height=720");
-    }
+    openSettings("collab");
   }
   // トグル状態と「方式／相手名」の1行サマリを反映
   function syncCollab() {
@@ -659,7 +659,6 @@
     syncCollab();
     renderPresets();   // 自分/相手の2行表示を切替
     renderBoxes();
-    if (cfg.collab) openCollab();   // 有効化と同時に設定窓を開く（取り込みアプリ等）
     saveCfg();
   });
 
@@ -680,18 +679,13 @@
     cfg = await api("/api/config");
     applyTheme(cfg.theme);   // 保存済みテーマを確定反映（先読みの上書き）
     if (cfg.version) $("verTag").textContent = "v" + cfg.version;
-    $("silence").value = cfg.silence_ms; $("oSilence").textContent = cfg.silence_ms + "ms";
-    $("interval").value = cfg.interval;  $("oInterval").textContent = cfg.interval + "s";
-    $("maxUtt").value = cfg.max_utt;     $("oMax").textContent = cfg.max_utt + "s";
-    $("score").value = cfg.hotwords_score; $("oScore").textContent = (+cfg.hotwords_score).toFixed(1);
     if (cfg.num_arabic === undefined) cfg.num_arabic = true;   // 既定ON（チップ表示用）
     if (cfg.save_log === undefined) cfg.save_log = true;
     syncModelCard();
-    syncMTog();   // 字幕処理チップ（句読点/翻訳/ログ/漢数字/高精度）を反映
+    syncMTog();          // 字幕処理チップ（句読点/翻訳/ログ保存）を反映
+    syncMovedToggles();  // 高精度/漢数字/単語エフェクト（各カード・詳細へ移動）を反映
     if (!cfg.setup_suggested) initSuggest();   // 初回のみ: 環境に合わせた提案
     $("obsUrl").value = location.origin + "/";
-    $("port").value = cfg.port;
-
     const dv = await api("/api/devices");
     const sel = $("device");
     sel.innerHTML = '<option value="default">既定のマイク</option>';
@@ -769,6 +763,7 @@
     renderBoxes();
     syncCollab();      // コラボ窓で変えた方式/相手名をサマリへ反映
     syncModelCard();   // モデル窓で変えた認識モデル/翻訳先をサマリとチップ名へ反映
+    syncMovedToggles();// 別窓で高精度等が変わっていた場合に追従
   }
 
   // ---------- レイアウト（プルダウン＋概要ミニ図） ----------
@@ -856,14 +851,26 @@
     const el = $("obsUrl");
     el.select();
     try { navigator.clipboard.writeText(el.value); } catch (e) { document.execCommand("copy"); }
+    const toast = $("copyToast");
+    toast.classList.add("show");
+    clearTimeout(copyUrl.timer);
+    copyUrl.timer = setTimeout(() => toast.classList.remove("show"), 1600);
   }
 
-  // ---------- スタジオ（別窓・文字スタイル/レイアウト/単語/共有を統合） ----------
+  // ---------- 字幕スタジオ（見た目・言葉） / アプリ設定（機器・AI・接続） ----------
   function openStudio(query) {
     if (window.pywebview && window.pywebview.api && window.pywebview.api.open_studio) {
       window.pywebview.api.open_studio(query || "");
     } else {
       window.open("/ui/studio" + (query ? "?" + query : ""), "_blank", "width=1120,height=840");
+    }
+  }
+  function openSettings(section) {
+    const query = section ? "section=" + section : "";
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.open_settings) {
+      window.pywebview.api.open_settings(query);
+    } else {
+      window.open("/ui/settings" + (query ? "?" + query : ""), "_blank", "width=980,height=760");
     }
   }
   function openWords() { openStudio("tab=words"); }
@@ -1000,6 +1007,7 @@
       else if (m.type === "level") $("meterBar").style.width = (m.value * 100) + "%";
       else if (m.type === "clear") { monitor.innerHTML = ""; partials.clear(); }
       else if (m.type === "style") { setPreviewStyle(m); refreshPresets(); }
+      else if (m.type === "theme") { cfg.theme = m.theme; applyTheme(m.theme); }
     };
     es.onerror = () => { es.close(); setTimeout(connect, 1000); };
   }

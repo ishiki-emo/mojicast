@@ -12,8 +12,10 @@
       document.documentElement.dataset.theme = "light"; } catch (e) {}
     // スタジオ（studio.html）へiframe埋め込み時: 内部の上位ナビは親が担うので隠す
     if (qs.get("embed") === "1") document.documentElement.classList.add("embed");
+    if (qs.get("focus") === "translation") document.documentElement.classList.add("translation-focus");
   })();
 </script>
+<script src="/ui/theme-sync.js" defer></script>
 <style>
   /* 埋め込み時: このページ自身の上位タブ(nav)は非表示（親studioが切替を担う） */
   :root.embed nav { display: none; }
@@ -32,7 +34,7 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     background: var(--bg); color: var(--text);
-    font-family: 'Yu Gothic UI', 'Meiryo', sans-serif; font-size: 13px;
+    font-family: 'Yu Gothic UI', 'Meiryo', sans-serif; font-size: 15px;
     height: 100vh; display: flex; flex-direction: column; overflow: hidden;
   }
   nav { display: flex; background: var(--panel); border-bottom: 1px solid var(--line); }
@@ -49,6 +51,7 @@
   .pitem { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-bottom: 6px; cursor: pointer; font-weight: 700; }
   .pitem:hover { border-color: var(--accent); }
   .pitem.active { border-color: var(--accent); background: var(--panel2); }
+  .pitem .used { float: right; color: var(--ok); font-size: 10px; font-weight: 800; }
   .btn {
     background: var(--panel2); color: var(--text); border: 1px solid var(--line);
     border-radius: 8px; padding: 8px 14px; cursor: pointer; font-family: inherit; font-weight: 700; font-size: 13px;
@@ -59,6 +62,20 @@
   .btn.small { padding: 5px 10px; font-size: 12px; }
   .editor { display: flex; flex-direction: column; min-height: 0; }
   .form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; overflow-y: auto; padding-bottom: 8px; }
+  .form.locked { display: none; }
+  .editor:not(.advanced-open) .advanced-only { display: none !important; }
+  #translationFields { display: contents; }
+  :root.translation-focus #form > :not(#translationFields) { display: none !important; }
+  :root.translation-focus #translationFields { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; }
+  :root.translation-focus #translationFields .advanced-only { display: block !important; }
+  :root.translation-focus #translationFields .chk { display: flex !important; }
+  .editor-actions { display: flex; align-items: center; gap: 8px; padding: 10px;
+    margin-bottom: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel2); }
+  .editor-actions .copy { flex: 1; min-width: 0; }
+  .editor-actions .copy b { display: block; font-size: 13px; }
+  .editor-actions .copy span { display: block; color: var(--dim); font-size: 11px; margin-top: 2px; }
+  .edit-tools { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .edit-tools span { color: var(--dim); font-size: 11px; }
   /* フォーム内のセクション見出し（2カラムを全幅でまたぐ） */
   .fsec {
     grid-column: 1 / -1; display: flex; align-items: baseline; gap: 8px;
@@ -131,50 +148,60 @@
   <!-- ================= 文字スタイル ================= -->
   <div class="page show" id="pageStyle">
     <section class="panel">
-      <h2>プリセット</h2>
+      <h2>字幕デザインを選ぶ</h2>
       <div id="plist"></div>
-      <div style="display:flex; gap:6px; margin-top:10px; flex-wrap:wrap">
-        <button class="btn small" onclick="dupPreset()">⧉ 複製</button>
-        <button class="btn small danger" onclick="delPreset()">✕ 削除</button>
-      </div>
     </section>
-    <section class="panel editor">
-      <h2>編集 — <span id="editName"></span></h2>
-      <div class="form" id="form">
+    <section class="panel editor" id="styleEditor">
+      <h2>プレビュー — <span id="editName"></span></h2>
+      <div class="editor-actions" id="styleActions">
+        <div class="copy"><b id="styleActionTitle">このデザインを使いますか？</b>
+          <span id="styleActionDesc">選ぶだけで、すぐ字幕に反映できます</span></div>
+        <button class="btn" onclick="usePreset()">このまま使う</button>
+        <button class="btn save" id="customizePresetBtn" onclick="beginPresetEdit()">カスタマイズ</button>
+      </div>
+      <div class="edit-tools" id="styleEditTools" hidden>
+        <span>まずは、よく使う項目だけ表示しています</span>
+        <span style="flex:1"></span>
+        <button class="btn small" id="styleAdvancedBtn" onclick="toggleStyleAdvanced()">もっと細かく調整</button>
+        <button class="btn small danger" id="delPresetBtn" onclick="delPreset()">削除</button>
+      </div>
+      <div class="form locked" id="form">
         <div class="fsec">📛 プリセット</div>
         <div class="fr"><label>プリセット名</label><input type="text" id="f_name"></div>
         <div class="fr"><label>説明</label><input type="text" id="f_desc"></div>
 
         <div class="fsec">✏️ 本文（メイン字幕）</div>
         <div class="fr"><label>フォント</label><select id="f_fontSel"></select></div>
-        <div class="fr"><label>フォント直接指定（CSS）</label><input type="text" id="f_font" placeholder="'Yu Gothic UI', sans-serif"></div>
-        <div class="fr"><label>太さ <output id="o_weight"></output></label><input type="range" id="f_weight" min="400" max="900" step="100"></div>
+        <div class="fr advanced-only"><label>フォント直接指定（CSS）</label><input type="text" id="f_font" placeholder="'Yu Gothic UI', sans-serif"></div>
+        <div class="fr advanced-only"><label>太さ <output id="o_weight"></output></label><input type="range" id="f_weight" min="400" max="900" step="100"></div>
         <div class="fr"><label>サイズ <output id="o_size"></output></label><input type="range" id="f_size" min="20" max="80" step="2"></div>
         <div class="fr"><label>文字色</label><input type="color" id="f_color"></div>
         <div class="fr"><label>強調の色</label><input type="color" id="f_hotColor"></div>
         <div class="fr"><label>縁取り色</label><input type="color" id="f_outlineColor"></div>
         <div class="fr"><label>縁取りの太さ <output id="o_outlineWidth"></output></label><input type="range" id="f_outlineWidth" min="0" max="6" step="1"></div>
-        <div class="fr"><label>グロー色</label><input type="color" id="f_glowColor"></div>
-        <div class="fr"><label>グロー強さ <output id="o_glowSize"></output>（0でなし）</label><input type="range" id="f_glowSize" min="0" max="30" step="2"></div>
-        <div class="fr"><label>登場アニメ</label><select id="f_animIn"></select></div>
-        <div class="fr chk"><input type="checkbox" id="f_shadow"><span>影をつける</span></div>
-        <div class="fr"><label>字間 <output id="o_spacing"></output></label><input type="range" id="f_spacing" min="0" max="0.15" step="0.01"></div>
+        <div class="fr advanced-only"><label>グロー色</label><input type="color" id="f_glowColor"></div>
+        <div class="fr advanced-only"><label>グロー強さ <output id="o_glowSize"></output>（0でなし）</label><input type="range" id="f_glowSize" min="0" max="30" step="2"></div>
+        <div class="fr advanced-only"><label>登場アニメ</label><select id="f_animIn"></select></div>
+        <div class="fr chk advanced-only"><input type="checkbox" id="f_shadow"><span>影をつける</span></div>
+        <div class="fr advanced-only"><label>字間 <output id="o_spacing"></output></label><input type="range" id="f_spacing" min="0" max="0.15" step="0.01"></div>
 
-        <div class="fsec">🌫 途中表示（薄文字）</div>
-        <div class="fr"><label>濃さ <output id="o_partial"></output></label><input type="range" id="f_partial" min="0.2" max="0.9" step="0.05"></div>
-        <div class="fr chk"><input type="checkbox" id="f_partialFx"><span>エフェクトを乗せる（オフ=プレーン表示）</span></div>
+        <div class="fsec advanced-only">🌫 途中表示（薄文字）</div>
+        <div class="fr advanced-only"><label>濃さ <output id="o_partial"></output></label><input type="range" id="f_partial" min="0.2" max="0.9" step="0.05"></div>
+        <div class="fr chk advanced-only"><input type="checkbox" id="f_partialFx"><span>エフェクトを乗せる（オフ=プレーン表示）</span></div>
 
-        <div class="fsec en">🌐 英訳 <small>（コックピットで「英訳を表示」ONのとき）</small></div>
-        <div class="fr"><label>サイズ <output id="o_enScale"></output>（本文比）</label><input type="range" id="f_enScale" min="0.3" max="1" step="0.05"></div>
-        <div class="fr"><label>濃さ <output id="o_enOpacity"></output></label><input type="range" id="f_enOpacity" min="0.3" max="1" step="0.05"></div>
-        <div class="fr chk"><input type="checkbox" id="f_enColorOn"><span>専用色を使う（オフ=本文と同じ）</span></div>
-        <div class="fr"><label>色</label><input type="color" id="f_enColor"></div>
-        <div class="fr"><label>フォント</label><select id="f_enFontSel"></select></div>
-        <div class="fr chk"><input type="checkbox" id="f_enDeco"><span>専用の縁取り・グローを使う（オフ=本文と同じ）</span></div>
-        <div class="fr"><label>縁取り色</label><input type="color" id="f_enOutlineColor"></div>
-        <div class="fr"><label>縁取りの太さ <output id="o_enOutlineWidth"></output></label><input type="range" id="f_enOutlineWidth" min="0" max="6" step="1"></div>
-        <div class="fr"><label>グロー色</label><input type="color" id="f_enGlowColor"></div>
-        <div class="fr"><label>グロー強さ <output id="o_enGlowSize"></output>（0でなし）</label><input type="range" id="f_enGlowSize" min="0" max="30" step="2"></div>
+        <div id="translationFields">
+        <div class="fsec en advanced-only">🌐 翻訳字幕 <small>（翻訳ONのとき）</small></div>
+        <div class="fr advanced-only"><label>サイズ <output id="o_enScale"></output>（本文比）</label><input type="range" id="f_enScale" min="0.3" max="1" step="0.05"></div>
+        <div class="fr advanced-only"><label>濃さ <output id="o_enOpacity"></output></label><input type="range" id="f_enOpacity" min="0.3" max="1" step="0.05"></div>
+        <div class="fr chk advanced-only"><input type="checkbox" id="f_enColorOn"><span>専用色を使う（オフ=本文と同じ）</span></div>
+        <div class="fr advanced-only"><label>色</label><input type="color" id="f_enColor"></div>
+        <div class="fr advanced-only"><label>フォント</label><select id="f_enFontSel"></select></div>
+        <div class="fr chk advanced-only"><input type="checkbox" id="f_enDeco"><span>専用の縁取り・グローを使う（オフ=本文と同じ）</span></div>
+        <div class="fr advanced-only"><label>縁取り色</label><input type="color" id="f_enOutlineColor"></div>
+        <div class="fr advanced-only"><label>縁取りの太さ <output id="o_enOutlineWidth"></output></label><input type="range" id="f_enOutlineWidth" min="0" max="6" step="1"></div>
+        <div class="fr advanced-only"><label>グロー色</label><input type="color" id="f_enGlowColor"></div>
+        <div class="fr advanced-only"><label>グロー強さ <output id="o_enGlowSize"></output>（0でなし）</label><input type="range" id="f_enGlowSize" min="0" max="30" step="2"></div>
+        </div>
       </div>
       <div id="previewBox">
         <div class="ptag">プレビュー ▶ クリックで再生</div>
@@ -186,53 +213,59 @@
   <!-- ================= ボックス ================= -->
   <div class="page" id="pageBox">
     <section class="panel">
-      <h2>ボックス</h2>
+      <h2>字幕の位置を選ぶ</h2>
       <div id="blist"></div>
-      <div style="display:flex; gap:6px; margin-top:10px; flex-wrap:wrap">
-        <button class="btn small" onclick="dupBox()">⧉ 複製</button>
-        <button class="btn small danger" onclick="delBox()">✕ 削除</button>
-      </div>
     </section>
-    <section class="panel editor">
-      <h2>編集 — <span id="editBoxName"></span></h2>
-      <div class="form" id="bform">
+    <section class="panel editor" id="boxEditor">
+      <h2>プレビュー — <span id="editBoxName"></span></h2>
+      <div class="editor-actions">
+        <div class="copy"><b id="boxActionTitle">この位置を使いますか？</b><span id="boxActionDesc">選ぶだけで、すぐ字幕に反映できます</span></div>
+        <button class="btn" onclick="useBox()">このまま使う</button>
+        <button class="btn save" id="customizeBoxBtn" onclick="beginBoxEdit()">カスタマイズ</button>
+      </div>
+      <div class="edit-tools" id="boxEditTools" hidden>
+        <span>位置と大きさを調整できます</span><span style="flex:1"></span>
+        <button class="btn small" id="boxAdvancedBtn" onclick="toggleBoxAdvanced()">もっと細かく調整</button>
+        <button class="btn small danger" id="delBoxBtn" onclick="delBox()">削除</button>
+      </div>
+      <div class="form locked" id="bform">
         <div class="fr"><label>ボックス名</label><input type="text" id="b_name"></div>
         <div class="fr"><label>説明</label><input type="text" id="b_desc"></div>
-        <div class="fr"><label>表示のしかた</label>
+        <div class="fr advanced-only"><label>表示のしかた</label>
           <select id="b_mode">
             <option value="flow">通常（積み上げ・スクロール）</option>
             <option value="vertical">縦書き（右から左へ）</option>
             <option value="lyric">リリックビデオ（散らし）</option>
           </select></div>
-        <div class="fr"></div>
+        <div class="fr advanced-only"></div>
         <div class="fr"><label>横位置 X <output id="o_bx"></output></label><input type="range" id="b_x" min="0" max="90" step="1"></div>
         <div class="fr"><label>縦位置 Y <output id="o_by"></output></label><input type="range" id="b_y" min="0" max="90" step="1"></div>
         <div class="fr"><label>幅 <output id="o_bw"></output></label><input type="range" id="b_w" min="10" max="100" step="1"></div>
         <div class="fr"><label>高さ <output id="o_bh"></output></label><input type="range" id="b_h" min="8" max="100" step="1"></div>
-        <div class="fr"><label>背景色</label><input type="color" id="b_bg"></div>
-        <div class="fr"><label>背景の濃さ <output id="o_bop"></output>（0で透明）</label><input type="range" id="b_bgOpacity" min="0" max="1" step="0.05"></div>
-        <div class="fr"><label>角丸 <output id="o_brad"></output></label><input type="range" id="b_radius" min="0" max="40" step="2"></div>
-        <div class="fr"><label>内側余白 <output id="o_bpad"></output></label><input type="range" id="b_padding" min="0" max="48" step="2"></div>
-        <div class="fr"><label>枠線色</label><input type="color" id="b_borderColor"></div>
-        <div class="fr"><label>枠線太さ <output id="o_bbw"></output>（0でなし）</label><input type="range" id="b_borderWidth" min="0" max="6" step="1"></div>
-        <div class="fr only-flow"><label>文字揃え</label>
+        <div class="fr advanced-only"><label>背景色</label><input type="color" id="b_bg"></div>
+        <div class="fr advanced-only"><label>背景の濃さ <output id="o_bop"></output>（0で透明）</label><input type="range" id="b_bgOpacity" min="0" max="1" step="0.05"></div>
+        <div class="fr advanced-only"><label>角丸 <output id="o_brad"></output></label><input type="range" id="b_radius" min="0" max="40" step="2"></div>
+        <div class="fr advanced-only"><label>内側余白 <output id="o_bpad"></output></label><input type="range" id="b_padding" min="0" max="48" step="2"></div>
+        <div class="fr advanced-only"><label>枠線色</label><input type="color" id="b_borderColor"></div>
+        <div class="fr advanced-only"><label>枠線太さ <output id="o_bbw"></output>（0でなし）</label><input type="range" id="b_borderWidth" min="0" max="6" step="1"></div>
+        <div class="fr only-flow advanced-only"><label>文字揃え</label>
           <select id="b_align"><option value="left">左揃え</option><option value="center">中央</option><option value="right">右揃え</option></select></div>
-        <div class="fr only-flow"><label>保持する行数 <output id="o_bml"></output></label><input type="range" id="b_maxLines" min="2" max="40" step="1"></div>
-        <div class="fr chk only-flow"><input type="checkbox" id="b_smooth"><span>スムーズスクロール</span></div>
-        <div class="fr only-flow"><label>スクロール速度 <output id="o_bsm"></output></label><input type="range" id="b_smoothMs" min="100" max="600" step="50"></div>
-        <div class="fr only-lyric"><label>分割単位</label>
+        <div class="fr only-flow advanced-only"><label>保持する行数 <output id="o_bml"></output></label><input type="range" id="b_maxLines" min="2" max="40" step="1"></div>
+        <div class="fr chk only-flow advanced-only"><input type="checkbox" id="b_smooth"><span>スムーズスクロール</span></div>
+        <div class="fr only-flow advanced-only"><label>スクロール速度 <output id="o_bsm"></output></label><input type="range" id="b_smoothMs" min="100" max="600" step="50"></div>
+        <div class="fr only-lyric advanced-only"><label>分割単位</label>
           <select id="b_lyricSplit">
             <option value="phrase">フレーズごと（句読点で区切る）</option>
             <option value="word">単語ごと（細かく散る）</option>
           </select></div>
-        <div class="fr only-lyric"><label>サイズ倍率 <output id="o_bscale"></output>（はみ出しOK）</label><input type="range" id="b_lyricScale" min="0.5" max="3" step="0.1"></div>
-        <div class="fr only-lyric"><label>表示時間 <output id="o_blife"></output></label><input type="range" id="b_lifeSec" min="2" max="15" step="1"></div>
-        <div class="fr only-lyric"><label>同時表示数 <output id="o_bmc"></output></label><input type="range" id="b_maxChunks" min="3" max="15" step="1"></div>
-        <div class="fr only-lyric"><label>縦書き率 <output id="o_bvr"></output></label><input type="range" id="b_vertRate" min="0" max="100" step="5"></div>
-        <div class="fr only-lyric"><label>回転ゆらぎ <output id="o_brot"></output></label><input type="range" id="b_rotate" min="0" max="15" step="1"></div>
-        <div class="fr only-lyric"><label>サイズばらつき <output id="o_bjit"></output></label><input type="range" id="b_sizeJitter" min="0" max="0.8" step="0.05"></div>
-        <div class="fr only-lyric"><label>出現の時差 <output id="o_bstag"></output></label><input type="range" id="b_stagger" min="0" max="400" step="20"></div>
-        <div class="fr chk only-lyric"><input type="checkbox" id="b_lyricPartial"><span>認識途中も表示する</span></div>
+        <div class="fr only-lyric advanced-only"><label>サイズ倍率 <output id="o_bscale"></output>（はみ出しOK）</label><input type="range" id="b_lyricScale" min="0.5" max="3" step="0.1"></div>
+        <div class="fr only-lyric advanced-only"><label>表示時間 <output id="o_blife"></output></label><input type="range" id="b_lifeSec" min="2" max="15" step="1"></div>
+        <div class="fr only-lyric advanced-only"><label>同時表示数 <output id="o_bmc"></output></label><input type="range" id="b_maxChunks" min="3" max="15" step="1"></div>
+        <div class="fr only-lyric advanced-only"><label>縦書き率 <output id="o_bvr"></output></label><input type="range" id="b_vertRate" min="0" max="100" step="5"></div>
+        <div class="fr only-lyric advanced-only"><label>回転ゆらぎ <output id="o_brot"></output></label><input type="range" id="b_rotate" min="0" max="15" step="1"></div>
+        <div class="fr only-lyric advanced-only"><label>サイズばらつき <output id="o_bjit"></output></label><input type="range" id="b_sizeJitter" min="0" max="0.8" step="0.05"></div>
+        <div class="fr only-lyric advanced-only"><label>出現の時差 <output id="o_bstag"></output></label><input type="range" id="b_stagger" min="0" max="400" step="20"></div>
+        <div class="fr chk only-lyric advanced-only"><input type="checkbox" id="b_lyricPartial"><span>認識途中も表示する</span></div>
       </div>
       <div id="stageWrap">
         <div id="stage">
@@ -273,7 +306,8 @@
   let presets = [], boxes = [];
   let cur = 0, curBox = 0;
   let effects = [], hotwords = [], sysFonts = [];
-  let activePresetId = "";   // コックピットで使用中のプリセット（ボックスプレビューに使う）
+  let activePresetId = "", activeBoxId = "";
+  let presetEditing = false, boxEditing = false;
 
   // ---------- 初期化 ----------
   // テーマ適用（このページに切替UIは無い。cockpitの保存値／localStorageに従う）
@@ -305,6 +339,7 @@
     hotwords = (hj.entries || []).map(e => e.surface);
     sysFonts = fj.fonts || [];
     activePresetId = cj.preset || "";
+    activeBoxId = cj.box || "";
     applyTheme(cj.theme);   // 保存済みテーマを確定反映（先読みの上書き）
 
     // フォント選択: おすすめ + システムフォント全部
@@ -322,9 +357,9 @@
       `<optgroup label="システムフォント (${sysFonts.length})">${sys}</optgroup>`;
 
     const q = new URLSearchParams(location.search);
-    const pi = presets.findIndex(p => p.id === q.get("preset"));
+    const pi = presets.findIndex(p => p.id === (q.get("preset") || activePresetId));
     cur = pi >= 0 ? pi : 0;
-    const bi = boxes.findIndex(b => b.id === q.get("box"));
+    const bi = boxes.findIndex(b => b.id === (q.get("box") || activeBoxId));
     curBox = bi >= 0 ? bi : 0;
     if (q.get("tab") === "box") showTab("box");
 
@@ -349,8 +384,15 @@
     presets.forEach((p, i) => {
       const d = document.createElement("div");
       d.className = "pitem" + (i === cur ? " active" : "");
-      d.textContent = p.name;
-      d.onclick = () => { cur = i; renderList(); loadForm(); };
+      const name = document.createElement("span"); name.textContent = p.name;
+      d.appendChild(name);
+      if (p.id === activePresetId) {
+        const used = document.createElement("span"); used.className = "used"; used.textContent = "使用中"; d.appendChild(used);
+      }
+      d.onclick = () => {
+        if (presetEditing) collect();
+        cur = i; closePresetEdit(); renderList(); loadForm();
+      };
       box.appendChild(d);
     });
   }
@@ -386,6 +428,41 @@
     $("f_enGlowColor").value = p.enGlowColor || "#00e5ff";
     setR("f_enGlowSize", "o_enGlowSize", p.enGlowSize ?? 0, v => v + "px");
     preview(true);
+    $("customizePresetBtn").textContent = isCustomPreset(p) ? "カスタマイズを続ける" : "自分用にカスタマイズ";
+    $("styleActionTitle").textContent = p.id === activePresetId ? "このデザインを使用中です" : "このデザインを使いますか？";
+    $("styleActionDesc").textContent = p.id === activePresetId
+      ? "今の字幕に選ばれています" : "選ぶだけで、すぐ字幕に反映できます";
+  }
+
+  function isCustomPreset(p) { return /^(custom-|imp-)/.test(p.id || ""); }
+  function closePresetEdit() {
+    presetEditing = false;
+    $("form").classList.add("locked");
+    $("styleEditTools").hidden = true;
+    $("styleEditor").classList.remove("advanced-open");
+    $("styleAdvancedBtn").textContent = "もっと細かく調整";
+  }
+  function beginPresetEdit() {
+    if (!isCustomPreset(presets[cur])) dupPreset();
+    presetEditing = true;
+    $("form").classList.remove("locked");
+    $("styleEditTools").hidden = false;
+    $("delPresetBtn").hidden = !isCustomPreset(presets[cur]);
+    $("styleActionTitle").textContent = "自分好みに調整中";
+    $("styleActionDesc").textContent = "下の「保存」でOBSへ反映します";
+  }
+  function toggleStyleAdvanced() {
+    const open = $("styleEditor").classList.toggle("advanced-open");
+    $("styleAdvancedBtn").textContent = open ? "基本項目だけに戻す" : "もっと細かく調整";
+  }
+  async function usePreset() {
+    if (presetEditing) collect();
+    await fetch("/api/presets", { method: "POST", body: JSON.stringify({ presets }) });
+    await fetch("/api/config", { method: "POST", body: JSON.stringify({ preset: presets[cur].id }) });
+    activePresetId = presets[cur].id;
+    renderList();
+    $("styleActionTitle").textContent = "このデザインを使用中です";
+    $("styleActionDesc").textContent = "コックピットとOBSに反映しました";
   }
 
   function collect() {
@@ -465,17 +542,18 @@
   function dupPreset() {
     const p = JSON.parse(JSON.stringify(collect()));
     p.id = "custom-" + Date.now();
-    p.name = p.name + " のコピー";
+    p.name = customName(p.name, presets);
     presets.splice(cur + 1, 0, p);
     cur += 1;
     renderList(); loadForm();
   }
   function delPreset() {
+    if (!isCustomPreset(presets[cur])) { alert("同梱デザインは削除できません"); return; }
     if (presets.length <= 1) { alert("最後の1つは削除できません"); return; }
     if (!confirm(`「${presets[cur].name}」を削除しますか？`)) return;
     presets.splice(cur, 1);
     cur = Math.max(0, cur - 1);
-    renderList(); loadForm();
+    closePresetEdit(); renderList(); loadForm();
   }
 
   // ================= ボックス =================
@@ -485,8 +563,14 @@
     boxes.forEach((b, i) => {
       const d = document.createElement("div");
       d.className = "pitem" + (i === curBox ? " active" : "");
-      d.textContent = b.name;
-      d.onclick = () => { curBox = i; renderBoxList(); loadBoxForm(); };
+      const name = document.createElement("span"); name.textContent = b.name; d.appendChild(name);
+      if (b.id === activeBoxId) {
+        const used = document.createElement("span"); used.className = "used"; used.textContent = "使用中"; d.appendChild(used);
+      }
+      d.onclick = () => {
+        if (boxEditing) collectBox();
+        curBox = i; closeBoxEdit(); renderBoxList(); loadBoxForm();
+      };
       el.appendChild(d);
     });
   }
@@ -530,6 +614,42 @@
     $("b_lyricPartial").checked = !!b.lyricPartial;
     updateModeRows();
     stageApply(); stageClear(); stageAdd(); stageAdd();
+    $("customizeBoxBtn").textContent = isCustomBox(b) ? "カスタマイズを続ける" : "自分用にカスタマイズ";
+    $("boxActionTitle").textContent = b.id === activeBoxId ? "この位置を使用中です" : "この位置を使いますか？";
+    $("boxActionDesc").textContent = b.id === activeBoxId
+      ? "今の字幕に選ばれています" : "選ぶだけで、すぐ字幕に反映できます";
+  }
+
+  function isCustomBox(b) { return /^(box-|imp-)/.test(b.id || ""); }
+  function closeBoxEdit() {
+    boxEditing = false;
+    $("bform").classList.add("locked");
+    $("boxEditTools").hidden = true;
+    $("boxEditor").classList.remove("advanced-open");
+    $("boxAdvancedBtn").textContent = "もっと細かく調整";
+  }
+  function beginBoxEdit() {
+    if (!isCustomBox(boxes[curBox])) dupBox();
+    boxEditing = true;
+    $("bform").classList.remove("locked");
+    $("boxEditTools").hidden = false;
+    $("delBoxBtn").hidden = !isCustomBox(boxes[curBox]);
+    $("boxActionTitle").textContent = "自分好みに調整中";
+    $("boxActionDesc").textContent = "下の「保存」でOBSへ反映します";
+  }
+  function toggleBoxAdvanced() {
+    const open = $("boxEditor").classList.toggle("advanced-open");
+    $("boxAdvancedBtn").textContent = open ? "基本項目だけに戻す" : "もっと細かく調整";
+    updateModeRows();
+  }
+  async function useBox() {
+    if (boxEditing) collectBox();
+    await fetch("/api/boxes", { method: "POST", body: JSON.stringify({ boxes }) });
+    await fetch("/api/config", { method: "POST", body: JSON.stringify({ box: boxes[curBox].id }) });
+    activeBoxId = boxes[curBox].id;
+    renderBoxList();
+    $("boxActionTitle").textContent = "この位置を使用中です";
+    $("boxActionDesc").textContent = "コックピットとOBSに反映しました";
   }
 
   function collectBox() {
@@ -629,17 +749,26 @@
   function dupBox() {
     const b = JSON.parse(JSON.stringify(collectBox()));
     b.id = "box-" + Date.now();
-    b.name = b.name + " のコピー";
+    b.name = customName(b.name, boxes);
     boxes.splice(curBox + 1, 0, b);
     curBox += 1;
     renderBoxList(); loadBoxForm();
   }
+
+  function customName(base, items) {
+    const root = String(base || "カスタム").replace(/（カスタム(?: \d+)?）$/, "");
+    let name = root + "（カスタム）", n = 2;
+    const used = new Set(items.map(x => x.name));
+    while (used.has(name)) name = `${root}（カスタム ${n++}）`;
+    return name;
+  }
   function delBox() {
+    if (!isCustomBox(boxes[curBox])) { alert("同梱の位置設定は削除できません"); return; }
     if (boxes.length <= 1) { alert("最後の1つは削除できません"); return; }
     if (!confirm(`「${boxes[curBox].name}」を削除しますか？`)) return;
     boxes.splice(curBox, 1);
     curBox = Math.max(0, curBox - 1);
-    renderBoxList(); loadBoxForm();
+    closeBoxEdit(); renderBoxList(); loadBoxForm();
   }
 
   // ================= バインド・保存 =================

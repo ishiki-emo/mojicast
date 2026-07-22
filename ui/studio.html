@@ -2,187 +2,279 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<title>スタジオ</title>
+<title>字幕設定</title>
 <script>
   (function () {
-    const s = parseFloat(new URLSearchParams(location.search).get("s"));
+    const q = new URLSearchParams(location.search);
+    const s = parseFloat(q.get("s"));
     if (s > 0 && s < 1) document.documentElement.style.zoom = s;
     try { if (localStorage.getItem("mojicast-theme") === "light")
       document.documentElement.dataset.theme = "light"; } catch (e) {}
   })();
 </script>
+<script src="/ui/theme-sync.js" defer></script>
 <style>
   :root {
-    --bg: #0d1117; --panel: #161c26; --panel2: #1c2432;
-    --line: #2a3547; --text: #dce6f5; --dim: #7d8ba1;
-    --accent: #00e5ff; --accent2: #ff2d95; --ok: #3dffa0; --warn: #ffb84d; --err: #ff5c5c;
+    --bg:#0d1117; --panel:#161c26; --panel2:#1c2432; --panel3:#222d3e;
+    --line:#2a3547; --text:#dce6f5; --dim:#8c9bb1; --accent:#00e5ff;
+    --accent2:#ff2d95; --ok:#3dffa0; --warn:#ffb84d; --err:#ff5c5c;
   }
   :root[data-theme="light"] {
-    --bg: #f7f9fc; --panel: #ffffff; --panel2: #eef2f8;
-    --line: #dbe2ec; --text: #16202e; --dim: #5c6b80;
-    --accent: #0499bd; --accent2: #d4247a; --ok: #12a05f; --warn: #b5761a; --err: #d94141;
+    --bg:#f7f9fc; --panel:#fff; --panel2:#eef2f8; --panel3:#e5ebf4;
+    --line:#dbe2ec; --text:#16202e; --dim:#5c6b80; --accent:#0499bd;
+    --accent2:#d4247a; --ok:#12a05f; --warn:#b5761a; --err:#d94141;
   }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { height: 100%; }
-  body { display: flex; flex-direction: column; background: var(--bg); color: var(--text);
-    font-family: "Yu Gothic UI", "Meiryo", sans-serif; overflow: hidden; }
-
-  .sthead { display: flex; align-items: center; gap: 12px; padding: 10px 16px;
-    background: var(--panel); border-bottom: 1px solid var(--line); }
-  .sthead .logo { font-weight: 800; font-size: 15px; letter-spacing: .5px; }
-  .sthead .logo b { color: var(--accent2); }
-  .sthead .desc { color: var(--dim); font-size: 12px; }
-
-  .topnav { display: flex; gap: 4px; padding: 8px 12px 0; background: var(--panel);
-    border-bottom: 1px solid var(--line); }
-  .topnav button { font-family: inherit; font-weight: 700; font-size: 13.5px; color: var(--dim);
-    background: transparent; border: 1px solid transparent; border-bottom: 0;
-    border-radius: 9px 9px 0 0; padding: 10px 16px; cursor: pointer; transition: color .15s, background .15s; }
-  .topnav button:hover { color: var(--text); }
-  .topnav button[aria-selected="true"] { color: var(--text); background: var(--bg);
-    border-color: var(--line); box-shadow: 0 1px 0 0 var(--bg); }
-  .topnav button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-
-  .frames { flex: 1; position: relative; min-height: 0; }
-  .pane { position: absolute; inset: 0; display: none; }
-  .pane.on { display: block; }
-  iframe.pane { width: 100%; height: 100%; border: 0; background: var(--bg); }
-
-  /* 共有パネル */
-  #pShare { overflow: auto; padding: 22px; }
-  .sharegrid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 900px; }
-  @media (max-width: 720px) { .sharegrid { grid-template-columns: 1fr; } }
-  .card { background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
-  .card h3 { font-size: 14px; margin-bottom: 6px; }
-  .card p { color: var(--dim); font-size: 12.5px; margin-bottom: 14px; }
-  .card .btns { display: flex; gap: 8px; flex-wrap: wrap; }
-  .btn { font-family: inherit; font-weight: 700; font-size: 13px; color: var(--text);
-    background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
-    padding: 9px 13px; cursor: pointer; transition: border-color .15s, background .15s; }
-  .btn:hover { border-color: var(--accent); color: var(--accent); }
-  .btn.primary { border-color: var(--ok); color: var(--ok); }
-  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  #shareMsg { margin-top: 16px; font-size: 12.5px; max-width: 900px; min-height: 1.4em; }
-  #shareMsg.ok { color: var(--ok); } #shareMsg.err { color: var(--err); }
-  .note { color: var(--dim); font-size: 12px; margin-top: 18px; max-width: 900px; line-height: 1.7; }
+  * { box-sizing:border-box; }
+  html,body { height:100%; }
+  body { margin:0; overflow:hidden; background:var(--bg); color:var(--text);
+    font-family:"Yu Gothic UI","Meiryo",sans-serif; font-size:15px; }
+  button,select,input { font:inherit; }
+  button:focus-visible,select:focus-visible,input:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  button { color:inherit; }
+  .top { height:68px; display:flex; align-items:center; gap:16px; padding:0 20px;
+    border-bottom:1px solid var(--line); background:var(--panel); }
+  .brand { min-width:190px; display:flex; align-items:center; gap:11px; }
+  .mark { width:34px; height:34px; display:grid; place-items:center; border-radius:10px;
+    color:#061117; font-weight:950; background:linear-gradient(145deg,#8aedff,var(--accent)); }
+  .brand strong { letter-spacing:.12em; font-size:16px; }
+  .brand i { color:var(--accent2); font-style:normal; }
+  #studioDesc { color:var(--dim); font-size:13px; }
+  .scope { margin-left:auto; display:flex; align-items:center; gap:8px; }
+  .scope label { color:var(--dim); font-size:12px; }
+  .scope select { width:160px; }
+  select,input[type=text],input[type=number] { height:36px; border:1px solid var(--line); border-radius:8px;
+    padding:0 10px; background:var(--panel2); color:var(--text); }
+  .btn { border:1px solid var(--line); border-radius:9px; padding:8px 12px; background:var(--panel2);
+    font-weight:750; cursor:pointer; }
+  .btn:hover { color:var(--accent); border-color:var(--accent); }
+  .btn.primary { color:#061117; border-color:var(--accent); background:var(--accent); }
+  .layout { height:calc(100% - 68px); display:grid; grid-template-columns:220px 1fr; }
+  .nav { padding:16px 12px; border-right:1px solid var(--line); background:var(--panel); }
+  .nav-caption { padding:0 10px 8px; color:var(--dim); font-size:10px; letter-spacing:.12em; }
+  .nav button { width:100%; display:grid; grid-template-columns:28px 1fr; gap:9px; align-items:center;
+    margin-bottom:6px; padding:11px 12px; border:1px solid transparent; border-radius:10px;
+    background:transparent; color:var(--dim); text-align:left; cursor:pointer; }
+  .nav button .icon { grid-row:1/3; font-size:18px; }
+  .nav button strong { font-size:14px; }
+  .nav button small { font-size:11px; color:var(--dim); }
+  .nav button.active { color:var(--text); background:var(--panel2); border-color:var(--line); }
+  .utility { margin-top:18px; padding-top:12px; border-top:1px solid var(--line); }
+  .content { position:relative; min-width:0; min-height:0; }
+  .pane { position:absolute; inset:0; display:none; min-width:0; min-height:0; }
+  .pane.active { display:block; }
+  .scroll { overflow:auto; padding:25px; }
+  .inner { max-width:1080px; margin:0 auto; }
+  .page-title { margin:0 0 5px; font-size:26px; }
+  .lead { margin:0 0 20px; color:var(--dim); line-height:1.65; }
+  .status { display:flex; align-items:center; gap:12px; margin-bottom:16px; padding:13px 15px;
+    border:1px solid color-mix(in srgb,var(--accent) 28%,var(--line)); border-radius:12px;
+    background:color-mix(in srgb,var(--accent) 6%,var(--panel)); }
+  .status strong { font-size:14px; }
+  .status span { color:var(--dim); font-size:12px; }
+  .cards { display:grid; grid-template-columns:repeat(2,1fr); gap:14px; }
+  .card { min-height:160px; display:flex; flex-direction:column; padding:17px; border:1px solid var(--line);
+    border-radius:14px; background:var(--panel); }
+  .card .card-icon { width:36px; height:36px; display:grid; place-items:center; margin-bottom:12px;
+    border-radius:10px; background:var(--panel3); font-size:18px; }
+  .card h3 { margin:0 0 5px; font-size:17px; }
+  .card p { margin:0 0 14px; color:var(--dim); font-size:12px; line-height:1.65; }
+  .card-foot { margin-top:auto; display:flex; align-items:center; gap:8px; }
+  .card-foot span { flex:1; color:var(--accent); font-size:12px; font-weight:800; }
+  .feature-master { display:flex; align-items:center; gap:12px; margin-bottom:16px; padding:14px 16px;
+    border:1px solid var(--line); border-radius:12px; background:var(--panel); }
+  .feature-master div { flex:1; }
+  .feature-master strong { display:block; }
+  .feature-master small { color:var(--dim); font-size:12px; }
+  .switch { width:42px; height:24px; border:0; border-radius:999px; padding:3px; background:#344157; cursor:pointer; }
+  .switch i { display:block; width:18px; height:18px; border-radius:50%; background:#8b99ad; transition:.16s; }
+  .switch[aria-pressed="true"] { background:color-mix(in srgb,var(--accent) 36%,#344157); }
+  .switch[aria-pressed="true"] i { transform:translateX(18px); background:var(--accent); }
+  .detail { flex-direction:column; }
+  .pane.detail.active { display:flex; }
+  .backbar { height:50px; flex:none; display:flex; align-items:center; gap:12px; padding:0 18px;
+    border-bottom:1px solid var(--line); background:var(--panel); }
+  .backbar button { border:0; background:transparent; color:var(--accent); font-weight:800; cursor:pointer; }
+  .backbar span { margin-left:auto; color:var(--dim); font-size:12px; }
+  iframe.embedded { flex:1; min-height:0; width:100%; border:0; background:var(--bg); }
+  .feature-pane { display:none; flex-direction:column; }
+  .feature-pane.active { display:flex; }
+  .feature-head { flex:none; padding:18px 22px 0; }
+  .feature-head .feature-master { margin-bottom:12px; }
+  .hearing-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .form-card { padding:18px; border:1px solid var(--line); border-radius:14px; background:var(--panel); }
+  .form-card h3 { margin:0 0 14px; }
+  .field { margin-bottom:15px; }
+  .field label { display:flex; justify-content:space-between; margin-bottom:6px; color:var(--dim); font-size:12px; }
+  .field select,.field input[type=range] { width:100%; }
+  .field output { color:var(--accent); font-weight:800; }
+  details { margin-top:14px; border:1px solid var(--line); border-radius:10px; background:var(--panel2); }
+  summary { padding:12px; color:var(--accent); font-weight:800; cursor:pointer; }
+  .details-body { padding:0 12px 12px; }
+  .saved { min-height:1.4em; margin-top:10px; color:var(--ok); font-size:12px; }
+  .sharegrid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .note { color:var(--dim); font-size:12px; line-height:1.7; }
+  @media(max-width:820px) { .layout{grid-template-columns:185px 1fr}.cards,.hearing-grid,.sharegrid{grid-template-columns:1fr}.top #studioDesc{display:none} }
 </style>
 </head>
 <body>
-  <div class="sthead">
-    <span class="logo">STUDIO<b>.</b></span>
-    <span class="desc">字幕の見た目と単語を作る・育てる場所</span>
-  </div>
+<header class="top">
+  <div class="brand"><span class="mark">M</span><strong>STUDIO<i>.</i></strong></div>
+  <div id="studioDesc">字幕の見た目と言葉を整えます</div>
+  <div class="scope"><label for="profileScope">編集する配信セット</label><select id="profileScope" onchange="changeProfile(this.value)"><option value="">共通のみ</option></select></div>
+  <button class="btn" onclick="closeThisWindow()">閉じる</button>
+</header>
 
-  <div class="topnav" role="tablist" aria-label="スタジオ">
-    <button role="tab" aria-selected="true"  data-tab="style"  onclick="topTab('style')">🎨 文字スタイル</button>
-    <button role="tab" aria-selected="false" data-tab="layout" onclick="topTab('layout')">📐 レイアウト</button>
-    <button role="tab" aria-selected="false" data-tab="words"  onclick="topTab('words')">📖 単語</button>
-    <button role="tab" aria-selected="false" data-tab="share"  onclick="topTab('share')">🔗 共有</button>
-  </div>
+<div class="layout">
+  <nav class="nav" aria-label="設定する機能">
+    <div class="nav-caption">つくるもの</div>
+    <button data-pillar="captions" onclick="switchPillar('captions')"><span class="icon">💬</span><strong>字幕</strong><small>見た目・位置・認識単語</small></button>
+    <button data-pillar="translation" onclick="switchPillar('translation')"><span class="icon">🌐</span><strong>翻訳字幕</strong><small>見た目・固定訳</small></button>
+    <button data-pillar="effects" onclick="switchPillar('effects')"><span class="icon">✨</span><strong>ワード演出</strong><small>言葉・動き・パーティクル</small></button>
+    <div class="utility"><div class="nav-caption">そのほか</div>
+      <button data-pillar="share" onclick="switchPillar('share')"><span class="icon">↗</span><strong>保存・共有</strong><small>バックアップ・受け渡し</small></button>
+    </div>
+  </nav>
 
-  <div class="frames">
-    <iframe class="pane on" id="fStyle" title="文字スタイル / レイアウト"></iframe>
-    <iframe class="pane" id="fWords" title="単語"></iframe>
-    <section class="pane" id="pShare">
-      <div class="sharegrid">
-        <div class="card">
-          <h3>📤 エクスポート</h3>
-          <p>文字スタイルとレイアウトを .mojipack にまとめて書き出し、配布できます。</p>
-          <div class="btns">
-            <button class="btn" onclick="exportAll()">すべて書き出す</button>
-            <button class="btn" onclick="openFolder()">📂 保存先フォルダを開く</button>
-          </div>
-        </div>
-        <div class="card">
-          <h3>📥 インポート</h3>
-          <p>受け取った .mojipack を取り込みます。既存は上書きせず追加します（名前が重なると「〜 (imported)」）。</p>
-          <div class="btns">
-            <button class="btn primary" onclick="document.getElementById('impFile').click()">ファイルを選ぶ…</button>
-            <input type="file" id="impFile" accept=".mojipack,.json" hidden onchange="doImport(this.files[0])">
-          </div>
-        </div>
+  <main class="content">
+    <section class="pane scroll" id="pCaptions"><div class="inner">
+      <h1 class="page-title">字幕</h1><p class="lead">まず字幕そのものを整えます。普段使うものから、必要な設定だけ開けます。</p>
+      <div class="status"><strong>● 字幕はすぐ使えます</strong><span id="captionSummary">読み込み中…</span></div>
+      <div class="cards">
+        <article class="card"><span class="card-icon">🎨</span><h3>字幕デザイン</h3><p>フォント・色・縁取りを選びます。プリセットはそのまま使えます。</p><div class="card-foot"><span id="designCurrent">—</span><button class="btn" onclick="openDetail('style')">開く</button></div></article>
+        <article class="card"><span class="card-icon">⌖</span><h3>字幕の位置</h3><p>立ち絵やゲーム画面を避けて、読みやすい場所へ置きます。</p><div class="card-foot"><span id="layoutCurrent">—</span><button class="btn" onclick="openDetail('layout')">開く</button></div></article>
+        <article class="card"><span class="card-icon">📖</span><h3>認識させる言葉</h3><p>名前やゲーム用語の読み方を、この配信セットへ登録します。</p><div class="card-foot"><span id="wordsCurrent">—</span><button class="btn" onclick="openDetail('words')">開く</button></div></article>
       </div>
-      <div id="shareMsg"></div>
-      <p class="note">個別（この文字スタイルだけ／このレイアウトだけ）の書き出しは、
-        「文字スタイル」「レイアウト」タブの下部にある 📤 エクスポート からも行えます。</p>
-    </section>
-  </div>
+    </div></section>
+
+    <section class="pane detail" id="pStyleDetail"><div class="backbar"><button id="styleBack" onclick="returnFromStyle()">← 字幕の設定</button><b id="styleDetailTitle">字幕デザイン</b><span>変更はコックピットにも反映されます</span></div><iframe class="embedded" id="fStyle" title="字幕デザインと位置"></iframe></section>
+    <section class="pane detail" id="pWordsDetail"><div class="backbar"><button onclick="switchPillar('captions')">← 字幕の設定</button><b>認識させる言葉</b><span>配信セットごとに保存</span></div><iframe class="embedded" id="fWords" title="認識させる言葉"></iframe></section>
+
+    <section class="pane scroll" id="pTranslation"><div class="inner">
+      <h1 class="page-title">翻訳</h1><p class="lead">日本語字幕と一緒に、海外リスナー向けの字幕を表示します。</p>
+      <div class="feature-master"><div><strong>翻訳字幕を使う</strong><small>コックピットから配信中でもオン・オフできます</small></div><button class="switch" id="translationSwitch" onclick="toggleFeature('translate',this)" aria-label="翻訳字幕をオン・オフ"><i></i></button></div>
+      <div class="cards">
+        <article class="card"><span class="card-icon">🌐</span><h3>翻訳先とモデル</h3><p>英語・中国語など、字幕を届けたい言語とAIの動作を設定します。</p><div class="card-foot"><span id="translationCurrent">—</span><button class="btn" onclick="openSystemSettings('translation')">アプリ設定</button></div></article>
+        <article class="card"><span class="card-icon">🎨</span><h3>翻訳字幕の見た目</h3><p>本文との大きさのバランス、色、縁取りを調整します。</p><div class="card-foot"><span>使用中のデザインに連動</span><button class="btn" onclick="openDetail('translation-style')">開く</button></div></article>
+        <article class="card"><span class="card-icon">📘</span><h3>訳し方を固定する言葉</h3><p>名前や作品名を、いつも同じ表記で翻訳します。</p><div class="card-foot"><span>配信セットごとに保存</span><button class="btn" onclick="openDetail('translation-words')">開く</button></div></article>
+      </div>
+    </div></section>
+    <section class="pane detail" id="pGlossary"><div class="backbar"><button onclick="switchPillar('translation')">← 翻訳の設定</button><b>訳し方を固定する言葉</b><span>配信セットごとに保存</span></div><iframe class="embedded" id="fGlossary" title="固定訳"></iframe></section>
+
+    <section class="pane feature-pane" id="pEffects"><div class="feature-head"><h1 class="page-title">ワード演出</h1><p class="lead">言った瞬間に、文字の色やパーティクルを変えられます。</p><div class="feature-master"><div><strong>ワード演出を使う</strong><small>同梱プリセットがあるので、オンにするだけでも楽しめます</small></div><button class="switch" id="effectsSwitch" onclick="toggleFeature('word_fx',this)" aria-label="ワード演出をオン・オフ"><i></i></button></div></div><iframe class="embedded" id="fEffects" title="ワード演出"></iframe></section>
+
+    <section class="pane scroll" id="pShare"><div class="inner"><h1 class="page-title">保存・共有</h1><p class="lead">作った字幕デザインをファイルにして、バックアップや受け渡しに使えます。</p><div class="sharegrid"><div class="card"><span class="card-icon">📤</span><h3>カスタマイズを書き出す</h3><p>字幕デザインと位置を .mojipack にまとめます。</p><div class="card-foot"><button class="btn primary" onclick="exportAll()">ファイルに保存</button><button class="btn" onclick="openFolder()">保存先を開く</button></div></div><div class="card"><span class="card-icon">📥</span><h3>もらったカスタマイズを使う</h3><p>受け取った .mojipack を追加します。今ある設定は上書きしません。</p><div class="card-foot"><button class="btn" onclick="impFile.click()">ファイルを選ぶ</button><input type="file" id="impFile" accept=".mojipack,.json" hidden onchange="doImport(this.files[0])"></div></div></div><div class="saved" id="shareMsg"></div></div></section>
+  </main>
+</div>
 
 <script>
-  const $ = (id) => document.getElementById(id);
+  const $ = id => document.getElementById(id);
   const qs = new URLSearchParams(location.search);
-  const S = qs.get("s") ? "&s=" + encodeURIComponent(qs.get("s")) : "";
+  const pass = ["s","v"].filter(k => qs.get(k)).map(k => `&${k}=${encodeURIComponent(qs.get(k))}`).join("");
+  const descriptions = {
+    captions:"字幕の見た目・位置・認識単語を編集", translation:"翻訳字幕の見た目と固定訳を編集",
+    effects:"反応する言葉と演出を編集", share:"作った設定を保存・共有"
+  };
+  const pillarPanes = { captions:"pCaptions", translation:"pTranslation", effects:"pEffects", share:"pShare" };
+  let cfg = {}, profiles = [], currentPillar = "captions", styleReturnPillar = "captions";
 
-  // iframe の src を組み立て（style へは deep-link 用の tab/preset/box を引き継ぐ）
-  const styleExtra =
-    (qs.get("tab") === "box" ? "&tab=box" : "") +
-    (qs.get("preset") ? "&preset=" + encodeURIComponent(qs.get("preset")) : "") +
-    (qs.get("box") ? "&box=" + encodeURIComponent(qs.get("box")) : "");
-  $("fStyle").src = "/ui/style?embed=1" + S + styleExtra;
-  $("fWords").src = "/ui/words?embed=1" + S;
-
-  const TABS = ["style", "layout", "words", "share"];
-  function topTab(name) {
-    for (const b of document.querySelectorAll(".topnav button"))
-      b.setAttribute("aria-selected", String(b.dataset.tab === name));
-    $("fStyle").classList.toggle("on", name === "style" || name === "layout");
-    $("fWords").classList.toggle("on", name === "words");
-    $("pShare").classList.toggle("on", name === "share");
-    if (name === "style" || name === "layout") {
-      // 埋め込んだ style ページの内部タブを親から切替（リロードせず）
-      try { $("fStyle").contentWindow.postMessage(
-        { mojiTab: name === "layout" ? "box" : "style" }, "*"); } catch (e) {}
+  async function api(path, body) {
+    const opt = body === undefined ? {} : { method:"POST", body:JSON.stringify(body) };
+    return (await fetch(path, opt)).json();
+  }
+  function closeThisWindow() {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.close_window)
+      window.pywebview.api.close_window("studio");
+    else window.close();
+  }
+  function showPane(id) {
+    document.querySelectorAll(".pane").forEach(p => p.classList.remove("active"));
+    $(id).classList.add("active");
+  }
+  function setSrc(id, src, force) {
+    const f = $(id); if (force || !f.getAttribute("src")) f.src = src;
+  }
+  function switchPillar(pillar) {
+    currentPillar = pillarPanes[pillar] ? pillar : "captions";
+    document.querySelectorAll(".nav button[data-pillar]").forEach(b => b.classList.toggle("active", b.dataset.pillar === currentPillar));
+    $("studioDesc").textContent = descriptions[currentPillar];
+    showPane(pillarPanes[currentPillar]);
+    if (currentPillar === "effects") setSrc("fEffects", "/ui/words?embed=1&single=1&tab=fx" + pass);
+    refreshOverview();
+  }
+  function openSystemSettings(section) {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.open_settings)
+      window.pywebview.api.open_settings("section=" + section);
+    else window.open("/ui/settings?section=" + encodeURIComponent(section), "_blank", "width=980,height=760");
+  }
+  function styleUrl(detail) {
+    let url = "/ui/style?embed=1&tab=" + (detail === "layout" ? "box" : "style") + pass;
+    if (detail === "translation-style") url += "&focus=translation";
+    if (qs.get("preset")) url += "&preset=" + encodeURIComponent(qs.get("preset"));
+    if (qs.get("box")) url += "&box=" + encodeURIComponent(qs.get("box"));
+    return url;
+  }
+  function openDetail(detail) {
+    if (detail === "style" || detail === "layout" || detail === "translation-style") {
+      styleReturnPillar = detail === "translation-style" ? "translation" : "captions";
+      $("styleBack").textContent = styleReturnPillar === "translation" ? "← 翻訳の設定" : "← 字幕の設定";
+      $("styleDetailTitle").textContent = detail === "layout" ? "字幕の位置" : detail === "translation-style" ? "翻訳字幕の見た目" : "字幕デザイン";
+      setSrc("fStyle", styleUrl(detail), true); showPane("pStyleDetail");
+    } else if (detail === "words") {
+      setSrc("fWords", "/ui/words?embed=1&single=1&tab=hot" + pass); showPane("pWordsDetail");
+    } else if (detail === "translation-words") {
+      setSrc("fGlossary", "/ui/words?embed=1&single=1&tab=gloss" + pass); showPane("pGlossary");
     }
   }
+  function returnFromStyle() { switchPillar(styleReturnPillar); }
+  async function loadProfiles() {
+    const d = await api("/api/profiles"); profiles = d.profiles || [];
+    $("profileScope").innerHTML = '<option value="">共通のみ</option>' + profiles.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join("");
+    $("profileScope").value = profiles.includes(cfg.word_profile) ? cfg.word_profile : "";
+  }
+  async function changeProfile(value) {
+    cfg.word_profile = value; await api("/api/config", { word_profile:value });
+    for (const id of ["fWords","fEffects","fGlossary"]) if ($(id).getAttribute("src")) setSrc(id, $(id).src, true);
+    await refreshOverview();
+  }
+  const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");
+  const trNames = { en:"英語", zh:"中国語", ja:"日本語", ko:"韓国語" };
+  async function refreshOverview() {
+    try {
+      cfg = await api("/api/config");
+      const [pd,bd,wd] = await Promise.all([api("/api/presets"),api("/api/boxes"),api("/api/hotwords?profile=" + encodeURIComponent(cfg.word_profile || ""))]);
+      const preset = (pd.presets || []).find(x => x.id === cfg.preset);
+      const box = (bd.boxes || []).find(x => x.id === cfg.box);
+      $("designCurrent").textContent = preset ? preset.name : "標準";
+      $("layoutCurrent").textContent = box ? box.name : "標準";
+      $("wordsCurrent").textContent = `登録 ${(wd.entries || []).length}語`;
+      $("captionSummary").textContent = `${$("designCurrent").textContent} ／ ${$("layoutCurrent").textContent} ／ ${$("wordsCurrent").textContent}`;
+      $("translationCurrent").textContent = trNames[cfg.translate_lang] || "英語";
+      for (const [id,key] of [["effectsSwitch","word_fx"],["translationSwitch","translate"]]) $(id).setAttribute("aria-pressed",String(!!cfg[key]));
+      if (!profiles.length) await loadProfiles(); else $("profileScope").value = profiles.includes(cfg.word_profile) ? cfg.word_profile : "";
+    } catch (e) {}
+  }
+  async function toggleFeature(key, button) {
+    const value = !cfg[key]; cfg[key] = value; button.setAttribute("aria-pressed",String(value));
+    await api("/api/config", { [key]:value });
+  }
 
-  // 初期タブ（cockpit からの deep-link）
-  (function () {
-    const t = qs.get("tab");
-    topTab(t === "words" ? "words" : t === "share" ? "share" : t === "box" ? "layout" : "style");
+  function shareMsg(text,ok) { $("shareMsg").textContent=text; $("shareMsg").style.color=ok?"var(--ok)":"var(--err)"; }
+  async function exportAll() { try { const [p,b]=await Promise.all([api("/api/presets"),api("/api/boxes")]); const r=await api("/api/mojipack/export",{presets:(p.presets||[]).map(x=>x.id),boxes:(b.boxes||[]).map(x=>x.id)}); shareMsg(r.ok?"書き出しました: "+r.file:r.error||"書き出しに失敗しました",!!r.ok); } catch(e){shareMsg("書き出しに失敗しました",false);} }
+  async function openFolder() { const r=await api("/api/mojipack/open",{}); if(!r.ok)shareMsg(r.error||"フォルダを開けませんでした",false); }
+  async function doImport(file) { if(!file)return; try { const r=await api("/api/mojipack/import",{data:JSON.parse(await file.text())}); shareMsg(r.ok?`取り込みました（字幕デザイン ${r.presets}件 / 字幕の位置 ${r.boxes}件）`:r.error||"取り込みに失敗しました",!!r.ok); } catch(e){shareMsg("ファイルを読めませんでした",false);} $("impFile").value=""; }
+
+  (async function init() {
+    cfg = await api("/api/config"); await loadProfiles(); await refreshOverview();
+    let pillar = qs.get("pillar"); let detail = qs.get("detail"); const legacy = qs.get("tab");
+    if (!pillar) {
+      if (qs.get("mode") === "features") pillar = "effects";
+      else if (["effects","translation","share"].includes(legacy)) pillar = legacy;
+      else pillar = "captions";
+    }
+    if (pillar === "collab") pillar = "captions";
+    if (!detail) detail = legacy === "box" || legacy === "layout" ? "layout" : legacy === "words" ? "words" : legacy === "style" ? "style" : "";
+    switchPillar(pillar); if (detail) openDetail(detail);
   })();
-
-  // ---------- 共有（エクスポート / インポート） ----------
-  function shareMsg(text, ok) {
-    const el = $("shareMsg");
-    el.textContent = text; el.className = ok ? "ok" : "err";
-  }
-  async function jpost(path, body) {
-    const r = await fetch(path, { method: "POST", body: JSON.stringify(body) });
-    return r.json();
-  }
-  async function exportAll() {
-    try {
-      const [p, b] = await Promise.all([
-        fetch("/api/presets").then(r => r.json()),
-        fetch("/api/boxes").then(r => r.json()),
-      ]);
-      const res = await jpost("/api/mojipack/export", {
-        presets: (p.presets || []).map(x => x.id),
-        boxes: (b.boxes || []).map(x => x.id),
-      });
-      if (res.ok) shareMsg("書き出しました: " + res.file, true);
-      else shareMsg(res.error || "書き出しに失敗しました", false);
-    } catch (e) { shareMsg("書き出しに失敗しました", false); }
-  }
-  async function openFolder() {
-    const res = await jpost("/api/mojipack/open", {});
-    if (!res.ok) shareMsg(res.error || "フォルダを開けませんでした", false);
-  }
-  async function doImport(file) {
-    if (!file) return;
-    try {
-      const data = JSON.parse(await file.text());
-      const res = await jpost("/api/mojipack/import", { data });
-      if (res.ok) {
-        shareMsg(`取り込みました（文字スタイル ${res.presets} 件 / レイアウト ${res.boxes} 件）`, true);
-        // style iframe を読み直して取り込み結果を反映
-        $("fStyle").src = $("fStyle").src;
-      } else {
-        shareMsg(res.error || "取り込みに失敗しました", false);
-      }
-    } catch (e) { shareMsg("ファイルを読めませんでした（.mojipack を選んでください）", false); }
-    $("impFile").value = "";
-  }
 </script>
 </body>
 </html>

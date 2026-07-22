@@ -379,7 +379,11 @@ class Handler(BaseHTTPRequestHandler):
     def _send_body(self, code, body: bytes, ctype: str):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
-        self.send_header("Cache-Control", "no-cache")
+        # GUIは開発中に同じURLで頻繁に更新される。WebView2の復元キャッシュも含め、
+        # 古いHTML/JSを再利用させない。
+        self.send_header("Cache-Control", "no-store, max-age=0")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
         self.end_headers()
         self.wfile.write(body)
 
@@ -549,6 +553,10 @@ class Handler(BaseHTTPRequestHandler):
             ev = {"type": "style"}
             ev.update(resolve_style(cfg))
             broadcast(ev)
+            # GUIテーマは開いている全ウインドウへ即時反映する。
+            # overlay.html はこのイベントを購読しないためOBS字幕には影響しない。
+            if "theme" in body:
+                broadcast({"type": "theme", "theme": cfg.get("theme", "dark")})
             self._json({"ok": True, "config": cfg})
         elif path == "/api/profiles":
             self._post_profiles(body)
@@ -662,6 +670,16 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 os.startfile(d)            # エクスプローラで開く（Windows）
                 self._json({"ok": True})
+            except OSError as e:
+                self._json({"ok": False, "error": str(e)}, 500)
+        elif path == "/api/logs/open":
+            # 文字起こしログは engine.py と同じく BASE/logs に保存される。
+            # まだ配信していない場合も、入口としてフォルダを作ってから開く。
+            d = os.path.join(BASE, "logs")
+            os.makedirs(d, exist_ok=True)
+            try:
+                os.startfile(d)            # エクスプローラで開く（Windows）
+                self._json({"ok": True, "path": d})
             except OSError as e:
                 self._json({"ok": False, "error": str(e)}, 500)
         elif path == "/api/clear":

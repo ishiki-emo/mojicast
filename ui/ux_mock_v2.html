@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="ja"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mojicast UX mock v2</title>
+<style>
+  :root {
+    --bg: #090d14;
+    --surface: #111824;
+    --surface-2: #172131;
+    --surface-3: #1d2a3e;
+    --line: #26364d;
+    --line-bright: #3e5575;
+    --text: #f3f7ff;
+    --muted: #8fa1ba;
+    --cyan: #27d8f2;
+    --cyan-2: #8aedff;
+    --pink: #ff5dad;
+    --green: #55e6a5;
+    --amber: #ffc465;
+    --red: #ff6b75;
+    --radius: 16px;
+    --shadow: 0 24px 80px rgba(0, 0, 0, .38);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 52% -20%, rgba(39, 216, 242, .09), transparent 36%),
+      var(--bg);
+    color: var(--text);
+    font-family: "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
+    font-size: 15px;
+  }
+  button, select, input { font: inherit; }
+  button { color: inherit; }
+  button:focus-visible, select:focus-visible, input:focus-visible {
+    outline: 2px solid var(--cyan);
+    outline-offset: 2px;
+  }
+
+  .app { height: 100%; display: flex; flex-direction: column; }
+  .topbar {
+    height: 68px;
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 0 22px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(14, 20, 30, .9);
+    backdrop-filter: blur(18px);
+  }
+  .brand { display: flex; align-items: center; gap: 12px; min-width: 210px; }
+  .brand-mark {
+    width: 34px; height: 34px; border-radius: 11px;
+    display: grid; place-items: center;
+    color: #061116; font-weight: 1000; font-size: 18px;
+    background: linear-gradient(145deg, var(--cyan-2), var(--cyan));
+    box-shadow: 0 0 24px rgba(39, 216, 242, .24);
+  }
+  .brand-name { font-size: 17px; letter-spacing: .12em; font-weight: 900; }
+  .brand-name i { color: var(--pink); font-style: normal; }
+  .top-status { display: flex; align-items: center; gap: 9px; color: var(--muted); }
+  .status-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  .status-dot.ready { background: var(--green); box-shadow: 0 0 12px rgba(85, 230, 165, .75); }
+  .status-dot.live { background: var(--red); box-shadow: 0 0 12px rgba(255, 107, 117, .75); animation: pulse 1.3s infinite; }
+  @keyframes pulse { 50% { opacity: .35; } }
+  .topbar .start-btn { margin-left: auto; }
+
+  .btn {
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    background: var(--surface-2);
+    padding: 10px 14px;
+    cursor: pointer;
+    font-weight: 750;
+    transition: transform .12s, border-color .12s, background .12s;
+  }
+  .btn:hover { transform: translateY(-1px); border-color: var(--line-bright); }
+  .btn.ghost { background: transparent; }
+  .btn.primary {
+    border-color: var(--cyan);
+    background: var(--cyan);
+    color: #061117;
+    box-shadow: 0 8px 25px rgba(39, 216, 242, .18);
+  }
+  .btn.live { background: transparent; color: #ffd9dd; border-color: var(--red); }
+  .start-btn { min-width: 148px; font-size: 15px; padding: 12px 18px; }
+
+  .workspace {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(600px, 1fr) 344px;
+    gap: 14px;
+    padding: 14px;
+  }
+  .main { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+  .side { min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 12px; padding-right: 2px; }
+  .panel {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: rgba(17, 24, 36, .94);
+  }
+
+  .input-strip {
+    min-height: 74px;
+    display: grid;
+    grid-template-columns: minmax(210px, 1.5fr) minmax(180px, 1fr) auto;
+    align-items: end;
+    gap: 14px;
+    padding: 13px 16px;
+  }
+  .field label, .micro-label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+  select, input[type="text"] {
+    width: 100%;
+    height: 38px;
+    color: var(--text);
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    padding: 0 11px;
+  }
+  .meter-shell {
+    height: 38px; display: flex; align-items: center; padding: 0 5px;
+    background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px;
+  }
+  .meter { width: 72%; height: 10px; overflow: hidden; border-radius: 99px; background: #253248; }
+  .meter > i { display: block; width: 64%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--green), var(--amber)); animation: meter 2.2s ease-in-out infinite; transform-origin: left; }
+  @keyframes meter { 0%, 100% { transform: scaleX(.32); } 50% { transform: scaleX(1); } }
+
+  .stage {
+    position: relative;
+    flex: 1;
+    min-height: 300px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    background:
+      linear-gradient(rgba(10, 15, 24, .3), rgba(10, 15, 24, .78)),
+      repeating-linear-gradient(0deg, rgba(255,255,255,.018) 0 1px, transparent 1px 5px),
+      radial-gradient(circle at 62% 40%, rgba(93, 72, 170, .19), transparent 40%),
+      #090e16;
+  }
+  .stage-head {
+    display: flex; align-items: center; gap: 10px; padding: 13px 15px;
+    border-bottom: 1px solid rgba(255,255,255,.045);
+  }
+  .stage-head b { font-size: 13px; letter-spacing: .04em; }
+  .stage-head span { color: var(--muted); font-size: 12px; }
+  .stage-head .clear { margin-left: auto; background: transparent; color: var(--muted); border: 0; cursor: pointer; }
+  .captions { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 15px; padding: 34px 34px 28px; }
+  .caption-line { font-weight: 900; font-size: clamp(22px, 2vw, 32px); letter-spacing: .015em; line-height: 1.35; text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000, 0 0 12px rgba(0,0,0,.8); }
+  .caption-line.partial { opacity: .38; }
+  .caption-line .accent-word { color: #76a8ff; font-size: 1.17em; text-shadow: 0 0 14px rgba(73, 132, 255, .6), -2px -2px 0 #000, 2px 2px 0 #000; }
+  .caption-line.cute .accent-word { color: #ff91c6; text-shadow: 0 0 14px rgba(255,93,173,.68), -2px -2px 0 #531232, 2px 2px 0 #531232; }
+  .caption-line.cyber { color: #d9ffff; text-shadow: 2px 2px 0 #004c64, -2px -2px 0 #6a1251, 0 0 15px rgba(39,216,242,.8); }
+  .translation { margin-top: 3px; color: #d7e2ef; opacity: .8; font-size: .5em; font-weight: 650; letter-spacing: 0; }
+  .speaker { display: inline-flex; vertical-align: middle; margin-right: 9px; padding: 4px 7px; border-radius: 999px; border: 1px solid var(--cyan); color: var(--cyan); font-size: 10px; text-shadow: none; }
+  .speaker.guest { border-color: var(--pink); color: var(--pink); }
+  .heart {
+    position: absolute; bottom: 62px; left: 57%; color: var(--pink); font-size: 24px;
+    animation: float 1.6s ease-out forwards; pointer-events: none;
+  }
+  @keyframes float { to { opacity: 0; transform: translate(var(--x), -150px) rotate(28deg) scale(1.4); } }
+
+  .first-run {
+    position: absolute; inset: 48px 0 0;
+    display: grid; place-items: center;
+    padding: 24px;
+    background: rgba(8, 13, 21, .78);
+    backdrop-filter: blur(7px);
+    z-index: 5;
+  }
+  .first-run.hidden { display: none; }
+  .welcome { width: min(620px, 92%); text-align: center; }
+  .eyebrow { color: var(--cyan); font-weight: 850; font-size: 13px; letter-spacing: .08em; }
+  .welcome h1 { margin: 9px 0 7px; font-size: clamp(24px, 3vw, 38px); line-height: 1.3; }
+  .welcome > p { margin: 0 auto 24px; color: var(--muted); line-height: 1.8; }
+  .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 0 0 22px; }
+  .step { min-height: 85px; padding: 13px 8px; border: 1px solid var(--line); border-radius: 12px; background: rgba(23,33,49,.8); color: var(--muted); font-size: 12px; }
+  .step b { display: grid; place-items: center; width: 24px; height: 24px; margin: 0 auto 8px; border-radius: 50%; background: var(--surface-3); color: var(--text); }
+  .step.active { border-color: rgba(39,216,242,.55); color: var(--text); background: rgba(39,216,242,.08); }
+  .step.active b { background: var(--cyan); color: #061117; }
+  .welcome-actions { display: flex; justify-content: center; gap: 9px; }
+
+  .quick {
+    flex: none;
+    padding: 12px 14px;
+  }
+  .section-title { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 11px; }
+  .section-title h2, .section-title h3 { margin: 0; font-size: 15px; }
+  .section-title span { color: var(--muted); font-size: 12px; }
+  .quick-grid { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 10px; }
+  .quick .section-title { margin-bottom: 9px; }
+  .quick .section-title .btn { margin-left: auto; padding: 7px 11px; font-size: 12px; }
+  .group-action { display: flex; justify-content: flex-end; margin-top: 11px; }
+  .group-action .btn { min-width: 190px; }
+  .quick-card {
+    display: flex; align-items: center; gap: 11px;
+    min-width: 0; padding: 10px;
+    background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px;
+  }
+  .qicon { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 10px; background: var(--surface-3); font-size: 17px; }
+  .qbody { min-width: 0; flex: 1; }
+  .qbody label { display: block; color: var(--muted); font-size: 11px; margin-bottom: 3px; }
+  .qbody select { height: 30px; border: 0; padding: 0; background: transparent; font-weight: 800; }
+
+  .side-card { padding: 15px; }
+  .side-head { display: flex; align-items: flex-start; gap: 10px; }
+  .side-icon { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 10px; background: var(--surface-3); font-size: 17px; }
+  .side-head h3 { margin: 1px 0 3px; font-size: 15px; }
+  .side-head p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+  .feature-row {
+    display: flex; align-items: center; gap: 12px;
+    margin-top: 12px; padding: 10px 11px;
+    border: 1px solid var(--line); border-radius: 11px; background: var(--surface-2);
+  }
+  .feature-row strong { display: block; font-size: 14px; }
+  .feature-row small { color: var(--muted); }
+  .feature-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .feature-detail { border: 0; background: transparent; color: var(--cyan); cursor: pointer;
+    padding: 4px 2px; font-size: 12px; font-weight: 800; }
+  .switch-btn { width: 39px; height: 22px; border: 0; border-radius: 99px; background: #2b394f; padding: 3px; cursor: pointer; transition: background .16s; }
+  .switch-btn i { display: block; width: 16px; height: 16px; border-radius: 50%; background: #8999ae; transition: transform .16s, background .16s; }
+  .switch-btn[aria-pressed="true"] { background: rgba(39,216,242,.32); }
+  .switch-btn[aria-pressed="true"] i { transform: translateX(17px); background: var(--cyan); }
+  .obsbox { margin-top: 12px; display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+  .url { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 10px; border-radius: 9px; background: var(--surface-2); border: 1px solid var(--line); color: #b7c8de; font-family: Consolas, monospace; font-size: 12px; }
+  .fine-settings { width: 100%; text-align: left; color: var(--muted); }
+
+  .live-summary {
+    display: none;
+    align-items: center; gap: 12px;
+    padding: 13px 16px;
+    border: 1px solid rgba(85,230,165,.25);
+    border-radius: 13px;
+    background: rgba(85,230,165,.065);
+  }
+  .live-summary strong { color: var(--green); }
+  .live-summary span { color: var(--muted); font-size: 12px; }
+  body.is-live .live-summary { display: flex; }
+  body.is-live .input-strip { display: none; }
+  body.is-live .quick { padding: 10px 14px; }
+  body.is-live .quick .section-title { display: none; }
+  body.is-live .side-card:not(.obs-card) { opacity: .72; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; z-index: 50;
+    transform: translate(-50%, 20px); opacity: 0;
+    padding: 11px 16px; border-radius: 10px;
+    background: #f4f8ff; color: #101722; font-weight: 800;
+    box-shadow: var(--shadow); transition: .2s; pointer-events: none;
+  }
+  .toast.show { transform: translate(-50%, 0); opacity: 1; }
+
+  .studio-shell {
+    position: fixed; inset: 0; z-index: 30;
+    display: none; flex-direction: column;
+    background: var(--bg);
+  }
+  .studio-shell.open { display: flex; }
+  .studio-top { height: 68px; display: flex; align-items: center; gap: 16px; padding: 0 22px; border-bottom: 1px solid var(--line); background: var(--surface); }
+  .studio-top h1 { margin: 0; font-size: 16px; letter-spacing: .08em; }
+  .studio-top p { margin: 0; color: var(--muted); font-size: 13px; }
+  .studio-top > .btn { margin-left: 0; }
+  .studio-scope { margin-left: auto; display: flex; align-items: center; gap: 9px; }
+  .studio-scope label { color: var(--muted); font-size: 12px; }
+  .studio-scope select { width: 150px; height: 34px; }
+  .studio-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: 220px 1fr; }
+  .studio-nav { padding: 16px 12px; border-right: 1px solid var(--line); background: var(--surface); }
+  .studio-nav button { width: 100%; display: grid; grid-template-columns: 26px 1fr; align-items: center;
+    gap: 9px; margin-bottom: 6px; padding: 11px 12px; border: 1px solid transparent;
+    border-radius: 10px; color: var(--muted); background: transparent; cursor: pointer; text-align: left; }
+  .studio-nav button .nav-icon { grid-row: 1 / 3; font-size: 17px; }
+  .studio-nav button strong { color: inherit; font-size: 14px; }
+  .studio-nav button small { color: var(--muted); font-size: 11px; font-weight: 500; }
+  .studio-nav button.active { color: var(--text); background: var(--surface-2); border-color: var(--line); }
+  .nav-utility { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .nav-caption { padding: 0 10px 8px; color: var(--muted); font-size: 10px; letter-spacing: .12em; }
+  .studio-content { min-height: 0; overflow: auto; padding: 24px; }
+  .studio-panel { display: none; max-width: 1080px; margin: 0 auto; }
+  .studio-panel.active { display: block; }
+  .studio-panel > h2 { margin: 0 0 5px; font-size: 26px; }
+  .studio-panel > p { margin: 0 0 22px; color: var(--muted); }
+  .pillar-status { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding: 13px 15px;
+    border: 1px solid rgba(39,216,242,.25); border-radius: 13px; background: rgba(39,216,242,.055); }
+  .pillar-status strong { font-size: 14px; }
+  .pillar-status span { color: var(--muted); font-size: 12px; }
+  .pillar-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .pillar-card { min-height: 160px; display: flex; flex-direction: column; padding: 17px;
+    border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+  .pillar-card .card-icon { width: 36px; height: 36px; display: grid; place-items: center;
+    margin-bottom: 12px; border-radius: 10px; background: var(--surface-3); font-size: 18px; }
+  .pillar-card h3 { margin: 0 0 5px; }
+  .pillar-card p { margin: 0 0 14px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+  .pillar-card .card-current { margin-top: auto; display: flex; align-items: center; gap: 8px; }
+  .pillar-card .card-current span { flex: 1; color: var(--cyan-2); font-size: 12px; font-weight: 800; }
+  .feature-master { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding: 14px 16px;
+    border: 1px solid var(--line); border-radius: 13px; background: var(--surface); }
+  .feature-master div { flex: 1; }
+  .feature-master strong { display: block; }
+  .feature-master small { color: var(--muted); }
+  .feature-master .switch-btn { flex: none; }
+  .word-list { display: grid; gap: 8px; margin-top: 12px; }
+  .word-item { display: grid; grid-template-columns: 1fr 1fr auto; gap: 9px; align-items: center;
+    padding: 10px 11px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); }
+  .word-item strong { font-size: 13px; }
+  .word-item span { color: var(--muted); font-size: 12px; }
+  .word-item button { border: 0; background: transparent; color: var(--cyan); cursor: pointer; }
+  .design-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .design-option { position: relative; overflow: hidden; min-height: 220px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+  .design-option.active { border-color: var(--cyan); box-shadow: 0 0 0 1px rgba(39,216,242,.3); }
+  .design-option h3 { margin: 0 0 5px; }
+  .design-option p { margin: 0; color: var(--muted); font-size: 12px; }
+  .design-preview { height: 78px; margin-top: 14px; display: grid; place-items: center; border-radius: 9px; background: linear-gradient(135deg, #252b48, #19343b); font-weight: 900; font-size: 22px; text-shadow: -2px -2px #000, 2px 2px #000; }
+  .design-preview.cute { color: #ffe1f0; text-shadow: -2px -2px #9a2a65, 2px 2px #9a2a65, 0 0 14px var(--pink); }
+  .design-preview.cyber { color: #d9ffff; text-shadow: 2px 2px #006982, -2px -2px #8d195c, 0 0 15px var(--cyan); }
+  .design-actions { display: flex; gap: 7px; margin-top: 12px; }
+  .design-actions .btn { flex: 1; padding: 8px 9px; font-size: 12px; }
+  .editor-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .editor-head .back-link { border: 0; background: transparent; color: var(--cyan); cursor: pointer; font-weight: 800; padding: 5px 0; }
+  .editor-head .draft-note { margin-left: auto; color: var(--muted); font-size: 12px; }
+  .editor-layout { display: grid; grid-template-columns: minmax(350px, .9fr) minmax(420px, 1.1fr); gap: 16px; align-items: start; }
+  .preview-card { position: sticky; top: 0; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+  .preview-toolbar { display: flex; align-items: center; gap: 7px; margin-bottom: 10px; }
+  .preview-toolbar span { color: var(--muted); font-size: 12px; margin-right: auto; }
+  .preview-toolbar button { border: 1px solid var(--line); border-radius: 8px; color: var(--muted); background: var(--surface-2); padding: 6px 9px; cursor: pointer; font-size: 11px; }
+  .preview-toolbar button.active { color: var(--text); border-color: var(--cyan); }
+  .broadcast-preview { min-height: 330px; display: flex; flex-direction: column; justify-content: flex-end; padding: 22px; overflow: hidden; border-radius: 11px; background: radial-gradient(circle at 68% 30%, #34405f, transparent 34%), linear-gradient(135deg, #242947, #163b40); }
+  .broadcast-preview.light { background: linear-gradient(135deg, #f8d8e7, #c8e9f0); }
+  .broadcast-preview.game { background: radial-gradient(circle at 70% 32%, #914e36, transparent 22%), linear-gradient(145deg, #1d374a, #2e172d 55%, #724a22); }
+  .custom-preview-line { color: #fff; font-family: "Yu Gothic UI", sans-serif; font-size: 34px; font-weight: 900; line-height: 1.35; text-shadow: -3px -3px 0 #000, 3px -3px 0 #000, -3px 3px 0 #000, 3px 3px 0 #000, 0 0 12px rgba(39,216,242,.45); }
+  .custom-preview-line .accent-word { color: #ff87c2; }
+  .custom-preview-en { margin-top: 6px; color: #dce8f5; font-size: 17px; font-weight: 700; text-shadow: 0 1px 3px #000; opacity: .82; }
+  .preview-test { margin-top: 10px; }
+  .controls-card { padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+  .controls-card h2 { margin: 0 0 4px; font-size: 21px; }
+  .controls-card > p { margin: 0 0 18px; color: var(--muted); font-size: 13px; }
+  .control-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; }
+  .control { min-width: 0; }
+  .control.wide { grid-column: 1 / -1; }
+  .control label { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+  .control label output { color: var(--cyan); font-weight: 800; }
+  input[type="range"] { width: 100%; accent-color: var(--cyan); }
+  .swatches { display: flex; gap: 7px; flex-wrap: wrap; }
+  .swatch { width: 31px; height: 31px; border: 2px solid transparent; border-radius: 9px; background: var(--swatch); cursor: pointer; box-shadow: inset 0 0 0 1px rgba(255,255,255,.2); }
+  .swatch.active { border-color: var(--cyan); box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--cyan); }
+  .advanced { margin-top: 16px; border: 1px solid var(--line); border-radius: 12px; background: rgba(23,33,49,.55); }
+  .advanced > summary { padding: 14px; cursor: pointer; color: var(--cyan); font-weight: 850; list-style: none; }
+  .advanced > summary::-webkit-details-marker { display: none; }
+  .advanced > summary::after { content: "▾"; float: right; color: var(--muted); }
+  .advanced[open] > summary::after { transform: rotate(180deg); }
+  .advanced-body { padding: 0 14px 14px; }
+  .advanced-section { padding: 14px 0; border-top: 1px solid var(--line); }
+  .advanced-section h3 { margin: 0 0 11px; font-size: 14px; }
+  .editor-footer { display: flex; justify-content: space-between; gap: 10px; margin-top: 16px; }
+  .editor-footer .save { margin-left: auto; min-width: 170px; }
+  .simple-form { display: grid; grid-template-columns: 1.1fr 1fr; gap: 14px; }
+  .form-card { padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+  .form-card h3 { margin: 0 0 14px; }
+  .form-row { margin-bottom: 14px; }
+  .effect-picks { display: flex; gap: 8px; flex-wrap: wrap; }
+  .effect-picks button { padding: 10px 13px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); cursor: pointer; }
+  .effect-picks button.active { border-color: var(--pink); background: rgba(255,93,173,.1); }
+  .effect-demo { min-height: 230px; display: grid; place-items: center; text-align: center; background: radial-gradient(circle, rgba(255,93,173,.12), transparent 54%), #080d15; }
+  .effect-demo strong { font-size: 32px; color: #ff91c6; text-shadow: 0 0 16px rgba(255,93,173,.7); }
+  .position-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .position-card { padding: 13px; border-radius: 13px; border: 1px solid var(--line); background: var(--surface); color: var(--text); cursor: pointer; text-align: left; }
+  .position-card.active { border-color: var(--cyan); }
+  .screen-mini { position: relative; aspect-ratio: 16 / 9; margin-bottom: 10px; border-radius: 7px; background: #080b11; border: 1px solid #35435a; }
+  .screen-mini i { position: absolute; height: 15%; border-radius: 3px; background: var(--cyan); }
+  .p-bottom i { left: 12%; right: 12%; bottom: 10%; }
+  .p-free i { left: 22%; right: 22%; bottom: 25%; }
+  .p-right i { width: 42%; right: 5%; bottom: 15%; }
+  .position-workbench { display: grid; grid-template-columns: 1.25fr .75fr; gap: 14px; margin-top: 14px; }
+  .position-stage { position: relative; aspect-ratio: 16 / 9; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: linear-gradient(135deg, #1e2840, #172c31); }
+  .safe-area { position: absolute; inset: 7%; border: 1px dashed rgba(255,255,255,.2); border-radius: 6px; }
+  .avatar-guide { position: absolute; right: 8%; bottom: 0; width: 23%; height: 76%; border-radius: 46% 46% 10% 10%; background: linear-gradient(rgba(255,93,173,.2), rgba(255,93,173,.06)); border: 1px dashed rgba(255,93,173,.5); }
+  .position-caption { position: absolute; left: 10%; top: 72%; width: 72%; min-height: 17%; display: flex; align-items: center; justify-content: center; padding: 8px; border: 2px solid var(--cyan); border-radius: 6px; background: rgba(4,14,24,.65); color: #fff; font-weight: 900; text-shadow: 1px 1px #000; cursor: move; }
+  .position-controls .control + .control { margin-top: 13px; }
+  .fine-position { margin-top: 12px; }
+
+  @media (max-width: 980px) {
+    .workspace { grid-template-columns: 1fr; overflow: auto; }
+    .side { display: grid; grid-template-columns: 1fr 1fr; overflow: visible; }
+    body { overflow: auto; }
+    .app { min-height: 820px; }
+    .editor-layout, .position-workbench { grid-template-columns: 1fr; }
+    .pillar-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">M</span>
+      <span class="brand-name">MOJI<i>CAST</i></span>
+    </div>
+    <div class="top-status"><i class="status-dot ready" id="statusDot"></i><span id="statusText">準備OK</span></div>
+    <button class="btn primary start-btn" id="startBtn" onclick="toggleLive()">▶ 字幕を開始</button>
+  </header>
+
+  <main class="workspace">
+    <section class="main">
+      <div class="live-summary">
+        <strong>● 字幕配信中</strong>
+        <span id="liveDetail">マイク正常 · ワード演出ON · 日本語字幕</span>
+        <button class="btn ghost" style="margin-left:auto;padding:7px 10px" onclick="toast('配信設定を開きました（モック）')">配信設定を開く</button>
+      </div>
+
+      <section class="panel input-strip">
+        <div class="field">
+          <label>使うマイク</label>
+          <select><option>既定のマイク（推奨）</option><option>USB Microphone</option><option>オーディオインターフェース</option></select>
+        </div>
+        <div>
+          <span class="micro-label">声が届いています</span>
+          <div class="meter-shell"><span class="meter"><i></i></span></div>
+        </div>
+        <button class="btn ghost" onclick="toast('細かい設定は普段触らなくても大丈夫です')">聞き取りを調整</button>
+      </section>
+
+      <section class="panel stage">
+        <div class="stage-head">
+          <b>字幕プレビュー</b><span>OBSに出る字幕をここで確認</span>
+          <button class="clear" onclick="clearCaptions()">表示をクリア</button>
+        </div>
+        <div class="captions" id="captions">
+          <div class="caption-line" data-line="one">こんばんは、今日も<span class="accent-word">配信</span>はじめていきます<div class="translation">Good evening! Let's get today's stream started.</div></div>
+          <div class="caption-line cute" data-line="two">見に来てくれて<span class="accent-word">ありがとう</span>！</div>
+          <div class="caption-line partial" data-line="partial">今日は新しいゲームを……</div>
+        </div>
+        <div class="first-run" id="firstRun">
+          <div class="welcome">
+            <div class="eyebrow">30秒で字幕を体験</div>
+            <h1>まず、声を出してみよう</h1>
+            <p>マイクに向かって話すだけ。難しい設定はあとで大丈夫です。<br>このモックではボタンを押すと字幕と演出を体験できます。</p>
+            <div class="steps">
+              <div class="step active"><b>1</b>声を字幕にする</div>
+              <div class="step"><b>2</b>見た目を選ぶ</div>
+              <div class="step"><b>3</b>演出を試す</div>
+              <div class="step"><b>4</b>OBSに表示</div>
+            </div>
+            <div class="welcome-actions">
+              <button class="btn primary" onclick="startExperience()">● 声を出して試す</button>
+              <button class="btn ghost" onclick="dismissWelcome()">画面を自由に見る</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel quick">
+        <div class="section-title"><h2>今日の字幕</h2><span>よく使う3つだけ</span><button class="btn" onclick="openStudio('captions')">カスタマイズ</button></div>
+        <div class="quick-grid">
+          <div class="quick-card">
+            <span class="qicon">🎨</span>
+            <div class="qbody"><label>字幕デザイン</label><select id="designSelect" onchange="setDesign(this.value)"><option value="standard">王道VTuber</option><option value="cute">ふんわりキュート</option><option value="cyber">サイバーネオン</option></select></div>
+          </div>
+          <div class="quick-card">
+            <span class="qicon">⌖</span>
+            <div class="qbody"><label>字幕の位置</label><select id="positionSelect"><option>画面下</option><option>好きな場所</option><option>右側</option></select></div>
+          </div>
+          <div class="quick-card">
+            <span class="qicon">📦</span>
+            <div class="qbody"><label>配信セット</label><select><option>雑談</option><option>ゲーム配信</option><option>歌枠</option></select></div>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <aside class="side">
+      <section class="panel side-card">
+        <div class="side-head">
+          <span class="side-icon">🧩</span>
+          <div><h3>字幕に追加する</h3><p>使いたい機能だけオンにできます</p></div>
+        </div>
+        <div class="feature-row" id="effectsRow">
+          <span>✨</span><div><strong>ワード演出</strong><small>好きな言葉を光らせる・飛ばす</small></div>
+          <div class="feature-actions"><button class="feature-detail" onclick="openStudio('effects')">設定</button><button class="switch-btn" aria-label="ワード演出をオン・オフ" aria-pressed="true" onclick="toggleFeature('effects')"><i></i></button></div>
+        </div>
+        <div class="feature-row" id="translationRow">
+          <span>🌐</span><div><strong>英訳</strong><small>海外リスナー向けの字幕を表示</small></div>
+          <div class="feature-actions"><button class="feature-detail" onclick="openStudio('translation')">設定</button><button class="switch-btn" aria-label="英訳をオン・オフ" aria-pressed="false" onclick="toggleFeature('translation')"><i></i></button></div>
+        </div>
+        <div class="feature-row" id="collabRow">
+          <span>🎧</span><div><strong>コラボ字幕</strong><small>相手の声にも字幕を表示</small></div>
+          <div class="feature-actions"><button class="feature-detail" onclick="openStudio('collab')">設定</button><button class="switch-btn" aria-label="コラボ字幕をオン・オフ" aria-pressed="false" onclick="toggleFeature('collab')"><i></i></button></div>
+        </div>
+      </section>
+
+      <section class="panel side-card obs-card">
+        <div class="side-head">
+          <span class="side-icon">▣</span>
+          <div><h3>OBSに表示</h3><p>ブラウザソースへ貼り付けます</p></div>
+        </div>
+        <div class="obsbox"><div class="url">http://127.0.0.1:8765/</div><button class="btn" onclick="copyObs()">コピー</button></div>
+      </section>
+
+      <button class="btn ghost fine-settings" onclick="openStudio('captions')">⚙ すべての設定</button>
+    </aside>
+  </main>
+</div>
+
+<div class="studio-shell" id="studio">
+  <header class="studio-top">
+    <div class="brand"><span class="brand-mark">M</span><span class="brand-name">STUDIO<i>.</i></span></div>
+    <p id="studioDescription">4つの機能から、やりたいことを選びます</p>
+    <div class="studio-scope"><label for="studioSet">編集する配信セット</label><select id="studioSet"><option>雑談</option><option>ゲーム配信</option><option>歌枠</option></select></div>
+    <button class="btn" onclick="closeStudio()">コックピットへ戻る</button>
+  </header>
+  <div class="studio-layout">
+    <nav class="studio-nav">
+      <div class="nav-caption">4つの機能</div>
+      <button class="active" data-tab="captions" onclick="studioTab('captions')"><span class="nav-icon">💬</span><strong>字幕</strong><small>見た目・位置・聞き取り</small></button>
+      <button data-tab="translation" onclick="studioTab('translation')"><span class="nav-icon">🌐</span><strong>翻訳</strong><small>言語・見た目・固定訳</small></button>
+      <button data-tab="effects" onclick="studioTab('effects')"><span class="nav-icon">✨</span><strong>ワード演出</strong><small>言葉・動き・パーティクル</small></button>
+      <button data-tab="collab" onclick="studioTab('collab')"><span class="nav-icon">🎧</span><strong>コラボ</strong><small>相手の音声・見分け方</small></button>
+      <div class="nav-utility">
+        <div class="nav-caption">そのほか</div>
+        <button data-tab="share" onclick="studioTab('share')"><span class="nav-icon">↗</span><strong>保存・共有</strong><small>バックアップ・受け渡し</small></button>
+      </div>
+    </nav>
+    <div class="studio-content">
+      <section class="studio-panel active" data-panel="captions">
+        <h2>字幕</h2><p>まず字幕そのものを整えます。普段使うものから、必要な設定だけ開けます。</p>
+        <div class="pillar-status"><strong>● 字幕はすぐ使えます</strong><span>王道VTuber ／ 画面下 ／ 日本語特化</span></div>
+        <div class="pillar-grid">
+          <article class="pillar-card"><span class="card-icon">🎨</span><h3>字幕デザイン</h3><p>フォント・色・縁取りを選びます。プリセットはそのまま使えます。</p><div class="card-current"><span>王道VTuber</span><button class="btn" onclick="studioTab('design')">開く</button></div></article>
+          <article class="pillar-card"><span class="card-icon">⌖</span><h3>字幕の位置</h3><p>立ち絵やゲーム画面を避けて、読みやすい場所へ置きます。</p><div class="card-current"><span>画面下</span><button class="btn" onclick="studioTab('position')">開く</button></div></article>
+          <article class="pillar-card"><span class="card-icon">🎙</span><h3>聞き取り</h3><p>マイク、区切り方、認識モデルなどを必要なときだけ調整します。</p><div class="card-current"><span>日本語特化・標準</span><button class="btn" onclick="studioTab('hearing')">開く</button></div></article>
+          <article class="pillar-card"><span class="card-icon">📖</span><h3>認識させる言葉</h3><p>名前やゲーム用語の読み方を、この配信セットへ登録します。</p><div class="card-current"><span>登録 24語</span><button class="btn" onclick="studioTab('words')">開く</button></div></article>
+        </div>
+      </section>
+
+      <section class="studio-panel" data-panel="design">
+        <div class="editor-head"><button class="back-link" onclick="studioTab('captions')">← 字幕の設定</button><span class="draft-note">字幕 › デザイン</span></div>
+        <h2>字幕デザイン</h2><p>そのまま使うか、自分の配信に合わせてカスタマイズできます。</p>
+        <div class="design-grid">
+          <article class="design-option active" data-design="standard"><h3>王道VTuber</h3><p>どんな配信にも合う、読みやすい定番</p><div class="design-preview">配信はじめます！</div><div class="design-actions"><button class="btn" onclick="useDesign('standard')">このまま使う</button><button class="btn primary" onclick="openDesignEditor('王道VTuber')">カスタマイズ</button></div></article>
+          <article class="design-option" data-design="cute"><h3>ふんわりキュート</h3><p>ピンクのグローと柔らかい縁取り</p><div class="design-preview cute">ありがとう♡</div><div class="design-actions"><button class="btn" onclick="useDesign('cute')">このまま使う</button><button class="btn primary" onclick="openDesignEditor('ふんわりキュート')">カスタマイズ</button></div></article>
+          <article class="design-option" data-design="cyber"><h3>サイバーネオン</h3><p>ゲーム配信に映えるネオンカラー</p><div class="design-preview cyber">MISSION START</div><div class="design-actions"><button class="btn" onclick="useDesign('cyber')">このまま使う</button><button class="btn primary" onclick="openDesignEditor('サイバーネオン')">カスタマイズ</button></div></article>
+        </div>
+      </section>
+
+      <section class="studio-panel" data-panel="design-editor">
+        <div class="editor-head">
+          <button class="back-link" onclick="studioTab('design')">← デザイン一覧</button>
+          <span class="draft-note">標準デザインは変更されません</span>
+        </div>
+        <div class="editor-layout">
+          <div class="preview-card">
+            <div class="preview-toolbar"><span>配信画面で読みやすさを確認</span><button class="active" onclick="setPreviewBackground('dark', this)">暗い画面</button><button onclick="setPreviewBackground('light', this)">明るい画面</button><button onclick="setPreviewBackground('game', this)">ゲーム画面</button></div>
+            <div class="broadcast-preview" id="designWorkbenchPreview">
+              <div class="custom-preview-line" id="customPreviewLine">今日も<span class="accent-word">配信</span>はじめます！</div>
+            </div>
+            <div class="preview-test"><span class="micro-label">テストする文章</span><input type="text" id="previewTextInput" value="今日も配信はじめます！" oninput="updatePreviewText(this.value)"></div>
+          </div>
+
+          <div class="controls-card">
+            <h2><span id="customBaseName">王道VTuber</span>をカスタマイズ</h2>
+            <p>よく使う項目だけで、配信に合う読みやすさへ整えます。</p>
+            <div class="control-grid">
+              <div class="control wide"><label>フォント</label><select id="customFont" onchange="updateDesignPreview()"><option value="'Yu Gothic UI', sans-serif">読みやすいゴシック</option><option value="'Meiryo', sans-serif">やわらかいゴシック</option><option value="Georgia, serif">エレガント</option><option value="Impact, sans-serif">インパクト</option></select></div>
+              <div class="control wide"><label>文字の大きさ <output id="fontSizeOutput">44px</output></label><input id="fontSizeRange" type="range" min="28" max="72" value="44" oninput="updateDesignPreview()"></div>
+              <div class="control"><label>文字色</label><div class="swatches" data-target="text"><button class="swatch active" style="--swatch:#ffffff" data-color="#ffffff" onclick="pickSwatch(this, 'text')"></button><button class="swatch" style="--swatch:#fff0a8" data-color="#fff0a8" onclick="pickSwatch(this, 'text')"></button><button class="swatch" style="--swatch:#d9ffff" data-color="#d9ffff" onclick="pickSwatch(this, 'text')"></button><button class="swatch" style="--swatch:#ffd9eb" data-color="#ffd9eb" onclick="pickSwatch(this, 'text')"></button></div></div>
+              <div class="control"><label>強調ワード</label><div class="swatches" data-target="accent"><button class="swatch active" style="--swatch:#ff87c2" data-color="#ff87c2" onclick="pickSwatch(this, 'accent')"></button><button class="swatch" style="--swatch:#76a8ff" data-color="#76a8ff" onclick="pickSwatch(this, 'accent')"></button><button class="swatch" style="--swatch:#27d8f2" data-color="#27d8f2" onclick="pickSwatch(this, 'accent')"></button><button class="swatch" style="--swatch:#55e6a5" data-color="#55e6a5" onclick="pickSwatch(this, 'accent')"></button><button class="swatch" style="--swatch:#ffc465" data-color="#ffc465" onclick="pickSwatch(this, 'accent')"></button></div></div>
+              <div class="control"><label>縁取りの色</label><div class="swatches" data-target="outline"><button class="swatch active" style="--swatch:#000000" data-color="#000000" onclick="pickSwatch(this, 'outline')"></button><button class="swatch" style="--swatch:#4a1833" data-color="#4a1833" onclick="pickSwatch(this, 'outline')"></button><button class="swatch" style="--swatch:#083e51" data-color="#083e51" onclick="pickSwatch(this, 'outline')"></button></div></div>
+              <div class="control"><label>縁取りの太さ <output id="outlineOutput">3px</output></label><input id="outlineRange" type="range" min="0" max="6" value="3" oninput="updateDesignPreview()"></div>
+            </div>
+
+            <details class="advanced">
+              <summary>もっと細かく調整</summary>
+              <div class="advanced-body">
+                <section class="advanced-section"><h3>光り方・影</h3><div class="control-grid"><div class="control wide"><label>グローの強さ <output id="glowOutput">12px</output></label><input id="glowRange" type="range" min="0" max="32" value="12" oninput="updateDesignPreview()"></div></div></section>
+                <section class="advanced-section"><h3>認識途中の字幕</h3><div class="effect-picks"><button class="active">薄く表示</button><button>完成後だけ表示</button><button>演出も表示</button></div></section>
+                <section class="advanced-section"><h3>行間・アニメーション</h3><div class="control-grid"><div class="control"><label>行間 <output id="lineHeightOutput">1.35</output></label><input id="lineHeightRange" type="range" min="100" max="180" value="135" oninput="updateDesignPreview()"></div><div class="control"><label>表示アニメーション</label><select><option>ふわっと表示</option><option>すぐ表示</option><option>下から表示</option></select></div></div></section>
+              </div>
+            </details>
+
+            <div class="editor-footer"><button class="btn ghost" onclick="resetDesignDraft()">元に戻す</button><button class="btn primary save" onclick="saveCustomDesign()">保存して使う</button></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="studio-panel" data-panel="effects">
+        <h2>ワード演出</h2><p>言った瞬間に、文字の色やパーティクルを変えられます。</p>
+        <div class="feature-master"><div><strong>ワード演出を使う</strong><small>同梱プリセットがあるので、オンにするだけでも楽しめます</small></div><button class="switch-btn" id="effectsStudioSwitch" aria-label="ワード演出をオン・オフ" aria-pressed="true" onclick="toggleFeature('effects')"><i></i></button></div>
+        <div class="simple-form">
+          <div class="form-card">
+            <h3>演出する言葉を追加</h3>
+            <div class="form-row"><span class="micro-label">反応する言葉</span><input id="effectWord" type="text" value="ありがとう"></div>
+            <div class="form-row"><span class="micro-label">飛ばすエフェクト</span><div class="effect-picks"><button class="active">♡ ハート</button><button>✦ キラキラ</button><button>🎉 紙吹雪</button><button>なし</button></div></div>
+            <div class="form-row"><span class="micro-label">文字の見た目</span><div class="effect-picks"><button class="active">ピンク</button><button>水色</button><button>金色</button></div></div>
+            <button class="btn primary" onclick="demoEffect()">▶ この演出を試す</button>
+          </div>
+          <div class="form-card effect-demo" id="effectDemo"><div><span class="micro-label">プレビュー</span><strong>ありがとう</strong><p style="color:var(--muted)">ボタンを押して再生</p></div></div>
+        </div>
+        <div class="form-card" style="margin-top:14px"><h3>この配信セットのワード演出</h3><div class="word-list"><div class="word-item"><strong>ありがとう</strong><span>♡ ハート・ピンク</span><button onclick="toast('「ありがとう」を編集します')">編集</button></div><div class="word-item"><strong>ナイス</strong><span>✦ キラキラ・水色</span><button onclick="toast('「ナイス」を編集します')">編集</button></div><div class="word-item"><strong>おつかれさま</strong><span>🎉 紙吹雪・金色</span><button onclick="toast('「おつかれさま」を編集します')">編集</button></div></div></div>
+      </section>
+
+      <section class="studio-panel" data-panel="translation">
+        <h2>翻訳</h2><p>日本語字幕の下に、海外リスナー向けの字幕を表示します。</p>
+        <div class="feature-master"><div><strong>翻訳字幕を使う</strong><small>コックピットから配信中でもオン・オフできます</small></div><button class="switch-btn" id="translationStudioSwitch" aria-label="翻訳をオン・オフ" aria-pressed="false" onclick="toggleFeature('translation')"><i></i></button></div>
+        <div class="simple-form">
+          <div class="form-card">
+            <h3>翻訳先と見た目</h3>
+            <div class="form-row"><span class="micro-label">翻訳先</span><select><option>英語</option><option>中国語</option><option>韓国語</option></select></div>
+            <div class="control"><label>表示の大きさ <output id="translationSizeOutput">50%</output></label><input id="translationSizeRange" type="range" min="35" max="80" value="50" oninput="updateTranslationPreview()"></div>
+            <div class="control" style="margin-top:13px"><label>濃さ <output id="translationOpacityOutput">82%</output></label><input id="translationOpacityRange" type="range" min="30" max="100" value="82" oninput="updateTranslationPreview()"></div>
+            <details class="advanced"><summary>もっと細かく調整</summary><div class="advanced-body"><section class="advanced-section"><h3>翻訳字幕のデザイン</h3><div class="control-grid"><div class="control"><label>文字色</label><div class="effect-picks"><button class="active">白</button><button>水色</button><button>黄色</button></div></div><div class="control"><label>フォント</label><select><option>本文と同じ</option><option>読みやすいゴシック</option></select></div><div class="control"><label>縁取り</label><select><option>本文と同じ</option><option>翻訳専用</option><option>なし</option></select></div><div class="control"><label>グロー</label><select><option>なし</option><option>弱く光る</option></select></div></div></section></div></details>
+            <button class="btn primary" onclick="toast('翻訳設定を保存しました')">設定を保存</button>
+          </div>
+          <div class="form-card effect-demo"><div><span class="micro-label">表示プレビュー</span><strong style="color:var(--text)">配信はじめます！</strong><p id="translationPreview" style="color:var(--muted);font-size:17px;opacity:.82">Let's start the stream!</p></div></div>
+        </div>
+        <div class="form-card" style="margin-top:14px"><h3>訳し方を固定する言葉</h3><p style="color:var(--muted);font-size:12px">名前や作品名を、いつも同じ表記で翻訳します。</p><div class="word-list"><div class="word-item"><strong>初見さん</strong><span>first-time viewer</span><button>編集</button></div><div class="word-item"><strong>星乃みらい</strong><span>Mirai Hoshino</span><button>編集</button></div></div><div class="control-grid" style="margin-top:12px"><div class="control"><label>日本語</label><input type="text" placeholder="例：初見さん"></div><div class="control"><label>翻訳での表示</label><input type="text" placeholder="例：first-time viewer"></div></div><button class="btn" style="margin-top:12px">追加する</button></div>
+      </section>
+
+      <section class="studio-panel" data-panel="collab">
+        <h2>コラボ</h2><p>Discordなどの通話相手の声にも、別の見た目で字幕を出します。</p>
+        <div class="feature-master"><div><strong>1対1コラボ字幕を使う</strong><small>自分と相手の声を分けて表示します</small></div><button class="switch-btn" id="collabStudioSwitch" aria-label="コラボ字幕をオン・オフ" aria-pressed="false" onclick="toggleFeature('collab')"><i></i></button></div>
+        <div class="simple-form">
+          <div class="form-card">
+            <h3>相手の音声</h3>
+            <div class="form-row"><span class="micro-label">通話アプリ</span><select><option>Discord</option><option>その他のアプリを選ぶ</option></select></div>
+            <div class="control-grid"><div class="control"><label>自分の表示名</label><input type="text" value="自分"></div><div class="control"><label>相手の表示名</label><input type="text" value="ゲスト"></div></div>
+            <button class="btn primary" onclick="toast('コラボ字幕の設定を保存しました')">設定を保存</button>
+          </div>
+          <div class="form-card">
+            <h3>字幕の見分け方</h3><p style="color:var(--muted);line-height:1.7">話者ごとに見た目と位置を決められます。</p>
+            <div class="effect-picks"><button class="active">左右に分ける</button><button>上下に分ける</button></div>
+            <div class="control-grid" style="margin-top:14px"><div class="control"><label>自分のデザイン</label><select><option>王道VTuber</option><option>サイバーネオン</option></select></div><div class="control"><label>相手のデザイン</label><select><option>ふんわりキュート</option><option>王道VTuber</option></select></div><div class="control"><label>自分の位置</label><select><option>右下</option><option>画面下</option></select></div><div class="control"><label>相手の位置</label><select><option>左下</option><option>画面下</option></select></div></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="studio-panel" data-panel="position">
+        <div class="editor-head"><button class="back-link" onclick="studioTab('captions')">← 字幕の設定</button><span class="draft-note">字幕 › 位置</span></div>
+        <h2>字幕の位置</h2><p>立ち絵やゲーム画面を隠さない位置を選び、必要なら細かく調整します。</p>
+        <div class="position-grid">
+          <button class="position-card active" onclick="pickPosition(this, 10, 72, 72)"><div class="screen-mini p-bottom"><i></i></div><strong>画面下</strong><p style="color:var(--muted);font-size:12px">迷ったらこれ</p></button>
+          <button class="position-card" onclick="pickPosition(this, 22, 58, 56)"><div class="screen-mini p-free"><i></i></div><strong>好きな場所</strong><p style="color:var(--muted);font-size:12px">立ち絵に合わせる</p></button>
+          <button class="position-card" onclick="pickPosition(this, 52, 70, 42)"><div class="screen-mini p-right"><i></i></div><strong>右側</strong><p style="color:var(--muted);font-size:12px">縦画面にも</p></button>
+        </div>
+        <div class="position-workbench">
+          <div class="form-card">
+            <div class="section-title"><h3>配信画面プレビュー</h3><span>点線の内側が安全な表示範囲</span></div>
+            <div class="position-stage"><div class="safe-area"></div><div class="avatar-guide" title="立ち絵の目安"></div><div class="position-caption" id="positionCaption">今日も配信はじめます！</div></div>
+          </div>
+          <div class="form-card position-controls">
+            <h3>位置を調整</h3>
+            <div class="control"><label>左右 <output id="positionXOutput">10%</output></label><input id="positionX" type="range" min="0" max="80" value="10" oninput="updatePositionPreview()"></div>
+            <div class="control"><label>上下 <output id="positionYOutput">72%</output></label><input id="positionY" type="range" min="0" max="83" value="72" oninput="updatePositionPreview()"></div>
+            <div class="control"><label>字幕の幅 <output id="positionWOutput">72%</output></label><input id="positionW" type="range" min="20" max="100" value="72" oninput="updatePositionPreview()"></div>
+            <details class="advanced fine-position"><summary>数値で細かく調整</summary><div class="advanced-body"><div class="control-grid"><div class="control"><label>X位置</label><input type="text" id="positionXText" value="10%" readonly></div><div class="control"><label>Y位置</label><input type="text" id="positionYText" value="72%" readonly></div><div class="control"><label>幅</label><input type="text" id="positionWText" value="72%" readonly></div><div class="control"><label>高さ</label><input type="text" value="17%"></div></div></div></details>
+            <div class="editor-footer"><button class="btn ghost" onclick="pickPosition(document.querySelector('.position-card'), 10, 72, 72)">元に戻す</button><button class="btn primary save" onclick="savePosition()">保存して使う</button></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="studio-panel" data-panel="hearing">
+        <div class="editor-head"><button class="back-link" onclick="studioTab('captions')">← 字幕の設定</button><span class="draft-note">字幕 › 聞き取り</span></div>
+        <h2>聞き取り</h2><p>普段はおすすめ設定のままで使えます。聞き間違いや字幕の区切りが気になるときに調整します。</p>
+        <div class="pillar-status"><strong>● マイクの声を聞き取れています</strong><span>Yamaha AG03 / 日本語特化 / 標準</span></div>
+        <div class="simple-form">
+          <div class="form-card">
+            <h3>使うマイク</h3>
+            <div class="form-row"><span class="micro-label">音声入力</span><select><option>Yamaha AG03</option><option>既定のマイク</option></select></div>
+            <div class="form-row"><span class="micro-label">話して確認</span><div style="display:flex;align-items:center;gap:10px"><div style="height:8px;flex:1;border-radius:8px;background:linear-gradient(90deg,var(--ok) 0 64%,var(--line) 64%)"></div><strong style="color:var(--ok);font-size:12px">ちょうどいい</strong></div></div>
+            <button class="btn" onclick="toast('マイクのテストを開始しました')">マイクをテスト</button>
+          </div>
+          <div class="form-card">
+            <h3>字幕の出し方</h3>
+            <div class="form-row"><span class="micro-label">話し終わりの区切り</span><div class="effect-picks"><button>短め</button><button class="active">標準</button><button>ゆっくり</button></div></div>
+            <details class="advanced"><summary>もっと細かく調整</summary><div class="advanced-body"><section class="advanced-section"><h3>認識モデル</h3><div class="control-grid"><div class="control"><label>話す言葉</label><select><option>日本語特化（おすすめ）</option><option>日本語・英語ミックス</option></select></div><div class="control"><label>処理の軽さ</label><select><option>バランス</option><option>速さ優先</option><option>正確さ優先</option></select></div></div></section></div></details>
+            <button class="btn primary" onclick="toast('聞き取り設定を保存しました')">設定を保存</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="studio-panel" data-panel="words">
+        <div class="editor-head"><button class="back-link" onclick="studioTab('captions')">← 字幕の設定</button><span class="draft-note">字幕 › 認識させる言葉</span></div>
+        <h2>認識させる言葉</h2><p>名前やゲーム用語など、いつも間違えやすい言葉の読み方を教えます。</p>
+        <div class="simple-form">
+          <div class="form-card"><h3>言葉を追加</h3><div class="form-row"><span class="micro-label">字幕に出したい言葉</span><input type="text" placeholder="例：星乃みらい"></div><div class="form-row"><span class="micro-label">読み方</span><input type="text" placeholder="例：ほしのみらい"></div><button class="btn primary" onclick="toast('認識する言葉へ追加しました')">追加する</button></div>
+          <div class="form-card"><h3>この配信セットの言葉 <span style="color:var(--muted);font-size:12px">24語</span></h3><div class="word-list"><div class="word-item"><strong>星乃みらい</strong><span>ほしのみらい</span><button>編集</button></div><div class="word-item"><strong>ReazonSpeech</strong><span>りーぞんすぴーち</span><button>編集</button></div><div class="word-item"><strong>初見さん</strong><span>しょけんさん</span><button>編集</button></div></div><button class="btn" style="margin-top:12px" onclick="toast('残り21語を表示します')">すべて見る</button></div>
+        </div>
+      </section>
+
+      <section class="studio-panel" data-panel="share">
+        <h2>保存・共有</h2><p>作った字幕デザインをファイルにして、ほかの配信者へ渡せます。</p>
+        <div class="simple-form">
+          <div class="form-card"><h3>📤 デザインを書き出す</h3><p style="color:var(--muted);line-height:1.7">字幕デザイン・位置・ワード演出を1つのファイルにまとめます。</p><button class="btn primary">ファイルに保存</button></div>
+          <div class="form-card"><h3>📥 もらったデザインを使う</h3><p style="color:var(--muted);line-height:1.7">受け取った .mojipack ファイルを選ぶだけです。</p><button class="btn">ファイルを選ぶ</button></div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const state = {
+    live: false, effects: true, translation: false, collab: false, design: "standard",
+    custom: { text: "#ffffff", accent: "#ff87c2", outline: "#000000", fontSize: 44, outlineSize: 3, glow: 12, lineHeight: 1.35 }
+  };
+  let toastTimer;
+
+  function toast(message) {
+    const el = document.getElementById("toast");
+    el.textContent = message;
+    el.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove("show"), 1900);
+  }
+
+  function dismissWelcome() { document.getElementById("firstRun").classList.add("hidden"); }
+  function startExperience() {
+    dismissWelcome();
+    clearCaptions();
+    const box = document.getElementById("captions");
+    const line = document.createElement("div");
+    line.className = "caption-line partial";
+    line.textContent = "こんにちは……";
+    box.appendChild(line);
+    setTimeout(() => {
+      line.className = "caption-line";
+      line.innerHTML = "こんにちは！ 声がすぐに<span class=\"accent-word\">字幕</span>になりました";
+      toast("字幕が出ました！ 次は見た目を選んでみましょう");
+    }, 700);
+  }
+
+  function toggleLive() {
+    state.live = !state.live;
+    document.body.classList.toggle("is-live", state.live);
+    const btn = document.getElementById("startBtn");
+    const dot = document.getElementById("statusDot");
+    document.getElementById("statusText").textContent = state.live ? "字幕配信中" : "準備OK";
+    dot.className = "status-dot " + (state.live ? "live" : "ready");
+    btn.className = "btn start-btn " + (state.live ? "live" : "primary");
+    btn.textContent = state.live ? "■ 字幕を停止" : "▶ 字幕を開始";
+    if (state.live) {
+      dismissWelcome();
+      toast("字幕を開始しました");
+    } else toast("字幕を停止しました");
+  }
+
+  function updateLiveDetail() {
+    const parts = ["マイク正常"];
+    if (state.effects) parts.push("ワード演出ON");
+    parts.push(state.translation ? "英訳ON" : "日本語字幕");
+    if (state.collab) parts.push("コラボ字幕ON");
+    document.getElementById("liveDetail").textContent = parts.join(" · ");
+  }
+
+  function toggleFeature(name) {
+    state[name] = !state[name];
+    const cockpitSwitch = document.querySelector(`#${name}Row .switch-btn`);
+    const studioSwitch = document.getElementById(`${name}StudioSwitch`);
+    if (cockpitSwitch) cockpitSwitch.setAttribute("aria-pressed", String(state[name]));
+    if (studioSwitch) studioSwitch.setAttribute("aria-pressed", String(state[name]));
+    document.querySelectorAll(".translation").forEach(el => el.style.display = state.translation ? "block" : "none");
+    if (name === "effects") toast(state.effects ? "ワード演出をオンにしました" : "ワード演出をオフにしました");
+    if (name === "translation") toast(state.translation ? "英訳を表示します" : "英訳をオフにしました");
+    if (name === "collab") {
+      const existing = document.querySelector('[data-line="guest"]');
+      if (state.collab && !existing) {
+        const line = document.createElement("div");
+        line.className = "caption-line cute"; line.dataset.line = "guest";
+        line.innerHTML = '<span class="speaker guest">ゲスト</span>呼んでくれて<span class="accent-word">ありがとう</span>！';
+        document.getElementById("captions").appendChild(line);
+      } else if (existing) existing.remove();
+      toast(state.collab ? "相手の声にも字幕を出します" : "コラボ字幕をオフにしました");
+    }
+    updateLiveDetail();
+  }
+
+  function setDesign(value) {
+    state.design = value;
+    document.querySelectorAll(".caption-line").forEach(line => {
+      line.classList.remove("cute", "cyber", "custom");
+      line.style.color = ""; line.style.fontSize = ""; line.style.fontFamily = "";
+      line.style.lineHeight = ""; line.style.textShadow = "";
+      line.querySelectorAll(".accent-word").forEach(word => word.style.color = "");
+      if (value === "custom") {
+        const c = state.custom;
+        line.classList.add("custom");
+        line.style.color = c.text; line.style.fontSize = Math.min(c.fontSize, 36) + "px";
+        line.style.fontFamily = document.getElementById("customFont").value;
+        line.style.lineHeight = c.lineHeight;
+        line.style.textShadow = buildTextShadow(c.outlineSize, c.outline, c.glow);
+        line.querySelectorAll(".accent-word").forEach(word => word.style.color = c.accent);
+      } else if (value !== "standard") line.classList.add(value);
+    });
+    toast("字幕デザインを切り替えました");
+  }
+
+  function clearCaptions() { document.getElementById("captions").innerHTML = ""; }
+  async function copyObs() {
+    try { await navigator.clipboard.writeText("http://127.0.0.1:8765/"); } catch (_) {}
+    toast("コピーしました。OBSのブラウザソースに貼り付けてください");
+  }
+
+  const studioDescriptions = {
+    captions: "字幕の見た目・位置・聞き取りを設定",
+    translation: "翻訳する言語・見た目・固定訳を設定",
+    effects: "反応する言葉と演出を設定",
+    collab: "1対1コラボの音声と字幕を設定",
+    share: "作った設定を保存・共有"
+  };
+
+  function openStudio(pillar = "captions") {
+    document.getElementById("studio").classList.add("open");
+    studioTab(pillar);
+  }
+  function closeStudio() { document.getElementById("studio").classList.remove("open"); }
+  function studioTab(name) {
+    const captionsPanels = ["captions", "design", "design-editor", "position", "hearing", "words"];
+    const navName = captionsPanels.includes(name) ? "captions" : name;
+    document.querySelectorAll(".studio-nav button").forEach(b => b.classList.toggle("active", b.dataset.tab === navName));
+    document.querySelectorAll(".studio-panel").forEach(p => p.classList.toggle("active", p.dataset.panel === name));
+    document.getElementById("studioDescription").textContent = studioDescriptions[navName] || "4つの機能から、やりたいことを選びます";
+  }
+  function pickDesign(name) {
+    document.querySelectorAll(".design-option").forEach(o => o.classList.toggle("active", o.dataset.design === name));
+    state.design = name;
+  }
+
+  function useDesign(name) {
+    pickDesign(name);
+    document.getElementById("designSelect").value = name;
+    setDesign(name);
+    closeStudio();
+  }
+
+  function openDesignEditor(baseName) {
+    document.getElementById("customBaseName").textContent = baseName;
+    if (baseName.includes("カスタム")) {
+      updatePreviewText(document.getElementById("previewTextInput").value);
+      updateDesignPreview();
+    } else resetDesignDraft(baseName);
+    studioTab("design-editor");
+  }
+
+  function buildTextShadow(outline, color, glow) {
+    const points = [[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1]];
+    const edge = points.map(([x,y]) => `${x * outline}px ${y * outline}px 0 ${color}`).join(", ");
+    return edge + (glow > 0 ? `, 0 0 ${glow}px rgba(39,216,242,.65)` : "");
+  }
+
+  function updateDesignPreview() {
+    const size = +document.getElementById("fontSizeRange").value;
+    const outline = +document.getElementById("outlineRange").value;
+    const glow = +document.getElementById("glowRange").value;
+    const lineHeight = +document.getElementById("lineHeightRange").value / 100;
+    Object.assign(state.custom, { fontSize: size, outlineSize: outline, glow, lineHeight });
+    document.getElementById("fontSizeOutput").textContent = size + "px";
+    document.getElementById("outlineOutput").textContent = outline + "px";
+    document.getElementById("glowOutput").textContent = glow + "px";
+    document.getElementById("lineHeightOutput").textContent = lineHeight.toFixed(2);
+    const line = document.getElementById("customPreviewLine");
+    line.style.fontFamily = document.getElementById("customFont").value;
+    line.style.fontSize = size + "px"; line.style.color = state.custom.text;
+    line.style.lineHeight = lineHeight; line.style.textShadow = buildTextShadow(outline, state.custom.outline, glow);
+    const previewAccent = line.querySelector(".accent-word");
+    if (previewAccent) previewAccent.style.color = state.custom.accent;
+  }
+
+  function updateTranslationPreview() {
+    const size = +document.getElementById("translationSizeRange").value;
+    const opacity = +document.getElementById("translationOpacityRange").value;
+    document.getElementById("translationSizeOutput").textContent = size + "%";
+    document.getElementById("translationOpacityOutput").textContent = opacity + "%";
+    const preview = document.getElementById("translationPreview");
+    preview.style.fontSize = (34 * size / 100) + "px";
+    preview.style.opacity = opacity / 100;
+  }
+
+  function pickSwatch(button, target) {
+    button.parentElement.querySelectorAll(".swatch").forEach(s => s.classList.remove("active"));
+    button.classList.add("active"); state.custom[target] = button.dataset.color;
+    updateDesignPreview();
+  }
+
+  function setPreviewBackground(name, button) {
+    button.parentElement.querySelectorAll("button").forEach(b => b.classList.remove("active"));
+    button.classList.add("active");
+    document.getElementById("designWorkbenchPreview").className = "broadcast-preview" + (name === "dark" ? "" : " " + name);
+  }
+
+  function updatePreviewText(text) {
+    const line = document.getElementById("customPreviewLine");
+    const word = "配信"; const index = text.indexOf(word);
+    line.innerHTML = "";
+    if (index < 0) line.textContent = text || "テスト字幕を入力してください";
+    else {
+      line.append(document.createTextNode(text.slice(0, index)));
+      const accent = document.createElement("span"); accent.className = "accent-word"; accent.textContent = word;
+      line.append(accent, document.createTextNode(text.slice(index + word.length)));
+    }
+    const accent = line.querySelector(".accent-word"); if (accent) accent.style.color = state.custom.accent;
+  }
+
+  function resetDesignDraft(baseName) {
+    const name = baseName || document.getElementById("customBaseName").textContent;
+    const preset = name.includes("キュート")
+      ? { text: "#ffe1f0", accent: "#ff87c2", outline: "#4a1833", glow: 18 }
+      : name.includes("サイバー")
+        ? { text: "#d9ffff", accent: "#27d8f2", outline: "#083e51", glow: 22 }
+        : { text: "#ffffff", accent: "#76a8ff", outline: "#000000", glow: 12 };
+    Object.assign(state.custom, preset, { fontSize: 44, outlineSize: 3, lineHeight: 1.35 });
+    document.getElementById("fontSizeRange").value = 44;
+    document.getElementById("outlineRange").value = 3;
+    document.getElementById("glowRange").value = preset.glow;
+    document.getElementById("lineHeightRange").value = 135;
+    for (const [target, color] of Object.entries({ text: preset.text, accent: preset.accent, outline: preset.outline })) {
+      const group = document.querySelector(`.swatches[data-target="${target}"]`);
+      group.querySelectorAll(".swatch").forEach(s => s.classList.toggle("active", s.dataset.color === color));
+    }
+    updatePreviewText(document.getElementById("previewTextInput").value);
+    updateDesignPreview();
+  }
+
+  function saveCustomDesign() {
+    const select = document.getElementById("designSelect");
+    let option = select.querySelector('option[value="custom"]');
+    if (!option) { option = document.createElement("option"); option.value = "custom"; select.appendChild(option); }
+    const baseName = document.getElementById("customBaseName").textContent.replace(/・カスタム$/, "");
+    option.textContent = baseName + "・カスタム";
+    let customCard = document.querySelector('.design-option[data-design="custom"]');
+    if (!customCard) {
+      customCard = document.createElement("article");
+      customCard.className = "design-option"; customCard.dataset.design = "custom";
+      document.querySelector(".design-grid").appendChild(customCard);
+    }
+    customCard.innerHTML = `<h3>${baseName}・カスタム</h3><p>あなたの配信用に調整したデザイン</p><div class="design-preview" style="color:${state.custom.text};text-shadow:${buildTextShadow(state.custom.outlineSize, state.custom.outline, state.custom.glow)}">自分だけの字幕</div><div class="design-actions"><button class="btn" onclick="useDesign('custom')">このまま使う</button><button class="btn primary" onclick="openDesignEditor('${baseName}・カスタム')">カスタマイズ</button></div>`;
+    select.value = "custom"; pickDesign("custom"); setDesign("custom"); closeStudio();
+    toast("自分用デザインを保存して、今日の字幕に反映しました");
+  }
+
+  function updatePositionPreview() {
+    const x = +document.getElementById("positionX").value;
+    const y = +document.getElementById("positionY").value;
+    const w = +document.getElementById("positionW").value;
+    const box = document.getElementById("positionCaption");
+    box.style.left = x + "%"; box.style.top = y + "%"; box.style.width = w + "%";
+    for (const [id, value] of [["positionX",x],["positionY",y],["positionW",w]]) {
+      document.getElementById(id + "Output").textContent = value + "%";
+      document.getElementById(id + "Text").value = value + "%";
+    }
+  }
+
+  function pickPosition(card, x, y, w) {
+    document.querySelectorAll(".position-card").forEach(c => c.classList.toggle("active", c === card));
+    document.getElementById("positionX").value = x;
+    document.getElementById("positionY").value = y;
+    document.getElementById("positionW").value = w;
+    updatePositionPreview();
+  }
+
+  function savePosition() {
+    const select = document.getElementById("positionSelect");
+    let option = Array.from(select.options).find(o => o.textContent === "カスタム位置");
+    if (!option) { option = document.createElement("option"); option.textContent = "カスタム位置"; select.appendChild(option); }
+    select.value = option.value; closeStudio();
+    toast("字幕の位置を保存して、今日の字幕に反映しました");
+  }
+  function demoEffect() {
+    const demo = document.getElementById("effectDemo");
+    demo.querySelector("strong").textContent = document.getElementById("effectWord").value || "ありがとう";
+    for (let i = 0; i < 10; i++) {
+      const h = document.createElement("span"); h.className = "heart"; h.textContent = "♥";
+      h.style.left = (35 + Math.random() * 35) + "%"; h.style.bottom = "28px";
+      h.style.setProperty("--x", (-70 + Math.random() * 140) + "px");
+      demo.appendChild(h); setTimeout(() => h.remove(), 2000);
+    }
+  }
+
+  document.querySelectorAll(".effect-picks").forEach(group => group.addEventListener("click", e => {
+    if (e.target.tagName !== "BUTTON") return;
+    group.querySelectorAll("button").forEach(b => b.classList.remove("active"));
+    e.target.classList.add("active");
+  }));
+  const sliderLabels = {
+    fontSizeRange: "文字の大きさ", outlineRange: "縁取りの太さ", glowRange: "グローの強さ",
+    translationSizeRange: "翻訳字幕の大きさ", translationOpacityRange: "翻訳字幕の透明度", lineHeightRange: "字幕の行間",
+    positionX: "字幕の左右位置", positionY: "字幕の上下位置", positionW: "字幕の幅"
+  };
+  for (const [id, label] of Object.entries(sliderLabels)) document.getElementById(id).setAttribute("aria-label", label);
+  const colorNames = { "#ffffff":"白", "#fff0a8":"クリーム", "#d9ffff":"淡い水色", "#ffd9eb":"淡いピンク", "#ff87c2":"ピンク", "#76a8ff":"青", "#27d8f2":"シアン", "#55e6a5":"緑", "#ffc465":"金色", "#000000":"黒", "#4a1833":"濃いピンク", "#083e51":"濃い水色" };
+  document.querySelectorAll(".swatches").forEach(group => group.querySelectorAll(".swatch").forEach(button => {
+    button.setAttribute("aria-label", colorNames[button.dataset.color] || button.dataset.color);
+  }));
+  // 初期状態では英訳は追加機能としてOFF。字幕例だけは初回説明のため表示し、操作開始後に同期する。
+  setTimeout(() => document.querySelectorAll(".translation").forEach(el => el.style.display = "none"), 0);
+  updateTranslationPreview();
+</script>
+</body>
+</html>

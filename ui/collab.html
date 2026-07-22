@@ -6,12 +6,15 @@
 <script>
   // 起動モニタに合わせたUI縮小＋テーマ先読み（cockpitと同じ流儀）
   (function () {
-    const s = parseFloat(new URLSearchParams(location.search).get("s"));
+    const qs = new URLSearchParams(location.search);
+    const s = parseFloat(qs.get("s"));
     if (s > 0 && s < 1) document.documentElement.style.zoom = s;
     try { if (localStorage.getItem("mojicast-theme") === "light")
       document.documentElement.dataset.theme = "light"; } catch (e) {}
+    if (qs.get("embed") === "1") document.documentElement.classList.add("embed");
   })();
 </script>
+<script src="/ui/theme-sync.js" defer></script>
 <style>
   :root {
     --bg: #0d1117; --panel: #161c26; --panel2: #1c2432;
@@ -26,7 +29,7 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     background: var(--bg); color: var(--text);
-    font-family: 'Yu Gothic UI', 'Meiryo', sans-serif; font-size: 14px;
+    font-family: 'Yu Gothic UI', 'Meiryo', sans-serif; font-size: 15px;
     min-height: 100vh; display: flex; flex-direction: column; user-select: none;
   }
   header {
@@ -67,6 +70,8 @@
     border-top: 1px solid var(--line); background: var(--panel);
   }
   #saved { color: var(--ok); font-size: 12px; margin-left: auto; opacity: 0; transition: opacity .3s; }
+  :root.embed header { display: none; }
+  :root.embed main { padding: 18px; }
 </style>
 </head>
 <body>
