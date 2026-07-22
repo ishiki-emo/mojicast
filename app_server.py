@@ -21,6 +21,7 @@ from apppaths import BASE
 import wordstore
 
 APP_VERSION = "0.5.0"
+_config_lock = threading.RLock()
 
 DEFAULT_CONFIG = {
     "silence_ms": 300, "interval": 0.4, "max_utt": 12.0,
@@ -65,14 +66,22 @@ def _write_json(path, data):
 
 
 def load_config():
-    wordstore.ensure_data()
-    cfg = dict(DEFAULT_CONFIG)
-    cfg.update(_read_json(wordstore.data_path("config.json"), {}))
-    return cfg
+    with _config_lock:
+        wordstore.ensure_data()
+        cfg = dict(DEFAULT_CONFIG)
+        cfg.update(_read_json(wordstore.data_path("config.json"), {}))
+        # 旧版や一時的な保存競合で JSON null が残っても、単語スコープとして
+        # フロント・合成処理へ渡さない。共通のみは常に空文字で表現する。
+        profile = cfg.get("word_profile")
+        if (not isinstance(profile, str)
+                or (profile and not wordstore.profile_exists(profile))):
+            cfg["word_profile"] = ""
+        return cfg
 
 
 def save_config(cfg):
-    _write_json(wordstore.data_path("config.json"), cfg)
+    with _config_lock:
+        _write_json(wordstore.data_path("config.json"), cfg)
 
 
 def _presets_path():
@@ -357,6 +366,9 @@ def _init_event():
     ev = {"type": "init"}
     ev.update(resolve_style(cfg))
     ev["state"] = _engine_state
+    # 新しく開いたGUI窓がlocalStorageや次の変更イベントに依存せず、
+    # 現在のテーマへ即座に揃えられるよう初期イベントにも含める。
+    ev["theme"] = cfg.get("theme", "dark")
     return ev
 
 
@@ -491,6 +503,14 @@ class Handler(BaseHTTPRequestHandler):
             self._json(_read_json(_presets_path(), {"presets": []}))
         elif path == "/api/boxes":
             self._json(_read_json(_boxes_path(), {"boxes": []}))
+        elif path == "/api/style-defaults":
+            # 同梱項目の「初期状態に戻す」と新規作成の基準データ。
+            self._json({
+                "presets": _read_json(os.path.join(BASE, "defaults", "presets.json"),
+                                      {"presets": []}).get("presets", []),
+                "boxes": _read_json(os.path.join(BASE, "defaults", "boxes.json"),
+                                    {"boxes": []}).get("boxes", []),
+            })
         elif path == "/api/fonts":
             try:
                 self._json({"fonts": list_system_fonts()})
@@ -562,9 +582,12 @@ class Handler(BaseHTTPRequestHandler):
             if ("collab_source" in body
                     and body.get("collab_source") not in ("process", "device")):
                 body["collab_source"] = "process"   # 未知値は推奨方式へ
-            cfg = load_config()
-            cfg.update({k: v for k, v in body.items() if k in DEFAULT_CONFIG})
-            save_config(cfg)
+            # ThreadingHTTPServer上で複数の設定窓が同時保存しても、後着の
+            # read-modify-write が先着変更を巻き戻さないよう一連を排他する。
+            with _config_lock:
+                cfg = load_config()
+                cfg.update({k: v for k, v in body.items() if k in DEFAULT_CONFIG})
+                save_config(cfg)
             # プリセット・プロファイル変更は表示側へ即反映
             ev = {"type": "style"}
             ev.update(resolve_style(cfg))
@@ -591,9 +614,10 @@ class Handler(BaseHTTPRequestHandler):
                 return
             wordstore.save_banned(body.get("words", []), p)
             if "mask_char" in body:      # 伏せ字文字は全体設定（プロファイル外）
-                cfg = load_config()
-                cfg["mask_char"] = (body.get("mask_char") or "○").strip() or "○"
-                save_config(cfg)
+                with _config_lock:
+                    cfg = load_config()
+                    cfg["mask_char"] = (body.get("mask_char") or "○").strip() or "○"
+                    save_config(cfg)
             self._json({"ok": True})
         elif path == "/api/glossary":
             p = self._profile_arg(body.get("profile"))
@@ -617,10 +641,11 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"ok": False, "error": "invalid presets"}, 400)
                 return
             _write_json(_presets_path(), {"presets": presets})
-            cfg = load_config()
-            if not any(p["id"] == cfg.get("preset") for p in presets):
-                cfg["preset"] = presets[0]["id"]   # 使用中プリセットが消えたら先頭へ
-                save_config(cfg)
+            with _config_lock:
+                cfg = load_config()
+                if not any(p["id"] == cfg.get("preset") for p in presets):
+                    cfg["preset"] = presets[0]["id"]   # 使用中プリセットが消えたら先頭へ
+                    save_config(cfg)
             ev = {"type": "style"}
             ev.update(resolve_style(cfg))
             broadcast(ev)
@@ -632,10 +657,11 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"ok": False, "error": "invalid boxes"}, 400)
                 return
             _write_json(_boxes_path(), {"boxes": boxes})
-            cfg = load_config()
-            if not any(b["id"] == cfg.get("box") for b in boxes):
-                cfg["box"] = boxes[0]["id"]
-                save_config(cfg)
+            with _config_lock:
+                cfg = load_config()
+                if not any(b["id"] == cfg.get("box") for b in boxes):
+                    cfg["box"] = boxes[0]["id"]
+                    save_config(cfg)
             ev = {"type": "style"}
             ev.update(resolve_style(cfg))
             broadcast(ev)
@@ -726,10 +752,11 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"ok": False, "error": "profile not found"}, 404)
                 return
             wordstore.delete_profile(name)
-            cfg = load_config()
-            if cfg.get("word_profile") == name:   # 使用中を消したら共通のみへ
-                cfg["word_profile"] = ""
-                save_config(cfg)
+            with _config_lock:
+                cfg = load_config()
+                if cfg.get("word_profile") == name:   # 使用中を消したら共通のみへ
+                    cfg["word_profile"] = ""
+                    save_config(cfg)
         else:
             self._json({"ok": False, "error": "unknown action"}, 400)
             return

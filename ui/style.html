@@ -8,8 +8,11 @@
     const qs = new URLSearchParams(location.search);
     const s = parseFloat(qs.get("s"));
     if (s > 0 && s < 1) document.documentElement.style.zoom = s;
-    try { if (localStorage.getItem("mojicast-theme") === "light")
-      document.documentElement.dataset.theme = "light"; } catch (e) {}
+    try {
+      const theme = qs.get("theme") || localStorage.getItem("mojicast-theme");
+      if (theme === "light") document.documentElement.dataset.theme = "light";
+      else if (theme === "dark") delete document.documentElement.dataset.theme;
+    } catch (e) {}
     // スタジオ（studio.html）へiframe埋め込み時: 内部の上位ナビは親が担うので隠す
     if (qs.get("embed") === "1") document.documentElement.classList.add("embed");
     if (qs.get("focus") === "translation") document.documentElement.classList.add("translation-focus");
@@ -52,12 +55,14 @@
   .pitem:hover { border-color: var(--accent); }
   .pitem.active { border-color: var(--accent); background: var(--panel2); }
   .pitem .used { float: right; color: var(--ok); font-size: 10px; font-weight: 800; }
+  .new-item { width:100%; margin-bottom:10px; border-style:dashed; color:var(--accent); }
   .btn {
     background: var(--panel2); color: var(--text); border: 1px solid var(--line);
     border-radius: 8px; padding: 8px 14px; cursor: pointer; font-family: inherit; font-weight: 700; font-size: 13px;
   }
   .btn:hover { border-color: var(--accent); color: var(--accent); }
   .btn.save { border-color: var(--ok); color: var(--ok); }
+  .btn:disabled { opacity:.5; cursor:default; border-color:var(--line); color:var(--dim); }
   .btn.danger:hover { border-color: var(--err); color: var(--err); }
   .btn.small { padding: 5px 10px; font-size: 12px; }
   .editor { display: flex; flex-direction: column; min-height: 0; }
@@ -69,7 +74,7 @@
   :root.translation-focus #translationFields { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; }
   :root.translation-focus #translationFields .advanced-only { display: block !important; }
   :root.translation-focus #translationFields .chk { display: flex !important; }
-  .editor-actions { display: flex; align-items: center; gap: 8px; padding: 10px;
+  .editor-actions { display: flex; align-items: center; flex-wrap:wrap; gap: 8px; padding: 10px;
     margin-bottom: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel2); }
   .editor-actions .copy { flex: 1; min-width: 0; }
   .editor-actions .copy b { display: block; font-size: 13px; }
@@ -149,21 +154,22 @@
   <div class="page show" id="pageStyle">
     <section class="panel">
       <h2>字幕デザインを選ぶ</h2>
+      <button class="btn new-item" onclick="newPresetFromStandard()" title="スタンダードを元に作成">＋ 新しいデザイン</button>
       <div id="plist"></div>
     </section>
     <section class="panel editor" id="styleEditor">
       <h2>プレビュー — <span id="editName"></span></h2>
       <div class="editor-actions" id="styleActions">
         <div class="copy"><b id="styleActionTitle">このデザインを使いますか？</b>
-          <span id="styleActionDesc">選ぶだけで、すぐ字幕に反映できます</span></div>
-        <button class="btn" onclick="usePreset()">このまま使う</button>
+          <span id="styleActionDesc">画面下のボタンで現在の字幕に切り替えられます</span></div>
+        <button class="btn" onclick="duplicatePreset()">これを元に新規作成</button>
         <button class="btn save" id="customizePresetBtn" onclick="beginPresetEdit()">カスタマイズ</button>
       </div>
       <div class="edit-tools" id="styleEditTools" hidden>
         <span>まずは、よく使う項目だけ表示しています</span>
         <span style="flex:1"></span>
         <button class="btn small" id="styleAdvancedBtn" onclick="toggleStyleAdvanced()">もっと細かく調整</button>
-        <button class="btn small danger" id="delPresetBtn" onclick="delPreset()">削除</button>
+        <button class="btn small" id="managePresetBtn" onclick="managePreset()">初期状態に戻す</button>
       </div>
       <div class="form locked" id="form">
         <div class="fsec">📛 プリセット</div>
@@ -214,19 +220,20 @@
   <div class="page" id="pageBox">
     <section class="panel">
       <h2>字幕の位置を選ぶ</h2>
+      <button class="btn new-item" onclick="newBoxFromFree()" title="フリー（枠なし）を元に作成">＋ 新しいレイアウト</button>
       <div id="blist"></div>
     </section>
     <section class="panel editor" id="boxEditor">
       <h2>プレビュー — <span id="editBoxName"></span></h2>
       <div class="editor-actions">
-        <div class="copy"><b id="boxActionTitle">この位置を使いますか？</b><span id="boxActionDesc">選ぶだけで、すぐ字幕に反映できます</span></div>
-        <button class="btn" onclick="useBox()">このまま使う</button>
+        <div class="copy"><b id="boxActionTitle">この位置を使いますか？</b><span id="boxActionDesc">画面下のボタンで現在の字幕に切り替えられます</span></div>
+        <button class="btn" onclick="duplicateBox()">これを元に新規作成</button>
         <button class="btn save" id="customizeBoxBtn" onclick="beginBoxEdit()">カスタマイズ</button>
       </div>
       <div class="edit-tools" id="boxEditTools" hidden>
         <span>位置と大きさを調整できます</span><span style="flex:1"></span>
         <button class="btn small" id="boxAdvancedBtn" onclick="toggleBoxAdvanced()">もっと細かく調整</button>
-        <button class="btn small danger" id="delBoxBtn" onclick="delBox()">削除</button>
+        <button class="btn small" id="manageBoxBtn" onclick="manageBox()">初期状態に戻す</button>
       </div>
       <div class="form locked" id="bform">
         <div class="fr"><label>ボックス名</label><input type="text" id="b_name"></div>
@@ -283,12 +290,13 @@
     <span>エクスポートする内容:</span>
     <button class="btn small" onclick="doExport('preset')" id="expCurPreset"></button>
     <button class="btn small" onclick="doExport('box')" id="expCurBox"></button>
-    <button class="btn small" onclick="doExport('all')">すべて（文字スタイル＋レイアウト）</button>
+    <button class="btn small" onclick="doExport('active')" id="expActivePair"></button>
     <button class="btn small" id="expOpen" hidden onclick="openExportDir()">📂 保存先フォルダを開く</button>
   </div>
 
   <footer>
-    <button class="btn save" onclick="saveAll()">💾 保存（OBSへ即反映）</button>
+    <button class="btn" id="saveOnlyBtn" onclick="saveOnly()">💾 保存</button>
+    <button class="btn save" id="switchUseBtn" onclick="saveAndUse()">このデザインに切り替える</button>
     <span id="saved">保存しました ✓</span>
     <span style="flex:1"></span>
     <span id="ioMsg"></span>
@@ -300,11 +308,14 @@
 
 <script>
   const $ = (id) => document.getElementById(id);
-  let presets = [], boxes = [];
+  let presets = [], boxes = [], defaultPresets = [], defaultBoxes = [];
   let cur = 0, curBox = 0;
   let effects = [], hotwords = [], sysFonts = [];
   let activePresetId = "", activeBoxId = "";
   let presetEditing = false, boxEditing = false;
+  const styleQuery = new URLSearchParams(location.search);
+  const requestedTopTab = styleQuery.get("tab") === "box" ? "box" : "style";
+  let currentTopTab = requestedTopTab;
 
   // ---------- 初期化 ----------
   // テーマ適用（このページに切替UIは無い。cockpitの保存値／localStorageに従う）
@@ -326,15 +337,18 @@
     $("f_animIn").innerHTML =
       FX.LINE_ANIMS.map(([v, l]) => `<option value="${v}">${l}</option>`).join("");
 
-    const [pj, bj, ej, hj, fj, cj] = await Promise.all([
+    const [pj, bj, ej, hj, fj, cj, dj] = await Promise.all([
       fetch("/api/presets"), fetch("/api/boxes"), fetch("/api/effects"),
       fetch("/api/hotwords"), fetch("/api/fonts"), fetch("/api/config"),
+      fetch("/api/style-defaults"),
     ].map(p => p.then(r => r.json())));
     presets = pj.presets || [];
     boxes = bj.boxes || [];
     effects = ej.effects || [];
     hotwords = (hj.entries || []).map(e => e.surface);
     sysFonts = fj.fonts || [];
+    defaultPresets = dj.presets || [];
+    defaultBoxes = dj.boxes || [];
     activePresetId = cj.preset || "";
     activeBoxId = cj.box || "";
     applyTheme(cj.theme);   // 保存済みテーマを確定反映（先読みの上書き）
@@ -353,12 +367,10 @@
       `<optgroup label="おすすめ">${rec}</optgroup>` +
       `<optgroup label="システムフォント (${sysFonts.length})">${sys}</optgroup>`;
 
-    const q = new URLSearchParams(location.search);
-    const pi = presets.findIndex(p => p.id === (q.get("preset") || activePresetId));
+    const pi = presets.findIndex(p => p.id === (styleQuery.get("preset") || activePresetId));
     cur = pi >= 0 ? pi : 0;
-    const bi = boxes.findIndex(b => b.id === (q.get("box") || activeBoxId));
+    const bi = boxes.findIndex(b => b.id === (styleQuery.get("box") || activeBoxId));
     curBox = bi >= 0 ? bi : 0;
-    if (q.get("tab") === "box") showTab("box");
 
     renderList(); loadForm();
     renderBoxList(); loadBoxForm();
@@ -366,10 +378,23 @@
   }
 
   function showTab(t) {
+    currentTopTab = t === "box" ? "box" : "style";
     $("tabStyle").className = t === "style" ? "active" : "";
     $("tabBox").className = t === "box" ? "active" : "";
     $("pageStyle").className = "page" + (t === "style" ? " show" : "");
     $("pageBox").className = "page" + (t === "box" ? " show" : "");
+    updateFooterActions();
+  }
+
+  function updateFooterActions() {
+    const saveButton = $("saveOnlyBtn"), switchButton = $("switchUseBtn");
+    if (!saveButton || !switchButton) return;
+    const item = currentTopTab === "box" ? boxes[curBox] : presets[cur];
+    const activeId = currentTopTab === "box" ? activeBoxId : activePresetId;
+    saveButton.disabled = !presets.length || !boxes.length;
+    switchButton.disabled = !item || item.id === activeId;
+    switchButton.textContent = item && item.id === activeId ? "使用中" :
+      currentTopTab === "box" ? "このレイアウトに切り替える" : "このデザインに切り替える";
   }
 
   function setR(id, out, val, fmt) { $(id).value = val; $(out).textContent = fmt($(id).value); }
@@ -425,13 +450,14 @@
     $("f_enGlowColor").value = p.enGlowColor || "#00e5ff";
     setR("f_enGlowSize", "o_enGlowSize", p.enGlowSize ?? 0, v => v + "px");
     preview(true);
-    $("customizePresetBtn").textContent = isCustomPreset(p) ? "カスタマイズを続ける" : "自分用にカスタマイズ";
+    $("customizePresetBtn").textContent = "カスタマイズ";
     $("styleActionTitle").textContent = p.id === activePresetId ? "このデザインを使用中です" : "このデザインを使いますか？";
     $("styleActionDesc").textContent = p.id === activePresetId
-      ? "今の字幕に選ばれています" : "選ぶだけで、すぐ字幕に反映できます";
+      ? "今の字幕に選ばれています" : "画面下のボタンで現在の字幕に切り替えられます";
+    updateFooterActions();
   }
 
-  function isCustomPreset(p) { return /^(custom-|imp-)/.test(p.id || ""); }
+  function isBuiltinPreset(p) { return !!p && defaultPresets.some(x => x.id === p.id); }
   function closePresetEdit() {
     presetEditing = false;
     $("form").classList.add("locked");
@@ -440,28 +466,19 @@
     $("styleAdvancedBtn").textContent = "もっと細かく調整";
   }
   function beginPresetEdit() {
-    if (!isCustomPreset(presets[cur])) dupPreset();
     presetEditing = true;
     $("form").classList.remove("locked");
     $("styleEditTools").hidden = false;
-    $("delPresetBtn").hidden = !isCustomPreset(presets[cur]);
+    const builtin = isBuiltinPreset(presets[cur]);
+    $("managePresetBtn").textContent = builtin ? "初期状態に戻す" : "削除";
+    $("managePresetBtn").classList.toggle("danger", !builtin);
     $("styleActionTitle").textContent = "自分好みに調整中";
-    $("styleActionDesc").textContent = "下の「保存」でOBSへ反映します";
+    $("styleActionDesc").textContent = "下の「保存」で設定を残せます";
   }
   function toggleStyleAdvanced() {
     const open = $("styleEditor").classList.toggle("advanced-open");
     $("styleAdvancedBtn").textContent = open ? "基本項目だけに戻す" : "もっと細かく調整";
   }
-  async function usePreset() {
-    if (presetEditing) collect();
-    await fetch("/api/presets", { method: "POST", body: JSON.stringify({ presets }) });
-    await fetch("/api/config", { method: "POST", body: JSON.stringify({ preset: presets[cur].id }) });
-    activePresetId = presets[cur].id;
-    renderList();
-    $("styleActionTitle").textContent = "このデザインを使用中です";
-    $("styleActionDesc").textContent = "コックピットとOBSに反映しました";
-  }
-
   function collect() {
     const p = presets[cur];
     p.name = $("f_name").value.trim() || p.name;
@@ -536,16 +553,39 @@
     pp.style.opacity = p.partialOpacity;
   }
 
-  function dupPreset() {
-    const p = JSON.parse(JSON.stringify(collect()));
-    p.id = "custom-" + Date.now();
-    p.name = customName(p.name, presets);
+  function addPresetFrom(source, name) {
+    if (!source) return;
+    const p = JSON.parse(JSON.stringify(source));
+    p.id = uniqueId("custom-", presets);
+    p.name = name;
     presets.splice(cur + 1, 0, p);
     cur += 1;
     renderList(); loadForm();
+    beginPresetEdit();
+    setTimeout(() => { $("f_name").focus(); $("f_name").select(); }, 0);
+  }
+  function newPresetFromStandard() {
+    if (presetEditing) collect();
+    const base = defaultPresets.find(p => p.id === "standard") || defaultPresets[0] || presets[0];
+    addPresetFrom(base, freshName("新しいデザイン", presets));
+  }
+  function duplicatePreset() {
+    const source = collect();
+    addPresetFrom(source, copyName(source.name, presets));
+  }
+  function managePreset() {
+    if (isBuiltinPreset(presets[cur])) resetPreset();
+    else delPreset();
+  }
+  function resetPreset() {
+    const original = defaultPresets.find(p => p.id === presets[cur].id);
+    if (!original || !confirm(`「${presets[cur].name}」を初期状態に戻しますか？`)) return;
+    presets[cur] = JSON.parse(JSON.stringify(original));
+    renderList(); loadForm(); beginPresetEdit();
+    $("styleActionDesc").textContent = "初期状態に戻しました。下の「保存」で確定します";
   }
   function delPreset() {
-    if (!isCustomPreset(presets[cur])) { alert("同梱デザインは削除できません"); return; }
+    if (isBuiltinPreset(presets[cur])) return;
     if (presets.length <= 1) { alert("最後の1つは削除できません"); return; }
     if (!confirm(`「${presets[cur].name}」を削除しますか？`)) return;
     presets.splice(cur, 1);
@@ -607,13 +647,14 @@
     $("b_lyricPartial").checked = !!b.lyricPartial;
     updateModeRows();
     stageApply(); stageClear(); stageAdd(); stageAdd();
-    $("customizeBoxBtn").textContent = isCustomBox(b) ? "カスタマイズを続ける" : "自分用にカスタマイズ";
+    $("customizeBoxBtn").textContent = "カスタマイズ";
     $("boxActionTitle").textContent = b.id === activeBoxId ? "この位置を使用中です" : "この位置を使いますか？";
     $("boxActionDesc").textContent = b.id === activeBoxId
-      ? "今の字幕に選ばれています" : "選ぶだけで、すぐ字幕に反映できます";
+      ? "今の字幕に選ばれています" : "画面下のボタンで現在の字幕に切り替えられます";
+    updateFooterActions();
   }
 
-  function isCustomBox(b) { return /^(box-|imp-)/.test(b.id || ""); }
+  function isBuiltinBox(b) { return !!b && defaultBoxes.some(x => x.id === b.id); }
   function closeBoxEdit() {
     boxEditing = false;
     $("bform").classList.add("locked");
@@ -622,29 +663,20 @@
     $("boxAdvancedBtn").textContent = "もっと細かく調整";
   }
   function beginBoxEdit() {
-    if (!isCustomBox(boxes[curBox])) dupBox();
     boxEditing = true;
     $("bform").classList.remove("locked");
     $("boxEditTools").hidden = false;
-    $("delBoxBtn").hidden = !isCustomBox(boxes[curBox]);
+    const builtin = isBuiltinBox(boxes[curBox]);
+    $("manageBoxBtn").textContent = builtin ? "初期状態に戻す" : "削除";
+    $("manageBoxBtn").classList.toggle("danger", !builtin);
     $("boxActionTitle").textContent = "自分好みに調整中";
-    $("boxActionDesc").textContent = "下の「保存」でOBSへ反映します";
+    $("boxActionDesc").textContent = "下の「保存」で設定を残せます";
   }
   function toggleBoxAdvanced() {
     const open = $("boxEditor").classList.toggle("advanced-open");
     $("boxAdvancedBtn").textContent = open ? "基本項目だけに戻す" : "もっと細かく調整";
     updateModeRows();
   }
-  async function useBox() {
-    if (boxEditing) collectBox();
-    await fetch("/api/boxes", { method: "POST", body: JSON.stringify({ boxes }) });
-    await fetch("/api/config", { method: "POST", body: JSON.stringify({ box: boxes[curBox].id }) });
-    activeBoxId = boxes[curBox].id;
-    renderBoxList();
-    $("boxActionTitle").textContent = "この位置を使用中です";
-    $("boxActionDesc").textContent = "コックピットとOBSに反映しました";
-  }
-
   function collectBox() {
     const b = boxes[curBox];
     b.name = $("b_name").value.trim() || b.name;
@@ -735,24 +767,59 @@
     stageN = 0;
   }
 
-  function dupBox() {
-    const b = JSON.parse(JSON.stringify(collectBox()));
-    b.id = "box-" + Date.now();
-    b.name = customName(b.name, boxes);
+  function addBoxFrom(source, name) {
+    if (!source) return;
+    const b = JSON.parse(JSON.stringify(source));
+    b.id = uniqueId("box-", boxes);
+    b.name = name;
     boxes.splice(curBox + 1, 0, b);
     curBox += 1;
     renderBoxList(); loadBoxForm();
+    beginBoxEdit();
+    setTimeout(() => { $("b_name").focus(); $("b_name").select(); }, 0);
+  }
+  function newBoxFromFree() {
+    if (boxEditing) collectBox();
+    const base = defaultBoxes.find(b => b.id === "none") || defaultBoxes[0] || boxes[0];
+    addBoxFrom(base, freshName("新しいレイアウト", boxes));
+  }
+  function duplicateBox() {
+    const source = collectBox();
+    addBoxFrom(source, copyName(source.name, boxes));
+  }
+  function manageBox() {
+    if (isBuiltinBox(boxes[curBox])) resetBox();
+    else delBox();
+  }
+  function resetBox() {
+    const original = defaultBoxes.find(b => b.id === boxes[curBox].id);
+    if (!original || !confirm(`「${boxes[curBox].name}」を初期状態に戻しますか？`)) return;
+    boxes[curBox] = JSON.parse(JSON.stringify(original));
+    renderBoxList(); loadBoxForm(); beginBoxEdit();
+    $("boxActionDesc").textContent = "初期状態に戻しました。下の「保存」で確定します";
   }
 
-  function customName(base, items) {
-    const root = String(base || "カスタム").replace(/（カスタム(?: \d+)?）$/, "");
-    let name = root + "（カスタム）", n = 2;
+  function uniqueId(prefix, items) {
+    let id, n = 0;
+    do { id = prefix + Date.now() + (n++ ? `-${n}` : ""); }
+    while (items.some(x => x.id === id));
+    return id;
+  }
+  function freshName(base, items) {
+    let name = base, n = 2;
     const used = new Set(items.map(x => x.name));
-    while (used.has(name)) name = `${root}（カスタム ${n++}）`;
+    while (used.has(name)) name = `${base} ${n++}`;
+    return name;
+  }
+  function copyName(base, items) {
+    const root = String(base || "カスタム").replace(/（コピー(?: \d+)?）$/, "");
+    let name = root + "（コピー）", n = 2;
+    const used = new Set(items.map(x => x.name));
+    while (used.has(name)) name = `${root}（コピー ${n++}）`;
     return name;
   }
   function delBox() {
-    if (!isCustomBox(boxes[curBox])) { alert("同梱の位置設定は削除できません"); return; }
+    if (isBuiltinBox(boxes[curBox])) return;
     if (boxes.length <= 1) { alert("最後の1つは削除できません"); return; }
     if (!confirm(`「${boxes[curBox].name}」を削除しますか？`)) return;
     boxes.splice(curBox, 1);
@@ -813,13 +880,57 @@
     pt = setTimeout(() => preview(true), 250);
   }
 
-  async function saveAll() {
+  async function postJson(path, body) {
+    const response = await fetch(path, { method:"POST", body:JSON.stringify(body) });
+    let result = {};
+    try { result = await response.json(); } catch (e) {}
+    if (!response.ok || result.ok === false) throw new Error(result.error || "save failed");
+    return result;
+  }
+
+  async function persistAll() {
+    if (!presets[cur] || !boxes[curBox]) throw new Error("not ready");
     collect(); collectBox();
-    await fetch("/api/presets", { method: "POST", body: JSON.stringify({ presets }) });
-    await fetch("/api/boxes", { method: "POST", body: JSON.stringify({ boxes }) });
+    await Promise.all([
+      postJson("/api/presets", { presets }),
+      postJson("/api/boxes", { boxes })
+    ]);
+  }
+
+  function savedMessage(text, error=false) {
     const s = $("saved");
+    s.textContent = text;
+    s.style.color = error ? "var(--err)" : "var(--ok)";
     s.style.opacity = 1;
     setTimeout(() => { s.style.opacity = 0; }, 1800);
+  }
+
+  async function saveOnly() {
+    try {
+      await persistAll();
+      savedMessage("保存しました ✓");
+    } catch (e) {
+      savedMessage("保存できませんでした", true);
+    }
+  }
+
+  async function saveAndUse() {
+    const isBox = currentTopTab === "box";
+    const item = isBox ? boxes[curBox] : presets[cur];
+    if (!item) return;
+    try {
+      // 切り替え操作では、画面上の編集内容を先にサイレント保存する。
+      await persistAll();
+      await postJson("/api/config", isBox ? { box:item.id } : { preset:item.id });
+      if (isBox) {
+        activeBoxId = item.id; renderBoxList(); loadBoxForm();
+      } else {
+        activePresetId = item.id; renderList(); loadForm();
+      }
+      savedMessage("保存して切り替えました ✓");
+    } catch (e) {
+      savedMessage("保存できなかったため、切り替えていません", true);
+    }
   }
 
   // ================= エクスポート / インポート（mojipack） =================
@@ -834,17 +945,25 @@
     if (!bar.hidden) {
       $("expCurPreset").textContent = `表示中のスタイル「${presets[cur].name}」`;
       $("expCurBox").textContent = `表示中のボックス「${boxes[curBox].name}」`;
+      const usedPreset = presets.find(p => p.id === activePresetId) || presets[cur];
+      const usedBox = boxes.find(b => b.id === activeBoxId) || boxes[curBox];
+      $("expActivePair").textContent = `使用中の組み合わせ「${usedPreset.name} ＋ ${usedBox.name}」`;
       $("expOpen").hidden = true;
       ioMsg("", true);
     }
   }
 
   async function doExport(kind) {
-    await saveAll();                 // 見たままの状態を書き出すため先に保存
+    await persistAll();              // 見たままの状態を書き出すため先に保存
     const body = { presets: [], boxes: [] };
     if (kind === "preset") body.presets = [presets[cur].id];
     else if (kind === "box") body.boxes = [boxes[curBox].id];
-    else { body.presets = presets.map(p => p.id); body.boxes = boxes.map(b => b.id); }
+    else {
+      const usedPreset = presets.find(p => p.id === activePresetId) || presets[cur];
+      const usedBox = boxes.find(b => b.id === activeBoxId) || boxes[curBox];
+      body.presets = [usedPreset.id];
+      body.boxes = [usedBox.id];
+    }
     const r = await (await fetch("/api/mojipack/export",
       { method: "POST", body: JSON.stringify(body) })).json();
     ioMsg(r.ok ? `書き出しました: ${r.file}` : (r.error || "書き出しに失敗しました"), r.ok);
@@ -861,7 +980,7 @@
     let data;
     try { data = JSON.parse(await file.text()); }
     catch { ioMsg("読み込めません（JSONとして解釈できないファイルです）", false); return; }
-    await saveAll();                 // 未保存の編集を退避してからマージ
+    await persistAll();              // 未保存の編集を退避してからマージ
     const r = await (await fetch("/api/mojipack/import",
       { method: "POST", body: JSON.stringify({ data }) })).json();
     if (!r.ok) { ioMsg(r.error || "インポートに失敗しました", false); return; }
@@ -873,6 +992,9 @@
     ioMsg(`インポートしました（スタイル ${r.presets} 件 / ボックス ${r.boxes} 件）`, true);
   }
 
+  // API応答を待つ前に入口どおりのタブを表示する。取得が遅い／失敗した場合も、
+  // 「レイアウト」を押したのに既定の「文字スタイル」が見える状態にしない。
+  showTab(requestedTopTab);
   init();
 </script>
 </body>

@@ -6,11 +6,15 @@
 <script>
   // 起動モニタに合わせたUI縮小（app.pyが ?s= で倍率を渡す。FullHDで約0.8）
   (function () {
-    const s = parseFloat(new URLSearchParams(location.search).get("s"));
+    const qs = new URLSearchParams(location.search);
+    const s = parseFloat(qs.get("s"));
     if (s > 0 && s < 1) document.documentElement.style.zoom = s;
     // テーマ先読み（configロード前のちらつき防止。真の値はloadAllで上書き）
-    try { if (localStorage.getItem("mojicast-theme") === "light")
-      document.documentElement.dataset.theme = "light"; } catch (e) {}
+    try {
+      const theme = qs.get("theme") || localStorage.getItem("mojicast-theme");
+      if (theme === "light") document.documentElement.dataset.theme = "light";
+      else if (theme === "dark") delete document.documentElement.dataset.theme;
+    } catch (e) {}
   })();
 </script>
 <style>
@@ -91,10 +95,7 @@
   @media (max-width: 1000px) { .advgrid { grid-template-columns: 1fr 1fr; } }
   /* 制御はフラットなツールバーに（枠を外し、字幕ログだけを枠付きの主役にする） */
   .bar { background: transparent; border: 0; border-radius: 0; padding: 2px 4px; overflow: visible; }
-  .barrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .micicon { flex: none; font-size: 15px; opacity: .85; }
-  .clr-bar { font-size: 11.5px; font-weight: 700; padding: 5px 12px; border-radius: 8px; color: var(--dim); }
-  .clr-bar:hover { color: var(--accent); border-color: var(--accent); }
   /* 表示クリア（字幕モニタ内・右上・ふだんは控えめ／ホバーで明瞭） */
   .clr-in { position: absolute; top: 8px; right: 8px; z-index: 4; font-family: inherit;
     font-size: 11px; font-weight: 700; padding: 4px 9px; border-radius: 7px;
@@ -167,33 +168,27 @@
     padding: 4px 12px; border-radius: 7px; cursor: pointer;
     border: 1px solid var(--accent); background: var(--accent); color: #06222b; }
   #suggestBar button.ghost { background: none; color: var(--dim); border-color: var(--line); }
-  /* 字幕処理トグル（モニタ上の小さなチップ帯・字幕を邪魔しない） */
-  .montoggles { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-  .mtog { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700;
-    padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line);
-    background: var(--panel2); color: var(--dim); cursor: pointer; user-select: none;
-    transition: color .12s, border-color .12s, background .12s; }
-  .mtog:hover { color: var(--text); border-color: var(--line); }
-  .mtog .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--line); transition: all .12s; }
-  .mtog.on { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-    background: color-mix(in srgb, var(--accent) 12%, transparent); }
-  .mtog.on .dot { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
   /* はじめの3ステップ（初回のみ・モニタに重ねて表示） */
   .mon-wrap { position: relative; flex: 1; min-height: 0; display: flex; }
   .mon-wrap #monitor { flex: 1; }
   #previewStage { display: none; position: relative; flex: 1; min-width: 0; min-height: 0;
-    overflow: hidden; border-radius: 8px; background:
+    overflow: hidden; border: 1px solid var(--line); border-radius: 8px;
+    background: repeating-linear-gradient(135deg,#0b1019 0 10px,#111927 10px 20px); }
+  :root[data-theme="light"] #previewStage { background:
+      repeating-linear-gradient(135deg,#c5ccd6 0 10px,#d7dce3 10px 20px); }
+  #previewStage.active { display: block; }
+  #previewCanvas { position: absolute; width: 1920px; height: 1080px; transform-origin: 0 0;
+    overflow: hidden; background:
       linear-gradient(rgba(5,8,14,.2),rgba(5,8,14,.55)),
       radial-gradient(circle at 68% 38%,rgba(76,105,170,.28),transparent 38%),
-      repeating-linear-gradient(45deg,#151c28 0 16px,#111722 16px 32px); }
-  :root[data-theme="light"] #previewStage { background:
+      repeating-linear-gradient(45deg,#151c28 0 16px,#111722 16px 32px);
+    box-shadow: 0 0 0 2px rgba(255,255,255,.3), 0 10px 28px rgba(0,0,0,.34); }
+  :root[data-theme="light"] #previewCanvas { background:
       linear-gradient(rgba(255,255,255,.08),rgba(20,30,46,.28)),
       radial-gradient(circle at 68% 38%,rgba(76,105,170,.28),transparent 38%),
       repeating-linear-gradient(45deg,#324159 0 16px,#29374d 16px 32px); }
-  #previewStage.active { display: block; }
-  #previewCanvas { position: absolute; width: 1920px; height: 1080px; transform-origin: 0 0;
-    overflow: hidden; background: transparent; box-shadow: 0 0 0 1px rgba(255,255,255,.12); }
-  #previewCanvas iframe { width: 100%; height: 100%; border: 0; background: transparent; pointer-events: none; }
+  #previewCanvas iframe { position: relative; z-index: 1; width: 100%; height: 100%; border: 0;
+    background: transparent; pointer-events: none; }
   .preview-badge { position: absolute; left: 8px; top: 8px; z-index: 2; padding: 4px 7px;
     border-radius: 6px; color: rgba(255,255,255,.76); background: rgba(0,0,0,.48);
     font-size: 10px; font-weight: 800; letter-spacing: .06em; pointer-events: none; }
@@ -383,16 +378,6 @@
         </div>
       </section>
 
-      <!-- 字幕ツールバー（配信中に切り替えるスイッチ＋表示クリア。プレビューとは独立） -->
-      <section class="bar barrow">
-        <div class="montoggles" title="配信中に切り替える処理" style="margin-bottom:0">
-          <span class="mtog" data-k="punctuate"><span class="dot"></span>句読点</span>
-          <span class="mtog" data-k="save_log"><span class="dot"></span>ログ保存</span>
-        </div>
-        <div class="spacer"></div>
-        <button class="clr-bar" onclick="clearCaptions()">表示クリア</button>
-      </section>
-
       <!-- 字幕モニタ -->
       <section class="panel" id="centerPanel">
       <div class="mon-head">
@@ -411,6 +396,7 @@
         </span>
       </div>
       <div class="mon-wrap">
+        <button class="clr-in" onclick="clearCaptions()">表示クリア</button>
         <div id="monitor"></div>
         <div id="previewStage" aria-hidden="true">
           <span class="preview-badge">OBS表示イメージ・1920×1080</span>
@@ -527,10 +513,19 @@
     return r.json();
   }
 
-  const saveCfg = debounce(async () => {
-    await api("/api/config", cfg);
+  let pendingCfgPatch = {};
+  const flushCfg = debounce(async () => {
+    const patch = pendingCfgPatch;
+    pendingCfgPatch = {};
+    if (!Object.keys(patch).length) return;
+    await api("/api/config", patch);
     if (running) $("restartHint").style.display = "";
   }, 400);
+
+  function saveCfg(...keys) {
+    for (const key of keys) pendingCfgPatch[key] = cfg[key];
+    flushCfg();
+  }
 
   function debounce(fn, ms) {
     let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
@@ -639,34 +634,19 @@
     $("transFeatureLabel").textContent = tr;
   }
 
-  // 字幕処理トグル（モニタ上のチップ: 句読点/英訳/ログ保存）。cfgのキーを直接切り替える
-  function mtogOn(k) { return !!cfg[k]; }
-  function syncMTog() {
-    for (const el of document.querySelectorAll(".mtog"))
-      el.classList.toggle("on", mtogOn(el.dataset.k));
-  }
-  for (const el of document.querySelectorAll(".mtog")) {
-    el.addEventListener("click", () => {
-      const k = el.dataset.k;
-      cfg[k] = !cfg[k];
-      el.classList.toggle("on", mtogOn(k));
-      saveCfg();
-    });
-  }
-
   // コックピットに残す配信中の機能トグル
   function syncMovedToggles() {
     $("wordFx").checked = !!cfg.word_fx;
     $("translateOn").checked = !!cfg.translate;
   }
-  $("wordFx").addEventListener("change", e => { cfg.word_fx = e.target.checked; saveCfg(); });
-  $("translateOn").addEventListener("change", e => { cfg.translate = e.target.checked; saveCfg(); });
+  $("wordFx").addEventListener("change", e => { cfg.word_fx = e.target.checked; saveCfg("word_fx"); });
+  $("translateOn").addEventListener("change", e => { cfg.translate = e.target.checked; saveCfg("translate"); });
 
   $("device").addEventListener("change", e => {
-    cfg.device = e.target.value === "default" ? null : +e.target.value; saveCfg();
+    cfg.device = e.target.value === "default" ? null : +e.target.value; saveCfg("device");
   });
   $("wordProfile").addEventListener("change", e => {
-    cfg.word_profile = e.target.value; saveCfg();
+    cfg.word_profile = e.target.value; saveCfg("word_profile");
   });
   // ---------- 1対1コラボ（詳細設定は別窓 /ui/collab） ----------
   function openCollab() {
@@ -689,7 +669,7 @@
     syncCollab();
     renderPresets();   // 自分/相手の2行表示を切替
     renderBoxes();
-    saveCfg();
+    saveCfg("collab");
   });
 
   // innerHTML への埋め込み用（要素内容・二重引用符の属性値の両方で安全）
@@ -712,7 +692,6 @@
     if (cfg.num_arabic === undefined) cfg.num_arabic = true;   // 既定ON（チップ表示用）
     if (cfg.save_log === undefined) cfg.save_log = true;
     syncModelCard();
-    syncMTog();          // 字幕処理チップ（句読点/翻訳/ログ保存）を反映
     syncMovedToggles();  // 高精度/漢数字/単語エフェクト（各カード・詳細へ移動）を反映
     if (!cfg.setup_suggested) initSuggest();   // 初回のみ: 環境に合わせた提案
     $("obsUrl").value = location.origin + "/";

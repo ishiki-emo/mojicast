@@ -8,8 +8,11 @@
     const q = new URLSearchParams(location.search);
     const s = parseFloat(q.get("s"));
     if (s > 0 && s < 1) document.documentElement.style.zoom = s;
-    try { if (localStorage.getItem("mojicast-theme") === "light")
-      document.documentElement.dataset.theme = "light"; } catch (e) {}
+    try {
+      const theme = q.get("theme") || localStorage.getItem("mojicast-theme");
+      if (theme === "light") document.documentElement.dataset.theme = "light";
+      else if (theme === "dark") delete document.documentElement.dataset.theme;
+    } catch (e) {}
   })();
 </script>
 <script src="/ui/theme-sync.js" defer></script>
@@ -58,6 +61,15 @@
   .nav button strong { font-size:14px; }
   .nav button small { font-size:11px; color:var(--dim); }
   .nav button.active { color:var(--text); background:var(--panel2); border-color:var(--line); }
+  .nav-group { margin-bottom:6px; }
+  .nav-group > button { margin-bottom:0; }
+  .subnav { display:none; gap:2px; padding:5px 0 2px 39px; }
+  .nav-group.active .subnav { display:grid; }
+  .nav .subnav button { display:block; margin:0; padding:7px 9px; border-radius:7px;
+    color:var(--dim); font-size:12px; line-height:1.35; white-space:normal; }
+  .nav .subnav button:hover { color:var(--text); background:var(--panel2); }
+  .nav .subnav button.active { color:var(--accent); background:color-mix(in srgb,var(--accent) 9%,transparent);
+    border-color:transparent; }
   .utility { margin-top:18px; padding-top:12px; border-top:1px solid var(--line); }
   .content { position:relative; min-width:0; min-height:0; }
   .pane { position:absolute; inset:0; display:none; min-width:0; min-height:0; }
@@ -127,8 +139,23 @@
 <div class="layout">
   <nav class="nav" aria-label="設定する機能">
     <div class="nav-caption">つくるもの</div>
-    <button data-pillar="captions" onclick="switchPillar('captions')"><span class="icon">💬</span><strong>字幕</strong><small>見た目・位置・認識単語</small></button>
-    <button data-pillar="translation" onclick="switchPillar('translation')"><span class="icon">🌐</span><strong>翻訳字幕</strong><small>見た目・固定訳</small></button>
+    <div class="nav-group" data-group="captions">
+      <button data-pillar="captions" onclick="switchPillar('captions')"><span class="icon">💬</span><strong>字幕</strong><small>見た目・位置・認識単語</small></button>
+      <div class="subnav" aria-label="字幕の設定">
+        <button data-detail="style" onclick="openDetail('style')">文字スタイル</button>
+        <button data-detail="layout" onclick="openDetail('layout')">レイアウト</button>
+        <button data-detail="words" onclick="openDetail('words')">認識させる言葉</button>
+        <button onclick="openLyricLab()">リリック風字幕 ↗</button>
+      </div>
+    </div>
+    <div class="nav-group" data-group="translation">
+      <button data-pillar="translation" onclick="switchPillar('translation')"><span class="icon">🌐</span><strong>翻訳字幕</strong><small>見た目・固定訳</small></button>
+      <div class="subnav" aria-label="翻訳字幕の設定">
+        <button data-detail="translation-style" onclick="openDetail('translation-style')">翻訳字幕の見た目</button>
+        <button data-detail="translation-words" onclick="openDetail('translation-words')">訳し方を固定する言葉</button>
+        <button onclick="openSystemSettings('translation')">翻訳の動作設定 ↗</button>
+      </div>
+    </div>
     <button data-pillar="effects" onclick="switchPillar('effects')"><span class="icon">✨</span><strong>ワード演出</strong><small>言葉・動き・パーティクル</small></button>
     <div class="utility"><div class="nav-caption">そのほか</div>
       <button data-pillar="share" onclick="switchPillar('share')"><span class="icon">↗</span><strong>保存・共有</strong><small>バックアップ・受け渡し</small></button>
@@ -156,10 +183,10 @@
       <div class="cards">
         <article class="card"><span class="card-icon">🌐</span><h3>翻訳先とモデル</h3><p>英語・中国語など、字幕を届けたい言語とAIの動作を設定します。</p><div class="card-foot"><span id="translationCurrent">—</span><button class="btn" onclick="openSystemSettings('translation')">アプリ設定</button></div></article>
         <article class="card"><span class="card-icon">🎨</span><h3>翻訳字幕の見た目</h3><p>本文との大きさのバランス、色、縁取りを調整します。</p><div class="card-foot"><span>使用中のデザインに連動</span><button class="btn" onclick="openDetail('translation-style')">開く</button></div></article>
-        <article class="card"><span class="card-icon">📘</span><h3>訳し方を固定する言葉</h3><p>名前や作品名を、いつも同じ表記で翻訳します。</p><div class="card-foot"><span>配信セットごとに保存</span><button class="btn" onclick="openDetail('translation-words')">開く</button></div></article>
+        <article class="card"><span class="card-icon">📘</span><h3>訳し方を固定する言葉</h3><p>名前や作品名を、いつも同じ表記で翻訳します。日本語→英語（FuguMT）のみ対応します。</p><div class="card-foot"><span>配信セットごとに保存</span><button class="btn" onclick="openDetail('translation-words')">開く</button></div></article>
       </div>
     </div></section>
-    <section class="pane detail" id="pGlossary"><div class="backbar"><button onclick="switchPillar('translation')">← 翻訳の設定</button><b>訳し方を固定する言葉</b><span>配信セットごとに保存</span></div><iframe class="embedded" id="fGlossary" title="固定訳"></iframe></section>
+    <section class="pane detail" id="pGlossary"><div class="backbar"><button onclick="switchPillar('translation')">← 翻訳の設定</button><b>訳し方を固定する言葉</b><span>FuguMTの英訳時のみ有効</span></div><iframe class="embedded" id="fGlossary" title="固定訳"></iframe></section>
 
     <section class="pane feature-pane" id="pEffects"><div class="feature-head"><h1 class="page-title">ワード演出</h1><p class="lead">言った瞬間に、文字の色やパーティクルを変えられます。</p><div class="feature-master"><div><strong>ワード演出を使う</strong><small>同梱プリセットがあるので、オンにするだけでも楽しめます</small></div><button class="switch" id="effectsSwitch" onclick="toggleFeature('word_fx',this)" aria-label="ワード演出をオン・オフ"><i></i></button></div></div><iframe class="embedded" id="fEffects" title="ワード演出"></iframe></section>
 
@@ -170,13 +197,36 @@
 <script>
   const $ = id => document.getElementById(id);
   const qs = new URLSearchParams(location.search);
-  const pass = ["s","v"].filter(k => qs.get(k)).map(k => `&${k}=${encodeURIComponent(qs.get(k))}`).join("");
+  const basePass = ["s","v"].filter(k => qs.get(k)).map(k => `&${k}=${encodeURIComponent(qs.get(k))}`).join("");
   const descriptions = {
     captions:"字幕の見た目・位置・認識単語を編集", translation:"翻訳字幕の見た目と固定訳を編集",
     effects:"反応する言葉と演出を編集", share:"作った設定を保存・共有"
   };
   const pillarPanes = { captions:"pCaptions", translation:"pTranslation", effects:"pEffects", share:"pShare" };
-  let cfg = {}, profiles = [], currentPillar = "captions", styleReturnPillar = "captions";
+  let cfg = {}, profiles = [], currentPillar = "captions", currentDetail = "", styleReturnPillar = "captions";
+
+  function applyTheme(theme) {
+    if (theme === "light") document.documentElement.dataset.theme = "light";
+    else delete document.documentElement.dataset.theme;
+    try { localStorage.setItem("mojicast-theme", theme === "light" ? "light" : "dark"); } catch (e) {}
+    forwardTheme(theme);
+  }
+  function forwardTheme(theme) {
+    document.querySelectorAll("iframe.embedded").forEach(frame => {
+      if (frame.getAttribute("src") && frame.contentWindow)
+        frame.contentWindow.postMessage({ mojiTheme:theme === "light" ? "light" : "dark" }, location.origin);
+    });
+  }
+  window.addEventListener("mojicast-theme-changed", event =>
+    forwardTheme((event.detail && event.detail.theme) || "dark"));
+  function childPass() {
+    const theme = document.documentElement.dataset.theme === "light" ? "light" : "dark";
+    return basePass + `&theme=${theme}`;
+  }
+  function wordUrl(tab) {
+    return `/ui/words?embed=1&single=1&tab=${tab}${childPass()}` +
+      `&profile=${encodeURIComponent(cfg.word_profile || "")}`;
+  }
 
   async function api(path, body) {
     const opt = body === undefined ? {} : { method:"POST", body:JSON.stringify(body) };
@@ -194,12 +244,21 @@
   function setSrc(id, src, force) {
     const f = $(id); if (force || !f.getAttribute("src")) f.src = src;
   }
+  function syncNavigation() {
+    document.querySelectorAll(".nav button[data-pillar]").forEach(b =>
+      b.classList.toggle("active", b.dataset.pillar === currentPillar));
+    document.querySelectorAll(".nav-group").forEach(g =>
+      g.classList.toggle("active", g.dataset.group === currentPillar));
+    document.querySelectorAll(".subnav button[data-detail]").forEach(b =>
+      b.classList.toggle("active", b.dataset.detail === currentDetail));
+  }
   function switchPillar(pillar) {
     currentPillar = pillarPanes[pillar] ? pillar : "captions";
-    document.querySelectorAll(".nav button[data-pillar]").forEach(b => b.classList.toggle("active", b.dataset.pillar === currentPillar));
+    currentDetail = "";
+    syncNavigation();
     $("studioDesc").textContent = descriptions[currentPillar];
     showPane(pillarPanes[currentPillar]);
-    if (currentPillar === "effects") setSrc("fEffects", "/ui/words?embed=1&single=1&tab=fx" + pass);
+    if (currentPillar === "effects") setSrc("fEffects", wordUrl("fx"));
     refreshOverview();
   }
   function openSystemSettings(section) {
@@ -213,7 +272,7 @@
     else window.open("/ui/lyric_lab", "_blank", "width=1280,height=800");
   }
   function styleUrl(detail) {
-    let url = "/ui/style?embed=1&tab=" + (detail === "layout" ? "box" : "style") + pass;
+    let url = "/ui/style?embed=1&tab=" + (detail === "layout" ? "box" : "style") + childPass();
     if (detail === "translation-style") url += "&focus=translation";
     if (qs.get("preset")) url += "&preset=" + encodeURIComponent(qs.get("preset"));
     if (qs.get("box")) url += "&box=" + encodeURIComponent(qs.get("box"));
@@ -222,13 +281,16 @@
   function openDetail(detail) {
     if (detail === "style" || detail === "layout" || detail === "translation-style") {
       styleReturnPillar = detail === "translation-style" ? "translation" : "captions";
+      currentPillar = styleReturnPillar; currentDetail = detail; syncNavigation();
       $("styleBack").textContent = styleReturnPillar === "translation" ? "← 翻訳の設定" : "← 字幕の設定";
       $("styleDetailTitle").textContent = detail === "layout" ? "字幕の位置" : detail === "translation-style" ? "翻訳字幕の見た目" : "字幕デザイン";
       setSrc("fStyle", styleUrl(detail), true); showPane("pStyleDetail");
     } else if (detail === "words") {
-      setSrc("fWords", "/ui/words?embed=1&single=1&tab=hot" + pass); showPane("pWordsDetail");
+      currentPillar = "captions"; currentDetail = detail; syncNavigation();
+      setSrc("fWords", wordUrl("hot"), true); showPane("pWordsDetail");
     } else if (detail === "translation-words") {
-      setSrc("fGlossary", "/ui/words?embed=1&single=1&tab=gloss" + pass); showPane("pGlossary");
+      currentPillar = "translation"; currentDetail = detail; syncNavigation();
+      setSrc("fGlossary", wordUrl("gloss"), true); showPane("pGlossary");
     }
   }
   function returnFromStyle() { switchPillar(styleReturnPillar); }
@@ -239,7 +301,8 @@
   }
   async function changeProfile(value) {
     cfg.word_profile = value; await api("/api/config", { word_profile:value });
-    for (const id of ["fWords","fEffects","fGlossary"]) if ($(id).getAttribute("src")) setSrc(id, $(id).src, true);
+    for (const [id,tab] of [["fWords","hot"],["fEffects","fx"],["fGlossary","gloss"]])
+      if ($(id).getAttribute("src")) setSrc(id, wordUrl(tab), true);
     await refreshOverview();
   }
   const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");
@@ -270,7 +333,7 @@
   async function doImport(file) { if(!file)return; try { const r=await api("/api/mojipack/import",{data:JSON.parse(await file.text())}); shareMsg(r.ok?`取り込みました（字幕デザイン ${r.presets}件 / 字幕の位置 ${r.boxes}件）`:r.error||"取り込みに失敗しました",!!r.ok); } catch(e){shareMsg("ファイルを読めませんでした",false);} $("impFile").value=""; }
 
   (async function init() {
-    cfg = await api("/api/config"); await loadProfiles(); await refreshOverview();
+    cfg = await api("/api/config"); applyTheme(cfg.theme || "dark"); await loadProfiles(); await refreshOverview();
     let pillar = qs.get("pillar"); let detail = qs.get("detail"); const legacy = qs.get("tab");
     if (!pillar) {
       if (qs.get("mode") === "features") pillar = "effects";

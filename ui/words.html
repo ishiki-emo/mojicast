@@ -8,8 +8,11 @@
     const qs = new URLSearchParams(location.search);
     const s = parseFloat(qs.get("s"));
     if (s > 0 && s < 1) document.documentElement.style.zoom = s;
-    try { if (localStorage.getItem("mojicast-theme") === "light")
-      document.documentElement.dataset.theme = "light"; } catch (e) {}
+    try {
+      const theme = qs.get("theme") || localStorage.getItem("mojicast-theme");
+      if (theme === "light") document.documentElement.dataset.theme = "light";
+      else if (theme === "dark") delete document.documentElement.dataset.theme;
+    } catch (e) {}
     if (qs.get("embed") === "1") document.documentElement.classList.add("embed");
     if (qs.get("single") === "1") document.documentElement.classList.add("single");
   })();
@@ -101,6 +104,8 @@
       <button class="btn" onclick="$('delConfirm').hidden = true">いいえ</button>
     </span>
     <span class="pbHint">配信セットは「共通」に<b>加算</b>して使われます（同じ単語は配信セット優先）</span>
+    <span class="pbErr" id="loadErr"></span>
+    <button class="btn" id="retryLoad" hidden onclick="retryData()">再読み込み</button>
   </div>
   <div class="pbar" id="newProfBar" hidden>
     <span>配信セット名:</span>
@@ -186,6 +191,8 @@
   <!-- ========== 英訳辞書 ========== -->
   <div class="page" id="pageGloss">
     <div class="note">
+      <b>日本語→英語（FuguMT）の翻訳時だけ有効です。</b>
+      中国語・韓国語など、ほかの翻訳には適用されません。<br>
       名前・チャンネル名などの固有名詞の<b>英訳を固定</b>します。
       「字幕の表記」に画面に出る日本語（例: 星野ひかり）、「英訳」に固定したい訳
       （例: Hikari Hoshino）を入れると、英訳のその部分が必ずこの表記になります。
@@ -199,7 +206,7 @@
   </div>
 
   <footer>
-    <button class="btn save" onclick="saveAll()">💾 保存</button>
+    <button class="btn save" id="saveAllBtn" onclick="saveAll()" disabled>💾 保存</button>
     <span id="saved">保存しました ✓</span>
   </footer>
 
@@ -303,9 +310,21 @@
   let dirty = false;        // 未保存の編集があるか
   let pendingSwitch = null; // 切替待ちのプロファイル名
   let profileNames = [];    // 既存プロファイル名（コピー元の選択肢用）
+  let loadedProfile = null; // 現在テーブルに表示できているスコープ
+  let reloadGeneration = 0; // 遅れて返った旧スコープの応答を無視する番号
+  const wordQuery = new URLSearchParams(location.search);
+
+  async function fetchJson(url, options = {}) {
+    const response = await fetch(url, { cache:"no-store", ...options });
+    if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
+    return response.json();
+  }
+  function retryData() {
+    return $("profileSel").options.length ? reloadData() : loadAll();
+  }
 
   async function loadProfiles(select) {
-    const d = await (await fetch("/api/profiles")).json();
+    const d = await fetchJson("/api/profiles");
     const sel = $("profileSel");
     const names = d.profiles || [];
     profileNames = names;
@@ -331,6 +350,7 @@
 
   async function switchTo(v) {
     curProfile = v;
+    pendingSwitch = null;
     $("profileSel").value = v;
     $("btnDelProf").disabled = !v;
     $("delConfirm").hidden = true;
@@ -338,7 +358,7 @@
     await reloadData();
   }
 
-  async function guardSave()    { $("guardBar").hidden = true; await saveAll(); await switchTo(pendingSwitch); }
+  async function guardSave()    { const next = pendingSwitch; $("guardBar").hidden = true; if (await saveAll()) await switchTo(next); }
   async function guardDiscard() { $("guardBar").hidden = true; await switchTo(pendingSwitch); }
   function guardCancel()        { pendingSwitch = null; $("guardBar").hidden = true; }
 
@@ -387,24 +407,42 @@
   }
 
   async function reloadData() {
-    clearTables();
-    const q = "?profile=" + encodeURIComponent(curProfile);
-    const hot = await (await fetch("/api/hotwords" + q)).json();
-    for (const e of hot.entries || []) addHotRow(e);
-    if (!(hot.entries || []).length) addHotRow();
+    const generation = ++reloadGeneration;
+    const profile = curProfile;
+    const q = "?profile=" + encodeURIComponent(profile);
+    $("loadErr").textContent = "読み込み中…";
+    $("retryLoad").hidden = true;
+    $("saveAllBtn").disabled = true;
+    try {
+      // 全データが揃うまでは現在の表を残す。途中の通信失敗で空表示にしない。
+      const [hot, fx, banned, gloss] = await Promise.all([
+        fetchJson("/api/hotwords" + q), fetchJson("/api/effects" + q),
+        fetchJson("/api/banned" + q), fetchJson("/api/glossary" + q)
+      ]);
+      if (generation !== reloadGeneration || profile !== curProfile) return false;
 
-    const fx = await (await fetch("/api/effects" + q)).json();
-    for (const e of fx.effects || []) addFxRow(e);
-    if (!(fx.effects || []).length) addFxRow();
+      clearTables();
+      for (const e of hot.entries || []) addHotRow(e);
+      if (!(hot.entries || []).length) addHotRow();
+      for (const e of fx.effects || []) addFxRow(e);
+      if (!(fx.effects || []).length) addFxRow();
+      $("bannedText").value = (banned.words || []).join("\n");
+      $("maskChar").value = banned.mask_char || "○";
+      for (const e of gloss.entries || []) addGlossRow(e);
+      if (!(gloss.entries || []).length) addGlossRow();
 
-    const banned = await (await fetch("/api/banned" + q)).json();
-    $("bannedText").value = (banned.words || []).join("\n");
-    $("maskChar").value = banned.mask_char || "○";
-
-    const gloss = await (await fetch("/api/glossary" + q)).json();
-    for (const e of gloss.entries || []) addGlossRow(e);
-    if (!(gloss.entries || []).length) addGlossRow();
-    dirty = false;
+      loadedProfile = profile;
+      dirty = false;
+      $("loadErr").textContent = "";
+      $("saveAllBtn").disabled = false;
+      return true;
+    } catch (e) {
+      if (generation !== reloadGeneration || profile !== curProfile) return false;
+      $("loadErr").textContent = "読み込みに失敗しました。前の表示を保持しています。";
+      $("retryLoad").hidden = false;
+      $("saveAllBtn").disabled = loadedProfile !== curProfile;
+      return false;
+    }
   }
 
   // テーマ適用（このページに切替UIは無い。cockpitの保存値／localStorageに従う）
@@ -424,14 +462,22 @@
       sysFonts = (await (await fetch("/api/fonts")).json()).fonts || [];
     } catch (e) { sysFonts = []; }
     // 初期スコープはコックピットで使用中のプロファイル
-    const d = await (await fetch("/api/profiles")).json();
-    curProfile = (d.profiles || []).includes(d.active) ? d.active : "";
+    const d = await fetchJson("/api/profiles");
+    const names = d.profiles || [];
+    const requested = wordQuery.get("profile");
+    curProfile = wordQuery.has("profile") && (requested === "" || names.includes(requested))
+      ? requested : (names.includes(d.active) ? d.active : "");
     await loadProfiles(curProfile);
     await reloadData();
   }
 
   async function saveAll() {
     const profile = curProfile;
+    if (loadedProfile !== profile) {
+      $("loadErr").textContent = "この配信セットを読み込んでから保存してください。";
+      $("retryLoad").hidden = false;
+      return false;
+    }
     const entries = [...$("hotTable").querySelectorAll("tbody tr")].map(tr => ({
       surface: tr.querySelector(".h-surface").value.trim(),
       reading: tr.querySelector(".h-reading").value.trim(),
@@ -450,14 +496,23 @@
       en: tr.querySelector(".g-en").value.trim(),
     })).filter(e => e.ja && e.en);
 
-    await fetch("/api/hotwords", { method: "POST", body: JSON.stringify({ entries, profile }) });
-    await fetch("/api/effects", { method: "POST", body: JSON.stringify({ effects, profile }) });
-    await fetch("/api/banned", { method: "POST", body: JSON.stringify({ words, mask_char, profile }) });
-    await fetch("/api/glossary", { method: "POST", body: JSON.stringify({ entries: gloss, profile }) });
-    dirty = false;
-    const s = $("saved");
-    s.style.opacity = 1;
-    setTimeout(() => { s.style.opacity = 0; }, 1800);
+    try {
+      await Promise.all([
+        fetchJson("/api/hotwords", { method:"POST", body:JSON.stringify({ entries, profile }) }),
+        fetchJson("/api/effects", { method:"POST", body:JSON.stringify({ effects, profile }) }),
+        fetchJson("/api/banned", { method:"POST", body:JSON.stringify({ words, mask_char, profile }) }),
+        fetchJson("/api/glossary", { method:"POST", body:JSON.stringify({ entries:gloss, profile }) })
+      ]);
+      dirty = false;
+      $("loadErr").textContent = "";
+      const s = $("saved");
+      s.style.opacity = 1;
+      setTimeout(() => { s.style.opacity = 0; }, 1800);
+      return true;
+    } catch (e) {
+      $("loadErr").textContent = "保存に失敗しました。もう一度お試しください。";
+      return false;
+    }
   }
 
   // 未保存の編集を検知（入力・行削除）
@@ -470,7 +525,10 @@
 
   const initialTab = new URLSearchParams(location.search).get("tab");
   if (["hot", "fx", "banned", "gloss"].includes(initialTab)) showTab(initialTab);
-  loadAll();
+  loadAll().catch(() => {
+    $("loadErr").textContent = "設定を読み込めませんでした。再度開き直してください。";
+    $("retryLoad").hidden = false;
+  });
 </script>
 </body>
 </html>

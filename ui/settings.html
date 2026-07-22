@@ -9,8 +9,11 @@
     const qs = new URLSearchParams(location.search);
     const s = parseFloat(qs.get("s"));
     if (s > 0 && s < 1) document.documentElement.style.zoom = s;
-    try { if (localStorage.getItem("mojicast-theme") === "light")
-      document.documentElement.dataset.theme = "light"; } catch (e) {}
+    try {
+      const theme = qs.get("theme") || localStorage.getItem("mojicast-theme");
+      if (theme === "light") document.documentElement.dataset.theme = "light";
+      else if (theme === "dark") delete document.documentElement.dataset.theme;
+    } catch (e) {}
   })();
 </script>
 <script src="/ui/theme-sync.js" defer></script>

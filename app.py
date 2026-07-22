@@ -41,13 +41,19 @@ class JsApi:
     def __init__(self, port):
         self._windows = {}   # key -> webview.Window
         self._port = port    # 実際に起動しているポート（configの値ではなく起動時の実ポート）
+        self._closing = False
 
     def _open(self, key, title, path, width, height):
+        if self._closing:
+            return
         # configを読み直さず起動時の実ポートを使う。ポート変更は次回起動時反映で、
         # 変更後・再起動前は config != 実ポートとなり、別窓が接続先を誤るため（見切れず要修正）
         port = self._port
         sep = "&" if "?" in path else "?"
-        url = f"http://127.0.0.1:{port}{path}{sep}s={UI_SCALE}&v={UI_SESSION}"
+        theme = app_server.load_config().get("theme", "dark")
+        background = "#f7f9fc" if theme == "light" else "#0d1117"
+        url = (f"http://127.0.0.1:{port}{path}{sep}s={UI_SCALE}&v={UI_SESSION}"
+               f"&theme={theme}")
         existing = self._windows.get(key)
         if existing is not None:
             # 同じ設定窓が開いていても、コックピットで押した入口へ切り替える。
@@ -62,9 +68,21 @@ class JsApi:
             f"{title} — Mojicast",
             url,
             width=int(width * UI_SCALE), height=int(height * UI_SCALE),
-            background_color="#0d1117", js_api=self)
+            background_color=background, js_api=self)
         self._windows[key] = w
         w.events.closed += lambda: self._windows.pop(key, None)
+
+    def close_all_windows(self):
+        """メイン窓の終了に合わせ、残っている補助窓をすべて閉じる"""
+        self._closing = True
+        windows = list(self._windows.values())
+        self._windows.clear()
+        for window in windows:
+            try:
+                window.destroy()
+            except Exception:
+                # ほぼ同時に利用者が閉じた窓は、既に破棄済みの場合がある。
+                pass
 
     def open_studio(self, query=""):
         """字幕の見た目と言葉を作るスタジオを別窓で開く
@@ -141,13 +159,17 @@ def main():
     api = JsApi(port)
     window = webview.create_window(
         "Mojicast",
-        f"http://127.0.0.1:{port}/ui/cockpit?s={UI_SCALE}&v={UI_SESSION}",
+        (f"http://127.0.0.1:{port}/ui/cockpit?s={UI_SCALE}&v={UI_SESSION}"
+         f"&theme={cfg.get('theme', 'dark')}"),
         width=int(1100 * UI_SCALE), height=int(720 * UI_SCALE),
         min_size=(int(900 * UI_SCALE), int(600 * UI_SCALE)),
-        background_color="#0d1117", js_api=api)
+        background_color="#f7f9fc" if cfg.get("theme") == "light" else "#0d1117",
+        js_api=api)
 
     def on_closed():
-        # メイン窓を閉じたら認識も止める
+        # コックピットをアプリの親窓として扱う。補助窓が残っていても閉じ、
+        # 認識エンジンも止めて webview.start() を確実に終了させる。
+        api.close_all_windows()
         try:
             eng = app_server.get_engine()
             eng.stop()
