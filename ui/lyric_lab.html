@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>リリック演出ラボ</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #080a12;
+      --panel: rgba(18, 21, 34, .92);
+      --panel-2: #171a29;
+      --line: rgba(255,255,255,.1);
+      --text: #f7f7fb;
+      --muted: #a8adbf;
+      --accent: #8e7dff;
+      --accent-2: #62e7d6;
+      --danger: #ff7394;
+    }
+    :root[data-theme="light"] {
+      color-scheme: light;
+      --bg: #eceef5;
+      --panel: rgba(255,255,255,.94);
+      --panel-2: #f5f6fb;
+      --line: rgba(25,28,44,.12);
+      --text: #1c1e29;
+      --muted: #626779;
+      --accent: #6351db;
+      --accent-2: #008f86;
+      --danger: #c3315b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 1080px;
+      min-height: 100vh;
+      overflow: hidden;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 12% 10%, rgba(111,93,255,.12), transparent 28%),
+        var(--bg);
+      font-family: "Yu Gothic UI", "Noto Sans JP", system-ui, sans-serif;
+    }
+    button, input, select { font: inherit; }
+    button { color: inherit; }
+    .app {
+      height: 100vh;
+      display: grid;
+      grid-template-columns: minmax(620px, 1fr) 360px;
+      gap: 18px;
+      padding: 18px;
+    }
+    .workspace, .side {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      box-shadow: 0 22px 70px rgba(0,0,0,.25);
+      border-radius: 20px;
+    }
+    .workspace {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .topbar {
+      min-height: 70px;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      border-bottom: 1px solid var(--line);
+    }
+    h1 { margin: 0; font-size: 20px; letter-spacing: .02em; }
+    .subtitle { margin-top: 3px; color: var(--muted); font-size: 12px; }
+    .now { min-width: 0; text-align: right; }
+    .now-label { color: var(--muted); font-size: 11px; }
+    .now-name { font-weight: 800; color: var(--accent-2); }
+    .stage-wrap {
+      min-height: 0;
+      flex: 1;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background-image:
+        linear-gradient(45deg, rgba(255,255,255,.018) 25%, transparent 25%),
+        linear-gradient(-45deg, rgba(255,255,255,.018) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, rgba(255,255,255,.018) 75%),
+        linear-gradient(-45deg, transparent 75%, rgba(255,255,255,.018) 75%);
+      background-size: 26px 26px;
+      background-position: 0 0, 0 13px, 13px -13px, -13px 0;
+    }
+    .stage-shell {
+      width: 100%;
+      max-height: 100%;
+      aspect-ratio: 16 / 9;
+      position: relative;
+    }
+    #stage {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      isolation: isolate;
+      border-radius: 14px;
+      color: #fff;
+      background:
+        radial-gradient(circle at 70% 22%, rgba(110,86,255,.34), transparent 33%),
+        radial-gradient(circle at 22% 80%, rgba(0,229,204,.14), transparent 36%),
+        linear-gradient(145deg, #090a15 0%, #111426 52%, #070810 100%);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.1), 0 18px 50px rgba(0,0,0,.42);
+      container-type: size;
+    }
+    #stage::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 20;
+      pointer-events: none;
+      box-shadow: inset 0 0 110px rgba(0,0,0,.42);
+    }
+    #ambient, #lyrics, #accents { position: absolute; inset: 0; width: 100%; height: 100%; }
+    #ambient { z-index: 0; }
+    #accents { z-index: 1; pointer-events: none; }
+    #lyrics { z-index: 2; pointer-events: none; }
+    .safe {
+      position: absolute;
+      inset: 5%;
+      z-index: 30;
+      pointer-events: none;
+      border: 1px dashed rgba(255,255,255,.12);
+      opacity: 0;
+      transition: opacity .18s;
+    }
+    .show-safe .safe { opacity: 1; }
+    .stage-hud {
+      position: absolute;
+      z-index: 40;
+      left: 14px;
+      bottom: 12px;
+      display: flex;
+      gap: 7px;
+      font-size: 10px;
+      color: rgba(255,255,255,.58);
+    }
+    .hud-chip { padding: 4px 7px; border-radius: 999px; background: rgba(0,0,0,.3); backdrop-filter: blur(6px); }
+    .transport {
+      padding: 14px 18px;
+      border-top: 1px solid var(--line);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: end;
+    }
+    label { display: block; color: var(--muted); font-size: 11px; font-weight: 700; }
+    .text-input, select, .seed-input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      color: var(--text);
+      background: var(--panel-2);
+      outline: none;
+    }
+    .text-input { margin-top: 6px; padding: 11px 13px; font-size: 15px; }
+    .text-input:focus, select:focus, .seed-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(126,104,255,.14); }
+    .actions { display: flex; gap: 8px; }
+    .btn {
+      min-height: 39px;
+      padding: 0 14px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--panel-2);
+      cursor: pointer;
+      font-weight: 700;
+    }
+    .btn:hover { border-color: rgba(142,125,255,.62); transform: translateY(-1px); }
+    .btn.primary { border-color: transparent; color: #fff; background: linear-gradient(135deg, #745cff, #9e65ed); }
+    .btn.active { color: #fff; border-color: var(--accent); background: rgba(118,91,255,.25); }
+    .side { min-height: 0; overflow: auto; padding: 17px; }
+    .section + .section { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
+    .section-title { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+    .section-title h2 { margin: 0; font-size: 14px; }
+    .section-title span { color: var(--muted); font-size: 10px; }
+    .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+    .mode-btn, .preset {
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      color: var(--text);
+      background: var(--panel-2);
+      cursor: pointer;
+      text-align: left;
+    }
+    .mode-btn { padding: 9px 10px; font-size: 12px; font-weight: 700; }
+    .mode-btn.active { border-color: var(--accent); background: rgba(126,104,255,.16); }
+    .preset-list { display: grid; gap: 7px; }
+    .preset { padding: 10px 11px; display: grid; grid-template-columns: 32px 1fr auto; gap: 9px; align-items: center; }
+    .preset:hover { border-color: rgba(142,125,255,.5); }
+    .preset.active { border-color: var(--accent); background: rgba(126,104,255,.14); }
+    .preset-icon { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; background: rgba(255,255,255,.06); font-weight: 900; color: var(--accent-2); }
+    .preset-name { display: block; font-size: 12px; font-weight: 800; }
+    .preset-desc { display: block; color: var(--muted); font-size: 10px; margin-top: 2px; }
+    .energy { width: 34px; height: 5px; overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.08); }
+    .energy > i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent-2), var(--accent)); }
+    .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .control select, .seed-input { margin-top: 5px; padding: 8px 9px; font-size: 12px; }
+    .check { margin-top: 10px; display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; cursor: pointer; }
+    .check input { accent-color: var(--accent); }
+    .legend { margin: 10px 0 0; color: var(--muted); font-size: 10px; line-height: 1.6; }
+
+    /* Lyric stage primitives */
+    .lyric-scene { position: absolute; inset: 0; }
+    .lyric-unit { position: absolute; margin: 0; color: #fff; line-height: 1.05; font-weight: 900; letter-spacing: .015em; white-space: nowrap; text-shadow: 0 .04em .16em rgba(0,0,0,.42); will-change: transform, opacity, filter, clip-path; }
+    .word { display: inline-block; white-space: pre; will-change: transform, opacity, filter; }
+    .char { display: inline-block; white-space: pre; will-change: transform, opacity, filter; }
+    .outline { color: transparent; -webkit-text-stroke: .025em #fff; text-shadow: none; }
+    .gradient-text { color: transparent; background: linear-gradient(100deg, #fff 8%, #72f4df 36%, #a58cff 65%, #fff 92%); background-size: 240% 100%; -webkit-background-clip: text; background-clip: text; }
+    .vertical { writing-mode: vertical-rl; text-orientation: upright; }
+    .accent-line { position: absolute; height: 3px; border-radius: 99px; transform-origin: left center; background: linear-gradient(90deg, #70f1dc, #a171ff); box-shadow: 0 0 18px rgba(112,241,220,.5); }
+    .accent-box { position: absolute; border: 1px solid rgba(255,255,255,.28); background: rgba(255,255,255,.035); backdrop-filter: blur(2px); }
+    .accent-ring { position: absolute; border-radius: 50%; border: 1px solid rgba(127,237,221,.35); }
+    .screen-flash { position: absolute; inset: 0; background: #fff; mix-blend-mode: overlay; }
+    .noise { position: absolute; inset: -30%; opacity: .05; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.9'/%3E%3C/svg%3E"); mix-blend-mode: soft-light; }
+    .scanline { position: absolute; left: 0; right: 0; height: 2px; background: rgba(125,245,222,.7); box-shadow: 0 0 18px rgba(125,245,222,.8); }
+
+    @media (prefers-reduced-motion: reduce) {
+      .btn:hover { transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="workspace">
+      <header class="topbar">
+        <div>
+          <h1>リリック演出ラボ</h1>
+          <div class="subtitle">WebViewで動く表現を、配信の流れとして比較する試作画面</div>
+        </div>
+        <div class="now">
+          <div class="now-label">NOW PLAYING</div>
+          <div class="now-name" id="nowName">ソフトフォーカス</div>
+        </div>
+      </header>
+
+      <div class="stage-wrap">
+        <div class="stage-shell">
+          <div id="stage">
+            <canvas id="ambient"></canvas>
+            <div id="accents"><div class="noise"></div></div>
+            <div id="lyrics"></div>
+            <div class="safe"></div>
+            <div class="stage-hud">
+              <span class="hud-chip" id="hudMode">手動</span>
+              <span class="hud-chip" id="hudTech">WAAPI + CSS</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <footer class="transport">
+        <label>表示する言葉
+          <input id="lyricText" class="text-input" value="きみの声が 夜を照らしていく" maxlength="80">
+        </label>
+        <div class="actions">
+          <button class="btn" id="clearBtn">消す</button>
+          <button class="btn" id="nextBtn">次の演出</button>
+          <button class="btn primary" id="playBtn">この言葉を表示</button>
+        </div>
+      </footer>
+    </section>
+
+    <aside class="side">
+      <section class="section">
+        <div class="section-title"><h2>再生方法</h2><span>流れを比較</span></div>
+        <div class="mode-grid" id="modeGrid">
+          <button class="mode-btn active" data-mode="manual">手動で選ぶ</button>
+          <button class="mode-btn" data-mode="random">ランダム</button>
+          <button class="mode-btn" data-mode="arc">静 → サビ</button>
+          <button class="mode-btn" data-mode="alternate">緩急をつける</button>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title"><h2>演出プリセット</h2><span id="presetCount"></span></div>
+        <div class="preset-list" id="presetList"></div>
+      </section>
+
+      <section class="section">
+        <div class="section-title"><h2>比較条件</h2><span>デモ用</span></div>
+        <div class="controls">
+          <label class="control">テンポ
+            <select id="tempo">
+              <option value="0.72">速い</option>
+              <option value="1" selected>標準</option>
+              <option value="1.35">ゆっくり</option>
+            </select>
+          </label>
+          <label class="control">背景
+            <select id="background">
+              <option value="aurora">オーロラ</option>
+              <option value="midnight">ミッドナイト</option>
+              <option value="warm">サンセット</option>
+              <option value="transparent">透過確認</option>
+            </select>
+          </label>
+          <label class="control">シード
+            <input id="seed" class="seed-input" value="724" inputmode="numeric">
+          </label>
+          <label class="control">自動送り
+            <select id="interval">
+              <option value="3200">3.2 秒</option>
+              <option value="4400" selected>4.4 秒</option>
+              <option value="6000">6 秒</option>
+            </select>
+          </label>
+        </div>
+        <label class="check"><input type="checkbox" id="autoplay"> 自動で次のフレーズを再生</label>
+        <label class="check"><input type="checkbox" id="showSafe"> セーフエリアを表示</label>
+        <p class="legend">ランダムも同じシードなら同じ順番を再現します。「静 → サビ」は演出強度を段階的に上げます。</p>
+      </section>
+    </aside>
+  </main>
+  <script src="/ui/theme-sync.js"></script>
+  <script src="/ui/lyric_lab.js"></script>
+</body>
+</html>

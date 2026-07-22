@@ -79,9 +79,13 @@ class JsApi:
         path = "/ui/settings" + (f"?{query}" if query else "")
         self._open("settings", "アプリ設定", path, 980, 760)
 
+    def open_lyric_lab(self):
+        """リリック演出の比較デモを別窓で開く"""
+        self._open("lyric_lab", "リリック演出ラボ", "/ui/lyric_lab", 1280, 800)
+
     def close_window(self, key):
         """WebView内の window.close() では閉じられない補助窓をネイティブに閉じる"""
-        if key not in ("studio", "settings"):
+        if key not in ("studio", "settings", "lyric_lab"):
             return {"ok": False}
         window = self._windows.pop(key, None)
         if window is None:

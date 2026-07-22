@@ -98,6 +98,22 @@ def _seed_style_defaults():
         defaults = _read_json(os.path.join(BASE, "defaults", fname),
                               {}).get(key, [])
         cur = _read_json(path_fn(), {key: []})[key]
+        # 旧リリックプリセットはユーザーの位置・サイズを保ったまま、名称と
+        # 新エンジン用の未設定項目だけを更新する。
+        if key == "boxes":
+            for item in cur:
+                if item.get("id") != "lyric":
+                    continue
+                if item.get("name") == "リリックビデオ":
+                    item["name"] = "リリックビデオ風字幕"
+                    item["desc"] = "話した内容をおまかせ演出でリリックビデオ風に表示"
+                    changed = True
+                if "lyricMood" not in item:
+                    item["lyricMood"] = "auto"
+                    changed = True
+                if "lyricMaxScenes" not in item:
+                    item["lyricMaxScenes"] = 2
+                    changed = True
         have = {x.get("id") for x in cur}
         added = False
         for item in defaults:
@@ -109,7 +125,7 @@ def _seed_style_defaults():
                 added = True
             seeded.add(mark)
             changed = True
-        if added:
+        if added or (key == "boxes" and changed):
             _write_json(path_fn(), {key: cur})
     if changed:
         cfg["seeded_styles"] = sorted(seeded)

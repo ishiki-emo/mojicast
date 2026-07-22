@@ -143,6 +143,7 @@
         <article class="card"><span class="card-icon">🎨</span><h3>字幕デザイン</h3><p>フォント・色・縁取りを選びます。プリセットはそのまま使えます。</p><div class="card-foot"><span id="designCurrent">—</span><button class="btn" onclick="openDetail('style')">開く</button></div></article>
         <article class="card"><span class="card-icon">⌖</span><h3>字幕の位置</h3><p>立ち絵やゲーム画面を避けて、読みやすい場所へ置きます。</p><div class="card-foot"><span id="layoutCurrent">—</span><button class="btn" onclick="openDetail('layout')">開く</button></div></article>
         <article class="card"><span class="card-icon">📖</span><h3>認識させる言葉</h3><p>名前やゲーム用語の読み方を、この配信セットへ登録します。</p><div class="card-foot"><span id="wordsCurrent">—</span><button class="btn" onclick="openDetail('words')">開く</button></div></article>
+        <article class="card"><span class="card-icon">🎬</span><h3>リリック演出ラボ <small style="color:var(--accent)">試作</small></h3><p>入場・配置・退場をまとめた12種類の演出を、曲の流れとして比較します。</p><div class="card-foot"><span>設定はまだ保存されません</span><button class="btn" onclick="openLyricLab()">試す</button></div></article>
       </div>
     </div></section>
 
@@ -205,6 +206,11 @@
     if (window.pywebview && window.pywebview.api && window.pywebview.api.open_settings)
       window.pywebview.api.open_settings("section=" + section);
     else window.open("/ui/settings?section=" + encodeURIComponent(section), "_blank", "width=980,height=760");
+  }
+  function openLyricLab() {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.open_lyric_lab)
+      window.pywebview.api.open_lyric_lab();
+    else window.open("/ui/lyric_lab", "_blank", "width=1280,height=800");
   }
   function styleUrl(detail) {
     let url = "/ui/style?embed=1&tab=" + (detail === "layout" ? "box" : "style") + pass;

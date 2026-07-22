@@ -149,6 +149,34 @@
   @keyframes lyrslide   { from { opacity:0; transform:translateX(-46px); } to { opacity:1; transform:none; } }
   @keyframes lyrpop     { from { opacity:0; transform:scale(0) rotate(-8deg); } to { opacity:1; transform:none; } }
   @keyframes lyrwipe    { from { clip-path:inset(0 100% 0 0); } to { clip-path:inset(0 0 0 0); } }
+
+  /* リリックビデオ風字幕: 1つの確定文を1シーンとして構成する */
+  .lyr-scene { position:absolute; inset:0; pointer-events:none; transform-origin:center; }
+  .lyr-unit {
+    position:absolute; margin:0; line-height:1.08; white-space:nowrap;
+    will-change:transform,opacity,filter,clip-path;
+  }
+  .lyr-char,.lyr-word { display:inline-block; white-space:pre; will-change:transform,opacity,filter; }
+  .lyr-vertical { writing-mode:vertical-rl; text-orientation:upright; }
+  .lyr-outline { color:transparent !important; -webkit-text-stroke:.035em var(--lyr-color,#fff); text-shadow:none !important; }
+  .lyr-gradient {
+    color:transparent !important;
+    background:linear-gradient(100deg,var(--lyr-color,#fff) 5%,var(--lyr-accent,#69f0dd) 48%,var(--lyr-color,#fff) 94%);
+    background-size:220% 100%; -webkit-background-clip:text; background-clip:text;
+    text-shadow:none !important;
+  }
+  .lyr-accent { position:absolute; pointer-events:none; will-change:transform,opacity,clip-path; }
+  .lyr-line { height:3px; border-radius:99px; transform-origin:left center;
+    background:linear-gradient(90deg,var(--lyr-accent,#69f0dd),var(--lyr-color,#fff));
+    box-shadow:0 0 18px rgba(105,240,221,.36);
+    box-shadow:0 0 18px color-mix(in srgb,var(--lyr-accent,#69f0dd) 48%,transparent); }
+  .lyr-box { border:1px solid rgba(255,255,255,.28); background:rgba(105,240,221,.08);
+    border:1px solid color-mix(in srgb,var(--lyr-color,#fff) 28%,transparent);
+    background:color-mix(in srgb,var(--lyr-accent,#69f0dd) 8%,transparent); }
+  .lyr-ring { border-radius:50%; border:2px solid rgba(105,240,221,.42);
+    border:2px solid color-mix(in srgb,var(--lyr-accent,#69f0dd) 45%,transparent); }
+  .lyr-band { background:linear-gradient(90deg,color-mix(in srgb,var(--lyr-accent,#69f0dd) 70%,transparent),color-mix(in srgb,var(--lyr-color,#fff) 28%,transparent)); }
+  .lyr-flash { inset:0; background:var(--lyr-color,#fff); mix-blend-mode:overlay; }
   `;
 
   FX.injectCss = function () {
@@ -410,6 +438,7 @@
     boxEl.style.borderRadius = (box.radius ?? 0) + "px";
     boxEl.style.border = (box.borderWidth > 0 && box.borderColor)
       ? `${box.borderWidth}px solid ${box.borderColor}` : "none";
+    boxEl.style.containerType = mode === "lyric" ? "size" : "";
     // クリップはclipEl（あれば）が担当。リリックははみ出し許可
     boxEl.style.overflow = (clipEl || mode === "lyric") ? "visible" : "hidden";
 
@@ -496,9 +525,9 @@
     });
   };
 
-  // ---------------- リリックビデオモード ----------------
-  // 確定テキストをフレーズに割り、エリア内へランダム配置＋キネティック出現、
-  // 寿命が来たらふわっと消える。box.mode === "lyric" のとき使用。
+  // ---------------- リリックビデオ風字幕 ----------------
+  // 確定文を1つのシーンとして構成し、文章の長さや直前の演出を見て
+  // 似合うプリセットをルール付きランダムで選ぶ。box.mode === "lyric" で使用。
 
   /** 句読点でフレーズ分割（。、は落とし、！？は残す。長すぎは強制分割） */
   FX.splitLyric = function (text) {
@@ -564,106 +593,341 @@
     return merged;
   };
 
-  // 出現キネティクス（origin は「にゅっ」と伸びる起点）
-  const KINETICS = [
-    { name: "lyrsquashx", origin: "left center", dur: 480 },   // 横ににゅっ
-    { name: "lyrsquashy", origin: "center top",  dur: 480 },   // 縦ににゅっ
-    { name: "lyrblur",    origin: "center",      dur: 550 },
-    { name: "lyrslide",   origin: "center",      dur: 420 },
-    { name: "lyrpop",     origin: "center",      dur: 420 },
-    { name: "lyrwipe",    origin: "center",      dur: 500 },
+  const LYRIC_PATTERNS = [
+    { id: "soft",      label: "ソフトフォーカス", energy: 1, exit: "dissolve" },
+    { id: "editorial", label: "エディトリアル",   energy: 2, exit: "wipe" },
+    { id: "type",      label: "文字カスケード",    energy: 2, exit: "scatter" },
+    { id: "vertical",  label: "縦書きレイヤー",    energy: 2, exit: "lift" },
+    { id: "ribbon",    label: "リボンワイプ",      energy: 3, exit: "sweep" },
+    { id: "diagonal",  label: "ダイアゴナル",      energy: 3, exit: "rush" },
+    { id: "split",     label: "スプリット",        energy: 3, exit: "part" },
+    { id: "orbit",     label: "オービット",        energy: 3, exit: "implode" },
+    { id: "echo",      label: "エコートレイル",    energy: 3, exit: "drift" },
+    { id: "karaoke",   label: "グラデーション走査", energy: 3, exit: "wipe" },
+    { id: "glitch",    label: "グリッチカット",    energy: 4, exit: "cut" },
+    { id: "impact",    label: "インパクト",        energy: 4, exit: "burst" },
   ];
+  FX.LYRIC_PATTERNS = LYRIC_PATTERNS.map(p => ({ ...p }));
 
-  function shuffle9() {
-    const z = [];
-    for (let x = 0; x < 3; x++) for (let y = 0; y < 3; y++) z.push([x, y]);
-    for (let i = z.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [z[i], z[j]] = [z[j], z[i]];
+  const lyricReducedMotion = typeof matchMedia === "function" &&
+    matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const lyricDuration = ms => lyricReducedMotion ? Math.max(80, ms * .35) : ms;
+
+  function lyricAnimate(el, frames, options) {
+    options = { ...options, duration: lyricDuration(options.duration || 500) };
+    if (el.animate) return el.animate(frames, options);
+    Object.assign(el.style, frames[frames.length - 1]);
+    return { onfinish: null, cancel() {} };
+  }
+
+  function lyricScene(container, style, pattern) {
+    const el = document.createElement("div");
+    el.className = "lyr-scene";
+    el.dataset.lyricPattern = pattern.id;
+    el._lyrExit = pattern.exit;
+    el.style.setProperty("--lyr-color", style.color || "#ffffff");
+    el.style.setProperty("--lyr-accent", style.hotColor || style.glow || "#69f0dd");
+    container.appendChild(el);
+    return el;
+  }
+
+  function lyricUnit(scene, text, opts, size, className = "") {
+    const el = document.createElement("div");
+    el.className = `lyr-unit ${className}`;
+    FX.applyLineStyle(el, opts.style, Math.max(14, Math.round(size)));
+    FX.renderWords(el, text, opts.table, opts.style);
+    scene.appendChild(el);
+    return el;
+  }
+
+  function lyricPlainUnit(scene, text, opts, size, className = "") {
+    const el = document.createElement("div");
+    el.className = `lyr-unit ${className}`;
+    FX.applyLineStyle(el, opts.style, Math.max(14, Math.round(size)));
+    el.textContent = text;
+    scene.appendChild(el);
+    return el;
+  }
+
+  function lyricAccent(scene, className, styles) {
+    const el = document.createElement("div");
+    el.className = `lyr-accent ${className}`;
+    Object.assign(el.style, styles || {});
+    scene.appendChild(el);
+    return el;
+  }
+
+  function lyricSplitLines(text) {
+    text = String(text || "").trim();
+    if (text.length <= 12) return [text];
+    const center = Math.floor(text.length * .52);
+    const marks = [" ", "、", "。", "！", "？", "!", "?"];
+    let pos = -1;
+    for (let d = 0; d < Math.min(8, text.length); d++) {
+      for (const p of [center - d, center + d])
+        if (p > 2 && p < text.length - 2 && marks.includes(text[p])) { pos = p + (text[p] === " " ? 0 : 1); break; }
+      if (pos >= 0) break;
     }
-    return z;
+    if (pos < 0) pos = center;
+    return [text.slice(0, pos).trim(), text.slice(pos).trim()].filter(Boolean);
   }
 
-  function exitChunk(el) {
-    if (!el || !el.isConnected) return;
-    clearTimeout(el._lyrTimer);
-    el.animate([
-      { opacity: 1, transform: el.style.transform },
-      { opacity: 0, transform: el.style.transform + " translateY(-14px) scale(.97)" },
-    ], { duration: 600, easing: "ease-in" }).onfinish = () => el.remove();
+  function lyricBaseSize(opts) {
+    const length = opts.lyricTextLength || 0;
+    const fit = length > 28 ? .64 : length > 20 ? .76 : length > 14 ? .88 : 1;
+    return (opts.style.size || 40) * (opts.box.lyricScale ?? 1.35) * (opts.fontScale ?? 1) * fit;
   }
 
-  function spawnChunk(container, text, opts) {
-    const { style, table, box, fontScale = 1 } = opts;
-    if (!container.isConnected) return;
-    const st = container._lyr ?? (container._lyr = { chunks: [], zones: shuffle9(), zi: 0 });
+  const lyricBuilders = {
+    soft(scene, text, opts) {
+      const base = lyricBaseSize(opts), lines = lyricSplitLines(text);
+      lines.forEach((line, i) => {
+        const el = lyricUnit(scene, line, opts, base * (i ? 1.18 : .86), i ? "lyr-gradient" : "");
+        Object.assign(el.style, { left: i ? "16%" : "10%", top: `${30 + i * 24}%` });
+        lyricAnimate(el, [
+          { opacity: 0, filter: "blur(15px)", transform: "translateY(18px) scale(1.05)", letterSpacing: ".1em" },
+          { opacity: 1, filter: "blur(0)", transform: "none", letterSpacing: opts.style.letterSpacing ? `${opts.style.letterSpacing}em` : "normal" }
+        ], { duration: 1050, delay: i * 180, easing: "cubic-bezier(.16,1,.3,1)", fill: "both" });
+      });
+      const line = lyricAccent(scene, "lyr-line", { left: "10%", top: "72%", width: "25%" });
+      lyricAnimate(line, [{ opacity: 0, transform: "scaleX(0)" }, { opacity: .9, transform: "scaleX(1)" }], { duration: 760, delay: 340, easing: "ease-out", fill: "both" });
+    },
 
-    const outer = document.createElement("div");
-    outer.style.position = "absolute";
-    // 縦書き＆軽い回転で日本語リリックの味を出す
-    const vert = Math.random() * 100 < (box.vertRate ?? 25);
-    if (vert) outer.style.writingMode = "vertical-rl";
-    const rot = (Math.random() * 2 - 1) * (box.rotate ?? 6);
-    outer.style.transform = `rotate(${rot.toFixed(1)}deg)`;
+    editorial(scene, text, opts) {
+      const base = lyricBaseSize(opts), lines = lyricSplitLines(text);
+      const first = lyricUnit(scene, lines[0], opts, base * 1.22);
+      Object.assign(first.style, { left: "8%", top: "20%" });
+      lyricAnimate(first, [{ opacity: 0, clipPath: "inset(0 100% 0 0)", transform: "translateX(-24px)" }, { opacity: 1, clipPath: "inset(0)", transform: "none" }], { duration: 720, easing: "cubic-bezier(.16,1,.3,1)", fill: "both" });
+      if (lines[1]) {
+        const second = lyricUnit(scene, lines[1], opts, base * .94, "lyr-outline");
+        Object.assign(second.style, { right: "8%", top: "57%", textAlign: "right" });
+        lyricAnimate(second, [{ opacity: 0, transform: "translateX(35px)" }, { opacity: 1, transform: "none" }], { duration: 680, delay: 220, easing: "ease-out", fill: "both" });
+      }
+      const box = lyricAccent(scene, "lyr-box", { left: "5%", top: "13%", width: "60%", height: "36%" });
+      lyricAnimate(box, [{ opacity: 0, clipPath: "inset(0 100% 100% 0)" }, { opacity: 1, clipPath: "inset(0)" }], { duration: 850, easing: "ease-out", fill: "both" });
+    },
 
-    const inner = document.createElement("div");
-    const jit = box.sizeJitter ?? 0.35;
-    const scale = (1 + (Math.random() * 2 - 1) * jit) * (box.lyricScale ?? 1);
-    FX.applyLineStyle(inner, style,
-      Math.max(12, Math.round((style.size || 40) * scale * fontScale)));
-    inner.style.lineHeight = "1.2";
-    inner.style.whiteSpace = "nowrap";
-    FX.renderWords(inner, text, table, style);
+    type(scene, text, opts) {
+      const base = lyricBaseSize(opts);
+      const el = lyricPlainUnit(scene, "", opts, base);
+      Object.assign(el.style, { left: "50%", top: "47%", transform: "translate(-50%,-50%)" });
+      Array.from(text).forEach((ch, i) => {
+        const span = document.createElement("span");
+        span.className = "lyr-char"; span.textContent = ch; el.appendChild(span);
+        lyricAnimate(span, [
+          { opacity: 0, transform: `translateY(24px) rotate(${(i % 3 - 1) * 4}deg) scale(.7)`, filter: "blur(4px)" },
+          { opacity: 1, transform: "translateY(0) scale(1.08)", filter: "blur(0)", offset: .72 },
+          { opacity: 1, transform: "none", filter: "blur(0)" }
+        ], { duration: 470, delay: i * 34, easing: "cubic-bezier(.2,.8,.2,1)", fill: "both" });
+      });
+    },
 
-    const kin = KINETICS[Math.floor(Math.random() * KINETICS.length)];
-    inner.style.transformOrigin = kin.origin;
-    inner.style.animation =
-      `${kin.name} ${kin.dur}ms cubic-bezier(.2,1.4,.4,1) both`;
-    outer.appendChild(inner);
+    vertical(scene, text, opts) {
+      const base = lyricBaseSize(opts), lines = lyricSplitLines(text);
+      lines.forEach((line, i) => {
+        const el = lyricUnit(scene, line, opts, base * (i ? .78 : .95), `lyr-vertical ${i ? "lyr-outline" : ""}`);
+        Object.assign(el.style, { right: `${22 + i * 24}%`, top: i ? "10%" : "20%" });
+        lyricAnimate(el, [{ opacity: 0, clipPath: "inset(0 0 100% 0)", transform: "translateY(-25px)" }, { opacity: 1, clipPath: "inset(0)", transform: "none" }], { duration: 880, delay: i * 220, easing: "cubic-bezier(.2,.8,.2,1)", fill: "both" });
+      });
+      for (let i = 0; i < 2; i++) {
+        const ring = lyricAccent(scene, "lyr-ring", { left: `${9 + i * 8}%`, bottom: `${12 + i * 8}%`, width: `${11 + i * 5}%`, aspectRatio: "1" });
+        lyricAnimate(ring, [{ opacity: 0, transform: "scale(.2)" }, { opacity: .55 - i * .15, transform: "scale(1)" }], { duration: 900, delay: i * 140, easing: "ease-out", fill: "both" });
+      }
+    },
 
-    // 一旦不可視で置いてサイズ計測 → 3x3ゾーン巡回＋ジッタで配置（重なり軽減）
-    outer.style.visibility = "hidden";
-    container.appendChild(outer);
-    const bw = container.clientWidth, bh = container.clientHeight;
-    const cw = outer.offsetWidth, ch = outer.offsetHeight;
-    const z = st.zones[st.zi++ % 9];
-    if (st.zi % 9 === 0) st.zones = shuffle9();
-    let x = z[0] / 3 * bw + Math.random() * Math.max(1, bw / 3 - cw);
-    let y = z[1] / 3 * bh + Math.random() * Math.max(1, bh / 3 - ch);
-    // 大きな文字はエリア端から3割まで「はみ出してOK」の緩いクランプ
-    x = Math.min(Math.max(-cw * 0.3, x), Math.max(-cw * 0.3, bw - cw * 0.7));
-    y = Math.min(Math.max(-ch * 0.3, y), Math.max(-ch * 0.3, bh - ch * 0.7));
-    outer.style.left = x + "px";
-    outer.style.top = y + "px";
-    outer.style.visibility = "";
-    FX.burstLine(inner);
+    ribbon(scene, text, opts) {
+      const base = lyricBaseSize(opts);
+      const band = lyricAccent(scene, "lyr-band", { left: "-4%", top: "38%", width: "108%", height: "25%", transform: "skewY(-3deg)" });
+      lyricAnimate(band, [{ clipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0)" }], { duration: 650, easing: "cubic-bezier(.5,0,.15,1)", fill: "both" });
+      const el = lyricUnit(scene, text, opts, base * .98);
+      Object.assign(el.style, { left: "50%", top: "49%", transform: "translate(-50%,-50%) rotate(-3deg)" });
+      lyricAnimate(el, [{ opacity: 0, clipPath: "inset(0 0 100% 0)", transform: "translate(-50%,-32%) rotate(-3deg)" }, { opacity: 1, clipPath: "inset(0)", transform: "translate(-50%,-50%) rotate(-3deg)" }], { duration: 560, delay: 190, easing: "ease-out", fill: "both" });
+    },
 
-    st.chunks.push(outer);
-    while (st.chunks.length > (box.maxChunks ?? 8))
-      exitChunk(st.chunks.shift());
-    const life = (box.lifeSec ?? 6) * 1000 * (0.85 + Math.random() * 0.3);
-    outer._lyrTimer = setTimeout(() => {
-      const i = st.chunks.indexOf(outer);
-      if (i >= 0) st.chunks.splice(i, 1);
-      exitChunk(outer);
-    }, life);
+    diagonal(scene, text, opts) {
+      const base = lyricBaseSize(opts);
+      const el = lyricPlainUnit(scene, "", opts, base * 1.05, "lyr-gradient");
+      Object.assign(el.style, { left: "50%", top: "47%", transform: "translate(-50%,-50%) skewX(-8deg) rotate(-4deg)" });
+      text.split(/(\s+|[、。])/).filter(Boolean).forEach((part, i) => {
+        const span = document.createElement("span"); span.className = "lyr-word"; span.textContent = part; el.appendChild(span);
+        lyricAnimate(span, [{ opacity: 0, transform: `translate(${i % 2 ? 100 : -100}px,${i % 2 ? -40 : 40}px) scaleX(1.4)`, filter: "blur(6px)" }, { opacity: 1, transform: "none", filter: "blur(0)" }], { duration: 570, delay: i * 70, easing: "cubic-bezier(.1,.8,.2,1)", fill: "both" });
+      });
+      for (let i = 0; i < 3; i++) {
+        const line = lyricAccent(scene, "lyr-line", { left: `${-4 + i * 26}%`, top: `${78 - i * 22}%`, width: "32%", transform: "rotate(-24deg)", opacity: ".35" });
+        lyricAnimate(line, [{ transform: "translateX(-140%) rotate(-24deg)" }, { transform: "translateX(390%) rotate(-24deg)" }], { duration: 980, delay: i * 90, easing: "ease-out", fill: "both" });
+      }
+    },
+
+    split(scene, text, opts) {
+      const base = lyricBaseSize(opts), lines = lyricSplitLines(text);
+      const halves = lines.length > 1 ? lines : [text.slice(0, Math.ceil(text.length / 2)), text.slice(Math.ceil(text.length / 2))];
+      lyricAccent(scene, "lyr-box", { left: 0, top: 0, width: "50%", height: "100%", border: "none" });
+      lyricAccent(scene, "lyr-box", { right: 0, top: 0, width: "50%", height: "100%", border: "none", opacity: ".5" });
+      halves.forEach((line, i) => {
+        const el = lyricUnit(scene, line, opts, base * (i ? .86 : 1.05), i ? "lyr-outline" : "");
+        Object.assign(el.style, { left: i ? "54%" : "46%", top: i ? "55%" : "34%", textAlign: i ? "left" : "right", transform: i ? "none" : "translateX(-100%)" });
+        lyricAnimate(el, [{ opacity: 0, transform: i ? "translateX(75px)" : "translateX(calc(-100% - 75px))" }, { opacity: 1, transform: i ? "none" : "translateX(-100%)" }], { duration: 650, delay: i * 180, easing: "cubic-bezier(.16,1,.3,1)", fill: "both" });
+      });
+    },
+
+    orbit(scene, text, opts) {
+      const base = lyricBaseSize(opts), lines = lyricSplitLines(text);
+      const core = lyricUnit(scene, lines[0], opts, base * 1.05, "lyr-gradient");
+      Object.assign(core.style, { left: "50%", top: "50%", transform: "translate(-50%,-50%)" });
+      lyricAnimate(core, [{ opacity: 0, transform: "translate(-50%,-50%) scale(.3) rotate(-8deg)" }, { opacity: 1, transform: "translate(-50%,-50%) scale(1)" }], { duration: 760, easing: "cubic-bezier(.16,1,.3,1)", fill: "both" });
+      Array.from(lines[1] || lines[0]).slice(0, 10).forEach((ch, i, chars) => {
+        const el = lyricPlainUnit(scene, ch, opts, base * .42, "lyr-outline");
+        Object.assign(el.style, { left: "50%", top: "50%" });
+        const angle = i / chars.length * Math.PI * 2, x = Math.cos(angle) * 34, y = Math.sin(angle) * 31;
+        lyricAnimate(el, [{ opacity: 0, transform: "translate(-50%,-50%) scale(.2)" }, { opacity: .9, transform: `translate(-50%,-50%) translate(${x}cqw,${y}cqh) rotate(${angle + Math.PI / 2}rad)` }], { duration: 840, delay: i * 38, easing: "ease-out", fill: "both" });
+      });
+      const ring = lyricAccent(scene, "lyr-ring", { left: "18%", top: "15%", width: "64%", height: "70%" });
+      lyricAnimate(ring, [{ opacity: 0, transform: "scale(.4) rotate(-20deg)" }, { opacity: .6, transform: "scale(1)" }], { duration: 900, easing: "ease-out", fill: "both" });
+    },
+
+    echo(scene, text, opts) {
+      const base = lyricBaseSize(opts);
+      [{ x: 50, y: 49, o: 1 }, { x: 48, y: 45, o: .32 }, { x: 46, y: 41, o: .16 }, { x: 44, y: 37, o: .08 }].reverse().forEach((p, i, arr) => {
+        const el = lyricUnit(scene, text, opts, base, i === arr.length - 1 ? "lyr-gradient" : "lyr-outline");
+        Object.assign(el.style, { left: `${p.x}%`, top: `${p.y}%`, opacity: p.o, transform: "translate(-50%,-50%)", mixBlendMode: i < 3 ? "screen" : "normal" });
+        lyricAnimate(el, [{ opacity: 0, transform: `translate(-50%,-50%) translate(${(i - 2) * 35}px,${(2 - i) * 20}px) scale(1.15)`, filter: "blur(10px)" }, { opacity: p.o, transform: "translate(-50%,-50%)", filter: "blur(0)" }], { duration: 860, delay: i * 90, easing: "cubic-bezier(.16,1,.3,1)", fill: "both" });
+      });
+    },
+
+    karaoke(scene, text, opts) {
+      const base = lyricBaseSize(opts);
+      const under = lyricUnit(scene, text, opts, base, "lyr-outline");
+      const fill = lyricUnit(scene, text, opts, base, "lyr-gradient");
+      [under, fill].forEach(el => Object.assign(el.style, { left: "50%", top: "48%", transform: "translate(-50%,-50%)" }));
+      under.style.opacity = ".48";
+      lyricAnimate(fill, [{ clipPath: "inset(0 100% 0 0)", backgroundPosition: "100% 0" }, { clipPath: "inset(0)", backgroundPosition: "0% 0" }], { duration: 1850, delay: 180, easing: "linear", fill: "both" });
+      const scan = lyricAccent(scene, "lyr-line", { left: "8%", top: "63%", width: "1px", height: "2px" });
+      lyricAnimate(scan, [{ opacity: 0, transform: "translateX(0)" }, { opacity: .9, offset: .1 }, { opacity: .9, offset: .9 }, { opacity: 0, transform: "translateX(76cqw)" }], { duration: 1850, delay: 180, easing: "linear", fill: "both" });
+    },
+
+    glitch(scene, text, opts) {
+      const base = lyricBaseSize(opts);
+      const main = lyricUnit(scene, text, opts, base * 1.08);
+      Object.assign(main.style, { left: "50%", top: "48%", transform: "translate(-50%,-50%)", zIndex: 3 });
+      ["var(--lyr-accent)", "#ff4e8b"].forEach((color, i) => {
+        const clone = lyricPlainUnit(scene, text, opts, base * 1.08);
+        Object.assign(clone.style, { left: "50%", top: "48%", transform: "translate(-50%,-50%)", color, mixBlendMode: "screen", opacity: .65, zIndex: 2, clipPath: i ? "inset(14% 0 52% 0)" : "inset(56% 0 10% 0)" });
+        lyricAnimate(clone, [{ opacity: 0, transform: `translate(-50%,-50%) translateX(${i ? 85 : -85}px) skewX(${i ? 16 : -16}deg)` }, { opacity: .8, transform: `translate(-50%,-50%) translateX(${i ? -8 : 8}px)`, offset: .5 }, { opacity: .18, transform: "translate(-50%,-50%)" }], { duration: 580, delay: i * 35, easing: "steps(5,end)", fill: "both" });
+      });
+      lyricAnimate(main, [{ opacity: 0, filter: "blur(9px)", transform: "translate(-50%,-50%) scaleX(1.5)" }, { opacity: 1, filter: "blur(0)", transform: "translate(-50%,-50%) scaleX(.94)", offset: .6 }, { opacity: 1, transform: "translate(-50%,-50%)" }], { duration: 620, easing: "steps(6,end)", fill: "both" });
+      const flash = lyricAccent(scene, "lyr-flash", {});
+      lyricAnimate(flash, [{ opacity: 0 }, { opacity: .55, offset: .2 }, { opacity: 0 }], { duration: 200, fill: "both" });
+    },
+
+    impact(scene, text, opts) {
+      const base = lyricBaseSize(opts), lines = lyricSplitLines(text);
+      lines.forEach((line, i) => {
+        const el = lyricUnit(scene, line, opts, base * (i ? 1.05 : 1.35), i ? "lyr-gradient" : "");
+        Object.assign(el.style, { left: "50%", top: `${38 + i * 22}%`, transform: "translate(-50%,-50%)", zIndex: 3 });
+        lyricAnimate(el, [{ opacity: 0, transform: "translate(-50%,-50%) scale(2.4)", filter: "blur(15px)", letterSpacing: "-.06em" }, { opacity: 1, transform: "translate(-50%,-50%) scale(.88)", filter: "blur(0)", offset: .7 }, { opacity: 1, transform: "translate(-50%,-50%) scale(1)" }], { duration: 660, delay: i * 110, easing: "cubic-bezier(.12,.75,.2,1)", fill: "both" });
+      });
+      for (let i = 0; i < 3; i++) {
+        const ring = lyricAccent(scene, "lyr-ring", { left: "50%", top: "50%", width: "8%", aspectRatio: "1", transform: "translate(-50%,-50%)" });
+        lyricAnimate(ring, [{ opacity: .8, transform: "translate(-50%,-50%) scale(.2)" }, { opacity: 0, transform: `translate(-50%,-50%) scale(${7 + i * 3})` }], { duration: 780, delay: i * 90, easing: "ease-out", fill: "both" });
+      }
+      for (let i = 0; i < 16; i++) {
+        const dot = lyricAccent(scene, "", { left: "50%", top: "50%", width: `${2 + i % 3}px`, height: `${2 + i % 3}px`, borderRadius: "50%", background: "var(--lyr-accent)" });
+        const a = i / 16 * Math.PI * 2, dist = 90 + i % 5 * 26;
+        lyricAnimate(dot, [{ opacity: 1, transform: "translate(-50%,-50%)" }, { opacity: 0, transform: `translate(calc(-50% + ${Math.cos(a) * dist}px),calc(-50% + ${Math.sin(a) * dist}px))` }], { duration: 720, delay: i * 12, easing: "ease-out", fill: "both" });
+      }
+      const flash = lyricAccent(scene, "lyr-flash", {});
+      lyricAnimate(flash, [{ opacity: 0 }, { opacity: .65, offset: .18 }, { opacity: 0 }], { duration: 240, fill: "both" });
+    }
+  };
+
+  function lyricChoose(text, box, state) {
+    const forced = box.lyricPattern && LYRIC_PATTERNS.find(p => p.id === box.lyricPattern);
+    if (forced) {
+      state.lastPattern = forced.id;
+      return forced;
+    }
+    const mood = box.lyricMood || "auto";
+    const length = Array.from(text).length;
+    const hasBreak = /[ 、。！？!?]/.test(text);
+    let candidates = LYRIC_PATTERNS.filter(p => {
+      if (p.id === state.lastPattern) return false;
+      if (mood === "calm" && p.energy > 2) return false;
+      if (mood === "lively" && p.energy < 2) return false;
+      if (state.strongCooldown > 0 && p.energy >= 4) return false;
+      if (p.id === "orbit" && length > 16) return false;
+      if (p.id === "impact" && length > 14) return false;
+      if (p.id === "vertical" && length > 22) return false;
+      if (p.id === "split" && length < 8) return false;
+      return true;
+    });
+    if (!candidates.length) candidates = LYRIC_PATTERNS.filter(p => p.id !== state.lastPattern && p.energy <= 3);
+    const weighted = [];
+    for (const p of candidates) {
+      let weight = 3;
+      if (length <= 7 && ["type", "ribbon", "glitch", "impact"].includes(p.id)) weight += 4;
+      if (length >= 18 && ["soft", "editorial", "split", "karaoke"].includes(p.id)) weight += 5;
+      if (hasBreak && ["editorial", "split", "ribbon"].includes(p.id)) weight += 3;
+      if (p.id === "vertical" || p.id === "orbit") weight = Math.max(1, weight - 2);
+      if (p.energy >= 4 && mood !== "lively") weight = 1;
+      for (let i = 0; i < weight; i++) weighted.push(p);
+    }
+    const chosen = weighted[Math.floor(Math.random() * weighted.length)] || candidates[0] || LYRIC_PATTERNS[0];
+    state.strongCooldown = chosen.energy >= 4 ? 3 : Math.max(0, state.strongCooldown - 1);
+    state.lastPattern = chosen.id;
+    return chosen;
   }
 
-  /** テキストを分割（フレーズ or 単語）し、時差でエリアに散らす */
+  function lyricExit(scene, immediate = false) {
+    if (!scene || !scene.isConnected || scene._lyrExiting) return;
+    scene._lyrExiting = true;
+    clearTimeout(scene._lyrTimer);
+    if (immediate || !scene.animate) { scene.remove(); return; }
+    const kind = scene._lyrExit || "dissolve";
+    const exits = {
+      dissolve: { opacity: 0, transform: "translateY(-12px) scale(1.04)", filter: "blur(14px)" },
+      wipe: { opacity: 0, transform: "translateX(12px)", clipPath: "inset(0 0 0 100%)" },
+      scatter: { opacity: 0, transform: `translate(${Math.random() * 90 - 45}px,${Math.random() * 70 - 35}px) rotate(${Math.random() * 18 - 9}deg) scale(.75)`, filter: "blur(5px)" },
+      lift: { opacity: 0, transform: "translateY(-70px)", filter: "blur(4px)", clipPath: "inset(0 0 100% 0)" },
+      sweep: { opacity: 0, transform: "translateX(120px) skewX(-14deg)", filter: "blur(3px)", clipPath: "inset(0 0 0 100%)" },
+      rush: { opacity: 0, transform: "translate(150px,-70px) skewX(-18deg)", filter: "blur(8px)" },
+      part: { opacity: 0, transform: "scaleX(.45)", filter: "blur(3px)" },
+      implode: { opacity: 0, transform: "scale(.05) rotate(25deg)", filter: "blur(9px)" },
+      drift: { opacity: 0, transform: "translate(55px,-30px) scale(1.08)", filter: "blur(11px)" },
+      cut: { opacity: 0, transform: "translateX(90px) scaleX(1.3)", filter: "blur(2px) hue-rotate(90deg)", clipPath: "inset(52% 0 0 0)" },
+      burst: { opacity: 0, transform: "scale(1.7)", filter: "blur(13px)" },
+    };
+    const anim = lyricAnimate(scene, [{ opacity: 1, transform: "none", filter: "blur(0)", clipPath: "inset(0)" }, exits[kind] || exits.dissolve], { duration: kind === "cut" ? 240 : 460, easing: kind === "cut" ? "steps(4,end)" : "cubic-bezier(.55,0,1,.45)", fill: "forwards" });
+    anim.onfinish = () => scene.remove();
+  }
+
   FX.lyricSpawn = function (container, text, opts) {
-    const chunks = (opts.box.lyricSplit === "word")
-      ? FX.splitLyricWords(text, opts.table)
-      : FX.splitLyric(text);
-    const stagger = opts.box.stagger ?? 130;
-    chunks.forEach((t, i) =>
-      setTimeout(() => spawnChunk(container, t, opts), i * stagger));
+    text = String(text || "").trim();
+    if (!text || !container.isConnected) return null;
+    opts = { ...opts, lyricTextLength: Array.from(text).length };
+    const state = container._lyr ?? (container._lyr = { scenes: [], lastPattern: "", strongCooldown: 0 });
+    const pattern = lyricChoose(text, opts.box || {}, state);
+    const scene = lyricScene(container, opts.style, pattern);
+    lyricBuilders[pattern.id](scene, text, opts);
+    state.scenes.push(scene);
+    const maxScenes = Math.max(1, Math.min(3, opts.box.lyricMaxScenes ?? 2));
+    while (state.scenes.length > maxScenes) lyricExit(state.scenes.shift());
+    const life = Math.max(2, opts.box.lifeSec ?? 6) * 1000 * (.92 + Math.random() * .16);
+    scene._lyrTimer = setTimeout(() => {
+      const i = state.scenes.indexOf(scene);
+      if (i >= 0) state.scenes.splice(i, 1);
+      lyricExit(scene);
+    }, life);
+    FX.burstLine(scene.querySelector(".lyr-unit") || scene);
+    return pattern.id;
   };
 
   FX.lyricClear = function (container) {
-    const st = container._lyr;
-    if (!st) return;
-    for (const c of st.chunks) { clearTimeout(c._lyrTimer); c.remove(); }
-    st.chunks = [];
+    const state = container._lyr;
+    if (!state) return;
+    for (const scene of state.scenes) lyricExit(scene, true);
+    state.scenes = [];
+    state.lastPattern = "";
+    state.strongCooldown = 0;
   };
 
   FX.injectCss();

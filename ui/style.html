@@ -235,7 +235,7 @@
           <select id="b_mode">
             <option value="flow">通常（積み上げ・スクロール）</option>
             <option value="vertical">縦書き（右から左へ）</option>
-            <option value="lyric">リリックビデオ（散らし）</option>
+            <option value="lyric">リリックビデオ風字幕</option>
           </select></div>
         <div class="fr advanced-only"></div>
         <div class="fr"><label>横位置 X <output id="o_bx"></output></label><input type="range" id="b_x" min="0" max="90" step="1"></div>
@@ -253,18 +253,15 @@
         <div class="fr only-flow advanced-only"><label>保持する行数 <output id="o_bml"></output></label><input type="range" id="b_maxLines" min="2" max="40" step="1"></div>
         <div class="fr chk only-flow advanced-only"><input type="checkbox" id="b_smooth"><span>スムーズスクロール</span></div>
         <div class="fr only-flow advanced-only"><label>スクロール速度 <output id="o_bsm"></output></label><input type="range" id="b_smoothMs" min="100" max="600" step="50"></div>
-        <div class="fr only-lyric advanced-only"><label>分割単位</label>
-          <select id="b_lyricSplit">
-            <option value="phrase">フレーズごと（句読点で区切る）</option>
-            <option value="word">単語ごと（細かく散る）</option>
+        <div class="fr only-lyric advanced-only"><label>演出の雰囲気</label>
+          <select id="b_lyricMood">
+            <option value="auto">おまかせ</option>
+            <option value="calm">おとなしい</option>
+            <option value="lively">にぎやか</option>
           </select></div>
         <div class="fr only-lyric advanced-only"><label>サイズ倍率 <output id="o_bscale"></output>（はみ出しOK）</label><input type="range" id="b_lyricScale" min="0.5" max="3" step="0.1"></div>
         <div class="fr only-lyric advanced-only"><label>表示時間 <output id="o_blife"></output></label><input type="range" id="b_lifeSec" min="2" max="15" step="1"></div>
-        <div class="fr only-lyric advanced-only"><label>同時表示数 <output id="o_bmc"></output></label><input type="range" id="b_maxChunks" min="3" max="15" step="1"></div>
-        <div class="fr only-lyric advanced-only"><label>縦書き率 <output id="o_bvr"></output></label><input type="range" id="b_vertRate" min="0" max="100" step="5"></div>
-        <div class="fr only-lyric advanced-only"><label>回転ゆらぎ <output id="o_brot"></output></label><input type="range" id="b_rotate" min="0" max="15" step="1"></div>
-        <div class="fr only-lyric advanced-only"><label>サイズばらつき <output id="o_bjit"></output></label><input type="range" id="b_sizeJitter" min="0" max="0.8" step="0.05"></div>
-        <div class="fr only-lyric advanced-only"><label>出現の時差 <output id="o_bstag"></output></label><input type="range" id="b_stagger" min="0" max="400" step="20"></div>
+        <div class="fr only-lyric advanced-only"><label>重ねる字幕数 <output id="o_bmc"></output></label><input type="range" id="b_lyricMaxScenes" min="1" max="3" step="1"></div>
         <div class="fr chk only-lyric advanced-only"><input type="checkbox" id="b_lyricPartial"><span>認識途中も表示する</span></div>
       </div>
       <div id="stageWrap">
@@ -603,14 +600,10 @@
     setR("b_maxLines", "o_bml", b.maxLines ?? 20, v => v + "行");
     $("b_smooth").checked = b.smooth !== false;
     setR("b_smoothMs", "o_bsm", b.smoothMs ?? 250, v => v + "ms");
-    $("b_lyricSplit").value = b.lyricSplit || "phrase";
+    $("b_lyricMood").value = b.lyricMood || "auto";
     setR("b_lyricScale", "o_bscale", b.lyricScale ?? 1, v => "×" + v);
     setR("b_lifeSec", "o_blife", b.lifeSec ?? 6, v => v + "秒");
-    setR("b_maxChunks", "o_bmc", b.maxChunks ?? 8, v => v + "個");
-    setR("b_vertRate", "o_bvr", b.vertRate ?? 25, v => v + "%");
-    setR("b_rotate", "o_brot", b.rotate ?? 6, v => "±" + v + "°");
-    setR("b_sizeJitter", "o_bjit", b.sizeJitter ?? 0.35, v => v);
-    setR("b_stagger", "o_bstag", b.stagger ?? 130, v => v + "ms");
+    setR("b_lyricMaxScenes", "o_bmc", b.lyricMaxScenes ?? 2, v => v + "文");
     $("b_lyricPartial").checked = !!b.lyricPartial;
     updateModeRows();
     stageApply(); stageClear(); stageAdd(); stageAdd();
@@ -669,14 +662,10 @@
     b.smooth = $("b_smooth").checked;
     b.smoothMs = +$("b_smoothMs").value;
     b.mode = $("b_mode").value;
-    b.lyricSplit = $("b_lyricSplit").value;
+    b.lyricMood = $("b_lyricMood").value;
     b.lyricScale = +$("b_lyricScale").value;
     b.lifeSec = +$("b_lifeSec").value;
-    b.maxChunks = +$("b_maxChunks").value;
-    b.vertRate = +$("b_vertRate").value;
-    b.rotate = +$("b_rotate").value;
-    b.sizeJitter = +$("b_sizeJitter").value;
-    b.stagger = +$("b_stagger").value;
+    b.lyricMaxScenes = +$("b_lyricMaxScenes").value;
     b.lyricPartial = $("b_lyricPartial").checked;
     return b;
   }
@@ -801,9 +790,7 @@
       b_padding: ["o_bpad", v => v + "px"], b_borderWidth: ["o_bbw", v => v + "px"],
       b_maxLines: ["o_bml", v => v + "行"], b_smoothMs: ["o_bsm", v => v + "ms"],
       b_lyricScale: ["o_bscale", v => "×" + v],
-      b_lifeSec: ["o_blife", v => v + "秒"], b_maxChunks: ["o_bmc", v => v + "個"],
-      b_vertRate: ["o_bvr", v => v + "%"], b_rotate: ["o_brot", v => "±" + v + "°"],
-      b_sizeJitter: ["o_bjit", v => v], b_stagger: ["o_bstag", v => v + "ms"],
+      b_lifeSec: ["o_blife", v => v + "秒"], b_lyricMaxScenes: ["o_bmc", v => v + "文"],
     };
     for (const el of document.querySelectorAll("#bform input, #bform select")) {
       el.addEventListener("input", () => {
