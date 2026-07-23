@@ -8,6 +8,22 @@
 ビルド後に build_bundle.ps1 が models/ とアセット/設定ファイルを app 直下へコピーする。
 """
 from PyInstaller.utils.hooks import collect_all
+import os
+
+# アプリアイコン: assets/branding のPNGからマルチサイズICOを生成して exe に埋め込む。
+# PNGが無い/Pillow不在のときは icon=None（PyInstaller既定アイコン）へフォールバックする。
+APP_ICON = None
+try:
+    from PIL import Image
+    _icon_png = os.path.join(SPECPATH, "assets", "branding", "mojicast-mo-icon-light.png")
+    if os.path.exists(_icon_png):
+        APP_ICON = os.path.join(SPECPATH, "assets", "branding", "mojicast-mo-icon-light.ico")
+        Image.open(_icon_png).save(
+            APP_ICON, format="ICO",
+            sizes=[(16, 16), (24, 24), (32, 32), (48, 48),
+                   (64, 64), (128, 128), (256, 256)])
+except Exception:
+    APP_ICON = None
 
 datas, binaries, hiddenimports = [], [], []
 
@@ -69,6 +85,7 @@ exe = EXE(
     upx=False,
     console=False,          # ウィンドウアプリ（コンソール窓を出さない）
     disable_windowed_traceback=False,
+    icon=APP_ICON,          # assets/branding のロゴ（上で生成したICO・無ければ既定）
 )
 coll = COLLECT(
     exe, a.binaries, a.datas,

@@ -56,3 +56,6 @@ Thumbs.db
 
 # マニュアル用スクショ（tools/manual/shoot.py で再生成可能）
 tools/manual/shots/
+
+# アプリアイコン（ビルド時に PNG から Mojicast.spec が再生成する）
+assets/branding/*.ico
