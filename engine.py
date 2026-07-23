@@ -28,6 +28,14 @@ WINDOW_SIZE = 512
 PARTIAL_WINDOW_SEC = 6.0   # 途中経過(薄文字)がデコードする末尾の秒数
 VAD_MODEL_PATH = os.path.join(BASE, "silero_vad.onnx")
 
+# 過負荷やデバイス異常時にもメモリを無制限に使わないための待ち行列上限。
+# 音声は約30秒、翻訳は128発話ぶんを保持する。通常配信では到達しない余裕を
+# 持たせ、到達時だけ古い待ちデータを整理して「ライブ」へ追いつかせる。
+AUDIO_QUEUE_MAX_BLOCKS = max(1, int(30 * SAMPLE_RATE / WINDOW_SIZE))
+AUDIO_QUEUE_RECOVER_BLOCKS = AUDIO_QUEUE_MAX_BLOCKS // 2
+TRANSLATION_QUEUE_MAX_ITEMS = 128
+TRANSLATION_QUEUE_RECOVER_ITEMS = 96
+
 # 初回DLの進捗表示に使う、各モデルのおおよそのDLサイズ（MB）
 _MODEL_SIZES_MB = {
     "asr": 739,           # ReazonSpeech k2 v2
@@ -36,6 +44,35 @@ _MODEL_SIZES_MB = {
     "translate": 124,     # FuguMT（CTranslate2変換済み＋SentencePiece）
     "translate_zh": 470,  # M2M-100 418M（CT2 int8＋SentencePiece）
 }
+
+
+def _offer_bounded_latest(q, item, recover_to):
+    """上限までは通常追加し、満杯時だけ古い項目を整理して最新を入れる。
+
+    戻り値は破棄した項目数。リアルタイム処理のproducerをブロックしない。
+    """
+    try:
+        q.put_nowait(item)
+        return 0
+    except queue.Full:
+        pass
+
+    target = max(0, min(int(recover_to), q.maxsize - 1))
+    dropped = 0
+    while q.qsize() > target:
+        try:
+            q.get_nowait()
+            dropped += 1
+        except queue.Empty:
+            break
+
+    try:
+        q.put_nowait(item)
+    except queue.Full:
+        # 複数producerが同時に補充した場合は、今回の最新項目を無理に
+        # ブロックしてまで入れない。いずれにせよメモリ上限は維持される。
+        dropped += 1
+    return dropped
 
 
 def _hub_dir():
@@ -85,6 +122,11 @@ class CaptionEngine:
         self._load_warn = ""        # 直近ロードの非致命的警告（英訳/句読点の失敗）
         self._thread = None
         self._stop = threading.Event()
+        # running だけではモデルロード中を表現できず、同時に start() が来ると
+        # 複数のモデルロードスレッドを起動できてしまう。ライフサイクル全体を
+        # 同じロックで管理し、開始・停止要求を直列化する。
+        self._state_lock = threading.RLock()
+        self._lifecycle_state = "stopped"
         self.running = False
         self.perf = self._fresh_perf()   # デコード計測（/api/perf 用）
 
@@ -391,19 +433,105 @@ class CaptionEngine:
 
     # ---------------- 開始 / 停止 ----------------
 
-    def start(self, cfg: dict):
-        """認識を開始する（別スレッド）。cfg はGUIの設定辞書"""
-        if self.running:
-            return
-        self._stop.clear()
-        self._thread = threading.Thread(target=self._run, args=(cfg,), daemon=True)
-        self._thread.start()
+    @property
+    def lifecycle_state(self):
+        """内部ライフサイクル状態（stopped/starting/running/stopping/error）。"""
+        with self._state_lock:
+            return self._lifecycle_state
 
-    def stop(self):
-        self._stop.set()
-        if self._thread is not None:
-            self._thread.join(timeout=5)
-            self._thread = None
+    def _set_lifecycle(self, state):
+        with self._state_lock:
+            self._lifecycle_state = state
+            self.running = state == "running"
+
+    def _finish_session(self, state, detail):
+        """セッションの最終状態を確定してGUIへ通知する。"""
+        self._set_lifecycle(state)
+        self.on_state(state, detail)
+
+    def _run_after_start_notice(self, cfg, gate):
+        """start() の状態通知が完了してからセッション本体を動かす。"""
+        gate.wait()
+        self._run(cfg)
+
+    def start(self, cfg: dict):
+        """認識を開始する（別スレッド）。
+
+        開始済み・ロード中・停止処理中の要求は安全なno-opとして False を返す。
+        """
+        with self._state_lock:
+            thread = self._thread
+            if thread is not None and thread.is_alive():
+                return False
+            if self._lifecycle_state in ("starting", "running", "stopping"):
+                return False
+
+            self._stop.clear()
+            self._lifecycle_state = "starting"
+            self.running = False
+            gate = threading.Event()
+            thread = threading.Thread(
+                target=self._run_after_start_notice,
+                args=(dict(cfg), gate), daemon=True,
+                name="CaptionEngine",
+            )
+            self._thread = thread
+
+            try:
+                # 先にスレッドを生存状態にすることで、同時に来た stop() が
+                # 「まだスレッド無し」と誤認して次の start() を許す隙間をなくす。
+                thread.start()
+            except Exception:
+                gate.set()
+                if self._thread is thread:
+                    self._thread = None
+                self._lifecycle_state = "error"
+                self.running = False
+                self.on_state("error", "認識処理を開始できませんでした")
+                raise
+
+            try:
+                self.on_state("loading", "起動準備中...")
+            finally:
+                gate.set()
+        return True
+
+    def stop(self, timeout=5):
+        """停止を要求する。
+
+        timeout 内にモデルロード等が終わらなくてもスレッド参照を捨てない。
+        生きている旧セッションが終了するまでは start() が次を起動できないため、
+        ロードの二重化を防げる。停止完了なら True、処理継続中なら False。
+        """
+        with self._state_lock:
+            thread = self._thread
+            if thread is None or not thread.is_alive():
+                self._thread = None
+                already_stopped = self._lifecycle_state == "stopped"
+                self._lifecycle_state = "stopped"
+                self.running = False
+                self._stop.set()
+                notify_stopped = not already_stopped
+            else:
+                notify_stopped = False
+                notify = self._lifecycle_state != "stopping"
+                self._lifecycle_state = "stopping"
+                self.running = False
+                self._stop.set()
+
+        if notify_stopped:
+            self.on_state("stopped", "停止しました")
+        if thread is None or not thread.is_alive():
+            return True
+
+        if notify:
+            self.on_state("stopping", "停止処理中...")
+
+        # コールバックから stop() された場合に自分自身を join しない。
+        if thread is threading.current_thread():
+            return False
+        thread.join(timeout=max(0, timeout))
+        return not thread.is_alive()
 
     def _translate_loop(self):
         """確定行を順に英訳する（認識ループとは別スレッド）"""
@@ -424,7 +552,7 @@ class CaptionEngine:
             except Exception:
                 en = ""           # 翻訳失敗は無視（字幕本体は出続ける）
                 self._log_translate_error(text)
-            if en:
+            if en and self._translate_on:
                 self.on_translation(fid, en)
 
     def _log_translate_error(self, text):
@@ -439,10 +567,25 @@ class CaptionEngine:
             pass
 
     def _stop_translate_worker(self):
-        if self._tq is not None:
-            self._tq.put(None)
-        self._tworker = None
-        self._tq = None
+        # セッション終了後に古い翻訳を延々と消化すると、次回開始時のworkerと
+        # 重なり得る。未処理分は捨て、現在処理中の1件だけ完了を待って終了する。
+        self._translate_on = False
+        q = self._tq
+        worker = self._tworker
+        if q is not None:
+            while True:
+                try:
+                    q.get_nowait()
+                except queue.Empty:
+                    break
+            q.put_nowait(None)
+        if (worker is not None and worker.is_alive()
+                and worker is not threading.current_thread()):
+            worker.join()
+        if self._tworker is worker:
+            self._tworker = None
+        if self._tq is q:
+            self._tq = None
 
     def _resolve_sources(self, cfg):
         """入力ソースを決める。 [(device, speaker, is_primary), ...]
@@ -472,14 +615,23 @@ class CaptionEngine:
         try:
             import sounddevice as sd
             vad = self._build_vad(cfg.get("silence_ms", 300))
-            audio_q: "queue.Queue[np.ndarray]" = queue.Queue()
+            audio_q: "queue.Queue[np.ndarray]" = queue.Queue(
+                maxsize=AUDIO_QUEUE_MAX_BLOCKS)
             last_level_t = [0.0]
 
             def handle_mono(mono):
-                audio_q.put(mono)
+                mono = np.asarray(mono, dtype=np.float32).reshape(-1)
+                # ループバックは可変長で届くため、micと同じ512sample単位へ
+                # 揃えて「約30秒」の上限が入力方式に左右されないようにする。
+                for offset in range(0, len(mono), WINDOW_SIZE):
+                    chunk = np.array(
+                        mono[offset:offset + WINDOW_SIZE],
+                        dtype=np.float32, copy=True)
+                    _offer_bounded_latest(
+                        audio_q, chunk, AUDIO_QUEUE_RECOVER_BLOCKS)
                 if is_primary:   # レベルメーターは主入力（自分のマイク）だけ流す
                     now = time.time()
-                    if now - last_level_t[0] >= 0.1:
+                    if len(mono) and now - last_level_t[0] >= 0.1:
                         last_level_t[0] = now
                         rms = float(np.sqrt(np.mean(mono ** 2)))
                         self.on_level(min(1.0, rms * 8), speaker)
@@ -549,7 +701,9 @@ class CaptionEngine:
                             self.on_final(text, fid, speaker)
                             self._log_final(text, speaker)
                             if self._translate_on:
-                                self._tq.put((fid, text))
+                                _offer_bounded_latest(
+                                    self._tq, (fid, text),
+                                    TRANSLATION_QUEUE_RECOVER_ITEMS)
                         else:
                             # 後処理で空になった発話は出さず、薄文字だけ消す
                             self.on_partial("", speaker)
@@ -598,70 +752,100 @@ class CaptionEngine:
 
     def _run(self, cfg):
         try:
-            self._load(cfg)
-        except Exception as e:  # モデル・単語帳のエラーをGUIへ
-            info = (type(e).__name__ + " " + str(e)).lower()
-            netish = any(k in info for k in (
-                "connection", "download", "resolve", "timeout", "network",
-                "getaddrinfo", "maxretry", "httperror", "localentrynotfound",
-                "offline", "temporarily", "ssl"))
-            if netish:
-                self.on_state("error", "モデルのダウンロードに失敗しました。"
+            try:
+                self._load(cfg)
+            except Exception as e:  # モデル・単語帳のエラーをGUIへ
+                if self._stop.is_set():
+                    self._finish_session("stopped", "停止しました")
+                    return
+                info = (type(e).__name__ + " " + str(e)).lower()
+                netish = any(k in info for k in (
+                    "connection", "download", "resolve", "timeout", "network",
+                    "getaddrinfo", "maxretry", "httperror", "localentrynotfound",
+                    "offline", "temporarily", "ssl"))
+                if netish:
+                    detail = ("モデルのダウンロードに失敗しました。"
                               "ネット接続を確認して、もう一度 ▶開始 してください"
                               "（ダウンロード済みの分は続きから取得します）")
-            else:
-                self.on_state("error", f"ロード失敗: {e}")
-            return
+                else:
+                    detail = f"ロード失敗: {e}"
+                self._finish_session("error", detail)
+                return
 
-        # 英訳ワーカー起動（この設定で有効なときだけ）。確定行を別スレッドで翻訳し認識を止めない
-        self._translate_on = cfg.get("translate", False) and self._translate is not None
-        self._tq = queue.Queue()
-        self._tworker = None
-        if self._translate_on:
-            self._tworker = threading.Thread(target=self._translate_loop,
-                                             daemon=True)
-            self._tworker.start()
+            # ロードはライブラリ内部でブロックすることがあり、途中停止を即時には
+            # 中断できない。完了直後に停止要求を確認し、音声入力は開始しない。
+            if self._stop.is_set():
+                self._finish_session("stopped", "停止しました")
+                return
 
-        self._open_log(cfg)             # 文字起こしログをこのセッション用に開く
-        self._mask = self._build_masker(cfg)   # 禁止ワードの伏せ字化を用意
-        self._gloss = self._build_glossary(cfg)   # 英訳辞書（固有名詞の訳を固定）
-        self._stream_error = None
-        self.perf = self._fresh_perf()   # セッションごとに計測をリセット
+            # 英訳ワーカー起動（この設定で有効なときだけ）。確定行を別スレッドで翻訳し認識を止めない
+            self._translate_on = cfg.get("translate", False) and self._translate is not None
+            self._tq = queue.Queue(maxsize=TRANSLATION_QUEUE_MAX_ITEMS)
+            self._tworker = None
+            if self._translate_on:
+                self._tworker = threading.Thread(target=self._translate_loop,
+                                                 daemon=True)
+                self._tworker.start()
 
-        # 入力ソース（通常=1本 / 1対1コラボ=2本）ごとにスレッドを起こす
-        sources = self._resolve_sources(cfg)
-        threads = [threading.Thread(target=self._stream_loop,
-                                    args=(cfg, dev, spk, prim), daemon=True)
-                   for dev, spk, prim in sources]
-        for t in threads:
-            t.start()
-        # スレッドが1本でも走り出すまで少し待ち、致命的エラーが無ければ「認識中」に
-        time.sleep(0.3)
-        if self._stream_error:
-            self.running = False
+            self._open_log(cfg)             # 文字起こしログをこのセッション用に開く
+            self._mask = self._build_masker(cfg)   # 禁止ワードの伏せ字化を用意
+            self._gloss = self._build_glossary(cfg)   # 英訳辞書（固有名詞の訳を固定）
+            self._stream_error = None
+            self.perf = self._fresh_perf()   # セッションごとに計測をリセット
+
+            if self._stop.is_set():
+                self._stop_translate_worker()
+                self._close_log()
+                self._finish_session("stopped", "停止しました")
+                return
+
+            # 入力ソース（通常=1本 / 1対1コラボ=2本）ごとにスレッドを起こす
+            sources = self._resolve_sources(cfg)
+            threads = [threading.Thread(target=self._stream_loop,
+                                        args=(cfg, dev, spk, prim), daemon=True)
+                       for dev, spk, prim in sources]
+            for t in threads:
+                t.start()
+            # スレッドが1本でも走り出すまで少し待ち、致命的エラーが無ければ「認識中」に
+            self._stop.wait(0.3)
+            if self._stream_error:
+                self._stop_translate_worker()
+                self._close_log()
+                self._finish_session("error", self._stream_error)
+                return
+            if not self._stop.is_set():
+                self._set_lifecycle("running")
+                self.on_state(
+                    "running",
+                    "認識中" + (f"  ※{self._load_warn}" if self._load_warn else ""),
+                )
+
+            # 停止指示、または全ソースが（エラー等で）終了するまで待つ
+            while not self._stop.is_set() and any(t.is_alive() for t in threads):
+                self._stop.wait(0.2)
+            for t in threads:
+                t.join(timeout=5)
+
             self._stop_translate_worker()
             self._close_log()
-            self.on_state("error", self._stream_error)
-            return
-        self.running = True
-        self.on_state("running",
-                      "認識中" + (f"  ※{self._load_warn}" if self._load_warn else ""))
-
-        # 停止指示、または全ソースが（エラー等で）終了するまで待つ
-        while not self._stop.is_set() and any(t.is_alive() for t in threads):
-            self._stop.wait(0.2)
-        for t in threads:
-            t.join(timeout=5)
-
-        self.running = False
-        self._stop_translate_worker()
-        self._close_log()
-        self.on_level(0.0, "")
-        self.on_partial("", "")
-        if self._stream_error:
-            self.on_state("error", self._stream_error)
-        else:
-            self.on_state("stopped", "停止しました")
+            self.on_level(0.0, "")
+            self.on_partial("", "")
+            if self._stream_error:
+                self._finish_session("error", self._stream_error)
+            else:
+                self._finish_session("stopped", "停止しました")
+        except Exception as e:
+            # 音声入力準備など、ロード後の予期しない失敗でも状態を宙ぶらりんにしない。
+            self._stop_translate_worker()
+            self._close_log()
+            if self._stop.is_set():
+                self._finish_session("stopped", "停止しました")
+            else:
+                self._finish_session("error", f"起動失敗: {e}")
+        finally:
+            with self._state_lock:
+                if self._thread is threading.current_thread():
+                    self._thread = None
 
 
 def list_input_devices():

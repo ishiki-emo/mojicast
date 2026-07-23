@@ -59,7 +59,67 @@ DEFAULT_CONFIG = {
 _clients = []
 _clients_lock = threading.Lock()
 _engine = None
+_engine_lock = threading.Lock()
 _engine_state = {"state": "stopped", "detail": ""}
+_engine_state_lock = threading.Lock()
+
+_LOOPBACK_HOSTS = {"127.0.0.1", "localhost"}
+MAX_REQUEST_BODY_BYTES = 4 * 1024 * 1024
+MAX_SSE_CLIENTS = 64
+SSE_QUEUE_MAX_ITEMS = 200
+SSE_QUEUE_RECOVER_ITEMS = 100
+
+
+class _RequestBodyTooLarge(ValueError):
+    pass
+
+
+def _parse_authority(value):
+    """Host/Origin の authority を (hostname, port) に正規化する。
+
+    Host は ``localhost:8765`` のように scheme を持たないため ``//`` を補う。
+    不正なポート表記などは (None, None) として拒否側へ倒す。
+    """
+    try:
+        parsed = urlparse(value if "://" in value else "//" + value)
+        host = (parsed.hostname or "").lower().rstrip(".")
+        return host, parsed.port
+    except (TypeError, ValueError):
+        return None, None
+
+
+def _is_loopback_host(value, port):
+    """Host が、このMojicastサーバー自身を指すものか。"""
+    if not value:
+        # HTTP/1.0 の診断クライアント等との互換用。ブラウザのHTTP/1.1要求は
+        # 必ずHostを送るため、DNSリバインディング対策を弱めることはない。
+        return True
+    host, requested_port = _parse_authority(value)
+    return (host in _LOOPBACK_HOSTS
+            and requested_port in (None, port))
+
+
+def _is_loopback_origin(value, port):
+    """Origin が同じPC上のMojicast（localhost/127.0.0.1・同一ポート）か。"""
+    if not value or value == "null":
+        return False
+    try:
+        parsed = urlparse(value)
+        host = (parsed.hostname or "").lower().rstrip(".")
+        origin_port = parsed.port
+    except (TypeError, ValueError):
+        return False
+    return (
+        parsed.scheme == "http"
+        and host in _LOOPBACK_HOSTS
+        and origin_port == port
+        and parsed.username is None
+        and parsed.password is None
+        and parsed.path in ("", "/")
+        and not parsed.params
+        and not parsed.query
+        and not parsed.fragment
+    )
 
 
 # ---------------- 設定・データの読み書き ----------------
@@ -429,14 +489,25 @@ def broadcast(event: dict):
             try:
                 q.put_nowait(data)
             except queue.Full:
-                pass
+                # 切断寸前の遅いクライアントへ古い字幕を溜め続けず、
+                # 半分まで整理して最新状態へ追いつけるようにする。
+                while q.qsize() > SSE_QUEUE_RECOVER_ITEMS:
+                    try:
+                        q.get_nowait()
+                    except queue.Empty:
+                        break
+                try:
+                    q.put_nowait(data)
+                except queue.Full:
+                    pass
 
 
 def _init_event():
     cfg = load_config()
     ev = {"type": "init"}
     ev.update(resolve_style(cfg))
-    ev["state"] = _engine_state
+    with _engine_state_lock:
+        ev["state"] = dict(_engine_state)
     # 新しく開いたGUI窓がlocalStorageや次の変更イベントに依存せず、
     # 現在のテーマへ即座に揃えられるよう初期イベントにも含める。
     ev["theme"] = cfg.get("theme", "light")
@@ -448,24 +519,26 @@ def _init_event():
 
 def get_engine():
     global _engine
-    if _engine is None:
-        from engine import CaptionEngine
-        _engine = CaptionEngine(
-            on_partial=lambda t, spk="": broadcast(
-                {"type": "partial", "text": t, "speaker": spk}),
-            on_final=lambda t, fid, spk="": broadcast(
-                {"type": "final", "text": t, "id": fid, "speaker": spk}),
-            on_level=lambda v, spk="": broadcast(
-                {"type": "level", "value": round(v, 3), "speaker": spk}),
-            on_state=_on_state,
-            on_translation=lambda fid, en: broadcast(
-                {"type": "translation", "id": fid, "text": en}),
-        )
-    return _engine
+    with _engine_lock:
+        if _engine is None:
+            from engine import CaptionEngine
+            _engine = CaptionEngine(
+                on_partial=lambda t, spk="": broadcast(
+                    {"type": "partial", "text": t, "speaker": spk}),
+                on_final=lambda t, fid, spk="": broadcast(
+                    {"type": "final", "text": t, "id": fid, "speaker": spk}),
+                on_level=lambda v, spk="": broadcast(
+                    {"type": "level", "value": round(v, 3), "speaker": spk}),
+                on_state=_on_state,
+                on_translation=lambda fid, en: broadcast(
+                    {"type": "translation", "id": fid, "text": en}),
+            )
+        return _engine
 
 
 def _on_state(state, detail=""):
-    _engine_state.update({"state": state, "detail": detail})
+    with _engine_state_lock:
+        _engine_state.update({"state": state, "detail": detail})
     broadcast({"type": "state", "state": state, "detail": detail})
 
 
@@ -476,9 +549,38 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     # --- helpers ---
+    def _allow_request(self, path, state_changing=False):
+        """ローカル利用を保ったまま、外部OriginとDNSリバインディングを拒否する。
+
+        - WebView/OBS: http://127.0.0.1:<port> と http://localhost:<port> を許可
+        - curl/PowerShell等: Originなしの直接アクセスを許可
+        - 外部Webページ: OriginまたはSec-Fetch-Siteで拒否
+        - DNSリバインディング: Hostがloopback名でなければ拒否
+        """
+        port = self.server.server_address[1]
+        if not _is_loopback_host(self.headers.get("Host", ""), port):
+            self._send_body(421, b"misdirected request",
+                            "text/plain; charset=utf-8")
+            return False
+
+        origin = self.headers.get("Origin")
+        if origin and not _is_loopback_origin(origin, port):
+            self._send_body(403, b"forbidden origin",
+                            "text/plain; charset=utf-8")
+            return False
+
+        protected = state_changing or path == "/events" or path.startswith("/api/")
+        fetch_site = self.headers.get("Sec-Fetch-Site", "").lower()
+        if protected and not origin and fetch_site == "cross-site":
+            self._send_body(403, b"cross-site request blocked",
+                            "text/plain; charset=utf-8")
+            return False
+        return True
+
     def _send_body(self, code, body: bytes, ctype: str):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
+        self.send_header("X-Content-Type-Options", "nosniff")
         # GUIは開発中に同じURLで頻繁に更新される。WebView2の復元キャッシュも含め、
         # 古いHTML/JSを再利用させない。
         self.send_header("Cache-Control", "no-store, max-age=0")
@@ -506,6 +608,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def _body_json(self):
         n = int(self.headers.get("Content-Length", 0))
+        if n < 0 or n > MAX_REQUEST_BODY_BYTES:
+            raise _RequestBodyTooLarge
         return json.loads(self.rfile.read(n).decode("utf-8")) if n else {}
 
     def _profile_arg(self, value):
@@ -525,6 +629,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         url = urlparse(self.path)
         path = url.path
+        if not self._allow_request(path):
+            return
         query = {k: v[0] for k, v in parse_qs(url.query).items()}
         if path in ("/", "/overlay"):
             self._file(os.path.join(BASE, "overlay.html"))
@@ -606,16 +712,20 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self._json({"supported": False, "apps": [], "error": str(e)})
         elif path == "/api/status":
-            self._json(_engine_state)
+            with _engine_state_lock:
+                state = dict(_engine_state)
+            self._json(state)
         elif path == "/api/perf":
             # リモート切り分け用: デコード回数・平均所要時間（今セッション累計）
             p = getattr(_engine, "perf", None) if _engine else None
+            with _engine_state_lock:
+                state = dict(_engine_state)
             if not p:
-                self._json({"state": _engine_state, "perf": None})
+                self._json({"state": state, "perf": None})
                 return
             import time as _t
             self._json({
-                "state": _engine_state,
+                "state": state,
                 "uptime_sec": round(_t.time() - p["since"], 1),
                 "partial": {"count": p["partial_n"],
                             "avg_ms": round(p["partial_ms"] / p["partial_n"], 1)
@@ -630,8 +740,13 @@ class Handler(BaseHTTPRequestHandler):
     # --- POST ---
     def do_POST(self):
         path = self.path.split("?")[0]
+        if not self._allow_request(path, state_changing=True):
+            return
         try:
             body = self._body_json()
+        except _RequestBodyTooLarge:
+            self._json({"ok": False, "error": "request too large"}, 413)
+            return
         except (json.JSONDecodeError, ValueError):
             self._json({"ok": False, "error": "bad json"}, 400)
             return
@@ -847,17 +962,24 @@ class Handler(BaseHTTPRequestHandler):
 
     # --- SSE ---
     def _events(self):
-        self.send_response(200)
-        self.send_header("Content-Type", "text/event-stream")
-        self.send_header("Cache-Control", "no-cache")
-        self.send_header("Connection", "keep-alive")
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.end_headers()
-
-        q: "queue.Queue[str]" = queue.Queue(maxsize=200)
+        q: "queue.Queue[str]" = queue.Queue(maxsize=SSE_QUEUE_MAX_ITEMS)
         with _clients_lock:
-            _clients.append(q)
+            too_many = len(_clients) >= MAX_SSE_CLIENTS
+            if not too_many:
+                _clients.append(q)
+        if too_many:
+            self._send_body(503, b"too many event clients",
+                            "text/plain; charset=utf-8")
+            return
         try:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Connection", "keep-alive")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Cross-Origin-Resource-Policy", "same-origin")
+            self.end_headers()
+
             self._sse_send(json.dumps(_init_event(), ensure_ascii=False))
             while True:
                 try:

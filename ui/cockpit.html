@@ -574,13 +574,16 @@
     $("updateBar").style.display = "none";
   }
 
+  // 表示だけで完結し、認識エンジンを再開始しなくても反映される設定。
+  const IMMEDIATE_CFG_KEYS = new Set(["word_fx"]);
   let pendingCfgPatch = {};
   const flushCfg = debounce(async () => {
     const patch = pendingCfgPatch;
     pendingCfgPatch = {};
     if (!Object.keys(patch).length) return;
     await api("/api/config", patch);
-    if (running) $("restartHint").style.display = "";
+    if (running && Object.keys(patch).some(k => !IMMEDIATE_CFG_KEYS.has(k)))
+      $("restartHint").style.display = "";
   }, 400);
 
   function saveCfg(...keys) {
@@ -916,13 +919,14 @@
     const btn = $("btnEngine");
     btn.className = running ? "on" : "";
     btn.textContent = running ? T("cp.stop", "■ 停止") : T("cp.start", "▶ 開始");
-    btn.disabled = state === "loading";
-    // loading/error は detail（モデルDL進捗・失敗理由）があればそれを優先表示する。
+    btn.disabled = state === "loading" || state === "stopping";
+    // loading/stopping/error は detail（進捗・失敗理由）があればそれを優先表示する。
     // running/stopped は固定ラベル。detail が無い loading は既定の「ロード中...」。
     const stateLabel = { running: T("cp.state_running", "認識中"), stopped: T("cp.state_stopped", "停止中"),
-         loading: T("cp.state_loading", "ロード中..."), error: T("cp.state_error", "エラー") }[state];
+         loading: T("cp.state_loading", "ロード中..."), stopping: T("cp.state_stopping", "停止処理中..."),
+         error: T("cp.state_error", "エラー") }[state];
     $("stateText").textContent =
-      ((state === "loading" || state === "error") && detail)
+      ((state === "loading" || state === "stopping" || state === "error") && detail)
         ? detail
         : (stateLabel || detail || state);
     if (!running) $("restartHint").style.display = "none";
