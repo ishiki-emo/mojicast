@@ -174,3 +174,40 @@ pyinstaller --noconfirm Mojicast.spec
 翻訳モデル FuguMT は CC BY-SA 4.0 のため、変換済みモデルの配布リポジトリは
 同ライセンスを継承し原作者クレジットを掲載しています。モデルを同梱した配布物を
 作る場合も各ライセンスの遵守が必要です（詳細は [CREDITS.md](CREDITS.md)）。
+
+## 免責・ご利用にあたって
+
+- **無保証**: 本アプリは MIT ライセンスで「現状有姿（AS IS）」で提供されます。動作・認識・翻訳の精度は保証されず、
+  ご利用はご自身の責任でお願いします。本アプリの利用により生じたいかなる損害についても作者は責任を負いません。
+- **配信での表示**: 音声認識・翻訳・伏せ字（禁止ワード）は**完全ではなく**、誤認識・誤訳・伏せ字の取りこぼしが
+  起こり得ます。配信に不適切な語が表示されないよう、大事な場面はご自身でも確認してください。
+- **コラボ相手の声**: 1対1コラボは**相手の声を字幕化・ログ保存**します。録音・プライバシーに関わるため、
+  **相手の同意を得たうえで**ご利用ください。
+- **AIモデル・ライセンス**: 初回にダウンロードされるモデルは各配布元のもので、各ライセンスに従います（[CREDITS.md](CREDITS.md)）。
+  特に翻訳モデル FuguMT は CC BY-SA 4.0 で、再配布時は各条件の遵守が必要です。
+- **商標・非提携**: OBS / Discord / ReazonSpeech 等の名称は各権利者に帰属し、本プロジェクトとは提携関係にありません。
+- **ベータ版**: 開発中のため、予告なく仕様変更や不具合が生じる可能性があります。
+
+<details>
+<summary><b>Disclaimer (English)</b></summary>
+
+- **No warranty**: Mojicast is provided under the MIT License, "AS IS". Recognition and translation accuracy are not guaranteed; use it at your own risk. The author is not liable for any damages arising from its use.
+- **On-stream display**: Speech recognition, translation, and word masking are **not perfect** — misrecognition, mistranslation, and missed masking can occur. Please double-check important moments yourself so nothing inappropriate is shown.
+- **Your collab partner's voice**: 1-on-1 collab **captions and logs your partner's voice**. As this involves recording and privacy, please use it **only with your partner's consent**.
+- **AI models & licenses**: Models downloaded on first run come from their original distributors and follow their respective licenses (see [CREDITS.md](CREDITS.md)). In particular, the FuguMT translation model is CC BY-SA 4.0; redistribution must comply with its terms.
+- **Trademarks & non-affiliation**: OBS, Discord, ReazonSpeech and other names belong to their respective owners; this project is not affiliated with them.
+- **Beta**: As this is under active development, specifications may change and bugs may occur without notice.
+
+</details>
+
+<details>
+<summary><b>免责声明 / 使用须知（简体中文）</b></summary>
+
+- **无担保**: Mojicast 以 MIT 许可证「按现状（AS IS）」提供。识别与翻译的准确性不作保证，使用需自担风险。因使用本应用产生的任何损失，作者概不负责。
+- **直播中的显示**: 语音识别、翻译、屏蔽词（打码）**并不完美**，可能出现误识别、误翻译、漏打码。请在重要场合自行确认，避免显示不当内容。
+- **连麦对方的声音**: 1对1连麦会**将对方的声音转为字幕并记录日志**。这涉及录音与隐私，请**在取得对方同意后**使用。
+- **AI模型与许可**: 首次运行时下载的模型来自各自的发布方，遵循各自的许可（见 [CREDITS.md](CREDITS.md)）。其中翻译模型 FuguMT 为 CC BY-SA 4.0，再分发时需遵守其条款。
+- **商标与非关联**: OBS / Discord / ReazonSpeech 等名称归各自权利人所有，本项目与其无关联关系。
+- **测试版**: 本应用仍在开发中，可能在未事先通知的情况下更改规格或出现缺陷。
+
+</details>
