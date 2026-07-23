@@ -1,5 +1,5 @@
 {
-  "version": "0.6.1",
+  "version": "0.6.2",
   "url": "https://emo-ishiki.booth.pm/items/8643987",
-  "notes": "初回モデルダウンロードの進捗表示を修正"
+  "notes": "ローカルAPIの保護と長時間動作の安定性を改善"
 }
