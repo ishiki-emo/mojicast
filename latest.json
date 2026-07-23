@@ -1,5 +1,5 @@
 {
-  "version": "0.6.0",
+  "version": "0.6.1",
   "url": "https://github.com/ishiki-emo/mojicast/releases/latest",
-  "notes": "UI全面刷新・リリックビデオ風字幕・更新のお知らせ機能ほか"
+  "notes": "初回モデルダウンロードの進捗表示を修正"
 }

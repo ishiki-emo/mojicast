@@ -21,7 +21,7 @@ from urllib.parse import urlparse, parse_qs
 from apppaths import BASE
 import wordstore
 
-APP_VERSION = "0.6.0"
+APP_VERSION = "0.6.1"
 
 # 更新チェック用のマニフェスト（GitHub raw）。リリース時に latest.json を更新する。
 # 中身: {"version": "0.5.1", "url": "<配布ページ>", "notes": "<一行紹介>"}
