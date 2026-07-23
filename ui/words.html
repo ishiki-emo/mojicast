@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<title>単語スタジオ</title>
+<title data-i18n="wd.title">単語スタジオ</title>
 <script>
   (function () {
     const qs = new URLSearchParams(location.search);
@@ -17,6 +17,7 @@
     if (qs.get("single") === "1") document.documentElement.classList.add("single");
   })();
 </script>
+<script src="/ui/i18n.js" defer></script>
 <script src="/ui/theme-sync.js" defer></script>
 <style>
   :root {
@@ -94,46 +95,46 @@
 <body>
   <!-- ========== プロファイルバー ========== -->
   <div class="pbar">
-    <span>編集する配信セット:</span>
+    <span data-i18n="wd.profile_label">編集する配信セット:</span>
     <select id="profileSel" onchange="onProfileSelect(this.value)"></select>
-    <button class="btn" onclick="showNewProfile()">＋ 新しい配信セット</button>
-    <button class="btn" id="btnDelProf" onclick="askDeleteProfile()">🗑 削除</button>
+    <button class="btn" onclick="showNewProfile()" data-i18n="wd.profile_new">＋ 新しい配信セット</button>
+    <button class="btn" id="btnDelProf" onclick="askDeleteProfile()" data-i18n="wd.profile_delete">🗑 削除</button>
     <span id="delConfirm" hidden>
-      本当に削除？
-      <button class="btn" onclick="doDeleteProfile()">はい</button>
-      <button class="btn" onclick="$('delConfirm').hidden = true">いいえ</button>
+      <span data-i18n="wd.del_confirm">本当に削除？</span>
+      <button class="btn" onclick="doDeleteProfile()" data-i18n="wd.yes">はい</button>
+      <button class="btn" onclick="$('delConfirm').hidden = true" data-i18n="wd.no">いいえ</button>
     </span>
-    <span class="pbHint">配信セットは「共通」に<b>加算</b>して使われます（同じ単語は配信セット優先）</span>
+    <span class="pbHint" data-i18n="wd.pbar_hint">配信セットは「共通」に<b>加算</b>して使われます（同じ単語は配信セット優先）</span>
     <span class="pbErr" id="loadErr"></span>
-    <button class="btn" id="retryLoad" hidden onclick="retryData()">再読み込み</button>
+    <button class="btn" id="retryLoad" hidden onclick="retryData()" data-i18n="wd.reload">再読み込み</button>
   </div>
   <div class="pbar" id="newProfBar" hidden>
-    <span>配信セット名:</span>
-    <input id="newProfName" maxlength="40" placeholder="例: ゲーム実況"
+    <span data-i18n="wd.profile_name_label">配信セット名:</span>
+    <input id="newProfName" maxlength="40" placeholder="例: ゲーム実況" data-i18n-ph="wd.profile_name_ph"
            onkeydown="if(event.key==='Enter')doCreateProfile()">
-    <span>開始内容:</span>
+    <span data-i18n="wd.start_content_label">開始内容:</span>
     <select id="newProfCopy"></select>
-    <button class="btn" onclick="doCreateProfile()">作成</button>
-    <button class="btn" onclick="$('newProfBar').hidden = true">キャンセル</button>
+    <button class="btn" onclick="doCreateProfile()" data-i18n="wd.create">作成</button>
+    <button class="btn" onclick="$('newProfBar').hidden = true" data-i18n="wd.cancel">キャンセル</button>
     <span class="pbErr" id="newProfErr"></span>
   </div>
   <div class="pbar" id="guardBar" hidden>
-    <span>⚠ 未保存の変更があります。切り替える前にどうしますか？</span>
-    <button class="btn" onclick="guardSave()">💾 保存して切替</button>
-    <button class="btn" onclick="guardDiscard()">破棄して切替</button>
-    <button class="btn" onclick="guardCancel()">キャンセル</button>
+    <span data-i18n="wd.guard_unsaved">⚠ 未保存の変更があります。切り替える前にどうしますか？</span>
+    <button class="btn" onclick="guardSave()" data-i18n="wd.guard_save">💾 保存して切替</button>
+    <button class="btn" onclick="guardDiscard()" data-i18n="wd.guard_discard">破棄して切替</button>
+    <button class="btn" onclick="guardCancel()" data-i18n="wd.cancel">キャンセル</button>
   </div>
 
   <nav>
-    <button id="tabHot" class="active" onclick="showTab('hot')">🎤 認識させる単語</button>
-    <button id="tabFx" onclick="showTab('fx')">✨ 強調する単語</button>
-    <button id="tabBanned" onclick="showTab('banned')">🚫 伏せ字にする単語</button>
-    <button id="tabGloss" onclick="showTab('gloss')">🌐 英訳を固定する単語</button>
+    <button id="tabHot" class="active" onclick="showTab('hot')" data-i18n="wd.tab_hotwords">🎤 認識させる単語</button>
+    <button id="tabFx" onclick="showTab('fx')" data-i18n="wd.tab_effects">✨ 強調する単語</button>
+    <button id="tabBanned" onclick="showTab('banned')" data-i18n="wd.tab_banned">🚫 伏せ字にする単語</button>
+    <button id="tabGloss" onclick="showTab('gloss')" data-i18n="wd.tab_gloss">🌐 英訳を固定する単語</button>
   </nav>
 
   <!-- ========== ホットワード ========== -->
   <div class="page show" id="pageHot">
-    <div class="note">
+    <div class="note" data-i18n="wd.hot_note">
       認識を助ける単語です。<b>「読み」欄には、ひらがなの読みでも、実際に出てしまう別の言葉
       （漢字でもOK）でも</b>入れられ、どちらも「表記」の形に直ります。<br>
       例）<b>癒色えも ← いしきえも</b>（読みから）／ <b>癒色えも ← 一色えも</b>（誤変換を直す）<br>
@@ -142,15 +143,15 @@
       「出やすさ」は強さの調整（空欄=標準、目安1.5〜4.0）。変更は<b>次回開始時</b>に反映されます。
     </div>
     <table id="hotTable">
-      <thead><tr><th style="width:30%">表記（画面に出したい形）</th><th style="width:40%">読み／実際に出る形（誤変換もOK）</th><th style="width:15%">出やすさ</th><th></th></tr></thead>
+      <thead><tr><th style="width:30%" data-i18n="wd.col_surface">表記（画面に出したい形）</th><th style="width:40%" data-i18n="wd.col_reading">読み／実際に出る形（誤変換もOK）</th><th style="width:15%" data-i18n="wd.col_score">出やすさ</th><th></th></tr></thead>
       <tbody></tbody>
     </table>
-    <button class="btn" style="margin-top:10px" onclick="addHotRow()">＋ 行を追加</button>
+    <button class="btn" style="margin-top:10px" onclick="addHotRow()" data-i18n="wd.add_row">＋ 行を追加</button>
   </div>
 
   <!-- ========== エフェクト単語 ========== -->
   <div class="page" id="pageFx">
-    <div class="note">
+    <div class="note" data-i18n="wd.fx_note">
       画面に出たときに<b>派手に装飾する単語</b>（認識とは別管理）。
       「認識させる単語」に入れていなくても、ここの単語は標準で強調されます。
       色・フォント・サイズ・アニメ・<b>飛ぶ絵文字</b>を個別指定でき、変更は<b>即反映</b>。
@@ -158,31 +159,31 @@
     </div>
     <table id="fxTable">
       <thead><tr>
-        <th style="width:17%">単語</th><th style="width:9%">色</th>
-        <th style="width:16%">フォント</th><th style="width:11%">サイズ</th>
-        <th style="width:14%">アニメ</th><th style="width:14%">パーティクル</th>
-        <th style="width:15%">プレビュー</th><th></th>
+        <th style="width:17%" data-i18n="wd.col_word">単語</th><th style="width:9%" data-i18n="wd.col_color">色</th>
+        <th style="width:16%" data-i18n="wd.col_font">フォント</th><th style="width:11%" data-i18n="wd.col_size">サイズ</th>
+        <th style="width:14%" data-i18n="wd.col_anim">アニメ</th><th style="width:14%" data-i18n="wd.col_particle">パーティクル</th>
+        <th style="width:15%" data-i18n="wd.col_preview">プレビュー</th><th></th>
       </tr></thead>
       <tbody></tbody>
     </table>
-    <button class="btn" style="margin-top:10px" onclick="addFxRow()">＋ 行を追加</button>
+    <button class="btn" style="margin-top:10px" onclick="addFxRow()" data-i18n="wd.add_row">＋ 行を追加</button>
   </div>
 
   <!-- ========== 禁止ワード ========== -->
   <div class="page" id="pageBanned">
-    <div class="note">
+    <div class="note" data-i18n="wd.banned_note">
       放送禁止ワードなどを<b>1行に1語</b>。ここの語は<b>認識中（薄文字）・確定字幕・ログ・英訳</b>の
       すべてで伏せ字になります。伏せ字は下の文字を語の文字数ぶん繰り返します（例:「ばか」→「○○」）。
       変更は<b>次回開始時</b>に反映されます。
     </div>
     <div style="margin-bottom:10px">
-      伏せ字にする文字：
+      <span data-i18n="wd.mask_label">伏せ字にする文字：</span>
       <input id="maskChar" maxlength="2" placeholder="○"
              style="width:64px;text-align:center;font-size:18px">
-      <span style="color:var(--dim,#7d8ba1);font-size:12px">（1文字。既定「○」）</span>
+      <span style="color:var(--dim,#7d8ba1);font-size:12px" data-i18n="wd.mask_hint">（1文字。既定「○」）</span>
     </div>
     <textarea id="bannedText" rows="14" spellcheck="false"
-      placeholder="1行に1語（例）&#10;ぴー&#10;NGワード"
+      placeholder="1行に1語（例）&#10;ぴー&#10;NGワード" data-i18n-ph="wd.banned_ph"
       style="width:100%;box-sizing:border-box;background:var(--panel2);color:var(--text);
              border:1px solid var(--line);border-radius:8px;padding:10px;
              font-family:inherit;font-size:15px;line-height:1.6;resize:vertical"></textarea>
@@ -190,7 +191,7 @@
 
   <!-- ========== 英訳辞書 ========== -->
   <div class="page" id="pageGloss">
-    <div class="note">
+    <div class="note" data-i18n="wd.gloss_note">
       <b>日本語→英語（FuguMT）の翻訳時だけ有効です。</b>
       中国語・韓国語など、ほかの翻訳には適用されません。<br>
       名前・チャンネル名などの固有名詞の<b>英訳を固定</b>します。
@@ -199,19 +200,20 @@
       変更は<b>次回開始時</b>に反映されます。
     </div>
     <table id="glossTable">
-      <thead><tr><th style="width:42%">字幕の表記（日本語）</th><th style="width:48%">英訳（固定したい表記）</th><th></th></tr></thead>
+      <thead><tr><th style="width:42%" data-i18n="wd.col_gloss_ja">字幕の表記（日本語）</th><th style="width:48%" data-i18n="wd.col_gloss_en">英訳（固定したい表記）</th><th></th></tr></thead>
       <tbody></tbody>
     </table>
-    <button class="btn" style="margin-top:10px" onclick="addGlossRow()">＋ 行を追加</button>
+    <button class="btn" style="margin-top:10px" onclick="addGlossRow()" data-i18n="wd.add_row">＋ 行を追加</button>
   </div>
 
   <footer>
-    <button class="btn save" id="saveAllBtn" onclick="saveAll()" disabled>💾 保存</button>
-    <span id="saved">保存しました ✓</span>
+    <button class="btn save" id="saveAllBtn" onclick="saveAll()" disabled data-i18n="wd.save">💾 保存</button>
+    <span id="saved" data-i18n="wd.saved">保存しました ✓</span>
   </footer>
 
 <script>
   const $ = (id) => document.getElementById(id);
+  const T = (key, jaDefault) => window.MojicastI18n ? window.MojicastI18n.t(key, jaDefault) : jaDefault;
   const SCALES = [["1", "標準"], ["1.15", "少し大きく"], ["1.3", "大きく"], ["1.5", "特大"]];
 
   function opt(list, sel) {
@@ -328,7 +330,7 @@
     const sel = $("profileSel");
     const names = d.profiles || [];
     profileNames = names;
-    sel.innerHTML = '<option value="">共通（すべての配信）</option>' +
+    sel.innerHTML = `<option value="">${esc(T("wd.common_all","共通（すべての配信）"))}</option>` +
       names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join("");
     if (select !== undefined && (select === "" || names.includes(select)))
       curProfile = select;

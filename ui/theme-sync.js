@@ -16,6 +16,11 @@
     }));
   }
 
+  // UI言語（i18n.js があれば委譲）。theme と同じ経路で適用・中継する。
+  function applyLang(lang) {
+    if (lang && window.MojicastI18n) window.MojicastI18n.applyLang(lang);
+  }
+
   function connect() {
     const events = new EventSource("/events");
     events.onmessage = event => {
@@ -23,6 +28,8 @@
         const message = JSON.parse(event.data);
         if ((message.type === "theme" || message.type === "init") && message.theme)
           applyTheme(message.theme);
+        if ((message.type === "ui_lang" || message.type === "init") && message.ui_lang)
+          applyLang(message.ui_lang);
       } catch (e) {}
     };
     events.onerror = () => {
@@ -37,6 +44,7 @@
     window.addEventListener("message", event => {
       const message = event.data || {};
       if (message.mojiTheme) applyTheme(message.mojiTheme);
+      if (message.mojiLang) applyLang(message.mojiLang);
     });
   }
 
@@ -45,7 +53,7 @@
   // 設定窓をテーマ変更直後に開いた場合の初期色ずれを防ぐ。
   fetch("/api/config", { cache: "no-store" })
     .then(response => response.json())
-    .then(config => applyTheme(config.theme || "light"))
+    .then(config => { applyTheme(config.theme || "light"); applyLang(config.ui_lang || "ja"); })
     .catch(() => {})
     .finally(() => { if (!embedded) connect(); });
 })();

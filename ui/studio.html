@@ -15,6 +15,7 @@
     } catch (e) {}
   })();
 </script>
+<script src="/ui/i18n.js" defer></script>
 <script src="/ui/theme-sync.js" defer></script>
 <style>
   :root {
@@ -132,65 +133,65 @@
 <header class="top">
   <div class="brand"><span class="mark">M</span><strong>STUDIO<i>.</i></strong></div>
   <div id="studioDesc">字幕の見た目と言葉を整えます</div>
-  <div class="scope"><label for="profileScope">編集する配信セット</label><select id="profileScope" onchange="changeProfile(this.value)"><option value="">共通のみ</option></select></div>
-  <button class="btn" onclick="closeThisWindow()">閉じる</button>
+  <div class="scope"><label for="profileScope" data-i18n="su.edit_set">編集する配信セット</label><select id="profileScope" onchange="changeProfile(this.value)"><option value="" data-i18n="su.common_only">共通のみ</option></select></div>
+  <button class="btn" onclick="closeThisWindow()" data-i18n="close">閉じる</button>
 </header>
 
 <div class="layout">
   <nav class="nav" aria-label="設定する機能">
-    <div class="nav-caption">つくるもの</div>
+    <div class="nav-caption" data-i18n="su.nav_caption">つくるもの</div>
     <div class="nav-group" data-group="captions">
-      <button data-pillar="captions" onclick="switchPillar('captions')"><span class="icon">💬</span><strong>字幕</strong><small>見た目・位置・認識単語</small></button>
+      <button data-pillar="captions" onclick="switchPillar('captions')"><span class="icon">💬</span><strong data-i18n="su.p_captions">字幕</strong><small data-i18n="su.p_captions_d">見た目・位置・認識単語</small></button>
       <div class="subnav" aria-label="字幕の設定">
-        <button data-detail="style" onclick="openDetail('style')">文字スタイル</button>
-        <button data-detail="layout" onclick="openDetail('layout')">レイアウト</button>
-        <button data-detail="words" onclick="openDetail('words')">認識させる言葉</button>
-        <button onclick="openLyricLab()">リリック風字幕 ↗</button>
+        <button data-detail="style" onclick="openDetail('style')" data-i18n="su.d_style">文字スタイル</button>
+        <button data-detail="layout" onclick="openDetail('layout')" data-i18n="su.d_layout">レイアウト</button>
+        <button data-detail="words" onclick="openDetail('words')" data-i18n="su.d_words">認識させる言葉</button>
+        <button onclick="openLyricLab()" data-i18n="su.d_lyric">リリック風字幕 ↗</button>
       </div>
     </div>
     <div class="nav-group" data-group="translation">
-      <button data-pillar="translation" onclick="switchPillar('translation')"><span class="icon">🌐</span><strong>翻訳字幕</strong><small>見た目・固定訳</small></button>
+      <button data-pillar="translation" onclick="switchPillar('translation')"><span class="icon">🌐</span><strong data-i18n="su.p_translation">翻訳字幕</strong><small data-i18n="su.p_translation_d">見た目・固定訳</small></button>
       <div class="subnav" aria-label="翻訳字幕の設定">
-        <button data-detail="translation-style" onclick="openDetail('translation-style')">翻訳字幕の見た目</button>
-        <button data-detail="translation-words" onclick="openDetail('translation-words')">訳し方を固定する言葉</button>
-        <button onclick="openSystemSettings('translation')">翻訳の動作設定 ↗</button>
+        <button data-detail="translation-style" onclick="openDetail('translation-style')" data-i18n="su.d_transstyle">翻訳字幕の見た目</button>
+        <button data-detail="translation-words" onclick="openDetail('translation-words')" data-i18n="su.d_transwords">訳し方を固定する言葉</button>
+        <button onclick="openSystemSettings('translation')" data-i18n="su.d_transaction">翻訳の動作設定 ↗</button>
       </div>
     </div>
-    <button data-pillar="effects" onclick="switchPillar('effects')"><span class="icon">✨</span><strong>ワード演出</strong><small>言葉・動き・パーティクル</small></button>
-    <div class="utility"><div class="nav-caption">そのほか</div>
-      <button data-pillar="share" onclick="switchPillar('share')"><span class="icon">↗</span><strong>保存・共有</strong><small>バックアップ・受け渡し</small></button>
+    <button data-pillar="effects" onclick="switchPillar('effects')"><span class="icon">✨</span><strong data-i18n="su.p_effects">ワード演出</strong><small data-i18n="su.p_effects_d">言葉・動き・パーティクル</small></button>
+    <div class="utility"><div class="nav-caption" data-i18n="su.nav_other">そのほか</div>
+      <button data-pillar="share" onclick="switchPillar('share')"><span class="icon">↗</span><strong data-i18n="su.p_share">保存・共有</strong><small data-i18n="su.p_share_d">バックアップ・受け渡し</small></button>
     </div>
   </nav>
 
   <main class="content">
     <section class="pane scroll" id="pCaptions"><div class="inner">
-      <h1 class="page-title">字幕</h1><p class="lead">まず字幕そのものを整えます。普段使うものから、必要な設定だけ開けます。</p>
-      <div class="status"><strong>● 字幕はすぐ使えます</strong><span id="captionSummary">読み込み中…</span></div>
+      <h1 class="page-title" data-i18n="su.h1_captions">字幕</h1><p class="lead" data-i18n="su.lead_captions">まず字幕そのものを整えます。普段使うものから、必要な設定だけ開けます。</p>
+      <div class="status"><strong data-i18n="su.status_ready">● 字幕はすぐ使えます</strong><span id="captionSummary">読み込み中…</span></div>
       <div class="cards">
-        <article class="card"><span class="card-icon">🎨</span><h3>字幕デザイン</h3><p>フォント・色・縁取りを選びます。プリセットはそのまま使えます。</p><div class="card-foot"><span id="designCurrent">—</span><button class="btn" onclick="openDetail('style')">開く</button></div></article>
-        <article class="card"><span class="card-icon">⌖</span><h3>字幕の位置</h3><p>立ち絵やゲーム画面を避けて、読みやすい場所へ置きます。</p><div class="card-foot"><span id="layoutCurrent">—</span><button class="btn" onclick="openDetail('layout')">開く</button></div></article>
-        <article class="card"><span class="card-icon">📖</span><h3>認識させる言葉</h3><p>名前やゲーム用語の読み方を、この配信セットへ登録します。</p><div class="card-foot"><span id="wordsCurrent">—</span><button class="btn" onclick="openDetail('words')">開く</button></div></article>
-        <article class="card"><span class="card-icon">🎬</span><h3>リリック演出ラボ <small style="color:var(--accent)">試作</small></h3><p>入場・配置・退場をまとめた12種類の演出を、曲の流れとして比較します。</p><div class="card-foot"><span>設定はまだ保存されません</span><button class="btn" onclick="openLyricLab()">試す</button></div></article>
+        <article class="card"><span class="card-icon">🎨</span><h3 data-i18n="su.card_design">字幕デザイン</h3><p data-i18n="su.card_design_d">フォント・色・縁取りを選びます。プリセットはそのまま使えます。</p><div class="card-foot"><span id="designCurrent">—</span><button class="btn" onclick="openDetail('style')" data-i18n="su.open">開く</button></div></article>
+        <article class="card"><span class="card-icon">⌖</span><h3 data-i18n="su.card_pos">字幕の位置</h3><p data-i18n="su.card_pos_d">立ち絵やゲーム画面を避けて、読みやすい場所へ置きます。</p><div class="card-foot"><span id="layoutCurrent">—</span><button class="btn" onclick="openDetail('layout')" data-i18n="su.open">開く</button></div></article>
+        <article class="card"><span class="card-icon">📖</span><h3 data-i18n="su.card_words">認識させる言葉</h3><p data-i18n="su.card_words_d">名前やゲーム用語の読み方を、この配信セットへ登録します。</p><div class="card-foot"><span id="wordsCurrent">—</span><button class="btn" onclick="openDetail('words')" data-i18n="su.open">開く</button></div></article>
+        <article class="card"><span class="card-icon">🎬</span><h3><span data-i18n="su.card_lyric">リリック演出ラボ</span> <small style="color:var(--accent)" data-i18n="su.proto">試作</small></h3><p data-i18n="su.card_lyric_d">入場・配置・退場をまとめた12種類の演出を、曲の流れとして比較します。</p><div class="card-foot"><span data-i18n="su.not_saved">設定はまだ保存されません</span><button class="btn" onclick="openLyricLab()" data-i18n="su.try">試す</button></div></article>
       </div>
     </div></section>
 
-    <section class="pane detail" id="pStyleDetail"><div class="backbar"><button id="styleBack" onclick="returnFromStyle()">← 字幕の設定</button><b id="styleDetailTitle">字幕デザイン</b><span>変更はコックピットにも反映されます</span></div><iframe class="embedded" id="fStyle" title="字幕デザインと位置"></iframe></section>
-    <section class="pane detail" id="pWordsDetail"><div class="backbar"><button onclick="switchPillar('captions')">← 字幕の設定</button><b>認識させる言葉</b><span>配信セットごとに保存</span></div><iframe class="embedded" id="fWords" title="認識させる言葉"></iframe></section>
+    <section class="pane detail" id="pStyleDetail"><div class="backbar"><button id="styleBack" onclick="returnFromStyle()">← 字幕の設定</button><b id="styleDetailTitle">字幕デザイン</b><span data-i18n="su.reflected">変更はコックピットにも反映されます</span></div><iframe class="embedded" id="fStyle" title="字幕デザインと位置"></iframe></section>
+    <section class="pane detail" id="pWordsDetail"><div class="backbar"><button onclick="switchPillar('captions')" data-i18n="su.back_captions">← 字幕の設定</button><b data-i18n="su.d_words">認識させる言葉</b><span data-i18n="su.per_set">配信セットごとに保存</span></div><iframe class="embedded" id="fWords" title="認識させる言葉"></iframe></section>
 
     <section class="pane scroll" id="pTranslation"><div class="inner">
-      <h1 class="page-title">翻訳</h1><p class="lead">日本語字幕と一緒に、海外リスナー向けの字幕を表示します。</p>
-      <div class="feature-master"><div><strong>翻訳字幕を使う</strong><small>コックピットから配信中でもオン・オフできます</small></div><button class="switch" id="translationSwitch" onclick="toggleFeature('translate',this)" aria-label="翻訳字幕をオン・オフ"><i></i></button></div>
+      <h1 class="page-title" data-i18n="su.h1_translation">翻訳</h1><p class="lead" data-i18n="su.lead_translation">日本語字幕と一緒に、海外リスナー向けの字幕を表示します。</p>
+      <div class="feature-master"><div><strong data-i18n="su.use_trans">翻訳字幕を使う</strong><small data-i18n="su.use_trans_d">コックピットから配信中でもオン・オフできます</small></div><button class="switch" id="translationSwitch" onclick="toggleFeature('translate',this)" aria-label="翻訳字幕をオン・オフ"><i></i></button></div>
       <div class="cards">
-        <article class="card"><span class="card-icon">🌐</span><h3>翻訳先とモデル</h3><p>英語・中国語など、字幕を届けたい言語とAIの動作を設定します。</p><div class="card-foot"><span id="translationCurrent">—</span><button class="btn" onclick="openSystemSettings('translation')">アプリ設定</button></div></article>
-        <article class="card"><span class="card-icon">🎨</span><h3>翻訳字幕の見た目</h3><p>本文との大きさのバランス、色、縁取りを調整します。</p><div class="card-foot"><span>使用中のデザインに連動</span><button class="btn" onclick="openDetail('translation-style')">開く</button></div></article>
-        <article class="card"><span class="card-icon">📘</span><h3>訳し方を固定する言葉</h3><p>名前や作品名を、いつも同じ表記で翻訳します。日本語→英語（FuguMT）のみ対応します。</p><div class="card-foot"><span>配信セットごとに保存</span><button class="btn" onclick="openDetail('translation-words')">開く</button></div></article>
+        <article class="card"><span class="card-icon">🌐</span><h3 data-i18n="su.card_target">翻訳先とモデル</h3><p data-i18n="su.card_target_d">英語・中国語など、字幕を届けたい言語とAIの動作を設定します。</p><div class="card-foot"><span id="translationCurrent">—</span><button class="btn" onclick="openSystemSettings('translation')" data-i18n="su.app_settings">アプリ設定</button></div></article>
+        <article class="card"><span class="card-icon">🎨</span><h3 data-i18n="su.card_transstyle">翻訳字幕の見た目</h3><p data-i18n="su.card_transstyle_d">本文との大きさのバランス、色、縁取りを調整します。</p><div class="card-foot"><span data-i18n="su.linked_design">使用中のデザインに連動</span><button class="btn" onclick="openDetail('translation-style')" data-i18n="su.open">開く</button></div></article>
+        <article class="card"><span class="card-icon">📘</span><h3 data-i18n="su.card_transwords">訳し方を固定する言葉</h3><p data-i18n="su.card_transwords_d">名前や作品名を、いつも同じ表記で翻訳します。日本語→英語（FuguMT）のみ対応します。</p><div class="card-foot"><span data-i18n="su.per_set">配信セットごとに保存</span><button class="btn" onclick="openDetail('translation-words')" data-i18n="su.open">開く</button></div></article>
       </div>
     </div></section>
-    <section class="pane detail" id="pGlossary"><div class="backbar"><button onclick="switchPillar('translation')">← 翻訳の設定</button><b>訳し方を固定する言葉</b><span>FuguMTの英訳時のみ有効</span></div><iframe class="embedded" id="fGlossary" title="固定訳"></iframe></section>
+    <section class="pane detail" id="pGlossary"><div class="backbar"><button onclick="switchPillar('translation')" data-i18n="su.back_translation">← 翻訳の設定</button><b data-i18n="su.d_transwords">訳し方を固定する言葉</b><span data-i18n="su.fugu_only">FuguMTの英訳時のみ有効</span></div><iframe class="embedded" id="fGlossary" title="固定訳"></iframe></section>
 
-    <section class="pane feature-pane" id="pEffects"><div class="feature-head"><h1 class="page-title">ワード演出</h1><p class="lead">言った瞬間に、文字の色やパーティクルを変えられます。</p><div class="feature-master"><div><strong>ワード演出を使う</strong><small>同梱プリセットがあるので、オンにするだけでも楽しめます</small></div><button class="switch" id="effectsSwitch" onclick="toggleFeature('word_fx',this)" aria-label="ワード演出をオン・オフ"><i></i></button></div></div><iframe class="embedded" id="fEffects" title="ワード演出"></iframe></section>
+    <section class="pane feature-pane" id="pEffects"><div class="feature-head"><h1 class="page-title" data-i18n="su.h1_effects">ワード演出</h1><p class="lead" data-i18n="su.lead_effects">言った瞬間に、文字の色やパーティクルを変えられます。</p><div class="feature-master"><div><strong data-i18n="su.use_fx">ワード演出を使う</strong><small data-i18n="su.use_fx_d">同梱プリセットがあるので、オンにするだけでも楽しめます</small></div><button class="switch" id="effectsSwitch" onclick="toggleFeature('word_fx',this)" aria-label="ワード演出をオン・オフ"><i></i></button></div></div><iframe class="embedded" id="fEffects" title="ワード演出"></iframe></section>
 
-    <section class="pane scroll" id="pShare"><div class="inner"><h1 class="page-title">保存・共有</h1><p class="lead">作った字幕デザインをファイルにして、バックアップや受け渡しに使えます。</p><div class="sharegrid"><div class="card"><span class="card-icon">📤</span><h3>カスタマイズを書き出す</h3><p>字幕デザインと位置を .mojipack にまとめます。</p><div class="card-foot"><button class="btn primary" onclick="exportAll()">ファイルに保存</button><button class="btn" onclick="openFolder()">保存先を開く</button></div></div><div class="card"><span class="card-icon">📥</span><h3>もらったカスタマイズを使う</h3><p>受け取った .mojipack を追加します。今ある設定は上書きしません。</p><div class="card-foot"><button class="btn" onclick="impFile.click()">ファイルを選ぶ</button><input type="file" id="impFile" accept=".mojipack,.json" hidden onchange="doImport(this.files[0])"></div></div></div><div class="saved" id="shareMsg"></div></div></section>
+    <section class="pane scroll" id="pShare"><div class="inner"><h1 class="page-title" data-i18n="su.h1_share">保存・共有</h1><p class="lead" data-i18n="su.lead_share">作った字幕デザインをファイルにして、バックアップや受け渡しに使えます。</p><div class="sharegrid"><div class="card"><span class="card-icon">📤</span><h3 data-i18n="su.export_title">カスタマイズを書き出す</h3><p data-i18n="su.export_d">字幕デザインと位置を .mojipack にまとめます。</p><div class="card-foot"><button class="btn primary" onclick="exportAll()" data-i18n="su.save_file">ファイルに保存</button><button class="btn" onclick="openFolder()" data-i18n="su.open_folder">保存先を開く</button></div></div><div class="card"><span class="card-icon">📥</span><h3 data-i18n="su.import_title">もらったカスタマイズを使う</h3><p data-i18n="su.import_d">受け取った .mojipack を追加します。今ある設定は上書きしません。</p><div class="card-foot"><button class="btn" onclick="impFile.click()" data-i18n="su.choose_file">ファイルを選ぶ</button><input type="file" id="impFile" accept=".mojipack,.json" hidden onchange="doImport(this.files[0])"></div></div></div><div class="saved" id="shareMsg"></div></div></section>
   </main>
 </div>
 
@@ -219,9 +220,22 @@
   }
   window.addEventListener("mojicast-theme-changed", event =>
     forwardTheme((event.detail && event.detail.theme) || "dark"));
+  // 表示言語（i18n）を埋め込みiframeへ中継。テーマと同じ経路。
+  const T = (key, jaDefault) => window.MojicastI18n ? window.MojicastI18n.t(key, jaDefault) : jaDefault;
+  function forwardLang(lang) {
+    document.querySelectorAll("iframe.embedded").forEach(frame => {
+      if (frame.getAttribute("src") && frame.contentWindow)
+        frame.contentWindow.postMessage({ mojiLang: lang }, location.origin);
+    });
+  }
+  window.addEventListener("mojicast-lang-changed", event => {
+    forwardLang((event.detail && event.detail.lang) || "ja");
+    if (typeof relabelDynamic === "function") relabelDynamic();
+  });
+  function curLang() { return window.MojicastI18n ? window.MojicastI18n.current : "ja"; }
   function childPass() {
     const theme = document.documentElement.dataset.theme === "light" ? "light" : "dark";
-    return basePass + `&theme=${theme}`;
+    return basePass + `&theme=${theme}&lang=${curLang()}`;
   }
   function wordUrl(tab) {
     return `/ui/words?embed=1&single=1&tab=${tab}${childPass()}` +
@@ -256,7 +270,7 @@
     currentPillar = pillarPanes[pillar] ? pillar : "captions";
     currentDetail = "";
     syncNavigation();
-    $("studioDesc").textContent = descriptions[currentPillar];
+    $("studioDesc").textContent = T("su.desc_" + currentPillar, descriptions[currentPillar]);
     showPane(pillarPanes[currentPillar]);
     if (currentPillar === "effects") setSrc("fEffects", wordUrl("fx"));
     refreshOverview();
@@ -282,8 +296,8 @@
     if (detail === "style" || detail === "layout" || detail === "translation-style") {
       styleReturnPillar = detail === "translation-style" ? "translation" : "captions";
       currentPillar = styleReturnPillar; currentDetail = detail; syncNavigation();
-      $("styleBack").textContent = styleReturnPillar === "translation" ? "← 翻訳の設定" : "← 字幕の設定";
-      $("styleDetailTitle").textContent = detail === "layout" ? "字幕の位置" : detail === "translation-style" ? "翻訳字幕の見た目" : "字幕デザイン";
+      $("styleBack").textContent = styleReturnPillar === "translation" ? T("su.back_translation","← 翻訳の設定") : T("su.back_captions","← 字幕の設定");
+      $("styleDetailTitle").textContent = detail === "layout" ? T("su.title_layout","字幕の位置") : detail === "translation-style" ? T("su.title_transstyle","翻訳字幕の見た目") : T("su.title_design","字幕デザイン");
       setSrc("fStyle", styleUrl(detail), true); showPane("pStyleDetail");
     } else if (detail === "words") {
       currentPillar = "captions"; currentDetail = detail; syncNavigation();
@@ -296,7 +310,7 @@
   function returnFromStyle() { switchPillar(styleReturnPillar); }
   async function loadProfiles() {
     const d = await api("/api/profiles"); profiles = d.profiles || [];
-    $("profileScope").innerHTML = '<option value="">共通のみ</option>' + profiles.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join("");
+    $("profileScope").innerHTML = `<option value="">${esc(T("su.common_only","共通のみ"))}</option>` + profiles.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join("");
     $("profileScope").value = profiles.includes(cfg.word_profile) ? cfg.word_profile : "";
   }
   async function changeProfile(value) {
@@ -314,11 +328,11 @@
       const [pd,bd,wd] = await Promise.all([api("/api/presets"),api("/api/boxes"),api("/api/hotwords?profile=" + encodeURIComponent(cfg.word_profile || ""))]);
       const preset = (pd.presets || []).find(x => x.id === cfg.preset);
       const box = (bd.boxes || []).find(x => x.id === cfg.box);
-      $("designCurrent").textContent = preset ? preset.name : "標準";
-      $("layoutCurrent").textContent = box ? box.name : "標準";
-      $("wordsCurrent").textContent = `登録 ${(wd.entries || []).length}語`;
+      $("designCurrent").textContent = preset ? preset.name : T("su.default","標準");
+      $("layoutCurrent").textContent = box ? box.name : T("su.default","標準");
+      $("wordsCurrent").textContent = T("su.registered","登録 {n}語").replace("{n}", (wd.entries || []).length);
       $("captionSummary").textContent = `${$("designCurrent").textContent} ／ ${$("layoutCurrent").textContent} ／ ${$("wordsCurrent").textContent}`;
-      $("translationCurrent").textContent = trNames[cfg.translate_lang] || "英語";
+      $("translationCurrent").textContent = T("su.tr_" + (cfg.translate_lang || "en"), trNames[cfg.translate_lang] || "英語");
       for (const [id,key] of [["effectsSwitch","word_fx"],["translationSwitch","translate"]]) $(id).setAttribute("aria-pressed",String(!!cfg[key]));
       if (!profiles.length) await loadProfiles(); else $("profileScope").value = profiles.includes(cfg.word_profile) ? cfg.word_profile : "";
     } catch (e) {}
@@ -327,11 +341,20 @@
     const value = !cfg[key]; cfg[key] = value; button.setAttribute("aria-pressed",String(value));
     await api("/api/config", { [key]:value });
   }
+  // 言語切替時に動的テキスト（説明・見出し・要約）を再適用する
+  function relabelDynamic() {
+    $("studioDesc").textContent = T("su.desc_" + currentPillar, descriptions[currentPillar]);
+    if (currentDetail) {
+      $("styleBack").textContent = styleReturnPillar === "translation" ? T("su.back_translation","← 翻訳の設定") : T("su.back_captions","← 字幕の設定");
+      $("styleDetailTitle").textContent = currentDetail === "layout" ? T("su.title_layout","字幕の位置") : currentDetail === "translation-style" ? T("su.title_transstyle","翻訳字幕の見た目") : T("su.title_design","字幕デザイン");
+    }
+    refreshOverview();
+  }
 
   function shareMsg(text,ok) { $("shareMsg").textContent=text; $("shareMsg").style.color=ok?"var(--ok)":"var(--err)"; }
-  async function exportAll() { try { const [p,b]=await Promise.all([api("/api/presets"),api("/api/boxes")]); const r=await api("/api/mojipack/export",{presets:(p.presets||[]).map(x=>x.id),boxes:(b.boxes||[]).map(x=>x.id)}); shareMsg(r.ok?"書き出しました: "+r.file:r.error||"書き出しに失敗しました",!!r.ok); } catch(e){shareMsg("書き出しに失敗しました",false);} }
-  async function openFolder() { const r=await api("/api/mojipack/open",{}); if(!r.ok)shareMsg(r.error||"フォルダを開けませんでした",false); }
-  async function doImport(file) { if(!file)return; try { const r=await api("/api/mojipack/import",{data:JSON.parse(await file.text())}); shareMsg(r.ok?`取り込みました（字幕デザイン ${r.presets}件 / 字幕の位置 ${r.boxes}件）`:r.error||"取り込みに失敗しました",!!r.ok); } catch(e){shareMsg("ファイルを読めませんでした",false);} $("impFile").value=""; }
+  async function exportAll() { try { const [p,b]=await Promise.all([api("/api/presets"),api("/api/boxes")]); const r=await api("/api/mojipack/export",{presets:(p.presets||[]).map(x=>x.id),boxes:(b.boxes||[]).map(x=>x.id)}); shareMsg(r.ok?T("su.exported","書き出しました: ")+r.file:r.error||T("su.export_fail","書き出しに失敗しました"),!!r.ok); } catch(e){shareMsg(T("su.export_fail","書き出しに失敗しました"),false);} }
+  async function openFolder() { const r=await api("/api/mojipack/open",{}); if(!r.ok)shareMsg(r.error||T("su.folder_fail","フォルダを開けませんでした"),false); }
+  async function doImport(file) { if(!file)return; try { const r=await api("/api/mojipack/import",{data:JSON.parse(await file.text())}); shareMsg(r.ok?T("su.imported","取り込みました（字幕デザイン {p}件 / 字幕の位置 {b}件）").replace("{p}",r.presets).replace("{b}",r.boxes):r.error||T("su.import_fail","取り込みに失敗しました"),!!r.ok); } catch(e){shareMsg(T("su.read_fail","ファイルを読めませんでした"),false);} $("impFile").value=""; }
 
   (async function init() {
     cfg = await api("/api/config"); applyTheme(cfg.theme || "dark"); await loadProfiles(); await refreshOverview();

@@ -231,8 +231,8 @@
     <section class="workspace">
       <header class="topbar">
         <div>
-          <h1>リリック演出ラボ</h1>
-          <div class="subtitle">WebViewで動く表現を、配信の流れとして比較する試作画面</div>
+          <h1 data-i18n="ly.title">リリック演出ラボ</h1>
+          <div class="subtitle" data-i18n="ly.subtitle">WebViewで動く表現を、配信の流れとして比較する試作画面</div>
         </div>
         <div class="now">
           <div class="now-label">NOW PLAYING</div>
@@ -256,68 +256,69 @@
       </div>
 
       <footer class="transport">
-        <label>表示する言葉
+        <label><span data-i18n="ly.text_label">表示する言葉</span>
           <input id="lyricText" class="text-input" value="きみの声が 夜を照らしていく" maxlength="80">
         </label>
         <div class="actions">
-          <button class="btn" id="clearBtn">消す</button>
-          <button class="btn" id="nextBtn">次の演出</button>
-          <button class="btn primary" id="playBtn">この言葉を表示</button>
+          <button class="btn" id="clearBtn" data-i18n="ly.clear">消す</button>
+          <button class="btn" id="nextBtn" data-i18n="ly.next">次の演出</button>
+          <button class="btn primary" id="playBtn" data-i18n="ly.play">この言葉を表示</button>
         </div>
       </footer>
     </section>
 
     <aside class="side">
       <section class="section">
-        <div class="section-title"><h2>再生方法</h2><span>流れを比較</span></div>
+        <div class="section-title"><h2 data-i18n="ly.playmethod">再生方法</h2><span data-i18n="ly.compare_flow">流れを比較</span></div>
         <div class="mode-grid" id="modeGrid">
-          <button class="mode-btn active" data-mode="manual">手動で選ぶ</button>
-          <button class="mode-btn" data-mode="random">ランダム</button>
-          <button class="mode-btn" data-mode="arc">静 → サビ</button>
-          <button class="mode-btn" data-mode="alternate">緩急をつける</button>
+          <button class="mode-btn active" data-mode="manual" data-i18n="ly.mode_manual">手動で選ぶ</button>
+          <button class="mode-btn" data-mode="random" data-i18n="ly.mode_random">ランダム</button>
+          <button class="mode-btn" data-mode="arc" data-i18n="ly.mode_arc">静 → サビ</button>
+          <button class="mode-btn" data-mode="alternate" data-i18n="ly.mode_alt">緩急をつける</button>
         </div>
       </section>
 
       <section class="section">
-        <div class="section-title"><h2>演出プリセット</h2><span id="presetCount"></span></div>
+        <div class="section-title"><h2 data-i18n="ly.presets">演出プリセット</h2><span id="presetCount"></span></div>
         <div class="preset-list" id="presetList"></div>
       </section>
 
       <section class="section">
-        <div class="section-title"><h2>比較条件</h2><span>デモ用</span></div>
+        <div class="section-title"><h2 data-i18n="ly.conditions">比較条件</h2><span data-i18n="ly.for_demo">デモ用</span></div>
         <div class="controls">
-          <label class="control">テンポ
+          <label class="control"><span data-i18n="ly.tempo">テンポ</span>
             <select id="tempo">
-              <option value="0.72">速い</option>
-              <option value="1" selected>標準</option>
-              <option value="1.35">ゆっくり</option>
+              <option value="0.72" data-i18n="ly.tempo_fast">速い</option>
+              <option value="1" selected data-i18n="ly.tempo_normal">標準</option>
+              <option value="1.35" data-i18n="ly.tempo_slow">ゆっくり</option>
             </select>
           </label>
-          <label class="control">背景
+          <label class="control"><span data-i18n="ly.background">背景</span>
             <select id="background">
-              <option value="aurora">オーロラ</option>
-              <option value="midnight">ミッドナイト</option>
-              <option value="warm">サンセット</option>
-              <option value="transparent">透過確認</option>
+              <option value="aurora" data-i18n="ly.bg_aurora">オーロラ</option>
+              <option value="midnight" data-i18n="ly.bg_midnight">ミッドナイト</option>
+              <option value="warm" data-i18n="ly.bg_warm">サンセット</option>
+              <option value="transparent" data-i18n="ly.bg_transparent">透過確認</option>
             </select>
           </label>
-          <label class="control">シード
+          <label class="control"><span data-i18n="ly.seed">シード</span>
             <input id="seed" class="seed-input" value="724" inputmode="numeric">
           </label>
-          <label class="control">自動送り
+          <label class="control"><span data-i18n="ly.autosend">自動送り</span>
             <select id="interval">
-              <option value="3200">3.2 秒</option>
-              <option value="4400" selected>4.4 秒</option>
-              <option value="6000">6 秒</option>
+              <option value="3200" data-i18n="ly.sec32">3.2 秒</option>
+              <option value="4400" selected data-i18n="ly.sec44">4.4 秒</option>
+              <option value="6000" data-i18n="ly.sec6">6 秒</option>
             </select>
           </label>
         </div>
-        <label class="check"><input type="checkbox" id="autoplay"> 自動で次のフレーズを再生</label>
-        <label class="check"><input type="checkbox" id="showSafe"> セーフエリアを表示</label>
-        <p class="legend">ランダムも同じシードなら同じ順番を再現します。「静 → サビ」は演出強度を段階的に上げます。</p>
+        <label class="check"><input type="checkbox" id="autoplay"> <span data-i18n="ly.autoplay">自動で次のフレーズを再生</span></label>
+        <label class="check"><input type="checkbox" id="showSafe"> <span data-i18n="ly.showsafe">セーフエリアを表示</span></label>
+        <p class="legend" data-i18n="ly.legend">ランダムも同じシードなら同じ順番を再現します。「静 → サビ」は演出強度を段階的に上げます。</p>
       </section>
     </aside>
   </main>
+  <script src="/ui/i18n.js"></script>
   <script src="/ui/theme-sync.js"></script>
   <script src="/ui/lyric_lab.js"></script>
 </body>

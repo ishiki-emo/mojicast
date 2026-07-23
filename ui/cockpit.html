@@ -346,16 +346,17 @@
   footer { padding: 6px 16px; color: var(--dim); font-size: 11px; border-top: 1px solid var(--line); background: var(--panel); }
   .hint { color: var(--dim); font-size: 11px; margin-top: 4px; }
 </style>
+<script src="/ui/i18n.js"></script>
 <script src="/ui/fx.js"></script>
 </head>
 <body>
   <header>
     <div class="logo">MOJI<b>CAST</b></div>
     <div class="led" id="led"></div>
-    <div id="stateText">停止中</div>
+    <div id="stateText" data-i18n="cp.state_stopped">停止中</div>
     <div class="spacer"></div>
-    <button id="themeBtn" onclick="toggleTheme()" title="ライト/ダーク切替">🌙</button>
-    <button id="btnEngine" onclick="toggleEngine()">▶ 開始</button>
+    <button id="themeBtn" onclick="toggleTheme()" title="ライト/ダーク切替" data-i18n-title="cp.theme_toggle">🌙</button>
+    <button id="btnEngine" onclick="toggleEngine()" data-i18n="cp.start">▶ 開始</button>
   </header>
 
   <main>
@@ -363,29 +364,29 @@
     <div class="col">
       <section class="bar">
         <div class="setrow">
-          <span class="micicon" title="マイク">🎤</span>
+          <span class="micicon" title="マイク" data-i18n-title="cp.mic">🎤</span>
           <div class="field mic">
             <select id="device"></select>
           </div>
           <div class="meterwrap">
             <div id="meter"><div id="meterBar"></div></div>
           </div>
-          <button class="advbtn" onclick="openSettings('hearing')">⚙ 聞き取り設定</button>
+          <button class="advbtn" onclick="openSettings('hearing')" data-i18n="cp.hearing_settings">⚙ 聞き取り設定</button>
         </div>
         <div id="restartHint" style="display:none">
-          <span>⚠ 変更は次の ▶開始 から反映されます</span>
-          <button id="restartNow" onclick="restartEngine()">⏹→▶ 今すぐ反映（再起動）</button>
+          <span data-i18n="cp.restart_hint">⚠ 変更は次の ▶開始 から反映されます</span>
+          <button id="restartNow" onclick="restartEngine()" data-i18n="cp.restart_now">⏹→▶ 今すぐ反映（再起動）</button>
         </div>
       </section>
 
       <!-- 字幕モニタ -->
       <section class="panel" id="centerPanel">
       <div class="mon-head">
-        <h2 id="monitorTitle" style="margin:0;border:0;padding:0">字幕ログ</h2>
+        <h2 id="monitorTitle" style="margin:0;border:0;padding:0" data-i18n="cp.monitor_title">字幕ログ</h2>
         <span class="rec" id="rec">● REC</span>
         <div class="mode-switch" role="group" aria-label="字幕モニタの表示方法">
-          <button id="modeLog" class="active" aria-pressed="true" onclick="setMonitorMode('log')">簡易ログ</button>
-          <button id="modePreview" aria-pressed="false" onclick="setMonitorMode('preview')">配信プレビュー</button>
+          <button id="modeLog" class="active" aria-pressed="true" onclick="setMonitorMode('log')" data-i18n="cp.mode_log">簡易ログ</button>
+          <button id="modePreview" aria-pressed="false" onclick="setMonitorMode('preview')" data-i18n="cp.mode_preview">配信プレビュー</button>
         </div>
       </div>
       <div id="suggestBar" style="display:none">
@@ -396,23 +397,23 @@
         </span>
       </div>
       <div class="mon-wrap">
-        <button class="clr-in" onclick="clearCaptions()">表示クリア</button>
+        <button class="clr-in" onclick="clearCaptions()" data-i18n="cp.clear">表示クリア</button>
         <div id="monitor"></div>
         <div id="previewStage" aria-hidden="true">
-          <span class="preview-badge">OBS表示イメージ・1920×1080</span>
+          <span class="preview-badge" data-i18n="cp.preview_badge">OBS表示イメージ・1920×1080</span>
           <div id="previewCanvas"><iframe src="/overlay?cockpit-preview=1" title="OBS字幕プレビュー"></iframe></div>
         </div>
         <div id="guide">
           <div>
-            <div class="g-title">はじめの3ステップ</div>
-            <div class="g-sub">この案内は最初だけ表示されます</div>
+            <div class="g-title" data-i18n="cp.guide_title">はじめの3ステップ</div>
+            <div class="g-sub" data-i18n="cp.guide_sub">この案内は最初だけ表示されます</div>
           </div>
           <ol>
-            <li><span class="g-n">1</span><div><b>マイクを選ぶ</b><span>上の設定バー</span></div></li>
-            <li><span class="g-n">2</span><div><b>「▶ 開始」を押す</b><span>右上のボタン。字幕がここに出ます</span></div></li>
-            <li><span class="g-n">3</span><div><b>表示用のURLをOBSに貼る</b><span>右の「OBSに字幕を出す」からコピー</span></div></li>
+            <li><span class="g-n">1</span><div><b data-i18n="cp.guide_s1_t">マイクを選ぶ</b><span data-i18n="cp.guide_s1_d">上の設定バー</span></div></li>
+            <li><span class="g-n">2</span><div><b data-i18n="cp.guide_s2_t">「▶ 開始」を押す</b><span data-i18n="cp.guide_s2_d">右上のボタン。字幕がここに出ます</span></div></li>
+            <li><span class="g-n">3</span><div><b data-i18n="cp.guide_s3_t">表示用のURLをOBSに貼る</b><span data-i18n="cp.guide_s3_d">右の「OBSに字幕を出す」からコピー</span></div></li>
           </ol>
-          <button class="g-close" onclick="dismissGuide()">閉じる</button>
+          <button class="g-close" onclick="dismissGuide()" data-i18n="cp.guide_close">閉じる</button>
         </div>
       </div>
       </section>
@@ -420,20 +421,20 @@
       <!-- 配信前によく切り替える3項目。左ペインの3段目に固定して縦長化を防ぐ -->
       <section class="panel quick-today">
         <div class="today-head">
-          <b>今日の字幕</b><span>よく使う3つだけ</span>
-          <button onclick="openStudio('pillar=captions')">カスタマイズ</button>
+          <b data-i18n="cp.today">今日の字幕</b><span data-i18n="cp.today_sub">よく使う3つだけ</span>
+          <button onclick="openStudio('pillar=captions')" data-i18n="cp.customize">カスタマイズ</button>
         </div>
         <div class="today-grid">
           <div class="today-item">
-            <div class="today-label"><b>字幕デザイン</b><span>フォント・色・動き</span></div>
+            <div class="today-label"><b data-i18n="cp.today_design">字幕デザイン</b><span data-i18n="cp.today_design_d">フォント・色・動き</span></div>
             <div id="presets"></div>
           </div>
           <div class="today-item">
-            <div class="today-label"><b>字幕の位置</b><span>画面内の表示場所</span></div>
+            <div class="today-label"><b data-i18n="cp.today_pos">字幕の位置</b><span data-i18n="cp.today_pos_d">画面内の表示場所</span></div>
             <div id="boxes"></div>
           </div>
           <div class="today-item">
-            <div class="today-label"><b>配信セット</b><span>ゲーム・企画ごとの単語</span></div>
+            <div class="today-label"><b data-i18n="cp.today_set">配信セット</b><span data-i18n="cp.today_set_d">ゲーム・企画ごとの単語</span></div>
             <div class="selrow"><select id="wordProfile"></select></div>
           </div>
         </div>
@@ -447,27 +448,27 @@
         <div class="ghead">
           <span class="gicon" style="background:rgba(255,45,149,.12)">✦</span>
           <div>
-            <div class="gtitle">字幕に追加する</div>
-            <div class="gdesc">必要なものだけオン</div>
+            <div class="gtitle" data-i18n="cp.add_title">字幕に追加する</div>
+            <div class="gdesc" data-i18n="cp.add_sub">必要なものだけオン</div>
           </div>
         </div>
         <div class="feature-list">
           <div class="feature-row">
             <span class="feature-icon">💥</span>
-            <span class="feature-copy"><b>ワード演出</b><span>好きな言葉を派手にする</span></span>
-            <button class="feature-edit" onclick="openStudio('pillar=effects')">設定</button>
+            <span class="feature-copy"><b data-i18n="cp.fx">ワード演出</b><span data-i18n="cp.fx_d">好きな言葉を派手にする</span></span>
+            <button class="feature-edit" onclick="openStudio('pillar=effects')" data-i18n="cp.configure">設定</button>
             <input type="checkbox" id="wordFx">
           </div>
           <div class="feature-row">
             <span class="feature-icon">🌐</span>
-            <span class="feature-copy"><b id="transFeatureLabel">英訳</b><span>翻訳字幕を一緒に表示</span></span>
-            <button class="feature-edit" onclick="openStudio('pillar=translation')">設定</button>
+            <span class="feature-copy"><b id="transFeatureLabel">英訳</b><span data-i18n="cp.trans_d">翻訳字幕を一緒に表示</span></span>
+            <button class="feature-edit" onclick="openStudio('pillar=translation')" data-i18n="cp.configure">設定</button>
             <input type="checkbox" id="translateOn">
           </div>
           <div class="feature-row">
             <span class="feature-icon">🎧</span>
-            <span class="feature-copy"><b>1対1コラボ</b><span>相手の声も字幕にする</span></span>
-            <button class="feature-edit" onclick="openSettings('collab')">設定</button>
+            <span class="feature-copy"><b data-i18n="cp.collab">1対1コラボ</b><span data-i18n="cp.collab_d">相手の声も字幕にする</span></span>
+            <button class="feature-edit" onclick="openSettings('collab')" data-i18n="cp.configure">設定</button>
             <input type="checkbox" id="collabOn">
           </div>
           <div class="hint" id="collabSummary" style="display:none"></div>
@@ -478,20 +479,20 @@
         <div class="ghead">
           <span class="gicon" style="background:rgba(61,255,160,.12)">🎬</span>
           <div>
-            <div class="gtitle">OBSに表示</div>
-            <div class="gdesc">ブラウザソースにURLを貼り付け</div>
+            <div class="gtitle" data-i18n="cp.obs_title">OBSに表示</div>
+            <div class="gdesc" data-i18n="cp.obs_sub">ブラウザソースにURLを貼り付け</div>
           </div>
         </div>
         <div class="obs">
           <input type="text" id="obsUrl" readonly>
-          <button onclick="copyUrl()">コピー</button>
+          <button onclick="copyUrl()" data-i18n="cp.copy">コピー</button>
         </div>
-        <div class="hint">推奨サイズ: 配信解像度と同じ（例 1920×1080）</div>
-        <button class="feature-edit" onclick="openSettings('obs')" style="margin-top:10px">接続設定</button>
+        <div class="hint" data-i18n="cp.obs_hint">推奨サイズ: 配信解像度と同じ（例 1920×1080）</div>
+        <button class="feature-edit" onclick="openSettings('obs')" style="margin-top:10px" data-i18n="cp.obs_connect">接続設定</button>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <button onclick="openStudio('pillar=captions')" style="text-align:left;color:var(--dim)">🎨 字幕スタジオ</button>
-        <button onclick="openSettings('hearing')" style="text-align:left;color:var(--dim)">⚙ アプリ設定</button>
+        <button onclick="openStudio('pillar=captions')" style="text-align:left;color:var(--dim)" data-i18n="cp.studio">🎨 字幕スタジオ</button>
+        <button onclick="openSettings('hearing')" style="text-align:left;color:var(--dim)" data-i18n="cp.app_settings">⚙ アプリ設定</button>
       </div>
     </div>
   </main>
@@ -628,11 +629,13 @@
   }
 
   // 翻訳チップの表示名（英訳/中国語訳など）を設定に同期
+  // i18n: 訳語を引く（ja既定を同梱・i18n.js未読込でも安全）
+  const T = (key, jaDefault) => window.MojicastI18n ? window.MojicastI18n.t(key, jaDefault) : jaDefault;
   const TR_NAMES = { en: "英訳", zh: "中国語訳", zh_tw: "台湾繁体字訳",
     zh_hk: "香港繁体字訳", id: "インドネシア語訳", ja: "日本語訳", ko: "韓国語訳" };
   function syncModelCard() {
-    const tr = TR_NAMES[cfg.translate_lang] || "英訳";
-    $("transFeatureLabel").textContent = tr;
+    const lang = cfg.translate_lang || "en";
+    $("transFeatureLabel").textContent = T("trg." + lang, TR_NAMES[lang] || "英訳");
   }
 
   // コックピットに残す配信中の機能トグル
@@ -689,6 +692,7 @@
   async function loadAll() {
     cfg = await api("/api/config");
     applyTheme(cfg.theme);   // 保存済みテーマを確定反映（先読みの上書き）
+    if (window.MojicastI18n) window.MojicastI18n.applyLang(cfg.ui_lang || "ja");   // 表示言語
     if (cfg.version) $("verTag").textContent = "v" + cfg.version;
     if (cfg.num_arabic === undefined) cfg.num_arabic = true;   // 既定ON（チップ表示用）
     if (cfg.save_log === undefined) cfg.save_log = true;
@@ -698,10 +702,10 @@
     $("obsUrl").value = location.origin + "/";
     const dv = await api("/api/devices");
     const sel = $("device");
-    sel.innerHTML = '<option value="default">既定のマイク</option>';
+    sel.innerHTML = `<option value="default">${T("cp.mic_default", "既定のマイク")}</option>`;
     for (const d of dv.devices || []) {
       const o = document.createElement("option");
-      o.value = d.index; o.textContent = d.name + (d.default ? " (既定)" : "");
+      o.value = d.index; o.textContent = d.name + (d.default ? T("cp.default_suffix", " (既定)") : "");
       sel.appendChild(o);
     }
     if (cfg.device !== null && cfg.device !== undefined) sel.value = cfg.device;
@@ -841,17 +845,21 @@
     }
   }
 
+  let lastState = "stopped";   // 言語切替後に動的ラベル（state/開始停止）を再適用するため
   function setState(state, detail) {
+    lastState = state;
     const led = $("led");
     led.className = "led " + state;
     running = state === "running";
     $("rec").className = "rec" + (running ? " on" : "");
     const btn = $("btnEngine");
     btn.className = running ? "on" : "";
-    btn.textContent = running ? "■ 停止" : "▶ 開始";
+    btn.textContent = running ? T("cp.stop", "■ 停止") : T("cp.start", "▶ 開始");
     btn.disabled = state === "loading";
-    $("stateText").textContent = detail ||
-      ({ running: "認識中", stopped: "停止中", loading: "ロード中...", error: "エラー" }[state] || state);
+    $("stateText").textContent =
+      ({ running: T("cp.state_running", "認識中"), stopped: T("cp.state_stopped", "停止中"),
+         loading: T("cp.state_loading", "ロード中..."), error: T("cp.state_error", "エラー") }[state]
+       || detail || state);
     if (!running) $("restartHint").style.display = "none";
   }
 
@@ -1056,6 +1064,7 @@
       else if (m.type === "clear") { monitor.innerHTML = ""; partials.clear(); }
       else if (m.type === "style") { setPreviewStyle(m); refreshPresets(); }
       else if (m.type === "theme") { cfg.theme = m.theme; applyTheme(m.theme); }
+      else if (m.type === "ui_lang") { cfg.ui_lang = m.ui_lang; if (window.MojicastI18n) { window.MojicastI18n.applyLang(m.ui_lang); setState(lastState); syncModelCard(); } }
     };
     es.onerror = () => { es.close(); setTimeout(connect, 1000); };
   }

@@ -18,6 +18,7 @@
     if (qs.get("focus") === "translation") document.documentElement.classList.add("translation-focus");
   })();
 </script>
+<script src="/ui/i18n.js" defer></script>
 <script src="/ui/theme-sync.js" defer></script>
 <style>
   /* 埋め込み時: このページ自身の上位タブ(nav)は非表示（親studioが切替を担う） */
@@ -146,71 +147,71 @@
 </head>
 <body>
   <nav>
-    <button id="tabStyle" class="active" onclick="showTab('style')">🎨 文字スタイル</button>
-    <button id="tabBox" onclick="showTab('box')">📐 レイアウト</button>
+    <button id="tabStyle" class="active" onclick="showTab('style')" data-i18n="sy.tab_style">🎨 文字スタイル</button>
+    <button id="tabBox" onclick="showTab('box')" data-i18n="sy.tab_box">📐 レイアウト</button>
   </nav>
 
   <!-- ================= 文字スタイル ================= -->
   <div class="page show" id="pageStyle">
     <section class="panel">
-      <h2>字幕デザインを選ぶ</h2>
-      <button class="btn new-item" onclick="newPresetFromStandard()" title="スタンダードを元に作成">＋ 新しいデザイン</button>
+      <h2 data-i18n="sy.choose_design">字幕デザインを選ぶ</h2>
+      <button class="btn new-item" onclick="newPresetFromStandard()" title="スタンダードを元に作成" data-i18n="sy.new_design" data-i18n-title="sy.new_from_standard">＋ 新しいデザイン</button>
       <div id="plist"></div>
     </section>
     <section class="panel editor" id="styleEditor">
-      <h2>プレビュー — <span id="editName"></span></h2>
+      <h2><span data-i18n="sy.preview">プレビュー</span> — <span id="editName"></span></h2>
       <div class="editor-actions" id="styleActions">
         <div class="copy"><b id="styleActionTitle">このデザインを使いますか？</b>
           <span id="styleActionDesc">画面下のボタンで現在の字幕に切り替えられます</span></div>
-        <button class="btn" onclick="duplicatePreset()">これを元に新規作成</button>
+        <button class="btn" onclick="duplicatePreset()" data-i18n="sy.duplicate">これを元に新規作成</button>
         <button class="btn save" id="customizePresetBtn" onclick="beginPresetEdit()">カスタマイズ</button>
       </div>
       <div class="edit-tools" id="styleEditTools" hidden>
-        <span>まずは、よく使う項目だけ表示しています</span>
+        <span data-i18n="sy.basic_only_note">まずは、よく使う項目だけ表示しています</span>
         <span style="flex:1"></span>
         <button class="btn small" id="styleAdvancedBtn" onclick="toggleStyleAdvanced()">もっと細かく調整</button>
         <button class="btn small" id="managePresetBtn" onclick="managePreset()">初期状態に戻す</button>
       </div>
       <div class="form locked" id="form">
-        <div class="fsec">📛 プリセット</div>
-        <div class="fr"><label>プリセット名</label><input type="text" id="f_name"></div>
-        <div class="fr"><label>説明</label><input type="text" id="f_desc"></div>
+        <div class="fsec" data-i18n="sy.sec_preset">📛 プリセット</div>
+        <div class="fr"><label data-i18n="sy.preset_name">プリセット名</label><input type="text" id="f_name"></div>
+        <div class="fr"><label data-i18n="sy.desc">説明</label><input type="text" id="f_desc"></div>
 
-        <div class="fsec">✏️ 本文（メイン字幕）</div>
-        <div class="fr"><label>フォント</label><select id="f_fontSel"></select></div>
-        <div class="fr advanced-only"><label>フォント直接指定（CSS）</label><input type="text" id="f_font" placeholder="'Yu Gothic UI', sans-serif"></div>
-        <div class="fr advanced-only"><label>太さ <output id="o_weight"></output></label><input type="range" id="f_weight" min="400" max="900" step="100"></div>
-        <div class="fr"><label>サイズ <output id="o_size"></output></label><input type="range" id="f_size" min="20" max="80" step="2"></div>
-        <div class="fr"><label>文字色</label><input type="color" id="f_color"></div>
-        <div class="fr"><label>強調の色</label><input type="color" id="f_hotColor"></div>
-        <div class="fr"><label>縁取り色</label><input type="color" id="f_outlineColor"></div>
-        <div class="fr"><label>縁取りの太さ <output id="o_outlineWidth"></output></label><input type="range" id="f_outlineWidth" min="0" max="6" step="1"></div>
-        <div class="fr advanced-only"><label>グロー色</label><input type="color" id="f_glowColor"></div>
-        <div class="fr advanced-only"><label>グロー強さ <output id="o_glowSize"></output>（0でなし）</label><input type="range" id="f_glowSize" min="0" max="30" step="2"></div>
-        <div class="fr advanced-only"><label>登場アニメ</label><select id="f_animIn"></select></div>
-        <div class="fr chk advanced-only"><input type="checkbox" id="f_shadow"><span>影をつける</span></div>
-        <div class="fr advanced-only"><label>字間 <output id="o_spacing"></output></label><input type="range" id="f_spacing" min="0" max="0.15" step="0.01"></div>
+        <div class="fsec" data-i18n="sy.sec_body">✏️ 本文（メイン字幕）</div>
+        <div class="fr"><label data-i18n="sy.font">フォント</label><select id="f_fontSel"></select></div>
+        <div class="fr advanced-only"><label data-i18n="sy.font_css">フォント直接指定（CSS）</label><input type="text" id="f_font" placeholder="'Yu Gothic UI', sans-serif" data-i18n-ph="sy.font_css_ph"></div>
+        <div class="fr advanced-only"><label><span data-i18n="sy.weight">太さ</span> <output id="o_weight"></output></label><input type="range" id="f_weight" min="400" max="900" step="100"></div>
+        <div class="fr"><label><span data-i18n="sy.size">サイズ</span> <output id="o_size"></output></label><input type="range" id="f_size" min="20" max="80" step="2"></div>
+        <div class="fr"><label data-i18n="sy.text_color">文字色</label><input type="color" id="f_color"></div>
+        <div class="fr"><label data-i18n="sy.hot_color">強調の色</label><input type="color" id="f_hotColor"></div>
+        <div class="fr"><label data-i18n="sy.outline_color">縁取り色</label><input type="color" id="f_outlineColor"></div>
+        <div class="fr"><label><span data-i18n="sy.outline_width">縁取りの太さ</span> <output id="o_outlineWidth"></output></label><input type="range" id="f_outlineWidth" min="0" max="6" step="1"></div>
+        <div class="fr advanced-only"><label data-i18n="sy.glow_color">グロー色</label><input type="color" id="f_glowColor"></div>
+        <div class="fr advanced-only"><label><span data-i18n="sy.glow_size">グロー強さ</span> <output id="o_glowSize"></output><span data-i18n="sy.zero_none">（0でなし）</span></label><input type="range" id="f_glowSize" min="0" max="30" step="2"></div>
+        <div class="fr advanced-only"><label data-i18n="sy.anim_in">登場アニメ</label><select id="f_animIn"></select></div>
+        <div class="fr chk advanced-only"><input type="checkbox" id="f_shadow"><span data-i18n="sy.shadow">影をつける</span></div>
+        <div class="fr advanced-only"><label><span data-i18n="sy.spacing">字間</span> <output id="o_spacing"></output></label><input type="range" id="f_spacing" min="0" max="0.15" step="0.01"></div>
 
-        <div class="fsec advanced-only">🌫 途中表示（薄文字）</div>
-        <div class="fr advanced-only"><label>濃さ <output id="o_partial"></output></label><input type="range" id="f_partial" min="0.2" max="0.9" step="0.05"></div>
-        <div class="fr chk advanced-only"><input type="checkbox" id="f_partialFx"><span>エフェクトを乗せる（オフ=プレーン表示）</span></div>
+        <div class="fsec advanced-only" data-i18n="sy.sec_partial">🌫 途中表示（薄文字）</div>
+        <div class="fr advanced-only"><label><span data-i18n="sy.opacity">濃さ</span> <output id="o_partial"></output></label><input type="range" id="f_partial" min="0.2" max="0.9" step="0.05"></div>
+        <div class="fr chk advanced-only"><input type="checkbox" id="f_partialFx"><span data-i18n="sy.partial_fx">エフェクトを乗せる（オフ=プレーン表示）</span></div>
 
         <div id="translationFields">
-        <div class="fsec en advanced-only">🌐 翻訳字幕 <small>（翻訳ONのとき）</small></div>
-        <div class="fr advanced-only"><label>サイズ <output id="o_enScale"></output>（本文比）</label><input type="range" id="f_enScale" min="0.3" max="1" step="0.05"></div>
-        <div class="fr advanced-only"><label>濃さ <output id="o_enOpacity"></output></label><input type="range" id="f_enOpacity" min="0.3" max="1" step="0.05"></div>
-        <div class="fr chk advanced-only"><input type="checkbox" id="f_enColorOn"><span>専用色を使う（オフ=本文と同じ）</span></div>
-        <div class="fr advanced-only"><label>色</label><input type="color" id="f_enColor"></div>
-        <div class="fr advanced-only"><label>フォント</label><select id="f_enFontSel"></select></div>
-        <div class="fr chk advanced-only"><input type="checkbox" id="f_enDeco"><span>専用の縁取り・グローを使う（オフ=本文と同じ）</span></div>
-        <div class="fr advanced-only"><label>縁取り色</label><input type="color" id="f_enOutlineColor"></div>
-        <div class="fr advanced-only"><label>縁取りの太さ <output id="o_enOutlineWidth"></output></label><input type="range" id="f_enOutlineWidth" min="0" max="6" step="1"></div>
-        <div class="fr advanced-only"><label>グロー色</label><input type="color" id="f_enGlowColor"></div>
-        <div class="fr advanced-only"><label>グロー強さ <output id="o_enGlowSize"></output>（0でなし）</label><input type="range" id="f_enGlowSize" min="0" max="30" step="2"></div>
+        <div class="fsec en advanced-only"><span data-i18n="sy.sec_translation">🌐 翻訳字幕</span> <small data-i18n="sy.translation_when_on">（翻訳ONのとき）</small></div>
+        <div class="fr advanced-only"><label><span data-i18n="sy.size">サイズ</span> <output id="o_enScale"></output><span data-i18n="sy.ratio_to_body">（本文比）</span></label><input type="range" id="f_enScale" min="0.3" max="1" step="0.05"></div>
+        <div class="fr advanced-only"><label><span data-i18n="sy.opacity">濃さ</span> <output id="o_enOpacity"></output></label><input type="range" id="f_enOpacity" min="0.3" max="1" step="0.05"></div>
+        <div class="fr chk advanced-only"><input type="checkbox" id="f_enColorOn"><span data-i18n="sy.en_color_on">専用色を使う（オフ=本文と同じ）</span></div>
+        <div class="fr advanced-only"><label data-i18n="sy.color">色</label><input type="color" id="f_enColor"></div>
+        <div class="fr advanced-only"><label data-i18n="sy.font">フォント</label><select id="f_enFontSel"></select></div>
+        <div class="fr chk advanced-only"><input type="checkbox" id="f_enDeco"><span data-i18n="sy.en_deco">専用の縁取り・グローを使う（オフ=本文と同じ）</span></div>
+        <div class="fr advanced-only"><label data-i18n="sy.outline_color">縁取り色</label><input type="color" id="f_enOutlineColor"></div>
+        <div class="fr advanced-only"><label><span data-i18n="sy.outline_width">縁取りの太さ</span> <output id="o_enOutlineWidth"></output></label><input type="range" id="f_enOutlineWidth" min="0" max="6" step="1"></div>
+        <div class="fr advanced-only"><label data-i18n="sy.glow_color">グロー色</label><input type="color" id="f_enGlowColor"></div>
+        <div class="fr advanced-only"><label><span data-i18n="sy.glow_size">グロー強さ</span> <output id="o_enGlowSize"></output><span data-i18n="sy.zero_none">（0でなし）</span></label><input type="range" id="f_enGlowSize" min="0" max="30" step="2"></div>
         </div>
       </div>
       <div id="previewBox">
-        <div class="ptag">プレビュー ▶ クリックで再生</div>
+        <div class="ptag" data-i18n="sy.preview_click_play">プレビュー ▶ クリックで再生</div>
         <div class="line" id="prevPartial"></div>
       </div>
     </section>
@@ -219,95 +220,104 @@
   <!-- ================= ボックス ================= -->
   <div class="page" id="pageBox">
     <section class="panel">
-      <h2>字幕の位置を選ぶ</h2>
-      <button class="btn new-item" onclick="newBoxFromFree()" title="フリー（枠なし）を元に作成">＋ 新しいレイアウト</button>
+      <h2 data-i18n="sy.choose_position">字幕の位置を選ぶ</h2>
+      <button class="btn new-item" onclick="newBoxFromFree()" title="フリー（枠なし）を元に作成" data-i18n="sy.new_layout" data-i18n-title="sy.new_from_free">＋ 新しいレイアウト</button>
       <div id="blist"></div>
     </section>
     <section class="panel editor" id="boxEditor">
-      <h2>プレビュー — <span id="editBoxName"></span></h2>
+      <h2><span data-i18n="sy.preview">プレビュー</span> — <span id="editBoxName"></span></h2>
       <div class="editor-actions">
         <div class="copy"><b id="boxActionTitle">この位置を使いますか？</b><span id="boxActionDesc">画面下のボタンで現在の字幕に切り替えられます</span></div>
-        <button class="btn" onclick="duplicateBox()">これを元に新規作成</button>
+        <button class="btn" onclick="duplicateBox()" data-i18n="sy.duplicate">これを元に新規作成</button>
         <button class="btn save" id="customizeBoxBtn" onclick="beginBoxEdit()">カスタマイズ</button>
       </div>
       <div class="edit-tools" id="boxEditTools" hidden>
-        <span>位置と大きさを調整できます</span><span style="flex:1"></span>
+        <span data-i18n="sy.adjust_pos_size">位置と大きさを調整できます</span><span style="flex:1"></span>
         <button class="btn small" id="boxAdvancedBtn" onclick="toggleBoxAdvanced()">もっと細かく調整</button>
         <button class="btn small" id="manageBoxBtn" onclick="manageBox()">初期状態に戻す</button>
       </div>
       <div class="form locked" id="bform">
-        <div class="fr"><label>ボックス名</label><input type="text" id="b_name"></div>
-        <div class="fr"><label>説明</label><input type="text" id="b_desc"></div>
-        <div class="fr advanced-only"><label>表示のしかた</label>
+        <div class="fr"><label data-i18n="sy.box_name">ボックス名</label><input type="text" id="b_name"></div>
+        <div class="fr"><label data-i18n="sy.desc">説明</label><input type="text" id="b_desc"></div>
+        <div class="fr advanced-only"><label data-i18n="sy.display_mode">表示のしかた</label>
           <select id="b_mode">
-            <option value="flow">通常（積み上げ・スクロール）</option>
-            <option value="vertical">縦書き（右から左へ）</option>
-            <option value="lyric">リリックビデオ風字幕</option>
+            <option value="flow" data-i18n="sy.mode_flow">通常（積み上げ・スクロール）</option>
+            <option value="vertical" data-i18n="sy.mode_vertical">縦書き（右から左へ）</option>
+            <option value="lyric" data-i18n="sy.mode_lyric">リリックビデオ風字幕</option>
           </select></div>
         <div class="fr advanced-only"></div>
-        <div class="fr"><label>横位置 X <output id="o_bx"></output></label><input type="range" id="b_x" min="0" max="90" step="1"></div>
-        <div class="fr"><label>縦位置 Y <output id="o_by"></output></label><input type="range" id="b_y" min="0" max="90" step="1"></div>
-        <div class="fr"><label>幅 <output id="o_bw"></output></label><input type="range" id="b_w" min="10" max="100" step="1"></div>
-        <div class="fr"><label>高さ <output id="o_bh"></output></label><input type="range" id="b_h" min="8" max="100" step="1"></div>
-        <div class="fr advanced-only"><label>背景色</label><input type="color" id="b_bg"></div>
-        <div class="fr advanced-only"><label>背景の濃さ <output id="o_bop"></output>（0で透明）</label><input type="range" id="b_bgOpacity" min="0" max="1" step="0.05"></div>
-        <div class="fr advanced-only"><label>角丸 <output id="o_brad"></output></label><input type="range" id="b_radius" min="0" max="40" step="2"></div>
-        <div class="fr advanced-only"><label>内側余白 <output id="o_bpad"></output></label><input type="range" id="b_padding" min="0" max="48" step="2"></div>
-        <div class="fr advanced-only"><label>枠線色</label><input type="color" id="b_borderColor"></div>
-        <div class="fr advanced-only"><label>枠線太さ <output id="o_bbw"></output>（0でなし）</label><input type="range" id="b_borderWidth" min="0" max="6" step="1"></div>
-        <div class="fr only-flow advanced-only"><label>文字揃え</label>
-          <select id="b_align"><option value="left">左揃え</option><option value="center">中央</option><option value="right">右揃え</option></select></div>
-        <div class="fr only-flow advanced-only"><label>保持する行数 <output id="o_bml"></output></label><input type="range" id="b_maxLines" min="2" max="40" step="1"></div>
-        <div class="fr chk only-flow advanced-only"><input type="checkbox" id="b_smooth"><span>スムーズスクロール</span></div>
-        <div class="fr only-flow advanced-only"><label>スクロール速度 <output id="o_bsm"></output></label><input type="range" id="b_smoothMs" min="100" max="600" step="50"></div>
-        <div class="fr only-lyric advanced-only"><label>演出の雰囲気</label>
+        <div class="fr"><label><span data-i18n="sy.pos_x">横位置 X</span> <output id="o_bx"></output></label><input type="range" id="b_x" min="0" max="90" step="1"></div>
+        <div class="fr"><label><span data-i18n="sy.pos_y">縦位置 Y</span> <output id="o_by"></output></label><input type="range" id="b_y" min="0" max="90" step="1"></div>
+        <div class="fr"><label><span data-i18n="sy.width">幅</span> <output id="o_bw"></output></label><input type="range" id="b_w" min="10" max="100" step="1"></div>
+        <div class="fr"><label><span data-i18n="sy.height">高さ</span> <output id="o_bh"></output></label><input type="range" id="b_h" min="8" max="100" step="1"></div>
+        <div class="fr advanced-only"><label data-i18n="sy.bg_color">背景色</label><input type="color" id="b_bg"></div>
+        <div class="fr advanced-only"><label><span data-i18n="sy.bg_opacity">背景の濃さ</span> <output id="o_bop"></output><span data-i18n="sy.zero_transparent">（0で透明）</span></label><input type="range" id="b_bgOpacity" min="0" max="1" step="0.05"></div>
+        <div class="fr advanced-only"><label><span data-i18n="sy.radius">角丸</span> <output id="o_brad"></output></label><input type="range" id="b_radius" min="0" max="40" step="2"></div>
+        <div class="fr advanced-only"><label><span data-i18n="sy.padding">内側余白</span> <output id="o_bpad"></output></label><input type="range" id="b_padding" min="0" max="48" step="2"></div>
+        <div class="fr advanced-only"><label data-i18n="sy.border_color">枠線色</label><input type="color" id="b_borderColor"></div>
+        <div class="fr advanced-only"><label><span data-i18n="sy.border_width">枠線太さ</span> <output id="o_bbw"></output><span data-i18n="sy.zero_none">（0でなし）</span></label><input type="range" id="b_borderWidth" min="0" max="6" step="1"></div>
+        <div class="fr only-flow advanced-only"><label data-i18n="sy.text_align">文字揃え</label>
+          <select id="b_align"><option value="left" data-i18n="sy.align_left">左揃え</option><option value="center" data-i18n="sy.align_center">中央</option><option value="right" data-i18n="sy.align_right">右揃え</option></select></div>
+        <div class="fr only-flow advanced-only"><label><span data-i18n="sy.max_lines">保持する行数</span> <output id="o_bml"></output></label><input type="range" id="b_maxLines" min="2" max="40" step="1"></div>
+        <div class="fr chk only-flow advanced-only"><input type="checkbox" id="b_smooth"><span data-i18n="sy.smooth_scroll">スムーズスクロール</span></div>
+        <div class="fr only-flow advanced-only"><label><span data-i18n="sy.scroll_speed">スクロール速度</span> <output id="o_bsm"></output></label><input type="range" id="b_smoothMs" min="100" max="600" step="50"></div>
+        <div class="fr only-lyric advanced-only"><label data-i18n="sy.lyric_mood">演出の雰囲気</label>
           <select id="b_lyricMood">
-            <option value="auto">おまかせ</option>
-            <option value="calm">おとなしい</option>
-            <option value="lively">にぎやか</option>
+            <option value="auto" data-i18n="sy.mood_auto">おまかせ</option>
+            <option value="calm" data-i18n="sy.mood_calm">おとなしい</option>
+            <option value="lively" data-i18n="sy.mood_lively">にぎやか</option>
           </select></div>
-        <div class="fr only-lyric advanced-only"><label>サイズ倍率 <output id="o_bscale"></output>（はみ出しOK）</label><input type="range" id="b_lyricScale" min="0.5" max="3" step="0.1"></div>
-        <div class="fr only-lyric advanced-only"><label>表示時間 <output id="o_blife"></output></label><input type="range" id="b_lifeSec" min="2" max="15" step="1"></div>
-        <div class="fr only-lyric advanced-only"><label>重ねる字幕数 <output id="o_bmc"></output></label><input type="range" id="b_lyricMaxScenes" min="1" max="3" step="1"></div>
-        <div class="fr chk only-lyric advanced-only"><input type="checkbox" id="b_lyricPartial"><span>認識途中も表示する</span></div>
+        <div class="fr only-lyric advanced-only"><label><span data-i18n="sy.size_scale">サイズ倍率</span> <output id="o_bscale"></output><span data-i18n="sy.overflow_ok">（はみ出しOK）</span></label><input type="range" id="b_lyricScale" min="0.5" max="3" step="0.1"></div>
+        <div class="fr only-lyric advanced-only"><label><span data-i18n="sy.display_time">表示時間</span> <output id="o_blife"></output></label><input type="range" id="b_lifeSec" min="2" max="15" step="1"></div>
+        <div class="fr only-lyric advanced-only"><label><span data-i18n="sy.overlap_count">重ねる字幕数</span> <output id="o_bmc"></output></label><input type="range" id="b_lyricMaxScenes" min="1" max="3" step="1"></div>
+        <div class="fr chk only-lyric advanced-only"><input type="checkbox" id="b_lyricPartial"><span data-i18n="sy.show_partial">認識途中も表示する</span></div>
       </div>
       <div id="stageWrap">
         <div id="stage">
-          <div class="ptag">レイアウトプレビュー（1920×1080の縮小）<span id="stageStyleName" style="margin-left:10px;color:rgba(255,255,255,.55)"></span></div>
+          <div class="ptag"><span data-i18n="sy.layout_preview">レイアウトプレビュー（1920×1080の縮小）</span><span id="stageStyleName" style="margin-left:10px;color:rgba(255,255,255,.55)"></span></div>
           <div id="stageInner">
             <div id="stageBox"><div id="stageClip"><div id="stageScroll"></div></div></div>
           </div>
         </div>
         <div class="stageBtns">
-          <button class="btn small" onclick="stageAdd()">＋ 行を追加（スクロール確認）</button>
-          <button class="btn small" onclick="stageClear()">クリア</button>
+          <button class="btn small" onclick="stageAdd()" data-i18n="sy.stage_add">＋ 行を追加（スクロール確認）</button>
+          <button class="btn small" onclick="stageClear()" data-i18n="sy.stage_clear">クリア</button>
         </div>
       </div>
     </section>
   </div>
 
   <div class="expbar" id="expBar" hidden>
-    <span>エクスポートする内容:</span>
+    <span data-i18n="sy.export_content">エクスポートする内容:</span>
     <button class="btn small" onclick="doExport('preset')" id="expCurPreset"></button>
     <button class="btn small" onclick="doExport('box')" id="expCurBox"></button>
     <button class="btn small" onclick="doExport('active')" id="expActivePair"></button>
-    <button class="btn small" id="expOpen" hidden onclick="openExportDir()">📂 保存先フォルダを開く</button>
+    <button class="btn small" id="expOpen" hidden onclick="openExportDir()" data-i18n="sy.open_export_dir">📂 保存先フォルダを開く</button>
   </div>
 
   <footer>
-    <button class="btn" id="saveOnlyBtn" onclick="saveOnly()">💾 保存</button>
+    <button class="btn" id="saveOnlyBtn" onclick="saveOnly()" data-i18n="sy.save">💾 保存</button>
     <button class="btn save" id="switchUseBtn" onclick="saveAndUse()">このデザインに切り替える</button>
     <span id="saved">保存しました ✓</span>
     <span style="flex:1"></span>
     <span id="ioMsg"></span>
-    <button class="btn" onclick="toggleExport()">📤 エクスポート</button>
-    <button class="btn" onclick="$('impFile').click()">📥 インポート</button>
+    <button class="btn" onclick="toggleExport()" data-i18n="sy.export">📤 エクスポート</button>
+    <button class="btn" onclick="$('impFile').click()" data-i18n="sy.import">📥 インポート</button>
     <input type="file" id="impFile" accept=".mojipack,.json" hidden
            onchange="doImport(this.files[0])">
   </footer>
 
 <script>
   const $ = (id) => document.getElementById(id);
+  const T = (key, jaDefault) => window.MojicastI18n ? window.MojicastI18n.t(key, jaDefault) : jaDefault;
+  // 言語切替時に、JSが書き込む動的テキストを再適用する
+  window.addEventListener("mojicast-lang-changed", () => {
+    try {
+      if (currentTopTab === "box") { renderBoxList(); loadBoxForm(); }
+      else { renderList(); loadForm(); }
+      updateFooterActions();
+    } catch (e) {}
+  });
   let presets = [], boxes = [], defaultPresets = [], defaultBoxes = [];
   let cur = 0, curBox = 0;
   let effects = [], hotwords = [], sysFonts = [];
@@ -393,8 +403,8 @@
     const activeId = currentTopTab === "box" ? activeBoxId : activePresetId;
     saveButton.disabled = !presets.length || !boxes.length;
     switchButton.disabled = !item || item.id === activeId;
-    switchButton.textContent = item && item.id === activeId ? "使用中" :
-      currentTopTab === "box" ? "このレイアウトに切り替える" : "このデザインに切り替える";
+    switchButton.textContent = item && item.id === activeId ? T("sy.in_use","使用中") :
+      currentTopTab === "box" ? T("sy.switch_box","このレイアウトに切り替える") : T("sy.switch_design","このデザインに切り替える");
   }
 
   function setR(id, out, val, fmt) { $(id).value = val; $(out).textContent = fmt($(id).value); }
@@ -409,7 +419,7 @@
       const name = document.createElement("span"); name.textContent = p.name;
       d.appendChild(name);
       if (p.id === activePresetId) {
-        const used = document.createElement("span"); used.className = "used"; used.textContent = "使用中"; d.appendChild(used);
+        const used = document.createElement("span"); used.className = "used"; used.textContent = T("sy.in_use","使用中"); d.appendChild(used);
       }
       d.onclick = () => {
         if (presetEditing) collect();
@@ -450,10 +460,10 @@
     $("f_enGlowColor").value = p.enGlowColor || "#00e5ff";
     setR("f_enGlowSize", "o_enGlowSize", p.enGlowSize ?? 0, v => v + "px");
     preview(true);
-    $("customizePresetBtn").textContent = "カスタマイズ";
-    $("styleActionTitle").textContent = p.id === activePresetId ? "このデザインを使用中です" : "このデザインを使いますか？";
+    $("customizePresetBtn").textContent = T("sy.customize","カスタマイズ");
+    $("styleActionTitle").textContent = p.id === activePresetId ? T("sy.using_design","このデザインを使用中です") : T("sy.use_design_q","このデザインを使いますか？");
     $("styleActionDesc").textContent = p.id === activePresetId
-      ? "今の字幕に選ばれています" : "画面下のボタンで現在の字幕に切り替えられます";
+      ? T("sy.selected_now","今の字幕に選ばれています") : T("sy.switch_hint","画面下のボタンで現在の字幕に切り替えられます");
     updateFooterActions();
   }
 
@@ -463,21 +473,21 @@
     $("form").classList.add("locked");
     $("styleEditTools").hidden = true;
     $("styleEditor").classList.remove("advanced-open");
-    $("styleAdvancedBtn").textContent = "もっと細かく調整";
+    $("styleAdvancedBtn").textContent = T("sy.adjust_more","もっと細かく調整");
   }
   function beginPresetEdit() {
     presetEditing = true;
     $("form").classList.remove("locked");
     $("styleEditTools").hidden = false;
     const builtin = isBuiltinPreset(presets[cur]);
-    $("managePresetBtn").textContent = builtin ? "初期状態に戻す" : "削除";
+    $("managePresetBtn").textContent = builtin ? T("sy.reset","初期状態に戻す") : T("sy.delete","削除");
     $("managePresetBtn").classList.toggle("danger", !builtin);
-    $("styleActionTitle").textContent = "自分好みに調整中";
-    $("styleActionDesc").textContent = "下の「保存」で設定を残せます";
+    $("styleActionTitle").textContent = T("sy.adjusting","自分好みに調整中");
+    $("styleActionDesc").textContent = T("sy.save_hint","下の「保存」で設定を残せます");
   }
   function toggleStyleAdvanced() {
     const open = $("styleEditor").classList.toggle("advanced-open");
-    $("styleAdvancedBtn").textContent = open ? "基本項目だけに戻す" : "もっと細かく調整";
+    $("styleAdvancedBtn").textContent = open ? T("sy.basic_only","基本項目だけに戻す") : T("sy.adjust_more","もっと細かく調整");
   }
   function collect() {
     const p = presets[cur];
@@ -579,15 +589,15 @@
   }
   function resetPreset() {
     const original = defaultPresets.find(p => p.id === presets[cur].id);
-    if (!original || !confirm(`「${presets[cur].name}」を初期状態に戻しますか？`)) return;
+    if (!original || !confirm(T("sy.confirm_reset","「{name}」を初期状態に戻しますか？").replace("{name}", presets[cur].name))) return;
     presets[cur] = JSON.parse(JSON.stringify(original));
     renderList(); loadForm(); beginPresetEdit();
-    $("styleActionDesc").textContent = "初期状態に戻しました。下の「保存」で確定します";
+    $("styleActionDesc").textContent = T("sy.reset_done","初期状態に戻しました。下の「保存」で確定します");
   }
   function delPreset() {
     if (isBuiltinPreset(presets[cur])) return;
-    if (presets.length <= 1) { alert("最後の1つは削除できません"); return; }
-    if (!confirm(`「${presets[cur].name}」を削除しますか？`)) return;
+    if (presets.length <= 1) { alert(T("sy.cant_delete_last","最後の1つは削除できません")); return; }
+    if (!confirm(T("sy.confirm_delete","「{name}」を削除しますか？").replace("{name}", presets[cur].name))) return;
     presets.splice(cur, 1);
     cur = Math.max(0, cur - 1);
     closePresetEdit(); renderList(); loadForm();
@@ -602,7 +612,7 @@
       d.className = "pitem" + (i === curBox ? " active" : "");
       const name = document.createElement("span"); name.textContent = b.name; d.appendChild(name);
       if (b.id === activeBoxId) {
-        const used = document.createElement("span"); used.className = "used"; used.textContent = "使用中"; d.appendChild(used);
+        const used = document.createElement("span"); used.className = "used"; used.textContent = T("sy.in_use","使用中"); d.appendChild(used);
       }
       d.onclick = () => {
         if (boxEditing) collectBox();
@@ -647,10 +657,10 @@
     $("b_lyricPartial").checked = !!b.lyricPartial;
     updateModeRows();
     stageApply(); stageClear(); stageAdd(); stageAdd();
-    $("customizeBoxBtn").textContent = "カスタマイズ";
-    $("boxActionTitle").textContent = b.id === activeBoxId ? "この位置を使用中です" : "この位置を使いますか？";
+    $("customizeBoxBtn").textContent = T("sy.customize","カスタマイズ");
+    $("boxActionTitle").textContent = b.id === activeBoxId ? T("sy.using_box","この位置を使用中です") : T("sy.use_box_q","この位置を使いますか？");
     $("boxActionDesc").textContent = b.id === activeBoxId
-      ? "今の字幕に選ばれています" : "画面下のボタンで現在の字幕に切り替えられます";
+      ? T("sy.selected_now","今の字幕に選ばれています") : T("sy.switch_hint","画面下のボタンで現在の字幕に切り替えられます");
     updateFooterActions();
   }
 
@@ -660,21 +670,21 @@
     $("bform").classList.add("locked");
     $("boxEditTools").hidden = true;
     $("boxEditor").classList.remove("advanced-open");
-    $("boxAdvancedBtn").textContent = "もっと細かく調整";
+    $("boxAdvancedBtn").textContent = T("sy.adjust_more","もっと細かく調整");
   }
   function beginBoxEdit() {
     boxEditing = true;
     $("bform").classList.remove("locked");
     $("boxEditTools").hidden = false;
     const builtin = isBuiltinBox(boxes[curBox]);
-    $("manageBoxBtn").textContent = builtin ? "初期状態に戻す" : "削除";
+    $("manageBoxBtn").textContent = builtin ? T("sy.reset","初期状態に戻す") : T("sy.delete","削除");
     $("manageBoxBtn").classList.toggle("danger", !builtin);
-    $("boxActionTitle").textContent = "自分好みに調整中";
-    $("boxActionDesc").textContent = "下の「保存」で設定を残せます";
+    $("boxActionTitle").textContent = T("sy.adjusting","自分好みに調整中");
+    $("boxActionDesc").textContent = T("sy.save_hint","下の「保存」で設定を残せます");
   }
   function toggleBoxAdvanced() {
     const open = $("boxEditor").classList.toggle("advanced-open");
-    $("boxAdvancedBtn").textContent = open ? "基本項目だけに戻す" : "もっと細かく調整";
+    $("boxAdvancedBtn").textContent = open ? T("sy.basic_only","基本項目だけに戻す") : T("sy.adjust_more","もっと細かく調整");
     updateModeRows();
   }
   function collectBox() {
@@ -793,7 +803,7 @@
   }
   function resetBox() {
     const original = defaultBoxes.find(b => b.id === boxes[curBox].id);
-    if (!original || !confirm(`「${boxes[curBox].name}」を初期状態に戻しますか？`)) return;
+    if (!original || !confirm(T("sy.confirm_reset","「{name}」を初期状態に戻しますか？").replace("{name}", boxes[curBox].name))) return;
     boxes[curBox] = JSON.parse(JSON.stringify(original));
     renderBoxList(); loadBoxForm(); beginBoxEdit();
     $("boxActionDesc").textContent = "初期状態に戻しました。下の「保存」で確定します";
@@ -820,8 +830,8 @@
   }
   function delBox() {
     if (isBuiltinBox(boxes[curBox])) return;
-    if (boxes.length <= 1) { alert("最後の1つは削除できません"); return; }
-    if (!confirm(`「${boxes[curBox].name}」を削除しますか？`)) return;
+    if (boxes.length <= 1) { alert(T("sy.cant_delete_last","最後の1つは削除できません")); return; }
+    if (!confirm(T("sy.confirm_delete","「{name}」を削除しますか？").replace("{name}", boxes[curBox].name))) return;
     boxes.splice(curBox, 1);
     curBox = Math.max(0, curBox - 1);
     closeBoxEdit(); renderBoxList(); loadBoxForm();
@@ -908,9 +918,9 @@
   async function saveOnly() {
     try {
       await persistAll();
-      savedMessage("保存しました ✓");
+      savedMessage(T("sy.saved","保存しました ✓"));
     } catch (e) {
-      savedMessage("保存できませんでした", true);
+      savedMessage(T("sy.save_fail","保存できませんでした"), true);
     }
   }
 
@@ -927,9 +937,9 @@
       } else {
         activePresetId = item.id; renderList(); loadForm();
       }
-      savedMessage("保存して切り替えました ✓");
+      savedMessage(T("sy.save_switched","保存して切り替えました ✓"));
     } catch (e) {
-      savedMessage("保存できなかったため、切り替えていません", true);
+      savedMessage(T("sy.save_switch_fail","保存できなかったため、切り替えていません"), true);
     }
   }
 
@@ -943,11 +953,11 @@
     const bar = $("expBar");
     bar.hidden = !bar.hidden;
     if (!bar.hidden) {
-      $("expCurPreset").textContent = `表示中のスタイル「${presets[cur].name}」`;
-      $("expCurBox").textContent = `表示中のボックス「${boxes[curBox].name}」`;
+      $("expCurPreset").textContent = T("sy.exp_cur_style","表示中のスタイル「{name}」").replace("{name}", presets[cur].name);
+      $("expCurBox").textContent = T("sy.exp_cur_box","表示中のボックス「{name}」").replace("{name}", boxes[curBox].name);
       const usedPreset = presets.find(p => p.id === activePresetId) || presets[cur];
       const usedBox = boxes.find(b => b.id === activeBoxId) || boxes[curBox];
-      $("expActivePair").textContent = `使用中の組み合わせ「${usedPreset.name} ＋ ${usedBox.name}」`;
+      $("expActivePair").textContent = T("sy.exp_active_pair","使用中の組み合わせ「{p} ＋ {b}」").replace("{p}", usedPreset.name).replace("{b}", usedBox.name);
       $("expOpen").hidden = true;
       ioMsg("", true);
     }

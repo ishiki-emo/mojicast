@@ -36,6 +36,7 @@ DEFAULT_CONFIG = {
     "preset": "standard", "box": "none", "port": 8765,
     "word_profile": "",     # 使用中の単語プロファイル（"" = 共通のみ）
     "theme": "light",       # GUI窓のテーマ（light / dark）。既定ライト。overlayは対象外
+    "ui_lang": "ja",        # GUI表示言語（ja / zh / en）。明示選択・既定ja。overlayは対象外
     # 1対1コラボ（案A改・出力キャプチャ）。collab=Trueで②の入力を相手話者として取り込む
     # collab_source: "process"=アプリ音声を直接取り込み（方式2・推奨）/ "device"=仮想ケーブル
     "collab": False, "collab_source": "process",
@@ -369,6 +370,7 @@ def _init_event():
     # 新しく開いたGUI窓がlocalStorageや次の変更イベントに依存せず、
     # 現在のテーマへ即座に揃えられるよう初期イベントにも含める。
     ev["theme"] = cfg.get("theme", "light")
+    ev["ui_lang"] = cfg.get("ui_lang", "ja")
     return ev
 
 
@@ -579,6 +581,8 @@ class Handler(BaseHTTPRequestHandler):
                     return
             if "theme" in body and body.get("theme") not in ("dark", "light"):
                 body["theme"] = "light"   # 未知値はライトへ（既定）
+            if "ui_lang" in body and body.get("ui_lang") not in ("ja", "zh", "en"):
+                body["ui_lang"] = "ja"    # 未知値は日本語へ（既定）
             if ("collab_source" in body
                     and body.get("collab_source") not in ("process", "device")):
                 body["collab_source"] = "process"   # 未知値は推奨方式へ
@@ -596,6 +600,8 @@ class Handler(BaseHTTPRequestHandler):
             # overlay.html はこのイベントを購読しないためOBS字幕には影響しない。
             if "theme" in body:
                 broadcast({"type": "theme", "theme": cfg.get("theme", "light")})
+            if "ui_lang" in body:
+                broadcast({"type": "ui_lang", "ui_lang": cfg.get("ui_lang", "ja")})
             self._json({"ok": True, "config": cfg})
         elif path == "/api/profiles":
             self._post_profiles(body)
