@@ -97,6 +97,15 @@
   .saved.show { opacity:1; transform:none; }
   .saved.error { color:#fff; background:var(--err); }
   .danger { color:var(--err); }
+  .linkrow { display:flex; align-items:center; gap:12px; margin-top:10px; padding:12px 14px;
+    border:1px solid var(--line); border-radius:11px; background:var(--panel2); cursor:pointer; }
+  .linkrow:hover { border-color:var(--accent); background:color-mix(in srgb,var(--accent) 8%,var(--panel2)); }
+  .linkrow:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .linkrow .lk-ico { font-size:20px; width:26px; text-align:center; flex:none; }
+  .linkrow .lk-body { flex:1; min-width:0; }
+  .linkrow .lk-body b { display:block; font-size:14px; }
+  .linkrow .lk-body small { color:var(--dim); }
+  .linkrow .lk-arw { flex:none; color:var(--accent); font-weight:800; }
   @media(max-width:780px) { .layout{grid-template-columns:190px 1fr}.grid{grid-template-columns:1fr}.card.wide{grid-column:auto}#pageDesc{display:none} }
 </style>
 </head>
@@ -115,6 +124,7 @@
     <button data-section="collab" onclick="switchSection('collab')"><span class="icon">🎧</span><strong data-i18n="st.nav_collab">コラボ音声</strong><small data-i18n="st.nav_collab_d">通話アプリ・表示名</small></button>
     <button data-section="obs" onclick="switchSection('obs')"><span class="icon">🎬</span><strong data-i18n="st.nav_obs">OBS接続</strong><small data-i18n="st.nav_obs_d">表示URL・ポート</small></button>
     <button data-section="other" onclick="switchSection('other')"><span class="icon">⚙</span><strong data-i18n="st.nav_other">その他</strong><small data-i18n="st.nav_other_d">ログ・表示処理</small></button>
+    <button data-section="about" onclick="switchSection('about')"><span class="icon">ℹ️</span><strong data-i18n="st.nav_about">情報・連絡先</strong><small data-i18n="st.nav_about_d">バージョン・作者</small></button>
   </nav>
 
   <main class="content">
@@ -211,6 +221,24 @@
         </article>
       </div>
     </section>
+
+    <section class="pane" id="pAbout">
+      <h1 data-i18n="st.h1_about">情報・連絡先</h1><p class="lead" data-i18n="st.lead_about">バージョンの確認と、作者への連絡・不具合報告の入口です。</p>
+      <div class="grid">
+        <article class="card"><h2 data-i18n="st.card_ver">バージョン</h2><p data-i18n="st.card_ver_d">お問い合わせの際は、この番号もお知らせください。</p>
+          <div class="field"><label data-i18n="st.f_curver">現在のバージョン</label><div class="route" id="aboutVer" style="color:var(--text);font-weight:800">—</div></div>
+          <div class="actions"><button id="btnCheckUpdate" data-i18n="st.btn_checkupdate">🔄 更新を確認</button></div>
+        </article>
+        <article class="card"><h2 data-i18n="st.card_contact">作者・連絡先</h2><p data-i18n="st.card_contact_d">不具合報告や要望はこちらからどうぞ。ブラウザで開きます。</p>
+          <div class="linkrow" onclick="openExternal('https://github.com/ishiki-emo/mojicast')" role="link" tabindex="0">
+            <span class="lk-ico">🐙</span><span class="lk-body"><b>GitHub</b><small data-i18n="st.lk_github_d">ソース・不具合報告（Issues）</small></span><span class="lk-arw">↗</span>
+          </div>
+          <div class="linkrow" onclick="openExternal('https://x.com/ishiki_emo')" role="link" tabindex="0">
+            <span class="lk-ico">𝕏</span><span class="lk-body"><b>X（@ishiki_emo）</b><small data-i18n="st.lk_x_d">作者へ直接ひとこと</small></span><span class="lk-arw">↗</span>
+          </div>
+        </article>
+      </div>
+    </section>
   </main>
 </div>
 <div class="saved" id="saved">✓ 保存しました</div>
@@ -218,8 +246,8 @@
 <script>
   const $ = id => document.getElementById(id);
   const qs = new URLSearchParams(location.search);
-  const panes = { hearing:"pHearing", translation:"pTranslation", collab:"pCollab", obs:"pObs", other:"pOther" };
-  const descsJa = { hearing:"マイク・認識・区切りを設定", translation:"翻訳先とモデルを設定", collab:"通話相手の音声を設定", obs:"OBSとの接続を設定", other:"ログと画面表示を設定" };
+  const panes = { hearing:"pHearing", translation:"pTranslation", collab:"pCollab", obs:"pObs", other:"pOther", about:"pAbout" };
+  const descsJa = { hearing:"マイク・認識・区切りを設定", translation:"翻訳先とモデルを設定", collab:"通話相手の音声を設定", obs:"OBSとの接続を設定", other:"ログと画面表示を設定", about:"バージョンと連絡先" };
   const T = (key, jaDefault) => window.MojicastI18n ? window.MojicastI18n.t(key, jaDefault) : jaDefault;
   let cfg = {}, running = false, savedTimer, nameTimer, curSection = "hearing";
 
@@ -232,6 +260,18 @@
       window.pywebview.api.close_window("settings");
     else window.close();
   }
+  // 外部URLはOSの既定ブラウザで開く（WebView2内の target=_blank は開けないため）
+  function openExternal(url) {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.open_external)
+      window.pywebview.api.open_external(url);
+    else window.open(url, "_blank", "noopener");
+  }
+  // linkrow をキーボードでも起動できるように（Enter / Space）
+  document.addEventListener("keydown", e => {
+    if ((e.key === "Enter" || e.key === " ") && e.target.classList.contains("linkrow")) {
+      e.preventDefault(); e.target.click();
+    }
+  });
   const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");
   function applyTheme(theme) {
     if (theme === "light") document.documentElement.dataset.theme = "light";
@@ -311,8 +351,26 @@
     $("obsUrl").value = location.origin + "/"; $("port").value = cfg.port || 8765;
     $("punctuate").checked = cfg.punctuate !== false; $("saveLog").checked = cfg.save_log !== false; $("theme").value = cfg.theme || "light";
     $("uiLang").value = cfg.ui_lang || "ja";
+    if (cfg.version) $("aboutVer").textContent = "Mojicast v" + cfg.version;
     syncTranslationRoute(); switchSection(qs.get("section") || "hearing");
   }
+
+  $("btnCheckUpdate").addEventListener("click", async () => {
+    const btn = $("btnCheckUpdate");
+    btn.disabled = true;
+    try {
+      const d = await api("/api/update-check?force=1");
+      if (d.update_available) {
+        toast(T("st.update_found", "新しいバージョン v{v} があります").replace("{v}", d.latest));
+        if (d.url) openExternal(d.url);
+      } else {
+        toast(T("st.update_none", "最新版を使っています"));
+      }
+    } catch (e) {
+      toast(T("st.update_fail", "更新を確認できませんでした（ネット接続を確認）"), true);
+    }
+    btn.disabled = false;
+  });
 
   $("device").addEventListener("change", e => save({device:e.target.value === "default" ? null : +e.target.value}));
   $("asrModel").addEventListener("change", e => { cfg.asr_model=e.target.value; syncAsrLanguage(); syncTranslationRoute(); save({asr_model:e.target.value}); });

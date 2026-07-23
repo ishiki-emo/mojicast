@@ -50,6 +50,22 @@
   }
   .logo { font-weight: 900; font-size: 16px; letter-spacing: .12em; }
   .logo b { color: var(--accent); }
+  /* ---------- 更新のお知らせバー ---------- */
+  #updateBar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 16px; font-size: 13px;
+    color: var(--text);
+    background: color-mix(in srgb, var(--accent) 14%, var(--panel));
+    border-bottom: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+  }
+  #updateBar .ub-ico { flex: none; }
+  #updateBar #updateMsg { flex: 1; }
+  #updateBar #updateLink { color: var(--accent); font-weight: 700; text-decoration: none; }
+  #updateBar #updateLink:hover { text-decoration: underline; }
+  #updateBar .ub-x {
+    flex: none; padding: 2px 8px; font-size: 12px;
+    background: transparent; border: 1px solid var(--line); color: var(--dim);
+  }
   .led {
     width: 10px; height: 10px; border-radius: 50%;
     background: #555; transition: all .3s;
@@ -359,6 +375,15 @@
     <button id="btnEngine" onclick="toggleEngine()" data-i18n="cp.start">▶ 開始</button>
   </header>
 
+  <div id="updateBar" style="display:none">
+    <span class="ub-ico">✨</span>
+    <span id="updateMsg"></span>
+    <a id="updateLink" href="#" onclick="openUpdateLink(event)"
+       data-i18n="cp.update_link">ダウンロードページを開く</a>
+    <button class="ub-x" onclick="dismissUpdate()"
+            title="閉じる" data-i18n-title="cp.update_dismiss">✕</button>
+  </div>
+
   <main>
     <!-- ========== 左: 設定バー ＋ 字幕モニタ ========== -->
     <div class="col">
@@ -512,6 +537,41 @@
     const opt = body ? { method: "POST", body: JSON.stringify(body) } : {};
     const r = await fetch(path, opt);
     return r.json();
+  }
+
+  // 外部URLはOSの既定ブラウザで開く（WebView2内の target=_blank は開けないため）
+  function openExternal(url) {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.open_external)
+      window.pywebview.api.open_external(url);
+    else window.open(url, "_blank", "noopener");
+  }
+
+  // ---------- 更新のお知らせ ----------
+  let _updateInfo = null;
+  function openUpdateLink(ev) {
+    if (ev) ev.preventDefault();
+    if (_updateInfo && _updateInfo.url) openExternal(_updateInfo.url);
+  }
+  async function checkUpdate() {
+    try {
+      const d = await api("/api/update-check");
+      _updateInfo = d;
+      if (!d || !d.update_available) return;
+      // 同じ新バージョンを「閉じる」した後は再表示しない
+      if (localStorage.getItem("mojicast_update_dismissed") === d.latest) return;
+      const msg = T("cp.update_msg", "新しいバージョン {v} があります")
+        .replace("{v}", "v" + d.latest);
+      $("updateMsg").textContent = d.notes ? `${msg}｜${d.notes}` : msg;
+      const link = $("updateLink");
+      if (d.url) { link.href = d.url; link.style.display = ""; }
+      else { link.style.display = "none"; }
+      $("updateBar").style.display = "flex";
+    } catch (e) { /* オフライン等は無視 */ }
+  }
+  function dismissUpdate() {
+    if (_updateInfo && _updateInfo.latest)
+      localStorage.setItem("mojicast_update_dismissed", _updateInfo.latest);
+    $("updateBar").style.display = "none";
   }
 
   let pendingCfgPatch = {};
@@ -694,6 +754,7 @@
     applyTheme(cfg.theme);   // 保存済みテーマを確定反映（先読みの上書き）
     if (window.MojicastI18n) window.MojicastI18n.applyLang(cfg.ui_lang || "ja");   // 表示言語
     if (cfg.version) $("verTag").textContent = "v" + cfg.version;
+    checkUpdate();   // 更新のお知らせ（非同期・失敗は無視）
     if (cfg.num_arabic === undefined) cfg.num_arabic = true;   // 既定ON（チップ表示用）
     if (cfg.save_log === undefined) cfg.save_log = true;
     syncModelCard();

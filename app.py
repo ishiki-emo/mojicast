@@ -111,6 +111,18 @@ class JsApi:
         window.destroy()
         return {"ok": True}
 
+    def open_external(self, url):
+        """クレジット/連絡先などの外部URLをOSの既定ブラウザで開く。
+
+        WebView2 内の <a target="_blank"> は外部ブラウザを開かないため、
+        http/https に限定してネイティブに委譲する。
+        """
+        if not isinstance(url, str) or not url.startswith(("http://", "https://")):
+            return {"ok": False}
+        import webbrowser
+        webbrowser.open(url, new=2)   # new=2: 可能なら新規ウィンドウ/タブ
+        return {"ok": True}
+
     def open_collab(self):
         """後方互換: コラボ音声はアプリ設定へ集約"""
         self.open_settings("section=collab")

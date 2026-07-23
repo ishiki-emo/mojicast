@@ -11,6 +11,7 @@ Caption Studio のHTTP/SSEサーバ
 コールバックをSSEへ中継する。
 """
 import os
+import sys
 import json
 import queue
 import threading
@@ -21,7 +22,17 @@ from apppaths import BASE
 import wordstore
 
 APP_VERSION = "0.5.0"
+
+# 更新チェック用のマニフェスト（GitHub raw）。リリース時に latest.json を更新する。
+# 中身: {"version": "0.5.1", "url": "<配布ページ>", "notes": "<一行紹介>"}
+UPDATE_MANIFEST_URL = (
+    "https://raw.githubusercontent.com/ishiki-emo/mojicast/main/latest.json"
+)
+
 _config_lock = threading.RLock()
+_update_lock = threading.Lock()
+_update_cache = None      # 直近の判定結果（成功時のみ）
+_update_cache_at = 0.0    # time.monotonic() ベースの取得時刻
 
 DEFAULT_CONFIG = {
     "silence_ms": 300, "interval": 0.4, "max_utt": 12.0,
@@ -83,6 +94,65 @@ def load_config():
 def save_config(cfg):
     with _config_lock:
         _write_json(wordstore.data_path("config.json"), cfg)
+
+
+def _version_tuple(s):
+    """"v0.5.0" → (0, 5, 0)。数値以外の接尾辞は切り捨てて比較用に正規化。"""
+    parts = []
+    for chunk in str(s).lstrip("vV").split("."):
+        num = ""
+        for ch in chunk:
+            if ch.isdigit():
+                num += ch
+            else:
+                break
+        parts.append(int(num) if num else 0)
+    return tuple(parts)
+
+
+def _check_update(force=False):
+    """latest.json を取得して更新有無を判定。結果は一定時間キャッシュする。
+
+    戻り値: {"current", "latest", "update_available", "url", "notes"}。
+    ネットワーク不通・パース失敗時は update_available=False で静かに返す。
+    """
+    import time
+    import urllib.request
+
+    global _update_cache, _update_cache_at
+    with _update_lock:
+        if (not force and _update_cache is not None
+                and (time.monotonic() - _update_cache_at) < 6 * 3600):
+            return _update_cache
+
+    result = {
+        "current": APP_VERSION, "latest": APP_VERSION,
+        "update_available": False, "url": "", "notes": "",
+    }
+    try:
+        req = urllib.request.Request(
+            UPDATE_MANIFEST_URL,
+            headers={"User-Agent": f"Mojicast/{APP_VERSION}"},
+        )
+        with urllib.request.urlopen(req, timeout=4) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        latest = str(data.get("version", "")).strip()
+        if latest:
+            result["latest"] = latest
+            result["url"] = str(data.get("url", "")).strip()
+            result["notes"] = str(data.get("notes", "")).strip()
+            result["update_available"] = (
+                _version_tuple(latest) > _version_tuple(APP_VERSION)
+            )
+        with _update_lock:
+            _update_cache = result
+            _update_cache_at = time.monotonic()
+    except Exception:
+        # オフライン等は通常運用。前回の成功結果があればそれを返す。
+        with _update_lock:
+            if _update_cache is not None:
+                return _update_cache
+    return result
 
 
 def _presets_path():
@@ -472,6 +542,9 @@ class Handler(BaseHTTPRequestHandler):
             cfg = load_config()
             cfg["version"] = APP_VERSION   # 表示用（保存はされない: POSTでは既知キーのみ更新）
             self._json(cfg)
+        elif path == "/api/update-check":
+            # GUIから起動時に1回呼ぶ。force=1 で手動再取得。ネット不通でも安全に返す。
+            self._json(_check_update(force=query.get("force") == "1"))
         elif path == "/api/profiles":
             self._json({"profiles": wordstore.list_profiles(),
                         "active": load_config().get("word_profile", "")})
@@ -804,9 +877,25 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.flush()
 
 
+class _QuietHTTPServer(ThreadingHTTPServer):
+    """クライアント側の切断を無害なノイズとして扱う。
+
+    テーマ切替の再読込や子ウィンドウを閉じた際、keep-alive 接続が読み取り途中で
+    切られると WinError 10053/10054 等のトレースバックが標準の handle_error から
+    出る。動作には影響しないため、これらの切断だけ握りつぶし、他の例外は従来通り。
+    """
+
+    def handle_error(self, request, client_address):
+        exc = sys.exc_info()[1]
+        if isinstance(exc, (ConnectionAbortedError, ConnectionResetError,
+                            BrokenPipeError)):
+            return
+        super().handle_error(request, client_address)
+
+
 def start(port: int = 8765):
     wordstore.ensure_data()   # data/ 作成・旧配置からの移行・既定データの複製
     _seed_style_defaults()    # 後から増えた既定スタイルを既存環境へ一度だけ追加
-    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    server = _QuietHTTPServer(("127.0.0.1", port), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server
