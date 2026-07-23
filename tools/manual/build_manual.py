@@ -21,10 +21,7 @@ OUT = os.path.abspath(os.path.join(HERE, "..", "..", "マニュアル.html"))
 DOCS_IMAGES = os.path.abspath(os.path.join(HERE, "..", "..", "docs", "images"))
 
 # クローズアップの切り出し（元画像, (left, top, right, bottom)）
-CROPS = {
-    "cockpit_collab_right": ("cockpit_collab", (848, 70, 1160, 632)),
-    "cockpit_chips": ("cockpit_solo", (16, 174, 842, 246)),
-}
+CROPS = {}
 
 
 def load(name):
@@ -38,9 +35,8 @@ def to_data_uri(img):
 
 
 pil_images = {}
-for name in ("cockpit_guide", "cockpit_solo", "cockpit_collab",
-             "collab_window", "model_win", "studio_style", "studio_words",
-             "overlay_collab"):
+for name in ("cockpit_solo", "cockpit_collab", "settings_hearing",
+             "settings_collab", "studio_style", "studio_words"):
     pil_images[name] = load(name)
 for name, (src, box) in CROPS.items():
     pil_images[name] = load(src).crop(box)

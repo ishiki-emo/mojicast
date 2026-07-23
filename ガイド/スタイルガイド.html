@@ -6,8 +6,8 @@
 <title>Mojicast スタイル・レイアウト作成ガイド</title>
 <style>
   :root {
-    --bg: #0d1117; --panel: #161c26; --line: #2a3342;
-    --fg: #e6edf3; --dim: #8b98a9; --acc: #71e7fe; --warn: #ffd400;
+    --bg: #f7f9fc; --panel: #ffffff; --line: #dbe2ec;
+    --fg: #16202e; --dim: #5c6b80; --acc: #0499bd; --warn: #b5761a;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -38,8 +38,8 @@
   ul, ol { margin: 8px 0 8px 24px; }
   li { margin: 4px 0; }
   code {
-    background: #1f2733; border: 1px solid var(--line); border-radius: 5px;
-    padding: 1px 7px; font-family: Consolas, monospace; font-size: 13px; color: #9fd8ff;
+    background: #eef2f8; border: 1px solid var(--line); border-radius: 5px;
+    padding: 1px 7px; font-family: Consolas, monospace; font-size: 13px; color: #0b5f74;
   }
   blockquote {
     background: var(--panel); border: 1px solid var(--line);
@@ -48,7 +48,7 @@
   }
   table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 14px; }
   th, td { border: 1px solid var(--line); padding: 8px 12px; text-align: left; vertical-align: top; }
-  th { background: #1a212d; color: var(--dim); font-weight: 600; }
+  th { background: #eef2f8; color: var(--dim); font-weight: 600; }
   img {
     max-width: 100%; height: auto; margin: 8px 0;
     border: 1px solid var(--line); border-radius: 10px;
@@ -102,7 +102,7 @@
 <p>これが基本形「スタンダード × フリー」。画面に見えている
 <strong>確定字幕（白）・強調単語（黄色）・認識途中の薄文字</strong>が字幕の3要素で、
 このガイドで調整していくのはこれらの見た目です。</p>
-<p>編集はヘッダーの「🛠 スタジオ」→「🎨 文字スタイル」「📐 レイアウト」タブから。</p>
+<p>編集はコックピットの「🎨 字幕スタジオ」→ 左メニュー「字幕」の「文字スタイル」「レイアウト」から。</p>
 <h2 id="2-作成の流れおすすめ手順">2. 作成の流れ（おすすめ手順）</h2>
 <ol>
 <li><strong>雰囲気が近い既存プリセットを選んで「⧉ 複製」</strong> — ゼロから作るより断然ラク</li>
@@ -397,8 +397,8 @@
 <td>和風・ホラー・句会など雰囲気重視の配信</td>
 </tr>
 <tr>
-<td><strong>リリックビデオ（散らし）</strong></td>
-<td>歌枠・BGV的な演出。画面全体に歌詞が散ります</td>
+<td><strong>リリックビデオ風字幕</strong></td>
+<td>雑談をMV風に見せるおまけ演出。確定した発言ごとに構図と動きが変わります</td>
 </tr>
 </tbody>
 </table>
@@ -421,11 +421,12 @@
 <li><strong>保持する行数</strong>: テロップ風なら2〜3行。多くすると過去ログが残り続けます</li>
 <li><strong>スクロール速度</strong>: 250ms前後が自然。テンポの速いトークなら150msでキビキビと</li>
 </ul>
-<p>リリックモードの補足:</p>
+<p>リリックビデオ風字幕の補足:</p>
 <ul>
-<li>分割「フレーズごと」=歌詞らしい間、「単語ごと」=画面が一気ににぎやかに</li>
-<li><strong>サイズばらつき・回転ゆらぎを上げるほど「手書きMV感」</strong>が出ますが、読みやすさは下がります。まず初期値から少しずつ</li>
-<li>同時表示数×表示時間が多すぎると画面が文字で埋まります。歌のテンポに合わせて調整</li>
+<li>基本は「おまかせ」でOK。文章の長さや区切りを見て、似合う演出が自動で選ばれます</li>
+<li>「おとなしい」はフォーカス・誌面・文字送り中心、「にぎやか」は帯・残像・グリッチなども出やすくなります</li>
+<li><strong>重ねる字幕数は2文</strong>がおすすめ。3文は華やかですが、雑談のテンポが速いと文字が混み合います</li>
+<li>強い演出は連続せず、同じ演出も続かないよう自動調整されます</li>
 </ul>
 <h2 id="5-読みやすさの3原則">5. 読みやすさの3原則</h2>
 <p>デザインで迷ったらここに立ち返ってください。</p>
@@ -511,7 +512,8 @@
 「デザインは苦手…」という人は、誰かのmojipackをもらうところから始めるのが近道です。</p>
 <h3 id="書き出すエクスポート">書き出す（エクスポート）</h3>
 <ol>
-<li>スタジオ下部の「📤 エクスポート」を押す</li>
+<li>文字スタイル／レイアウト編集画面の下部にある「📤 エクスポート」を押す
+   （スタジオ左メニューの「保存・共有 → 📤 カスタマイズを書き出す」からも同じことができます）</li>
 <li>書き出す範囲を選ぶ:</li>
 </ol>
 <table>
@@ -534,9 +536,9 @@
 <td>レイアウトだけ配る</td>
 </tr>
 <tr>
-<td>すべて</td>
-<td>文字スタイル＋レイアウト全部</td>
-<td>丸ごとバックアップ・引っ越し</td>
+<td>使用中の組み合わせ</td>
+<td>今使っている文字スタイル＋レイアウトの組</td>
+<td>セット配布・丸ごと引っ越し</td>
 </tr>
 </tbody>
 </table>
@@ -551,7 +553,8 @@
 <h3 id="取り込むインポート">取り込む（インポート）</h3>
 <ol>
 <li>もらった <code>.mojipack</code> ファイルを PC の分かる場所に置く</li>
-<li>スタジオ下部の「📥 インポート」→ ファイルを選ぶ</li>
+<li>編集画面下部の「📥 インポート」→ ファイルを選ぶ
+   （スタジオ「保存・共有 → 📥 もらったカスタマイズを使う」からでもOK）</li>
 <li>取り込んだスタイル・レイアウトが一覧の末尾に追加され、<strong>OBSにも即反映</strong>されます</li>
 </ol>
 <p>取り込みは安全設計なので、気軽に試して大丈夫です:</p>

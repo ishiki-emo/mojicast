@@ -139,14 +139,11 @@ def running_state():
 
 
 try:
-    # ============ 1) コックピット（初回ガイド表示） ============
-    post("/api/config", {"collab": False, "translate": False})
-    t = Tab(BASE + "/ui/cockpit")
+    # ============ 1) コックピット（ソロ・認識中） ============
+    post("/api/config", {"collab": False, "translate": False, "theme": "light"})
+    t = Tab(BASE + "/ui/cockpit?theme=light")
     t.size(1160, 780)
     time.sleep(1.5)          # loadAll完了待ち
-    t.shot("cockpit_guide")
-
-    # ============ 2) コックピット（ソロ・認識中） ============
     t.js("dismissGuide()")
     running_state()
     time.sleep(0.2)
@@ -182,53 +179,40 @@ try:
     t.shot("cockpit_collab")
     t.close()
 
-    # ============ 4) コラボ設定窓 ============
-    t = Tab(BASE + "/ui/collab")
-    t.size(560, 640)
+    # ============ 3) アプリ設定・声の聞き取り（旧AIモデル窓の後継） ============
+    post("/api/config", {"collab": False, "asr_model": "k2-ja",
+                         "asr_lang": "auto", "translate_lang": "en"})
+    t = Tab(BASE + "/ui/settings?section=hearing&theme=light")
+    t.size(1040, 760)
     time.sleep(1.2)
-    t.shot("collab_window")
+    t.js("switchSection && switchSection('hearing')")
+    time.sleep(0.4)
+    t.shot("settings_hearing")
     t.close()
 
-    # ============ 4b) AIモデル設定窓 ============
-    post("/api/config", {"collab": False, "asr_model": "sensevoice",
-                         "asr_lang": "zh", "translate_lang": "en"})
-    t = Tab(BASE + "/ui/model")
-    t.size(560, 640)
+    # ============ 4) アプリ設定・コラボ音声（旧コラボ窓の後継） ============
+    post("/api/config", {"collab": True, "collab_source": "process",
+                         "collab_process": "Discord.exe",
+                         "self_name": "自分", "guest_name": "ゲスト"})
+    t = Tab(BASE + "/ui/settings?section=collab&theme=light")
+    t.size(1040, 760)
     time.sleep(1.2)
-    t.shot("model_win")
+    t.js("switchSection && switchSection('collab')")
+    time.sleep(0.4)
+    t.shot("settings_collab")
     t.close()
-    post("/api/config", {"asr_model": "k2-ja", "asr_lang": "auto",
-                         "translate_lang": "en"})
+    post("/api/config", {"collab": False})
 
     # ============ 5) スタジオ（文字スタイル / 単語） ============
-    t = Tab(BASE + "/ui/studio")
+    t = Tab(BASE + "/ui/studio?theme=light")
     t.size(1120, 800)
     time.sleep(1.8)
     t.shot("studio_style")
     t.close()
-    t = Tab(BASE + "/ui/studio?tab=words")
+    t = Tab(BASE + "/ui/studio?tab=words&theme=light")
     t.size(1120, 800)
     time.sleep(1.8)
     t.shot("studio_words")
-    t.close()
-
-    # ============ 6) オーバーレイ（コラボの左右2ボックス） ============
-    t = Tab(BASE + "/")
-    t.size(1280, 720)
-    time.sleep(1.0)
-    # 配信画面の代わりの背景（マニュアル用の見立て）
-    t.js("document.body.style.background="
-         "'linear-gradient(135deg,#1a2440 0%,#2a1a40 55%,#40233a 100%)'")
-    B({"type": "final", "text": "今日はコラボ配信です、よろしくね！", "id": 21,
-       "speaker": "自分"})
-    time.sleep(0.4)
-    B({"type": "final", "text": "呼んでくれてありがとう！", "id": 22,
-       "speaker": "ゲスト"})
-    time.sleep(0.4)
-    B({"type": "final", "text": "このゲーム、実は初めてなんだ", "id": 23,
-       "speaker": "ゲスト"})
-    time.sleep(0.9)
-    t.shot("overlay_collab")
     t.close()
 
     print("ALL SHOTS DONE →", SHOTS)

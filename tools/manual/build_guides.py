@@ -37,14 +37,15 @@ LINK_MAP = {
     "EFFECT_GUIDE.md": "エフェクトガイド.html",
     "TECH_GUIDE.md": "テクニカルガイド.html",
     "MANUAL.md": "../マニュアル.html",
-    # リポジトリ外のファイルはGitHubへ（CREDITSは配布物に含まれないため）
+    # リポジトリ外のファイルはGitHubへ（配布物に含まれないため）
     "../CREDITS.md": "https://github.com/ishiki-emo/mojicast/blob/main/CREDITS.md",
+    "../ROADMAP.md": "https://github.com/ishiki-emo/mojicast/blob/main/ROADMAP.md",
 }
 
 CSS = """
   :root {
-    --bg: #0d1117; --panel: #161c26; --line: #2a3342;
-    --fg: #e6edf3; --dim: #8b98a9; --acc: #71e7fe; --warn: #ffd400;
+    --bg: #f7f9fc; --panel: #ffffff; --line: #dbe2ec;
+    --fg: #16202e; --dim: #5c6b80; --acc: #0499bd; --warn: #b5761a;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -75,8 +76,8 @@ CSS = """
   ul, ol { margin: 8px 0 8px 24px; }
   li { margin: 4px 0; }
   code {
-    background: #1f2733; border: 1px solid var(--line); border-radius: 5px;
-    padding: 1px 7px; font-family: Consolas, monospace; font-size: 13px; color: #9fd8ff;
+    background: #eef2f8; border: 1px solid var(--line); border-radius: 5px;
+    padding: 1px 7px; font-family: Consolas, monospace; font-size: 13px; color: #0b5f74;
   }
   blockquote {
     background: var(--panel); border: 1px solid var(--line);
@@ -85,7 +86,7 @@ CSS = """
   }
   table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 14px; }
   th, td { border: 1px solid var(--line); padding: 8px 12px; text-align: left; vertical-align: top; }
-  th { background: #1a212d; color: var(--dim); font-weight: 600; }
+  th { background: #eef2f8; color: var(--dim); font-weight: 600; }
   img {
     max-width: 100%; height: auto; margin: 8px 0;
     border: 1px solid var(--line); border-radius: 10px;

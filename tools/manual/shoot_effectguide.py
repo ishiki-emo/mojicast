@@ -175,11 +175,12 @@ try:
     t.shot("effectguide_overlay")
     t.close()
 
-    # ============ 2) 単語スタジオ（✨強調する単語タブ） ============
-    t = Tab(BASE + "/ui/words")
+    # ============ 2) 単語スタジオ（✨強調する単語タブ・ライト） ============
+    post("/api/config", {"theme": "light"})
+    t = Tab(BASE + "/ui/words?theme=light")
     t.size(1120, 720)
     time.sleep(1.5)
-    t.js("showTab('fx')")
+    t.js("showTab && showTab('fx')")
     time.sleep(0.8)
     t.shot("effectguide_words_fx", width=1120, fmt="png")
     t.close()

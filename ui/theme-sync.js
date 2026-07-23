@@ -45,7 +45,7 @@
   // 設定窓をテーマ変更直後に開いた場合の初期色ずれを防ぐ。
   fetch("/api/config", { cache: "no-store" })
     .then(response => response.json())
-    .then(config => applyTheme(config.theme || "dark"))
+    .then(config => applyTheme(config.theme || "light"))
     .catch(() => {})
     .finally(() => { if (!embedded) connect(); });
 })();

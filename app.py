@@ -50,7 +50,7 @@ class JsApi:
         # 変更後・再起動前は config != 実ポートとなり、別窓が接続先を誤るため（見切れず要修正）
         port = self._port
         sep = "&" if "?" in path else "?"
-        theme = app_server.load_config().get("theme", "dark")
+        theme = app_server.load_config().get("theme", "light")
         background = "#f7f9fc" if theme == "light" else "#0d1117"
         url = (f"http://127.0.0.1:{port}{path}{sep}s={UI_SCALE}&v={UI_SESSION}"
                f"&theme={theme}")
@@ -160,10 +160,10 @@ def main():
     window = webview.create_window(
         "Mojicast",
         (f"http://127.0.0.1:{port}/ui/cockpit?s={UI_SCALE}&v={UI_SESSION}"
-         f"&theme={cfg.get('theme', 'dark')}"),
+         f"&theme={cfg.get('theme', 'light')}"),
         width=int(1100 * UI_SCALE), height=int(720 * UI_SCALE),
         min_size=(int(900 * UI_SCALE), int(600 * UI_SCALE)),
-        background_color="#f7f9fc" if cfg.get("theme") == "light" else "#0d1117",
+        background_color="#0d1117" if cfg.get("theme") == "dark" else "#f7f9fc",
         js_api=api)
 
     def on_closed():

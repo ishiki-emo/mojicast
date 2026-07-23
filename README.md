@@ -23,21 +23,21 @@ _A fully-offline real-time captioning app for live streaming: Japanese speech re
 | やりたいこと | 見る場所 |
 |---|---|
 | とにかく動かしたい | [使い方（配布版）](#使い方配布版) |
-| OBS に字幕を出したい | [マニュアル 4章](docs/MANUAL.md#4-obs-に字幕を出す) |
-| 字幕の見た目を手早く変えたい | プリセット切替 — [マニュアル 5章](docs/MANUAL.md#5-スタジオ見た目のカスタマイズと単語登録) |
+| OBS に字幕を出したい | [マニュアル 5章](docs/MANUAL.md#5-obs-に字幕を出す) |
+| 字幕の見た目を手早く変えたい | 「今日の字幕」の切替 — [マニュアル 3章](docs/MANUAL.md#3-コックピットメイン画面) |
 | 自分だけの字幕デザインを作りたい | [スタイル・レイアウト作成ガイド](docs/STYLE_GUIDE.md) |
 | 「ありがとう」でキラキラを飛ばしたい | [エフェクトガイド](docs/EFFECT_GUIDE.md) |
-| 名前・ゲーム名が誤認識される | 認識させる単語 — [マニュアル 5章](docs/MANUAL.md#5-スタジオ見た目のカスタマイズと単語登録) |
-| 英語・中国語などの字幕も併記したい | [マニュアル 6章](docs/MANUAL.md#6-翻訳の併記英訳中国語訳) |
-| 日本語以外の言語で配信したい | 多言語モデル — [マニュアル 3章](docs/MANUAL.md#3-コックピットメイン画面) |
-| 海外の配信を日本語字幕で見たい | 多言語認識＋翻訳先=日本語 — [マニュアル 6章](docs/MANUAL.md#6-翻訳の併記英訳中国語訳) |
-| コラボ相手の字幕も出したい | [マニュアル 7章](docs/MANUAL.md#7-1対1コラボ字幕) |
-| 歌枠で歌詞みたいに散らしたい | リリックモード — [スタイルガイド 4章](docs/STYLE_GUIDE.md#4-レイアウトボックスの項目とコツ) |
+| 名前・ゲーム名が誤認識される | 認識させる単語 — [マニュアル 6章](docs/MANUAL.md#6-スタジオ字幕の見た目と言葉) |
+| 英語・中国語などの字幕も併記したい | [マニュアル 7章](docs/MANUAL.md#7-翻訳の併記) |
+| 日本語以外の言語で配信したい | 多言語モデル — [マニュアル 4章](docs/MANUAL.md#4-アプリ設定声の聞き取り翻訳コラボ接続) |
+| 海外の配信を日本語字幕で見たい | 多言語認識＋翻訳先=日本語 — [マニュアル 7章](docs/MANUAL.md#7-翻訳の併記) |
+| コラボ相手の字幕も出したい | [マニュアル 8章](docs/MANUAL.md#8-1対1コラボ字幕) |
+| 歌枠で歌詞みたいに散らしたい | リリックビデオ風字幕 — [スタイルガイド 4章](docs/STYLE_GUIDE.md#4-レイアウトボックスの項目とコツ) |
 | 作ったスタイルを配りたい・もらいたい | mojipack — [スタイルガイド 7章](docs/STYLE_GUIDE.md#7-書き出し取り込みmojipack-みんなで使おう) |
-| 配信後の文字起こしが欲しい | ログ保存 — [マニュアル 8章](docs/MANUAL.md#8-フォルダとアップデート) |
-| 設定をバックアップしたい | `data\` をコピーするだけ — [マニュアル 8章](docs/MANUAL.md#8-フォルダとアップデート) |
-| 動作が重い | 認識モデルを「多言語」に（負荷約1/3）— [マニュアル 9章](docs/MANUAL.md#9-困ったときは) / [テクニカルガイド](docs/TECH_GUIDE.md) |
-| うまく動かない | [マニュアル 9章](docs/MANUAL.md#9-困ったときは) |
+| 配信後の文字起こしが欲しい | ログ保存 — [マニュアル 9章](docs/MANUAL.md#9-フォルダとアップデート) |
+| 設定をバックアップしたい | `data\` をコピーするだけ — [マニュアル 9章](docs/MANUAL.md#9-フォルダとアップデート) |
+| 動作が重い | 認識モデルを「多言語」に（負荷約1/3）— [マニュアル 10章](docs/MANUAL.md#10-困ったときは) / [テクニカルガイド](docs/TECH_GUIDE.md) |
+| うまく動かない | [マニュアル 10章](docs/MANUAL.md#10-困ったときは) |
 
 ## 特長
 
@@ -45,15 +45,19 @@ _A fully-offline real-time captioning app for live streaming: Japanese speech re
 - 🌏 **多言語認識**（SenseVoice）— 中・英・日・韓・広東語。CPU負荷が軽く、
   低スペック機の軽量モードとしても使える
 - ✍️ **句読点の自動付与**（日本語 BERT）・**数字の算用数字化**（三十五→35、1万5000円）
-- 🌐 **翻訳の併記** — 英訳（FuguMT）／中・日・韓（M2M-100）を切替可能。
-  認識言語×翻訳先から使用モデルを自動選択（中国語認識＋英訳=中→英 など）。
-  配信用語の組み込み辞書つき（配信→stream / 直播 等）
+- 🌐 **翻訳の併記** — 英訳（FuguMT）／中国語（簡体字・台湾繁体字・香港繁体字）・インドネシア語・
+  日本語・韓国語〔試験的〕（M2M-100 ＋ OpenCC）を切替可能。認識言語×翻訳先から使用モデルを自動選択
+  （中国語認識＋英訳=中→英 など）。配信用語の組み込み辞書つき（配信→stream / 直播 等）。
+  翻訳字幕は本文と独立して見た目を調整可能。※軽量ローカルモデルのため訳質は「それなり」
+  （固有名詞は英訳固定語で補正・[伸ばす余地](docs/TECH_GUIDE.md#精度と伸ばす余地)あり）
 - 🎧 **1対1コラボ字幕** — Discord 等の通話音声から**相手の字幕も表示**
   （WASAPI プロセスループバックで通話アプリの音だけを取り込み。相手側の準備は一切不要・仮想ケーブルも不要）
 - 🗂 **単語プロファイル** — 雑談用・ゲーム用・歌枠用など、配信の性質ごとに単語セットを切替
 - ✨ **エフェクト/スタイル** — 単語装飾・パーティクル・プリセット・レイアウト。
   `.mojipack` ファイルでスタイルの配布・取り込みも可能
-- 🎬 **OBS 連携** — ブラウザソースに URL を入れるだけ
+- 🎬 **OBS 連携** — ブラウザソースに URL を入れるだけ。貼る前に「配信プレビュー」で実寸確認
+- 🎛 **配信者向けUI** — コックピット（今日の字幕・配信プレビュー）／スタジオ／アプリ設定の3画面。
+  ライト基調（ヘッダーの 🌙/☀ でダーク切替可・字幕の色には非干渉）
 - 🔌 **完全オフライン** — 音声もテキストも外部送信なし
 - 🖥 **Windows でダブルクリック起動**（配布版は Python 不要・Zip 約90MB）
 
@@ -68,9 +72,13 @@ _A fully-offline real-time captioning app for live streaming: Japanese speech re
 
 | 処理 | モデル | ランタイム |
 |---|---|---|
-| 音声認識 / VAD | ReazonSpeech k2 v2 / Silero VAD | sherpa-onnx |
-| 句読点 | 日本語BERT（ONNX変換済み） | ONNX Runtime |
+| 音声認識（日本語） / VAD | ReazonSpeech k2 v2 / Silero VAD | sherpa-onnx |
+| 音声認識（多言語） | SenseVoice small（中英日韓粤・句読点/数字内蔵） | sherpa-onnx |
+| 句読点（日本語特化時） | 日本語BERT（ONNX変換済み） | ONNX Runtime |
 | 英訳 | FuguMT ja-en（CTranslate2変換済み） | CTranslate2 + SentencePiece |
+| 多方向翻訳 | M2M-100 418M（int8）＋ OpenCC（地域表記） | CTranslate2 + SentencePiece |
+
+認識モデルと翻訳先は「アプリ設定」で切替でき、認識言語×翻訳先から使うモデルが自動選択されます。
 
 内部は pywebview のデスクトップ窓＋ローカル HTTP/SSE サーバで、OBS 用オーバーレイと
 設定 UI を同じサーバから配信します。英訳（FuguMT）は Transformer による生成型の
@@ -117,8 +125,10 @@ python app.py
 
 句読点・翻訳は変換済みモデル（ONNX / CTranslate2）を Hugging Face の配布リポジトリ
 （[mojicast-punct-onnx](https://huggingface.co/ishiki-emo/mojicast-punct-onnx) /
-[mojicast-fugumt-ja-en-ct2](https://huggingface.co/ishiki-emo/mojicast-fugumt-ja-en-ct2)）
-から取得します。モデルを変換し直す場合のみ `tools/convert_models.py` を使ってください
+[mojicast-fugumt-ja-en-ct2](https://huggingface.co/ishiki-emo/mojicast-fugumt-ja-en-ct2) /
+[mojicast-m2m100-ct2](https://huggingface.co/ishiki-emo/mojicast-m2m100-ct2)）
+から取得します。認識モデル（k2 / SenseVoice）は各配布元から取得します。
+モデルを変換し直す場合のみ `tools/convert_models.py` を使ってください
 （このときだけ torch / transformers が必要）。移行時の品質検証は
 `bench/regression_diff.py`（実配信ログでの新旧比較）で行います。
 
@@ -139,11 +149,11 @@ pyinstaller --noconfirm Mojicast.spec
 |---|---|
 | `app.py` | エントリポイント（pywebview 窓） |
 | `app_server.py` | ローカル HTTP/SSE サーバ・設定/プロファイル/mojipack API |
-| `engine.py` | 認識エンジン（VAD→ASR→後処理→英訳） |
+| `engine.py` | 認識エンジン（VAD→ASR→後処理→翻訳・多言語/コラボ対応） |
 | `asr_model.py` / `punct.py` / `translate.py` | 各モデルのローダと推論 |
 | `vocab.py` / `numnorm.py` | ホットワード語彙処理 / 漢数字→算用数字の正規化 |
 | `wordstore.py` | ユーザーデータ（data/）の管理・単語プロファイルの合成 |
-| `overlay.html` / `ui/` | OBS オーバーレイと設定 UI |
+| `overlay.html` / `ui/` | OBS オーバーレイと GUI（コックピット / スタジオ / アプリ設定・ライト基調/ダーク切替） |
 | `defaults/` | 既定データ（初回に個人環境へ複製される種） |
 | `tools/` | モデル変換（ONNX / CTranslate2 化・開発時のみ） |
 | `bench/` | 移行ベンチ・回帰diff（アプリ非組込） |

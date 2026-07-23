@@ -35,7 +35,7 @@ DEFAULT_CONFIG = {
     "word_fx": True,        # 単語エフェクトの表示（OFFでも認識誘導・置換は有効）
     "preset": "standard", "box": "none", "port": 8765,
     "word_profile": "",     # 使用中の単語プロファイル（"" = 共通のみ）
-    "theme": "dark",        # GUI窓のテーマ（dark / light）。overlayは対象外
+    "theme": "light",       # GUI窓のテーマ（light / dark）。既定ライト。overlayは対象外
     # 1対1コラボ（案A改・出力キャプチャ）。collab=Trueで②の入力を相手話者として取り込む
     # collab_source: "process"=アプリ音声を直接取り込み（方式2・推奨）/ "device"=仮想ケーブル
     "collab": False, "collab_source": "process",
@@ -368,7 +368,7 @@ def _init_event():
     ev["state"] = _engine_state
     # 新しく開いたGUI窓がlocalStorageや次の変更イベントに依存せず、
     # 現在のテーマへ即座に揃えられるよう初期イベントにも含める。
-    ev["theme"] = cfg.get("theme", "dark")
+    ev["theme"] = cfg.get("theme", "light")
     return ev
 
 
@@ -578,7 +578,7 @@ class Handler(BaseHTTPRequestHandler):
                                 "error": "ポートは 1024〜65535 の数値で指定してください"}, 400)
                     return
             if "theme" in body and body.get("theme") not in ("dark", "light"):
-                body["theme"] = "dark"   # 未知値はダークへ（既定）
+                body["theme"] = "light"   # 未知値はライトへ（既定）
             if ("collab_source" in body
                     and body.get("collab_source") not in ("process", "device")):
                 body["collab_source"] = "process"   # 未知値は推奨方式へ
@@ -595,7 +595,7 @@ class Handler(BaseHTTPRequestHandler):
             # GUIテーマは開いている全ウインドウへ即時反映する。
             # overlay.html はこのイベントを購読しないためOBS字幕には影響しない。
             if "theme" in body:
-                broadcast({"type": "theme", "theme": cfg.get("theme", "dark")})
+                broadcast({"type": "theme", "theme": cfg.get("theme", "light")})
             self._json({"ok": True, "config": cfg})
         elif path == "/api/profiles":
             self._post_profiles(body)
