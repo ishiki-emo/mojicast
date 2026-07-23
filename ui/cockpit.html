@@ -917,10 +917,14 @@
     btn.className = running ? "on" : "";
     btn.textContent = running ? T("cp.stop", "■ 停止") : T("cp.start", "▶ 開始");
     btn.disabled = state === "loading";
+    // loading/error は detail（モデルDL進捗・失敗理由）があればそれを優先表示する。
+    // running/stopped は固定ラベル。detail が無い loading は既定の「ロード中...」。
+    const stateLabel = { running: T("cp.state_running", "認識中"), stopped: T("cp.state_stopped", "停止中"),
+         loading: T("cp.state_loading", "ロード中..."), error: T("cp.state_error", "エラー") }[state];
     $("stateText").textContent =
-      ({ running: T("cp.state_running", "認識中"), stopped: T("cp.state_stopped", "停止中"),
-         loading: T("cp.state_loading", "ロード中..."), error: T("cp.state_error", "エラー") }[state]
-       || detail || state);
+      ((state === "loading" || state === "error") && detail)
+        ? detail
+        : (stateLabel || detail || state);
     if (!running) $("restartHint").style.display = "none";
   }
 
