@@ -17,21 +17,10 @@ import apppaths  # noqa: F401  HF系より先に読み込み、凍結時のパ�
 import webview
 
 import app_server
+import platform_compat
 
 
-def _ui_scale() -> float:
-    """起動モニタの解像度からUIの拡大率を決める。
-    QHD(2560)幅以上は等倍、狭い画面ほど縮小（下限0.75 / FullHDで約0.8）。
-    overlay(OBS表示)には効かせず、コックピット等のGUI窓だけに適用する。"""
-    try:
-        import ctypes
-        w = ctypes.windll.user32.GetSystemMetrics(0)   # SM_CXSCREEN（論理px）
-        return max(0.75, min(1.0, round(w / 2400, 2)))
-    except Exception:
-        return 1.0
-
-
-UI_SCALE = _ui_scale()
+UI_SCALE = platform_compat.ui_scale()   # コックピット等のGUI窓のみ。overlayには効かせない
 UI_SESSION = int(time.time())  # WebView2が前回のUIを復元しないための起動単位キャッシュキー
 
 
@@ -145,11 +134,8 @@ def _port_free(port: int) -> bool:
 
 
 def _fatal(msg: str):
-    """起動不能エラーの通知。windowed exe ではコンソールが無いので MessageBox で出す"""
-    try:
-        import ctypes
-        ctypes.windll.user32.MessageBoxW(0, msg, "Mojicast", 0x10)  # MB_ICONERROR
-    except Exception:
+    """起動不能エラーの通知。windowed exe ではコンソールが無いのでOSダイアログで出す"""
+    if not platform_compat.fatal_dialog(msg):
         print(msg)
     sys.exit(1)
 

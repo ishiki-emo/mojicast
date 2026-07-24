@@ -20,6 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
 from apppaths import BASE
+import platform_compat
 import wordstore
 
 APP_VERSION = "0.7.0"
@@ -316,22 +317,11 @@ def _seed_style_defaults():
 
 def _os_ui_lang():
     """OSの表示言語 → 'ja'/'zh'/'en'/'ko'/'other'"""
-    try:
-        import ctypes
-        lid = ctypes.windll.kernel32.GetUserDefaultUILanguage() & 0xFF
-        return {0x11: "ja", 0x04: "zh", 0x09: "en", 0x12: "ko"}.get(lid, "other")
-    except Exception:
-        return "other"
+    return platform_compat.os_ui_lang()
 
 
 def _cpu_name():
-    try:
-        import winreg
-        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
-                            r"HARDWARE\DESCRIPTION\System\CentralProcessor\0") as k:
-            return winreg.QueryValueEx(k, "ProcessorNameString")[0].strip()
-    except OSError:
-        return ""
+    return platform_compat.cpu_name()
 
 
 def cpu_tier(name):
@@ -342,6 +332,8 @@ def cpu_tier(name):
     """
     import re
     n = name.lower()
+    if n.startswith("apple m"):
+        return "best"                                # Apple Silicon（int8推論が得意）
     if re.search(r"\b(n\d{2,3}\b|celeron|atom|pentium)", n):
         return "x"                                   # 省電力系
     m = re.search(r"ryzen\s*[3579]\s*(\d{4})(x3d|[a-z]{0,2})", n)
@@ -484,39 +476,7 @@ def list_system_fonts():
     global _fonts_cache
     if _fonts_cache is not None:
         return _fonts_cache
-    import ctypes
-    from ctypes import wintypes
-
-    class LOGFONTW(ctypes.Structure):
-        _fields_ = [
-            ("lfHeight", wintypes.LONG), ("lfWidth", wintypes.LONG),
-            ("lfEscapement", wintypes.LONG), ("lfOrientation", wintypes.LONG),
-            ("lfWeight", wintypes.LONG), ("lfItalic", ctypes.c_byte),
-            ("lfUnderline", ctypes.c_byte), ("lfStrikeOut", ctypes.c_byte),
-            ("lfCharSet", ctypes.c_byte), ("lfOutPrecision", ctypes.c_byte),
-            ("lfClipPrecision", ctypes.c_byte), ("lfQuality", ctypes.c_byte),
-            ("lfPitchAndFamily", ctypes.c_byte),
-            ("lfFaceName", ctypes.c_wchar * 32),
-        ]
-
-    gdi32 = ctypes.WinDLL("gdi32")
-    user32 = ctypes.WinDLL("user32")
-    names = set()
-    PROC = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.POINTER(LOGFONTW),
-                              ctypes.c_void_p, wintypes.DWORD, wintypes.LPARAM)
-
-    def cb(lf, tm, ftype, lparam):
-        name = lf.contents.lfFaceName
-        if name and not name.startswith("@"):   # @付きは縦書き用
-            names.add(name)
-        return 1
-
-    hdc = user32.GetDC(0)
-    lf = LOGFONTW()
-    lf.lfCharSet = 1  # DEFAULT_CHARSET: 全キャラセットを列挙
-    gdi32.EnumFontFamiliesExW(hdc, ctypes.byref(lf), PROC(cb), 0, 0)
-    user32.ReleaseDC(0, hdc)
-    _fonts_cache = sorted(names)
+    _fonts_cache = platform_compat.list_system_fonts()
     return _fonts_cache
 
 
@@ -859,6 +819,8 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/config":
             cfg = load_config()
             cfg["version"] = APP_VERSION   # 表示用（保存はされない: POSTでは既知キーのみ更新）
+            # OS能力（表示用）。UIはこれでコラボ欄をグレーアウトする
+            cfg["collab_supported"] = platform_compat.collab_supported()
             self._json(cfg)
         elif path == "/api/update-check":
             # GUIから起動時に1回呼ぶ。force=1 で手動再取得。ネット不通でも安全に返す。
@@ -921,6 +883,9 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"devices": [], "error": str(e)})
         elif path == "/api/loopback-apps":
             # 音声セッションを持つアプリ一覧（コラボ方式2の対象選択用）
+            if not platform_compat.collab_supported():
+                self._json({"supported": False, "apps": []})
+                return
             try:
                 import proc_loopback
                 self._json({"supported": proc_loopback.is_supported(),
@@ -990,6 +955,8 @@ class Handler(BaseHTTPRequestHandler):
             if ("collab_source" in body
                     and body.get("collab_source") not in ("process", "device")):
                 body["collab_source"] = "process"   # 未知値は推奨方式へ
+            if body.get("collab") and not platform_compat.collab_supported():
+                body["collab"] = False   # このOSでは未対応（UI側もグレーアウト）
             if "vc_wake" in body:
                 # 文字列リストへ正規化（最大10件・各30文字。不正型は無視）
                 raw = body.get("vc_wake")
@@ -1151,7 +1118,7 @@ class Handler(BaseHTTPRequestHandler):
             d = wordstore.data_path(EXPORT_DIR_NAME)
             os.makedirs(d, exist_ok=True)
             try:
-                os.startfile(d)            # エクスプローラで開く（Windows）
+                platform_compat.open_folder(d)   # OSのファイラで開く
                 self._json({"ok": True})
             except OSError as e:
                 self._json({"ok": False, "error": str(e)}, 500)
@@ -1161,7 +1128,7 @@ class Handler(BaseHTTPRequestHandler):
             d = os.path.join(BASE, "logs")
             os.makedirs(d, exist_ok=True)
             try:
-                os.startfile(d)            # エクスプローラで開く（Windows）
+                platform_compat.open_folder(d)   # OSのファイラで開く
                 self._json({"ok": True, "path": d})
             except OSError as e:
                 self._json({"ok": False, "error": str(e)}, 500)

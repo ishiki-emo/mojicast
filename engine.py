@@ -20,6 +20,7 @@ from datetime import datetime
 import numpy as np
 
 from apppaths import BASE
+import platform_compat
 import wordstore
 from numnorm import normalize_numbers
 
@@ -597,9 +598,10 @@ class CaptionEngine:
         """入力ソースを決める。 [(device, speaker, is_primary), ...]
         通常は1本（話者ラベル空＝従来どおり）。1対1コラボ時のみ2本目（相手）を足す。
         相手のソースは2方式: 入力デバイス（仮想ケーブル） or
-        ("process", exe名) のプロセスループバック（方式2・仮想ケーブル不要）。"""
+        ("process", exe名) のプロセスループバック（方式2・仮想ケーブル不要）。
+        コラボ未対応OS（mac）では collab 設定を無視して通常の1本にする（多重ガード）。"""
         dev = cfg.get("device", None)
-        if cfg.get("collab"):
+        if cfg.get("collab") and platform_compat.collab_supported():
             guest_src = None
             if cfg.get("collab_source", "process") == "process":
                 pname = (cfg.get("collab_process") or "").strip()

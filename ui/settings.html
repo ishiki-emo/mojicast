@@ -346,6 +346,7 @@
     }
   }
   async function loadApps() {
+    if (cfg.collab_supported === false) return;   // 未対応OSではヒントを上書きしない
     try {
       const d = await api("/api/loopback-apps"), cur = cfg.collab_process || "", apps = d.apps || [];
       $("collabProcess").innerHTML = '<option value="">（未選択）</option>' + apps.map(a => `<option value="${esc(a.name)}">${a.active ? "🔊 " : ""}${esc(a.name)}</option>`).join("");
@@ -375,6 +376,12 @@
     $("useHotwords").checked = cfg.use_hotwords !== false; $("numArabic").checked = cfg.num_arabic !== false; $("highPrecision").checked = cfg.precision === "fp32";
     $("translate").checked = !!cfg.translate; $("translateLang").value = cfg.translate_lang || "en";
     $("collab").checked = !!cfg.collab; $("selfName").value = cfg.self_name || ""; $("guestName").value = cfg.guest_name || "";
+    if (cfg.collab_supported === false) {   // コラボ未対応OS（mac）: 入力を無効化して理由を示す
+      $("collab").checked = false;
+      for (const id of ["collab", "collabProcess", "reloadApps", "selfName", "guestName"]) $(id).disabled = true;
+      $("collabHint").classList.add("danger");
+      $("collabHint").textContent = T("st.collab_unsupported", "macOS版では現在利用できません（Windows版の機能）");
+    }
     $("vcEnabled").checked = !!cfg.vc_enabled; $("vcWake").value = (cfg.vc_wake || []).join("、");
     loadVcCmds();   // カスタムコマンド（非同期・失敗しても他の設定表示は継続）
     $("obsUrl").value = location.origin + "/"; $("port").value = cfg.port || 8765;
