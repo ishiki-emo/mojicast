@@ -14,6 +14,7 @@ import os
 import sys
 import json
 import queue
+import random
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
@@ -21,7 +22,7 @@ from urllib.parse import urlparse, parse_qs
 from apppaths import BASE
 import wordstore
 
-APP_VERSION = "0.6.2"
+APP_VERSION = "0.7.0"
 
 # 更新チェック用のマニフェスト（GitHub raw）。リリース時に latest.json を更新する。
 # 中身: {"version": "0.5.1", "url": "<配布ページ>", "notes": "<一行紹介>"}
@@ -54,6 +55,9 @@ DEFAULT_CONFIG = {
     "collab_process": "", "collab_device": None,
     "self_name": "自分", "guest_name": "ゲスト",
     "guest_preset": "collab", "guest_box": "half-left",   # 相手の見た目割当
+    # ボイスコマンド（「〈ウェイクワード〉、レイアウトを〇〇に」で操作）
+    "vc_enabled": False,
+    "vc_wake": [],          # ウェイクワード（ゆれ表記を含む複数形。空=無効）
 }
 
 _clients = []
@@ -221,6 +225,42 @@ def _presets_path():
 
 def _boxes_path():
     return wordstore.data_path("boxes.json")
+
+
+def _scenes_path():
+    return wordstore.data_path("scenes.json")
+
+
+def _vc_commands_path():
+    return wordstore.data_path("vc_commands.json")
+
+
+# カスタムコマンドの動作カタログ（保存時の検証と実行の対応表）
+_VC_ACTION_TYPES = ("scene", "box", "preset", "random",
+                    "translate_lang", "translate_on", "translate_off", "clear")
+_VC_RANDOM_TARGETS = ("scene", "box", "preset")
+_VC_TRANS_LANGS = ("en", "zh", "zh_tw", "zh_hk", "id", "ja", "ko")
+
+
+def _valid_vc_command(c):
+    """カスタムコマンド1件の形を検証する（言い回し最大5件・各30文字）"""
+    if not (isinstance(c, dict) and c.get("id")
+            and isinstance(c.get("phrases"), list)):
+        return False
+    phrases = [str(p).strip() for p in c["phrases"] if str(p).strip()]
+    if not phrases or len(phrases) > 5 or any(len(p) > 30 for p in phrases):
+        return False
+    a = c.get("action")
+    if not (isinstance(a, dict) and a.get("type") in _VC_ACTION_TYPES):
+        return False
+    t = a["type"]
+    if t in ("scene", "box", "preset"):
+        return isinstance(a.get("id"), str) and a["id"] != ""
+    if t == "random":
+        return a.get("target") in _VC_RANDOM_TARGETS
+    if t == "translate_lang":
+        return a.get("lang") in _VC_TRANS_LANGS
+    return True    # translate_on / translate_off / clear は追加項目なし
 
 
 def _seed_style_defaults():
@@ -515,6 +555,179 @@ def _init_event():
     return ev
 
 
+# ---------------- ボイスコマンド ----------------
+
+def _try_voice_command(text, spk=""):
+    """確定テキストがボイスコマンドなら実行して True（字幕には出さない）。
+
+    コラボ中は自分の声だけ受け付ける（相手の声からは発動しない）。
+    """
+    cfg = load_config()
+    if not (cfg.get("vc_enabled") and cfg.get("vc_wake")):
+        return False
+    if cfg.get("collab"):
+        self_name = (cfg.get("self_name") or "自分").strip() or "自分"
+        if spk not in ("", self_name):
+            return False
+    import voicecmd
+    boxes = _read_json(_boxes_path(), {"boxes": []})["boxes"]
+    presets = _read_json(_presets_path(), {"presets": []})["presets"]
+    scenes = _read_json(_scenes_path(), {"scenes": []})["scenes"]
+    commands = _read_json(_vc_commands_path(), {"commands": []})["commands"]
+    cmd = voicecmd.parse(text, cfg.get("vc_wake"), boxes, presets, scenes,
+                         commands)
+    if cmd is None:
+        return False
+    suffix = ""
+    if cmd["action"] == "custom":
+        # 登録済みの動作を組み込みのアクション形へ解決する
+        act = (cmd["command"].get("action") or {})
+        t = act.get("type")
+        if t in ("scene", "box", "preset"):
+            items = {"scene": scenes, "box": boxes, "preset": presets}[t]
+            it = next((x for x in items if x.get("id") == act.get("id")), None)
+            if it is None:
+                broadcast({"type": "vc", "ok": False,
+                           "message": "コマンドの切替先が見つかりません"
+                                      "（削除された可能性があります）"})
+                return True
+            cmd = {"action": t, "id": it["id"], "name": it.get("name")}
+        elif t == "random":
+            cmd = {"action": act.get("target", "box") + "_random"}
+        elif t == "translate_lang":
+            labels = {code: label for code, label, _k in voicecmd._TRANS_LANGS}
+            cmd = {"action": "translate_lang", "lang": act.get("lang"),
+                   "label": labels.get(act.get("lang"), act.get("lang"))}
+        elif t in ("translate_on", "translate_off"):
+            cmd = {"action": t}
+        elif t == "clear":
+            broadcast({"type": "clear"})
+            broadcast({"type": "vc", "ok": True,
+                       "message": "字幕をクリアしました"})
+            return True
+        else:
+            cmd = {"action": "unknown"}
+    if cmd["action"] == "scene_random":
+        # 今の組み合わせと違うシーンからおまかせで選ぶ
+        cur = (cfg.get("preset"), cfg.get("box"))
+        candidates = [s for s in scenes
+                      if (s.get("preset"), s.get("box")) != cur]
+        if candidates:
+            s = random.choice(candidates)
+            cmd = {"action": "scene", "id": s.get("id"), "name": s.get("name")}
+            suffix = "（おまかせ）"
+        else:
+            cmd = {"action": "unknown"}
+    if cmd["action"] == "box_random":
+        # 現在と違うレイアウトからおまかせで選ぶ
+        candidates = [b for b in boxes if b.get("id") != cfg.get("box")]
+        if candidates:
+            b = random.choice(candidates)
+            cmd = {"action": "box", "id": b.get("id"), "name": b.get("name")}
+            suffix = "（おまかせ）"
+        else:
+            cmd = {"action": "unknown"}
+    elif cmd["action"] == "preset_random":
+        candidates = [p for p in presets if p.get("id") != cfg.get("preset")]
+        if candidates:
+            p = random.choice(candidates)
+            cmd = {"action": "preset", "id": p.get("id"), "name": p.get("name")}
+            suffix = "（おまかせ）"
+        else:
+            cmd = {"action": "unknown"}
+    if cmd["action"] == "scene":
+        s = next((x for x in scenes if x.get("id") == cmd["id"]), None)
+        valid = (s is not None
+                 and any(p.get("id") == s.get("preset") for p in presets)
+                 and any(b.get("id") == s.get("box") for b in boxes))
+        if not valid:
+            broadcast({"type": "vc", "ok": False,
+                       "message": f"シーン「{cmd['name']}」の中身"
+                                  "（デザインかレイアウト）が見つかりません"})
+            return True
+        with _config_lock:
+            cfg = load_config()
+            cfg["preset"] = s["preset"]
+            cfg["box"] = s["box"]
+            save_config(cfg)
+        ev = {"type": "style"}
+        ev.update(resolve_style(load_config()))
+        broadcast(ev)
+        broadcast({"type": "vc", "ok": True,
+                   "message": f"シーン「{cmd['name']}」に切り替えました{suffix}"})
+    elif cmd["action"] in ("box", "preset"):
+        key = "box" if cmd["action"] == "box" else "preset"
+        label = "レイアウト" if key == "box" else "字幕デザイン"
+        with _config_lock:
+            cfg = load_config()
+            cfg[key] = cmd["id"]
+            save_config(cfg)
+        ev = {"type": "style"}
+        ev.update(resolve_style(load_config()))
+        broadcast(ev)
+        broadcast({"type": "vc", "ok": True,
+                   "message": f"{label}を「{cmd['name']}」に切り替えました{suffix}"})
+    elif cmd["action"] in ("translate_on", "translate_off", "translate_lang"):
+        with _config_lock:
+            cfg = load_config()
+            prev = (cfg.get("translate"), cfg.get("translate_lang"))
+            if cmd["action"] == "translate_off":
+                cfg["translate"] = False
+                msg = "翻訳をオフにしました"
+            else:
+                cfg["translate"] = True
+                if cmd["action"] == "translate_lang":
+                    cfg["translate_lang"] = cmd["lang"]
+                    msg = f"翻訳を{cmd['label']}に切り替えました"
+                else:
+                    msg = "翻訳をオンにしました"
+            changed = prev != (cfg.get("translate"), cfg.get("translate_lang"))
+            if changed:
+                save_config(cfg)
+        if not changed:
+            broadcast({"type": "vc", "ok": True,
+                       "message": "翻訳はすでにその設定です"})
+            return True
+        ev = {"type": "style"}
+        ev.update(resolve_style(load_config()))
+        broadcast(ev)
+        if _engine is not None and _engine.running:
+            msg += "（反映のため再起動しています…）"
+            _restart_engine_async()
+        broadcast({"type": "vc", "ok": True, "message": msg})
+    else:
+        broadcast({"type": "vc", "ok": False,
+                   "message": "コマンドを聞き取れませんでした"})
+    return True
+
+
+def _restart_engine_async():
+    """設定反映のための停止→開始を裏スレッドで行う（ボイスコマンド用）。
+
+    確定コールバック（エンジン自身のスレッド）から呼ばれるため、ここでは
+    joinせず、別スレッドで停止完了を待ってから開始し直す。
+    """
+    def work():
+        import time
+        eng = get_engine()
+        eng.stop(timeout=30)
+        deadline = time.time() + 30
+        while time.time() < deadline:
+            if eng.start(load_config()):
+                return
+            time.sleep(0.3)
+
+    threading.Thread(target=work, daemon=True, name="vc-restart").start()
+
+
+def _engine_on_final(text, fid, spk=""):
+    if _try_voice_command(text, spk):
+        # コマンド発話は字幕に出さず、発話中に見えていた薄文字だけ消す
+        broadcast({"type": "partial", "text": "", "speaker": spk})
+        return
+    broadcast({"type": "final", "text": text, "id": fid, "speaker": spk})
+
+
 # ---------------- エンジン連携 ----------------
 
 def get_engine():
@@ -525,8 +738,7 @@ def get_engine():
             _engine = CaptionEngine(
                 on_partial=lambda t, spk="": broadcast(
                     {"type": "partial", "text": t, "speaker": spk}),
-                on_final=lambda t, fid, spk="": broadcast(
-                    {"type": "final", "text": t, "id": fid, "speaker": spk}),
+                on_final=_engine_on_final,
                 on_level=lambda v, spk="": broadcast(
                     {"type": "level", "value": round(v, 3), "speaker": spk}),
                 on_state=_on_state,
@@ -684,6 +896,10 @@ class Handler(BaseHTTPRequestHandler):
             self._json(_read_json(_presets_path(), {"presets": []}))
         elif path == "/api/boxes":
             self._json(_read_json(_boxes_path(), {"boxes": []}))
+        elif path == "/api/scenes":
+            self._json(_read_json(_scenes_path(), {"scenes": []}))
+        elif path == "/api/vc-commands":
+            self._json(_read_json(_vc_commands_path(), {"commands": []}))
         elif path == "/api/style-defaults":
             # 同梱項目の「初期状態に戻す」と新規作成の基準データ。
             self._json({
@@ -774,6 +990,15 @@ class Handler(BaseHTTPRequestHandler):
             if ("collab_source" in body
                     and body.get("collab_source") not in ("process", "device")):
                 body["collab_source"] = "process"   # 未知値は推奨方式へ
+            if "vc_wake" in body:
+                # 文字列リストへ正規化（最大10件・各30文字。不正型は無視）
+                raw = body.get("vc_wake")
+                if not isinstance(raw, list):
+                    raw = []
+                body["vc_wake"] = [str(w).strip()[:30] for w in raw[:10]
+                                   if str(w).strip()]
+            if "vc_enabled" in body:
+                body["vc_enabled"] = bool(body.get("vc_enabled"))
             # ThreadingHTTPServer上で複数の設定窓が同時保存しても、後着の
             # read-modify-write が先着変更を巻き戻さないよう一連を排他する。
             with _config_lock:
@@ -843,6 +1068,28 @@ class Handler(BaseHTTPRequestHandler):
             ev = {"type": "style"}
             ev.update(resolve_style(cfg))
             broadcast(ev)
+            self._json({"ok": True})
+        elif path == "/api/vc-commands":
+            commands = body.get("commands", [])
+            if not (isinstance(commands, list) and len(commands) <= 50
+                    and all(_valid_vc_command(c) for c in commands)):
+                self._json({"ok": False, "error": "invalid commands"}, 400)
+                return
+            for c in commands:   # 言い回しは空白を除去した形へ正規化して保存
+                c["phrases"] = [str(p).strip() for p in c["phrases"]
+                                if str(p).strip()]
+            _write_json(_vc_commands_path(), {"commands": commands})
+            self._json({"ok": True})
+        elif path == "/api/scenes":
+            scenes = body.get("scenes", [])
+            ok = (isinstance(scenes, list)
+                  and all(isinstance(s, dict) and s.get("id") and s.get("name")
+                          and isinstance(s.get("preset"), str)
+                          and isinstance(s.get("box"), str) for s in scenes))
+            if not ok:
+                self._json({"ok": False, "error": "invalid scenes"}, 400)
+                return
+            _write_json(_scenes_path(), {"scenes": scenes})
             self._json({"ok": True})
         elif path == "/api/boxes":
             boxes = body.get("boxes", [])

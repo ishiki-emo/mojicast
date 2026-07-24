@@ -158,6 +158,7 @@
         p.finalsEl.removeChild(p.finalsEl.firstChild);
     });
     FX.burstLine(div);          // パーティクル発射（登録単語があれば）
+    FX.scheduleAutoClear(div, p.box);   // 自動消去がONなら一定時間後にフェードアウト
     // スクロール完了後、見切れた行をフェードアウトして掃除
     setTimeout(() => FX.pruneClipped(p.clipEl, p.finalsEl, p.box),
                (p.box.smoothMs || 250) + 80);

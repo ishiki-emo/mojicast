@@ -122,6 +122,7 @@
     <button data-section="hearing" onclick="switchSection('hearing')"><span class="icon">🎙</span><strong data-i18n="st.nav_hearing">声の聞き取り</strong><small data-i18n="st.nav_hearing_d">マイク・認識・区切り</small></button>
     <button data-section="translation" onclick="switchSection('translation')"><span class="icon">🌐</span><strong data-i18n="st.nav_translation">翻訳</strong><small data-i18n="st.nav_translation_d">翻訳先・使用モデル</small></button>
     <button data-section="collab" onclick="switchSection('collab')"><span class="icon">🎧</span><strong data-i18n="st.nav_collab">コラボ音声</strong><small data-i18n="st.nav_collab_d">通話アプリ・表示名</small></button>
+    <button data-section="voice" onclick="switchSection('voice')"><span class="icon">🎤</span><strong data-i18n="st.nav_voice">ボイスコマンド</strong><small data-i18n="st.nav_voice_d">声でレイアウト切替</small></button>
     <button data-section="obs" onclick="switchSection('obs')"><span class="icon">🎬</span><strong data-i18n="st.nav_obs">OBS接続</strong><small data-i18n="st.nav_obs_d">表示URL・ポート</small></button>
     <button data-section="other" onclick="switchSection('other')"><span class="icon">⚙</span><strong data-i18n="st.nav_other">その他</strong><small data-i18n="st.nav_other_d">ログ・表示処理</small></button>
     <button data-section="about" onclick="switchSection('about')"><span class="icon">ℹ️</span><strong data-i18n="st.nav_about">情報・連絡先</strong><small data-i18n="st.nav_about_d">バージョン・作者</small></button>
@@ -188,7 +189,33 @@
         </article>
         <article class="card wide"><h2 data-i18n="st.card_names">字幕で使う表示名</h2><p data-i18n="st.card_names_d">話者を見分けるための名前です。</p>
           <div class="grid"><div class="field"><label for="selfName" data-i18n="st.f_self">自分</label><input id="selfName" type="text" maxlength="20" placeholder="自分" data-i18n-ph="st.ph_self"></div><div class="field"><label for="guestName" data-i18n="st.f_guest">相手</label><input id="guestName" type="text" maxlength="20" placeholder="ゲスト" data-i18n-ph="st.ph_guest"></div></div>
-          <div class="note" data-i18n="st.note_names">相手側の字幕デザインと位置は、コックピットの「今日の字幕」で選べます。</div>
+          <div class="note" data-i18n="st.note_names">相手側のデザインとレイアウトは、コックピットの「字幕の見た目」で選べます。</div>
+        </article>
+      </div>
+    </section>
+
+    <section class="pane" id="pVoice">
+      <h1 data-i18n="st.h1_voice">ボイスコマンド</h1><p class="lead" data-i18n="st.lead_voice">配信中に、声でMojicastを操作します。まずはレイアウト切替から。</p>
+      <div class="warnbar" data-i18n="st.warn_vc">💡 コマンドはすぐ使えます。呼びかけを認識されやすくする効果（認識誘導）だけは「■ 停止 → ▶ 開始」後に反映されます。</div>
+      <div class="grid">
+        <article class="card wide"><h2 data-i18n="st.card_voice">ウェイクワード（呼びかけの名前）</h2><p data-i18n="st.card_voice_d">この名前に続けて話した発話だけがコマンドになります。</p>
+          <label class="checkrow"><input id="vcEnabled" type="checkbox"><span><b data-i18n="st.chk_vc">ボイスコマンドを使う</b><small data-i18n="st.chk_vc_d">コマンドの発話は字幕に表示されません</small></span></label>
+          <div class="field"><label for="vcWake" data-i18n="st.f_wake">ウェイクワード（「、」区切りで複数OK）</label><input id="vcWake" type="text" maxlength="200" placeholder="例：ステラ、すてら" data-i18n-ph="st.ph_wake"></div>
+          <div class="note" data-i18n="st.note_wake">カタカナ・ひらがなの名前が認識されやすいです。違う言葉に化けるときは、字幕に出たその表記もそのまま並べて登録してください（例：モジキャスト、文字キャスト）。</div>
+        </article>
+        <article class="card wide"><h2 data-i18n="st.card_vccmd">カスタムコマンド</h2><p data-i18n="st.card_vccmd_d">自分の言い回しに動作を割り当てます。ウェイクワードに続けて話すと実行されます。</p>
+          <div id="vcCmdRows"></div>
+          <div class="actions" style="margin-top:8px"><button id="vcCmdAdd" data-i18n="st.vccmd_add">＋ コマンドを追加</button></div>
+          <div class="note" data-i18n="st.vccmd_note">言い回しは「、」区切りで複数OK（誤認識されがちな表記も並べると確実）。組み込みコマンドと同じ言い回しは、こちらが優先されます。</div>
+        </article>
+        <article class="card wide"><h2 data-i18n="st.card_vcuse">組み込みコマンド</h2><p data-i18n="st.card_vcuse_d">ウェイクワードに続けて、ひと息に話します。</p>
+          <div class="note" data-i18n="st.vc_ex1">「ステラ、レイアウトを下部バーに」…名前で切替</div>
+          <div class="note" data-i18n="st.vc_ex2">「ステラ、レイアウト2」…並び順の番号で切替（字幕スタジオの一覧の上から数えます）</div>
+          <div class="note" data-i18n="st.vc_ex4">「ステラ、レイアウト変えて」…おまかせで別のレイアウトに切替</div>
+          <div class="note" data-i18n="st.vc_ex6">「ステラ、デザインをサイバーに」「ステラ、デザイン変えて」…字幕デザインも同じように切替できます</div>
+          <div class="note" data-i18n="st.vc_ex7">「ステラ、歌枠」「ステラ、シーン変えて」…シーン（デザイン＋位置のセット）を一括切替</div>
+          <div class="note" data-i18n="st.vc_ex5">「ステラ、翻訳を英語に」「ステラ、翻訳オフ」…翻訳の切替（認識の動作中は自動で再起動します）</div>
+          <div class="note" data-i18n="st.vc_ex3">実行すると、コックピットの画面右下に結果が表示されます。</div>
         </article>
       </div>
     </section>
@@ -246,10 +273,10 @@
 <script>
   const $ = id => document.getElementById(id);
   const qs = new URLSearchParams(location.search);
-  const panes = { hearing:"pHearing", translation:"pTranslation", collab:"pCollab", obs:"pObs", other:"pOther", about:"pAbout" };
-  const descsJa = { hearing:"マイク・認識・区切りを設定", translation:"翻訳先とモデルを設定", collab:"通話相手の音声を設定", obs:"OBSとの接続を設定", other:"ログと画面表示を設定", about:"バージョンと連絡先" };
+  const panes = { hearing:"pHearing", translation:"pTranslation", collab:"pCollab", voice:"pVoice", obs:"pObs", other:"pOther", about:"pAbout" };
+  const descsJa = { hearing:"マイク・認識・区切りを設定", translation:"翻訳先とモデルを設定", collab:"通話相手の音声を設定", voice:"声でレイアウトを切り替え", obs:"OBSとの接続を設定", other:"ログと画面表示を設定", about:"バージョンと連絡先" };
   const T = (key, jaDefault) => window.MojicastI18n ? window.MojicastI18n.t(key, jaDefault) : jaDefault;
-  let cfg = {}, running = false, savedTimer, nameTimer, curSection = "hearing";
+  let cfg = {}, running = false, savedTimer, nameTimer, vcTimer, curSection = "hearing";
 
   async function api(path, body) {
     const opt = body === undefined ? {} : { method:"POST", body:JSON.stringify(body) };
@@ -348,6 +375,8 @@
     $("useHotwords").checked = cfg.use_hotwords !== false; $("numArabic").checked = cfg.num_arabic !== false; $("highPrecision").checked = cfg.precision === "fp32";
     $("translate").checked = !!cfg.translate; $("translateLang").value = cfg.translate_lang || "en";
     $("collab").checked = !!cfg.collab; $("selfName").value = cfg.self_name || ""; $("guestName").value = cfg.guest_name || "";
+    $("vcEnabled").checked = !!cfg.vc_enabled; $("vcWake").value = (cfg.vc_wake || []).join("、");
+    loadVcCmds();   // カスタムコマンド（非同期・失敗しても他の設定表示は継続）
     $("obsUrl").value = location.origin + "/"; $("port").value = cfg.port || 8765;
     $("punctuate").checked = cfg.punctuate !== false; $("saveLog").checked = cfg.save_log !== false; $("theme").value = cfg.theme || "light";
     $("uiLang").value = cfg.ui_lang || "ja";
@@ -381,6 +410,88 @@
   $("translate").addEventListener("change", e => save({translate:e.target.checked},false));
   $("translateLang").addEventListener("change", e => { cfg.translate_lang=e.target.value; syncTranslationRoute(); save({translate_lang:e.target.value}); });
   $("collab").addEventListener("change", e => save({collab:e.target.checked}));
+  $("vcEnabled").addEventListener("change", e => save({vc_enabled:e.target.checked}));
+  $("vcWake").addEventListener("input", e => { clearTimeout(vcTimer); vcTimer = setTimeout(() => save({vc_wake:e.target.value.split(/[、,，]/).map(s => s.trim()).filter(Boolean)}), 400); });
+
+  // ---------- カスタムコマンド（言い回し → 動作） ----------
+  let vcCmds = [], vcCatalog = { scenes: [], boxes: [], presets: [] }, vcCmdTimer;
+  const VC_ACTIONS = [
+    ["scene", "シーンに切替"], ["preset", "デザインに切替"], ["box", "レイアウトに切替"],
+    ["random", "おまかせで切替"], ["translate_lang", "翻訳先を切替"],
+    ["translate_on", "翻訳オン"], ["translate_off", "翻訳オフ"], ["clear", "字幕クリア"],
+  ];
+  const VC_LANGS = [["en","英語"],["zh","中国語（簡体字）"],["zh_tw","中国語（繁体字）"],
+    ["zh_hk","広東語"],["id","インドネシア語"],["ja","日本語"],["ko","韓国語"]];
+  const VC_RANDOM_TARGETS = [["scene","シーン"],["preset","デザイン"],["box","レイアウト"]];
+
+  function vcTargetOptions(type, cur) {
+    const opt = (v, l) => `<option value="${esc(v)}"${v === cur ? " selected" : ""}>${esc(l)}</option>`;
+    if (type === "scene") return vcCatalog.scenes.map(s => opt(s.id, s.name)).join("");
+    if (type === "preset") return vcCatalog.presets.map(p => opt(p.id, p.name)).join("");
+    if (type === "box") return vcCatalog.boxes.map(b => opt(b.id, b.name)).join("");
+    if (type === "random") return VC_RANDOM_TARGETS.map(([v, l]) => opt(v, T("st.vct_" + v, l))).join("");
+    if (type === "translate_lang") return VC_LANGS.map(([v, l]) => opt(v, T("st.tl_" + v.replace("_",""), l))).join("");
+    return "";
+  }
+  function vcDefaultAction(type) {
+    if (type === "scene") return { type, id: (vcCatalog.scenes[0] || {}).id || "" };
+    if (type === "preset") return { type, id: (vcCatalog.presets[0] || {}).id || "" };
+    if (type === "box") return { type, id: (vcCatalog.boxes[0] || {}).id || "" };
+    if (type === "random") return { type, target: "scene" };
+    if (type === "translate_lang") return { type, lang: "en" };
+    return { type };
+  }
+  function vcTargetValue(a) { a = a || {}; return a.id || a.target || a.lang || ""; }
+  function vcSetTarget(a, v) {
+    if (a.type === "random") a.target = v;
+    else if (a.type === "translate_lang") a.lang = v;
+    else a.id = v;
+  }
+  function renderVcCmds() {
+    const wrap = $("vcCmdRows");
+    wrap.innerHTML = "";
+    vcCmds.forEach((c, i) => {
+      const type = (c.action || {}).type || "scene";
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;gap:6px;margin-bottom:6px;align-items:center";
+      const tOpts = vcTargetOptions(type, vcTargetValue(c.action));
+      row.innerHTML =
+        `<input type="text" maxlength="160" style="flex:2;min-width:0" value="${esc((c.phrases || []).join("、"))}" placeholder="${esc(T("st.vccmd_ph", "例：歌枠モード、うたわく"))}">` +
+        `<select style="flex:1.3">${VC_ACTIONS.map(([v, l]) =>
+          `<option value="${v}"${v === type ? " selected" : ""}>${esc(T("st.vca_" + v, l))}</option>`).join("")}</select>` +
+        `<select style="flex:1.3;min-width:0"${tOpts ? "" : " hidden"}>${tOpts}</select>` +
+        `<button style="flex:none" title="${esc(T("sy.delete", "削除"))}">🗑</button>`;
+      const [inp, selA, selT, del] = row.children;
+      inp.addEventListener("input", () => {
+        c.phrases = inp.value.split(/[、,，]/).map(s => s.trim()).filter(Boolean);
+        vcCmdSave();
+      });
+      selA.addEventListener("change", () => { c.action = vcDefaultAction(selA.value); renderVcCmds(); vcCmdSave(); });
+      selT.addEventListener("change", () => { vcSetTarget(c.action, selT.value); vcCmdSave(); });
+      del.addEventListener("click", () => { vcCmds.splice(i, 1); renderVcCmds(); vcCmdSave(); });
+      wrap.appendChild(row);
+    });
+  }
+  function vcCmdSave() {
+    clearTimeout(vcCmdTimer);
+    vcCmdTimer = setTimeout(async () => {
+      // 言い回しが空の行は編集途中とみなし、送信からは除外（画面には残す）
+      const valid = vcCmds.filter(c => (c.phrases || []).length && c.action && c.action.type);
+      try { await api("/api/vc-commands", { commands: valid }); toast(); }
+      catch (e) { toast(T("st.save_fail", "保存できませんでした"), true); }
+    }, 500);
+  }
+  $("vcCmdAdd").addEventListener("click", () => {
+    vcCmds.push({ id: "vcc-" + Date.now(), phrases: [], action: vcDefaultAction("scene") });
+    renderVcCmds();
+  });
+  async function loadVcCmds() {
+    const [sc, bx, pr, vc] = await Promise.all([
+      api("/api/scenes"), api("/api/boxes"), api("/api/presets"), api("/api/vc-commands")]);
+    vcCatalog = { scenes: sc.scenes || [], boxes: bx.boxes || [], presets: pr.presets || [] };
+    vcCmds = vc.commands || [];
+    renderVcCmds();
+  }
   $("collabProcess").addEventListener("change", e => save({collab_process:e.target.value,collab_source:"process"}));
   $("reloadApps").addEventListener("click", loadApps);
   for (const id of ["selfName","guestName"]) $(id).addEventListener("input", e => { clearTimeout(nameTimer); nameTimer=setTimeout(() => save({[e.target.id === "selfName" ? "self_name" : "guest_name"]:e.target.value}),400); });
