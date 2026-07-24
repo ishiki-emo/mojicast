@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mojicast Mac版 — はじめにお読みください</title>
+<style>
+  /* マニュアル.html と同系配色（アプリのライトテーマ） */
+  :root {
+    --bg: #f7f9fc; --panel: #ffffff; --line: #dbe2ec;
+    --fg: #16202e; --dim: #5c6b80; --acc: #0499bd; --warn: #b5761a;
+    --ok: #12a05f;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font-family: "Hiragino Sans", "Yu Gothic UI", sans-serif;
+    line-height: 1.9; font-size: 15px;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 32px 20px 80px; }
+  header { text-align: center; padding: 24px 0 6px; }
+  header h1 { font-size: 26px; letter-spacing: .04em; }
+  header h1 .accent { color: var(--acc); }
+  header .sub { color: var(--dim); margin-top: 6px; font-size: 13px; }
+  section { margin-top: 40px; }
+  h2 {
+    font-size: 19px; padding-bottom: 8px; margin-bottom: 14px;
+    border-bottom: 2px solid var(--line);
+  }
+  h2 .no { color: var(--acc); margin-right: 8px; }
+  p { margin: 8px 0; }
+  ol.steps { margin: 12px 0 0 24px; }
+  ol.steps li { margin: 10px 0; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 16px 20px; margin: 14px 0;
+  }
+  .warn {
+    border-left: 4px solid var(--warn); background: #fff8ec;
+    padding: 12px 16px; border-radius: 6px; margin: 14px 0; font-size: 14px;
+  }
+  .ok {
+    border-left: 4px solid var(--ok); background: #eefaf3;
+    padding: 12px 16px; border-radius: 6px; margin: 14px 0; font-size: 14px;
+  }
+  kbd, .path {
+    background: #eef2f8; border: 1px solid var(--line); border-radius: 5px;
+    padding: 1px 7px; font-size: 13px; white-space: nowrap;
+  }
+  .dim { color: var(--dim); font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Mojicast <span class="accent">Mac版</span> — はじめにお読みください</h1>
+  <div class="sub">インストールから初回起動まで（5分・初回のみの手順です）</div>
+</header>
+
+<section>
+  <h2><span class="no">1</span>インストール</h2>
+  <ol class="steps">
+    <li>このウィンドウ内の <b>Mojicast.app</b> を <b>Applications</b> フォルダへドラッグします。</li>
+    <li>ドラッグが終わったら、デスクトップの「Mojicast」ディスクは取り出してかまいません。</li>
+  </ol>
+</section>
+
+<section>
+  <h2><span class="no">2</span>初回起動（いちばん大事なところ）</h2>
+  <p>Mojicast は Apple の公証（有料の開発者登録）を受けていない無料配布アプリのため、
+     <b>初回だけ</b> macOS のセキュリティ確認を通す必要があります。</p>
+
+  <div class="card">
+    <ol class="steps">
+      <li>アプリケーションフォルダの <b>Mojicast</b> をダブルクリックすると、<br>
+        <span class="path">“Mojicast” は開いていません — マルウェアが含まれていないことを検証できませんでした</span><br>
+        という警告が出ます（これで正常です）。</li>
+      <li><b>⚠ 青い「ゴミ箱に入れる」は押さず</b>、<b>「完了」</b>で閉じてください。
+        <span class="dim">（「ゴミ箱に入れる」を押すとアプリが削除されます。その場合はもう一度インストールすればOK）</span></li>
+      <li><b>システム設定</b> を開き、<span class="path">プライバシーとセキュリティ</span> へ。</li>
+      <li>下へスクロールすると「“Mojicast”の使用がブロックされました」という項目があります。
+        その右の <b>「このまま開く」</b> をクリック。</li>
+      <li>Macのパスワード（またはTouch ID）で確認 → Mojicast が起動します。</li>
+    </ol>
+  </div>
+
+  <div class="ok">✅ この手順は<b>初回の1回だけ</b>です。2回目以降は普通にダブルクリックで起動します。</div>
+
+  <div class="warn">⚠ 「壊れているため開けません」と表示された場合は、ブラウザのダウンロード時の
+    印が残っています。ターミナルを開いて次の1行を実行してください:<br>
+    <kbd>xattr -dr com.apple.quarantine /Applications/Mojicast.app</kbd></div>
+</section>
+
+<section>
+  <h2><span class="no">3</span>マイクの許可と最初の字幕</h2>
+  <ol class="steps">
+    <li>コックピット画面でマイクを選び、<b>▶開始</b> を押します。</li>
+    <li>初回のみ AI モデル（約1.2GB）を自動ダウンロードします（進み具合は画面に表示されます）。</li>
+    <li><b>「マイクへのアクセスを許可しますか」</b>のダイアログが出たら <b>「許可」</b> を選んでください。
+      <span class="dim">（誤って「許可しない」を押した場合は、システム設定 → プライバシーとセキュリティ →
+      マイク で Mojicast をオンにしてください）</span></li>
+    <li>話しかけて字幕が出れば準備完了。OBS のブラウザソースに
+      <kbd>http://localhost:8765</kbd> を設定すると配信画面に重なります。</li>
+  </ol>
+</section>
+
+<section>
+  <h2><span class="no">4</span>知っておくと安心</h2>
+  <div class="card">
+    <p>・音声もテキストも<b>ネットには送信されません</b>（モデルの初回ダウンロード以外は完全オフラインで動作）。</p>
+    <p>・設定・単語帳・ログは <span class="path">~/ライブラリ/Application Support/Mojicast</span> に保存されます。
+      バックアップはこのフォルダのコピーだけでOKです。</p>
+    <p>・アンインストールは Mojicast.app をゴミ箱へ。データも消す場合は上記フォルダも削除してください。</p>
+    <p>・使い方の詳細は同梱の <b>マニュアル.html</b>、デザインの作り方は <b>ガイド/</b> フォルダをどうぞ。</p>
+  </div>
+</section>
+
+</div>
+</body>
+</html>
