@@ -19,7 +19,7 @@ from datetime import datetime
 
 import numpy as np
 
-from apppaths import BASE
+from apppaths import BASE, DATA_BASE
 import platform_compat
 import wordstore
 from numnorm import normalize_numbers
@@ -145,7 +145,7 @@ class CaptionEngine:
             return
         try:
             now = datetime.now()
-            d = os.path.join(BASE, "logs", now.strftime("%Y-%m-%d"))
+            d = os.path.join(DATA_BASE, "logs", now.strftime("%Y-%m-%d"))
             os.makedirs(d, exist_ok=True)
             path = os.path.join(d, now.strftime("%Y-%m-%d_%H%M%S") + ".log")
             self._logf = open(path, "a", encoding="utf-8")
@@ -208,7 +208,7 @@ class CaptionEngine:
         GUIには短い警告しか出せないため、テスターからの報告調査はこのログで行う。"""
         try:
             import traceback
-            d = os.path.join(BASE, "logs")
+            d = os.path.join(DATA_BASE, "logs")
             os.makedirs(d, exist_ok=True)
             ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             with open(os.path.join(d, "load_error.log"), "a",
@@ -566,7 +566,7 @@ class CaptionEngine:
         """英訳ワーカーで起きた例外を translate_error.log に残す（無言失敗の可視化）"""
         try:
             import traceback
-            with open(os.path.join(BASE, "translate_error.log"),
+            with open(os.path.join(DATA_BASE, "translate_error.log"),
                       "a", encoding="utf-8") as f:
                 f.write(f"--- 英訳失敗: {text!r}\n")
                 f.write(traceback.format_exc() + "\n")
