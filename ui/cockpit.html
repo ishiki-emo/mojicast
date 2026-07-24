@@ -272,9 +272,11 @@
   .quick-today .today-label b { font-size: 11px; color: var(--dim); font-weight: 600; }
   .quick-today .today-label span { display: none; }
   .quick-today .selrow { margin-top: 0; }
-  /* シーン行はグリッド全幅。保存/削除ボタンは小さめ */
-  .quick-today #sceneItem { grid-column: 1 / -1; }
-  #sceneItem button { flex: none; padding: 4px 10px; font-size: 12px; }
+  /* シーン＝「セット」であることが分かるようアクセント色で薄く色分け */
+  .quick-today #sceneItem { border-color: rgba(255,45,149,.45);
+    background: rgba(255,45,149,.05); }
+  #sceneItem .today-label b { color: #ff2d95; }
+  #sceneItem button { flex: none; padding: 4px 8px; font-size: 12px; }
   .quick-today .selrow select { height: 31px; border: 0; padding: 0; background: transparent;
     font-size: 14px; font-weight: 800; }
   .quick-today .colorsw, .quick-today .boxmini { flex: none; }
@@ -456,24 +458,20 @@
         </div>
         <div class="today-grid">
           <div class="today-item" id="sceneItem">
-            <div class="today-label"><b data-i18n="cp.today_scene">シーン</b><span data-i18n="cp.today_scene_d">デザイン＋位置のセット</span></div>
+            <div class="today-label"><b data-i18n="cp.today_scene">シーン</b><span data-i18n="cp.today_scene_d">デザイン＋レイアウトのセット</span></div>
             <div class="selrow">
               <select id="sceneSel"></select>
-              <button id="sceneSave" title="今のデザイン＋位置の組み合わせをシーンとして保存" data-i18n-title="cp.scene_save_t">＋ 保存</button>
+              <button id="sceneSave" title="今のデザイン＋レイアウトの組み合わせをシーンとして保存" data-i18n-title="cp.scene_save_t">＋</button>
               <button id="sceneDel" title="選択中のシーンを削除" data-i18n-title="cp.scene_del_t">🗑</button>
             </div>
           </div>
           <div class="today-item">
-            <div class="today-label"><b data-i18n="cp.today_design">字幕デザイン</b><span data-i18n="cp.today_design_d">フォント・色・動き</span></div>
+            <div class="today-label"><b data-i18n="cp.today_design">デザイン</b><span data-i18n="cp.today_design_d">フォント・色・動き</span></div>
             <div id="presets"></div>
           </div>
           <div class="today-item">
-            <div class="today-label"><b data-i18n="cp.today_pos">字幕の位置</b><span data-i18n="cp.today_pos_d">画面内の表示場所</span></div>
+            <div class="today-label"><b data-i18n="cp.today_pos">レイアウト</b><span data-i18n="cp.today_pos_d">画面内の表示場所</span></div>
             <div id="boxes"></div>
-          </div>
-          <div class="today-item">
-            <div class="today-label"><b data-i18n="cp.today_set">配信セット</b><span data-i18n="cp.today_set_d">ゲーム・企画ごとの単語</span></div>
-            <div class="selrow"><select id="wordProfile"></select></div>
           </div>
         </div>
       </section>
@@ -511,6 +509,17 @@
           </div>
           <div class="hint" id="collabSummary" style="display:none"></div>
         </div>
+      </div>
+
+      <div class="group">
+        <div class="ghead">
+          <span class="gicon" style="background:rgba(255,196,61,.12)">📚</span>
+          <div>
+            <div class="gtitle" data-i18n="cp.today_set">配信セット</div>
+            <div class="gdesc" data-i18n="cp.today_set_d">ゲーム・企画ごとの単語セット（認識辞書・エフェクト）</div>
+          </div>
+        </div>
+        <div class="selrow"><select id="wordProfile"></select></div>
       </div>
 
       <div class="group">
