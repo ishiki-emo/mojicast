@@ -80,31 +80,33 @@ def strip_wake(text, wakes):
     return None
 
 
-def _box_forms(box):
-    """レイアウト1件の照合形（正規化済み・長い順）。括弧注釈を外した形も含む"""
-    name = box.get("name") or ""
+def _name_forms(item):
+    """名前つき項目の照合形（正規化済み・長い順）。括弧注釈を外した形も含む"""
+    name = item.get("name") or ""
     forms = {normalize(name), normalize(_PAREN_RE.sub("", name))}
     return sorted((f for f in forms if f), key=len, reverse=True)
 
 
-def _match_box(rest, boxes):
-    """rest に名前が含まれるレイアウトを探す（最長一致）"""
+def _match_named(rest, items):
+    """rest に名前が含まれる項目を探す（最長一致）"""
     best, best_len = None, 0
-    for b in boxes or []:
-        for form in _box_forms(b):
+    for it in items or []:
+        for form in _name_forms(it):
             if form in rest and len(form) > best_len:
-                best, best_len = b, len(form)
-                break   # このboxはこれ以上長い形は無い（長い順のため）
+                best, best_len = it, len(form)
+                break   # この項目はこれ以上長い形は無い（長い順のため）
     return best
 
 
-def parse(text, wakes, boxes):
+def parse(text, wakes, boxes, presets=None):
     """確定テキストをコマンド解釈する。
 
     返り値:
         None                                   … ウェイクワードなし（普通の字幕）
         {"action": "box", "id", "name"}        … レイアウト切替
         {"action": "box_random"}               … レイアウトをおまかせで切替
+        {"action": "preset", "id", "name"}     … 字幕デザイン切替
+        {"action": "preset_random"}            … 字幕デザインをおまかせで切替
         {"action": "translate_lang", "lang", "label"} … 翻訳先の切替（翻訳ONも兼ねる）
         {"action": "translate_on" / "translate_off"}  … 翻訳のオン/オフ
         {"action": "unknown", "rest": str}     … ウェイクは合ったが解釈不能
@@ -124,8 +126,15 @@ def parse(text, wakes, boxes):
             return {"action": "translate_on"}
         return {"action": "unknown", "rest": rest}
 
-    # 番号指定: 「れいあうと2」「2番」「レイアウト二番」（漢数字も吸収）
+    # 番号指定: 「れいあうと2」「デザイン3」「2番」「レイアウト二番」（漢数字も吸収）。
+    # 「N番」だけの言い方はレイアウト扱い（従来互換）
     rest_n = _arabicize(rest)
+    m = re.search(r"(?:でざいん|すたいる)(?:を)?(\d{1,2})", rest_n)
+    if m:
+        i = int(m.group(1)) - 1
+        if 0 <= i < len(presets or []):
+            p = presets[i]
+            return {"action": "preset", "id": p.get("id"), "name": p.get("name")}
     m = (re.search(r"れいあうと(?:を)?(\d{1,2})", rest_n)
          or re.search(r"(\d{1,2})(?:ばん|番)", rest_n))
     if m:
@@ -134,14 +143,21 @@ def parse(text, wakes, boxes):
             b = boxes[i]
             return {"action": "box", "id": b.get("id"), "name": b.get("name")}
 
-    # 名前指定: レイアウト名が含まれていれば切替（ウェイクワードが門番なので
-    # 文法は厳密に要求しない。「〜にして」「〜に変更」等の語尾は自然に無視される）
-    b = _match_box(rest, boxes)
+    # 名前指定: レイアウト名／デザイン名が含まれていれば切替（ウェイクワードが
+    # 門番なので文法は厳密に要求しない。「〜にして」等の語尾は自然に無視される）。
+    # 両方に同名がある場合はレイアウト優先
+    b = _match_named(rest, boxes)
     if b is not None:
         return {"action": "box", "id": b.get("id"), "name": b.get("name")}
+    p = _match_named(rest, presets)
+    if p is not None:
+        return {"action": "preset", "id": p.get("id"), "name": p.get("name")}
 
-    # 指定なしの切替: 「レイアウト変えて」「レイアウトをチェンジ」→ おまかせ
-    if "れいあうと" in rest and any(w in rest for w in _RANDOM_WORDS):
-        return {"action": "box_random"}
+    # 指定なしの切替: 「レイアウト変えて」「デザインをチェンジ」→ おまかせ
+    if any(w in rest for w in _RANDOM_WORDS):
+        if "れいあうと" in rest:
+            return {"action": "box_random"}
+        if "でざいん" in rest or "すたいる" in rest:
+            return {"action": "preset_random"}
 
     return {"action": "unknown", "rest": rest}

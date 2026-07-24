@@ -535,7 +535,8 @@ def _try_voice_command(text, spk=""):
             return False
     import voicecmd
     boxes = _read_json(_boxes_path(), {"boxes": []})["boxes"]
-    cmd = voicecmd.parse(text, cfg.get("vc_wake"), boxes)
+    presets = _read_json(_presets_path(), {"presets": []})["presets"]
+    cmd = voicecmd.parse(text, cfg.get("vc_wake"), boxes, presets)
     if cmd is None:
         return False
     suffix = ""
@@ -548,16 +549,26 @@ def _try_voice_command(text, spk=""):
             suffix = "（おまかせ）"
         else:
             cmd = {"action": "unknown"}
-    if cmd["action"] == "box":
+    elif cmd["action"] == "preset_random":
+        candidates = [p for p in presets if p.get("id") != cfg.get("preset")]
+        if candidates:
+            p = random.choice(candidates)
+            cmd = {"action": "preset", "id": p.get("id"), "name": p.get("name")}
+            suffix = "（おまかせ）"
+        else:
+            cmd = {"action": "unknown"}
+    if cmd["action"] in ("box", "preset"):
+        key = "box" if cmd["action"] == "box" else "preset"
+        label = "レイアウト" if key == "box" else "字幕デザイン"
         with _config_lock:
             cfg = load_config()
-            cfg["box"] = cmd["id"]
+            cfg[key] = cmd["id"]
             save_config(cfg)
         ev = {"type": "style"}
         ev.update(resolve_style(load_config()))
         broadcast(ev)
         broadcast({"type": "vc", "ok": True,
-                   "message": f"レイアウトを「{cmd['name']}」に切り替えました{suffix}"})
+                   "message": f"{label}を「{cmd['name']}」に切り替えました{suffix}"})
     elif cmd["action"] in ("translate_on", "translate_off", "translate_lang"):
         with _config_lock:
             cfg = load_config()

@@ -11,6 +11,12 @@ BOXES = [
     {"id": "tategaki", "name": "縦書き"},
 ]
 WAKES = ["モジキャスト", "文字キャスト"]
+PRESETS = [
+    {"id": "standard", "name": "スタンダード"},
+    {"id": "cute", "name": "キュート"},
+    {"id": "cyber", "name": "サイバー"},
+    {"id": "collab", "name": "コラボ（小さめ）"},
+]
 
 
 class TestNormalize(unittest.TestCase):
@@ -100,6 +106,49 @@ class TestParse(unittest.TestCase):
         # 「変えて」だけでは発動しない（誤爆防止）
         cmd = voicecmd.parse("モジキャスト、変えて", WAKES, BOXES)
         self.assertEqual(cmd["action"], "unknown")
+
+
+class TestPreset(unittest.TestCase):
+    def test_by_name_with_keyword(self):
+        cmd = voicecmd.parse("モジキャスト、デザインをサイバーに",
+                             WAKES, BOXES, PRESETS)
+        self.assertEqual(cmd, {"action": "preset", "id": "cyber",
+                               "name": "サイバー"})
+
+    def test_by_bare_name(self):
+        # キーワードなしでもデザイン名だけで切り替わる
+        cmd = voicecmd.parse("モジキャスト、キュートにして",
+                             WAKES, BOXES, PRESETS)
+        self.assertEqual(cmd["id"], "cute")
+
+    def test_by_number(self):
+        cmd = voicecmd.parse("モジキャスト、デザイン2", WAKES, BOXES, PRESETS)
+        self.assertEqual(cmd["id"], "cute")
+
+    def test_by_kanji_number_style_keyword(self):
+        cmd = voicecmd.parse("モジキャスト、スタイル三番", WAKES, BOXES, PRESETS)
+        self.assertEqual(cmd["id"], "cyber")
+
+    def test_paren_stripped(self):
+        cmd = voicecmd.parse("モジキャスト、コラボにして", WAKES, BOXES, PRESETS)
+        self.assertEqual(cmd["id"], "collab")
+
+    def test_random(self):
+        cmd = voicecmd.parse("モジキャスト、デザイン変えて", WAKES, BOXES, PRESETS)
+        self.assertEqual(cmd["action"], "preset_random")
+
+    def test_layout_random_unchanged(self):
+        # 「レイアウト変えて」は従来どおりレイアウト側のおまかせ
+        cmd = voicecmd.parse("モジキャスト、レイアウト変えて",
+                             WAKES, BOXES, PRESETS)
+        self.assertEqual(cmd["action"], "box_random")
+
+    def test_box_name_wins_over_preset(self):
+        # 同名がある場合はレイアウト優先
+        presets = PRESETS + [{"id": "p-lower", "name": "下部バー"}]
+        cmd = voicecmd.parse("モジキャスト、下部バーにして",
+                             WAKES, BOXES, presets)
+        self.assertEqual(cmd["action"], "box")
 
 
 class TestTranslate(unittest.TestCase):
