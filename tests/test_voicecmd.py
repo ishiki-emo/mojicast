@@ -151,6 +151,48 @@ class TestPreset(unittest.TestCase):
         self.assertEqual(cmd["action"], "box")
 
 
+SCENES = [
+    {"id": "talk", "name": "雑談", "preset": "standard", "box": "card"},
+    {"id": "game", "name": "ゲーム", "preset": "telop", "box": "top"},
+    {"id": "song", "name": "歌枠", "preset": "elegant", "box": "lyric"},
+]
+
+
+class TestScene(unittest.TestCase):
+    def test_by_bare_name(self):
+        cmd = voicecmd.parse("モジキャスト、歌枠", WAKES, BOXES, PRESETS, SCENES)
+        self.assertEqual(cmd, {"action": "scene", "id": "song", "name": "歌枠"})
+
+    def test_mode_suffix(self):
+        # 「歌枠モード」のような語尾も名前の包含でそのまま通る
+        cmd = voicecmd.parse("モジキャスト、歌枠モードにして",
+                             WAKES, BOXES, PRESETS, SCENES)
+        self.assertEqual(cmd["id"], "song")
+
+    def test_by_number(self):
+        cmd = voicecmd.parse("モジキャスト、シーン2", WAKES, BOXES, PRESETS, SCENES)
+        self.assertEqual(cmd["id"], "game")
+
+    def test_random(self):
+        cmd = voicecmd.parse("モジキャスト、シーン変えて",
+                             WAKES, BOXES, PRESETS, SCENES)
+        self.assertEqual(cmd["action"], "scene_random")
+
+    def test_scene_wins_over_box_and_preset(self):
+        # 同名がある場合はシーン優先（ユーザーが意図して付けた呼び名）
+        scenes = SCENES + [{"id": "s-lower", "name": "下部バー",
+                            "preset": "cute", "box": "lower"}]
+        cmd = voicecmd.parse("モジキャスト、下部バーにして",
+                             WAKES, BOXES, PRESETS, scenes)
+        self.assertEqual(cmd["action"], "scene")
+
+    def test_no_scenes_still_works(self):
+        # シーン未定義でも従来のレイアウト照合が動く
+        cmd = voicecmd.parse("モジキャスト、下部バーにして",
+                             WAKES, BOXES, PRESETS, None)
+        self.assertEqual(cmd["action"], "box")
+
+
 class TestTranslate(unittest.TestCase):
     def test_lang_en(self):
         cmd = voicecmd.parse("モジキャスト、翻訳を英語に", WAKES, BOXES)

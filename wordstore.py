@@ -26,7 +26,8 @@ PROFILES_DIR = os.path.join(DATA, "profiles")
 # プロファイル毎に持てる単語系ファイル
 WORD_FILES = ("hotwords.txt", "effects.json", "banned.txt", "glossary.txt")
 # data/ 直下に置く全ユーザーデータ（旧: BASE 直下 → 自動移行の対象）
-DATA_FILES = ("config.json", "presets.json", "boxes.json") + WORD_FILES
+DATA_FILES = ("config.json", "presets.json", "boxes.json",
+              "scenes.json") + WORD_FILES
 
 _ready = False
 
@@ -59,7 +60,7 @@ def ensure_data():
     # --- 無いファイルは defaults/ から複製（新規環境の初期データ）---
     src = os.path.join(BASE, "defaults")
     if os.path.isdir(src):
-        for name in WORD_FILES + ("presets.json", "boxes.json"):
+        for name in WORD_FILES + ("presets.json", "boxes.json", "scenes.json"):
             dst = os.path.join(DATA, name)
             if not os.path.exists(dst):
                 try:
