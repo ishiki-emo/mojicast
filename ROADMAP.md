@@ -161,6 +161,28 @@ Twitterで中国語圏からの要望（2026-07-21）を起点に、ASR・翻訳
   `@keyframes` を生成（構造化データからCSSを組み立てる＝注入リスクを段階1と同等に維持）
 - **生CSS/JSプラグインは開けない**（mojipack共有時のセキュリティホールになるため）
 
+## 10. Mac版（構想メモ 2026-07-24・需要が見えたら着手）
+**規模: ソロ機能ポート=数日〜1週間 / Apple Silicon(arm64)専用・Intel非対応**
+
+調査済みの結論: **推論スタックは全部macホイールあり**（sherpa-onnx / onnxruntime /
+CTranslate2 / OpenCC / sounddevice）。Apple Siliconのint8推論はむしろ得意分野。
+GUIも pywebview が `gui=` 未固定のため **macでは自動でWKWebView**（OS標準・
+WebView2ランタイン同梱不要になる）。OBS側のoverlayはOBS内蔵Chromiumなので字幕描画は不変。
+
+- **初版はコラボ非搭載**が正解: proc_loopback.py は WASAPI プロセスループバック
+  （純Windows）。将来やるなら BlackHole（仮想オーディオドライバ）＋保険で残してある
+  collab_source=device 経路で対応
+- 移植の作業項目: マイク権限（Info.plist に NSMicrophoneUsageDescription 必須。
+  忘れると無音でハマる）／フォント列挙のCoreText版（GDI ctypesの置換）／
+  Windows前提の文言・パス処理／Cmd+Q・メニューの作法確認
+- **配布は署名＋公証が実質必須**: macOS 15以降、未署名アプリは
+  「システム設定の奥で毎回許可」になりBooth配布のUXが破綻する。
+  Apple Developer Program **年99ドル**＋ビルドスクリプトに notarytool（自動化可）
+- 検証機は確保済み: M5 MacBook Air（薄型の熱制約側）＋ M4 Pro Mac mini（余裕側）。
+  PoCは「pipで環境再構築 → app.py 起動 → ソロ機能を1日触る」から
+- Intel Mac非対応の理由: 2020年販売終了・macOS側もサポート終息へ・
+  推論ライブラリの脱Intel mac進行・universal2ビルドの手間に見合わない
+
 ---
 
 ## 済んだもの（参照用）
