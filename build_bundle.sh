@@ -64,6 +64,18 @@ rm -f "$DMG"
 hdiutil create -volname "Mojicast" -srcfolder "$STAGE" -ov -format UDZO "$DMG" > /dev/null
 rm -rf "$STAGE"
 
-SIZE=$(du -h "$DMG" | cut -f1)
+# --- Booth 用 zip（Booth は dmg を直接アップロードできないため zip で包む。
+#     ガイドを同梱して、解凍した時点で初回起動手順が目に入るようにする）---
+ZIPSTAGE="dist/zip-stage"
+rm -rf "$ZIPSTAGE"
+mkdir -p "$ZIPSTAGE"
+cp "$DMG" "$ZIPSTAGE/"
+cp "はじめにお読みください（Mac版）.html" "$ZIPSTAGE/"
+ZIP="dist/Mojicast-$VERSION-mac-arm64.zip"
+rm -f "$ZIP"
+ditto -c -k --norsrc "$ZIPSTAGE" "$ZIP"   # UTF-8名対応zip（._メタデータは除外）
+rm -rf "$ZIPSTAGE"
+
 echo ""
-echo "完成: $DMG ($SIZE)"
+echo "完成: $DMG ($(du -h "$DMG" | cut -f1))  ← GitHub Releases用"
+echo "      $ZIP ($(du -h "$ZIP" | cut -f1))  ← Booth用"
