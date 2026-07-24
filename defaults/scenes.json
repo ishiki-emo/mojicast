@@ -1,0 +1,25 @@
+{
+  "scenes": [
+    {
+      "id": "talk",
+      "name": "雑談",
+      "desc": "角丸カード × スタンダード。トーク配信の基本形",
+      "preset": "standard",
+      "box": "card"
+    },
+    {
+      "id": "game",
+      "name": "ゲーム",
+      "desc": "上部バー × 極太テロップ。ゲーム画面を遮らない",
+      "preset": "telop",
+      "box": "top"
+    },
+    {
+      "id": "song",
+      "name": "歌枠",
+      "desc": "リリックビデオ風 × エレガント。歌配信の演出に",
+      "preset": "elegant",
+      "box": "lyric"
+    }
+  ]
+}

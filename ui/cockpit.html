@@ -272,6 +272,11 @@
   .quick-today .today-label b { font-size: 11px; color: var(--dim); font-weight: 600; }
   .quick-today .today-label span { display: none; }
   .quick-today .selrow { margin-top: 0; }
+  /* シーン＝「セット」であることが分かるようアクセント色で薄く色分け */
+  .quick-today #sceneItem { border-color: rgba(255,45,149,.45);
+    background: rgba(255,45,149,.05); }
+  #sceneItem .today-label b { color: #ff2d95; }
+  #sceneItem button { flex: none; padding: 4px 8px; font-size: 12px; }
   .quick-today .selrow select { height: 31px; border: 0; padding: 0; background: transparent;
     font-size: 14px; font-weight: 800; }
   .quick-today .colorsw, .quick-today .boxmini { flex: none; }
@@ -448,21 +453,26 @@
       <!-- 配信前によく切り替える3項目。左ペインの3段目に固定して縦長化を防ぐ -->
       <section class="panel quick-today">
         <div class="today-head">
-          <b data-i18n="cp.today">今日の字幕</b><span data-i18n="cp.today_sub">よく使う3つだけ</span>
-          <button onclick="openStudio('pillar=captions')" data-i18n="cp.customize">カスタマイズ</button>
+          <b data-i18n="cp.today">字幕の見た目</b>
+          <button onclick="openStudio('pillar=captions')" data-i18n="cp.customize">詳細カスタマイズ</button>
         </div>
         <div class="today-grid">
+          <div class="today-item" id="sceneItem">
+            <div class="today-label"><b data-i18n="cp.today_scene">シーン</b><span data-i18n="cp.today_scene_d">デザイン＋レイアウトのセット</span></div>
+            <div class="selrow">
+              <select id="sceneSel"></select>
+              <button id="sceneOw" hidden title="調整した内容をこのシーンに上書き保存" data-i18n-title="cp.scene_ow_t" data-i18n="cp.scene_ow">上書き</button>
+              <button id="sceneSave" title="今のデザイン＋レイアウトの組み合わせをシーンとして保存" data-i18n-title="cp.scene_save_t">＋</button>
+              <button id="sceneDel" title="選択中のシーンを削除" data-i18n-title="cp.scene_del_t">🗑</button>
+            </div>
+          </div>
           <div class="today-item">
-            <div class="today-label"><b data-i18n="cp.today_design">字幕デザイン</b><span data-i18n="cp.today_design_d">フォント・色・動き</span></div>
+            <div class="today-label"><b data-i18n="cp.today_design">デザイン</b><span data-i18n="cp.today_design_d">フォント・色・動き</span></div>
             <div id="presets"></div>
           </div>
           <div class="today-item">
-            <div class="today-label"><b data-i18n="cp.today_pos">字幕の位置</b><span data-i18n="cp.today_pos_d">画面内の表示場所</span></div>
+            <div class="today-label"><b data-i18n="cp.today_pos">レイアウト</b><span data-i18n="cp.today_pos_d">画面内の表示場所</span></div>
             <div id="boxes"></div>
-          </div>
-          <div class="today-item">
-            <div class="today-label"><b data-i18n="cp.today_set">配信セット</b><span data-i18n="cp.today_set_d">ゲーム・企画ごとの単語</span></div>
-            <div class="selrow"><select id="wordProfile"></select></div>
           </div>
         </div>
       </section>
@@ -500,6 +510,17 @@
           </div>
           <div class="hint" id="collabSummary" style="display:none"></div>
         </div>
+      </div>
+
+      <div class="group">
+        <div class="ghead">
+          <span class="gicon" style="background:rgba(255,196,61,.12)">📚</span>
+          <div>
+            <div class="gtitle" data-i18n="cp.today_set">単語セット</div>
+            <div class="gdesc" data-i18n="cp.today_set_d">ゲーム・企画ごとの単語セット（認識辞書・エフェクト）</div>
+          </div>
+        </div>
+        <div class="selrow"><select id="wordProfile"></select></div>
       </div>
 
       <div class="group">
@@ -783,9 +804,78 @@
 
     presets = (await api("/api/presets")).presets || [];
     boxes = (await api("/api/boxes")).boxes || [];
+    scenes = (await api("/api/scenes")).scenes || [];
     renderPresets();
     renderBoxes();
+    renderScenes();
   }
+
+  // ---------- シーン（デザイン＋レイアウトのセット） ----------
+  let scenes = [];
+  let lastSceneId = null;   // 直近に選んだ/一致したシーン（「調整中」の基準）
+
+  // 現在の組み合わせに一致するシーンを選択状態に。一致しなくても直前の
+  // シーンを覚えていれば「〇〇（調整中）」表示にして、上書き保存を出す
+  function renderScenes() {
+    const sel = $("sceneSel");
+    const cur = scenes.find(s => s.preset === cfg.preset && s.box === cfg.box);
+    if (cur) lastSceneId = cur.id;
+    const base = !cur && scenes.find(s => s.id === lastSceneId);
+    sel.innerHTML =
+      `<option value="">${escHtml(T("cp.scene_pick", "（シーンで一括切替）"))}</option>` +
+      scenes.map(s =>
+        `<option value="${escHtml(s.id)}">${escHtml(s.name)}</option>`).join("") +
+      (base ? `<option value="__dirty__" hidden>${escHtml(
+        base.name + T("cp.scene_dirty", "（調整中）"))}</option>` : "");
+    sel.value = cur ? cur.id : (base ? "__dirty__" : "");
+    $("sceneOw").hidden = !base;
+    $("sceneSave").textContent = base ? T("cp.scene_new", "新規") : "＋";
+  }
+
+  $("sceneSel").addEventListener("change", async e => {
+    if (e.target.value === "") {       // 手動で空へ = 調整中の文脈を破棄
+      lastSceneId = null;
+      renderScenes();
+      return;
+    }
+    const s = scenes.find(x => x.id === e.target.value);
+    if (!s) return;
+    lastSceneId = s.id;
+    cfg.preset = s.preset;
+    cfg.box = s.box;
+    await api("/api/config", { preset: s.preset, box: s.box });
+    renderPresets(); renderBoxes(); renderScenes();
+  });
+
+  $("sceneOw").addEventListener("click", async () => {
+    const s = scenes.find(x => x.id === lastSceneId);
+    if (!s) return;
+    s.preset = cfg.preset;
+    s.box = cfg.box;
+    await api("/api/scenes", { scenes });
+    renderScenes();    // 一致するようになるので「調整中」が解けて通常表示に戻る
+  });
+
+  $("sceneSave").addEventListener("click", async () => {
+    const name = (prompt(T("cp.scene_name_q",
+      "今のデザイン＋位置の組み合わせに名前を付けて保存（例：歌枠）"), "") || "").trim();
+    if (!name) return;
+    scenes.push({ id: "scene-" + Date.now(), name: name.slice(0, 20),
+                  preset: cfg.preset, box: cfg.box });
+    await api("/api/scenes", { scenes });
+    renderScenes();
+  });
+
+  $("sceneDel").addEventListener("click", async () => {
+    const v = $("sceneSel").value;
+    const s = scenes.find(x => x.id === (v === "__dirty__" ? lastSceneId : v));
+    if (!s || !confirm(T("cp.scene_del_q", "シーン「{name}」を削除しますか？")
+        .replace("{name}", s.name))) return;
+    scenes = scenes.filter(x => x.id !== s.id);
+    if (s.id === lastSceneId) lastSceneId = null;
+    await api("/api/scenes", { scenes });
+    renderScenes();
+  });
 
   // ---------- プリセット（プルダウン＋色見本） ----------
   // 1行ぶんの「プリセット選択＋色見本」。コラボ時は自分/相手の2行になる
@@ -843,8 +933,10 @@
     await loadWordProfiles();
     presets = (await api("/api/presets")).presets || [];
     boxes = (await api("/api/boxes")).boxes || [];
+    scenes = (await api("/api/scenes")).scenes || [];
     renderPresets();
     renderBoxes();
+    renderScenes();    // ボイスコマンド等での切替もシーン選択に追従させる
     syncCollab();      // コラボ窓で変えた方式/相手名をサマリへ反映
     syncModelCard();   // モデル窓で変えた認識モデル/翻訳先をサマリとチップ名へ反映
     syncMovedToggles();// 別窓で高精度等が変わっていた場合に追従

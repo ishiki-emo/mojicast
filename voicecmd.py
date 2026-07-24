@@ -98,11 +98,13 @@ def _match_named(rest, items):
     return best
 
 
-def parse(text, wakes, boxes, presets=None):
+def parse(text, wakes, boxes, presets=None, scenes=None):
     """確定テキストをコマンド解釈する。
 
     返り値:
         None                                   … ウェイクワードなし（普通の字幕）
+        {"action": "scene", "id", "name"}      … シーン切替（デザイン＋レイアウト一括）
+        {"action": "scene_random"}             … シーンをおまかせで切替
         {"action": "box", "id", "name"}        … レイアウト切替
         {"action": "box_random"}               … レイアウトをおまかせで切替
         {"action": "preset", "id", "name"}     … 字幕デザイン切替
@@ -126,9 +128,15 @@ def parse(text, wakes, boxes, presets=None):
             return {"action": "translate_on"}
         return {"action": "unknown", "rest": rest}
 
-    # 番号指定: 「れいあうと2」「デザイン3」「2番」「レイアウト二番」（漢数字も吸収）。
-    # 「N番」だけの言い方はレイアウト扱い（従来互換）
+    # 番号指定: 「れいあうと2」「デザイン3」「シーン2」「2番」「レイアウト二番」
+    # （漢数字も吸収）。「N番」だけの言い方はレイアウト扱い（従来互換）
     rest_n = _arabicize(rest)
+    m = re.search(r"しーん(?:を)?(\d{1,2})", rest_n)
+    if m:
+        i = int(m.group(1)) - 1
+        if 0 <= i < len(scenes or []):
+            s = scenes[i]
+            return {"action": "scene", "id": s.get("id"), "name": s.get("name")}
     m = re.search(r"(?:でざいん|すたいる)(?:を)?(\d{1,2})", rest_n)
     if m:
         i = int(m.group(1)) - 1
@@ -143,9 +151,14 @@ def parse(text, wakes, boxes, presets=None):
             b = boxes[i]
             return {"action": "box", "id": b.get("id"), "name": b.get("name")}
 
-    # 名前指定: レイアウト名／デザイン名が含まれていれば切替（ウェイクワードが
-    # 門番なので文法は厳密に要求しない。「〜にして」等の語尾は自然に無視される）。
-    # 両方に同名がある場合はレイアウト優先
+    # 名前指定: シーン名／レイアウト名／デザイン名が含まれていれば切替
+    # （ウェイクワードが門番なので文法は厳密に要求しない。「〜にして」
+    # 「歌枠モード」等の語尾は自然に無視される）。
+    # 同名がある場合の優先順: シーン > レイアウト > デザイン
+    # （シーン名はユーザーが意図して付けた呼び名なので最優先）
+    s = _match_named(rest, scenes)
+    if s is not None:
+        return {"action": "scene", "id": s.get("id"), "name": s.get("name")}
     b = _match_named(rest, boxes)
     if b is not None:
         return {"action": "box", "id": b.get("id"), "name": b.get("name")}
@@ -155,6 +168,8 @@ def parse(text, wakes, boxes, presets=None):
 
     # 指定なしの切替: 「レイアウト変えて」「デザインをチェンジ」→ おまかせ
     if any(w in rest for w in _RANDOM_WORDS):
+        if "しーん" in rest:
+            return {"action": "scene_random"}
         if "れいあうと" in rest:
             return {"action": "box_random"}
         if "でざいん" in rest or "すたいる" in rest:

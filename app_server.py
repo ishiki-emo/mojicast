@@ -227,6 +227,10 @@ def _boxes_path():
     return wordstore.data_path("boxes.json")
 
 
+def _scenes_path():
+    return wordstore.data_path("scenes.json")
+
+
 def _seed_style_defaults():
     """アップデートで増えた既定プリセット/ボックスを既存環境へ一度だけ追加する。
 
@@ -536,10 +540,22 @@ def _try_voice_command(text, spk=""):
     import voicecmd
     boxes = _read_json(_boxes_path(), {"boxes": []})["boxes"]
     presets = _read_json(_presets_path(), {"presets": []})["presets"]
-    cmd = voicecmd.parse(text, cfg.get("vc_wake"), boxes, presets)
+    scenes = _read_json(_scenes_path(), {"scenes": []})["scenes"]
+    cmd = voicecmd.parse(text, cfg.get("vc_wake"), boxes, presets, scenes)
     if cmd is None:
         return False
     suffix = ""
+    if cmd["action"] == "scene_random":
+        # 今の組み合わせと違うシーンからおまかせで選ぶ
+        cur = (cfg.get("preset"), cfg.get("box"))
+        candidates = [s for s in scenes
+                      if (s.get("preset"), s.get("box")) != cur]
+        if candidates:
+            s = random.choice(candidates)
+            cmd = {"action": "scene", "id": s.get("id"), "name": s.get("name")}
+            suffix = "（おまかせ）"
+        else:
+            cmd = {"action": "unknown"}
     if cmd["action"] == "box_random":
         # 現在と違うレイアウトからおまかせで選ぶ
         candidates = [b for b in boxes if b.get("id") != cfg.get("box")]
@@ -557,7 +573,27 @@ def _try_voice_command(text, spk=""):
             suffix = "（おまかせ）"
         else:
             cmd = {"action": "unknown"}
-    if cmd["action"] in ("box", "preset"):
+    if cmd["action"] == "scene":
+        s = next((x for x in scenes if x.get("id") == cmd["id"]), None)
+        valid = (s is not None
+                 and any(p.get("id") == s.get("preset") for p in presets)
+                 and any(b.get("id") == s.get("box") for b in boxes))
+        if not valid:
+            broadcast({"type": "vc", "ok": False,
+                       "message": f"シーン「{cmd['name']}」の中身"
+                                  "（デザインかレイアウト）が見つかりません"})
+            return True
+        with _config_lock:
+            cfg = load_config()
+            cfg["preset"] = s["preset"]
+            cfg["box"] = s["box"]
+            save_config(cfg)
+        ev = {"type": "style"}
+        ev.update(resolve_style(load_config()))
+        broadcast(ev)
+        broadcast({"type": "vc", "ok": True,
+                   "message": f"シーン「{cmd['name']}」に切り替えました{suffix}"})
+    elif cmd["action"] in ("box", "preset"):
         key = "box" if cmd["action"] == "box" else "preset"
         label = "レイアウト" if key == "box" else "字幕デザイン"
         with _config_lock:
@@ -798,6 +834,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json(_read_json(_presets_path(), {"presets": []}))
         elif path == "/api/boxes":
             self._json(_read_json(_boxes_path(), {"boxes": []}))
+        elif path == "/api/scenes":
+            self._json(_read_json(_scenes_path(), {"scenes": []}))
         elif path == "/api/style-defaults":
             # 同梱項目の「初期状態に戻す」と新規作成の基準データ。
             self._json({
@@ -966,6 +1004,17 @@ class Handler(BaseHTTPRequestHandler):
             ev = {"type": "style"}
             ev.update(resolve_style(cfg))
             broadcast(ev)
+            self._json({"ok": True})
+        elif path == "/api/scenes":
+            scenes = body.get("scenes", [])
+            ok = (isinstance(scenes, list)
+                  and all(isinstance(s, dict) and s.get("id") and s.get("name")
+                          and isinstance(s.get("preset"), str)
+                          and isinstance(s.get("box"), str) for s in scenes))
+            if not ok:
+                self._json({"ok": False, "error": "invalid scenes"}, 400)
+                return
+            _write_json(_scenes_path(), {"scenes": scenes})
             self._json({"ok": True})
         elif path == "/api/boxes":
             boxes = body.get("boxes", [])
