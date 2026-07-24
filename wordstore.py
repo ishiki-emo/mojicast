@@ -18,9 +18,9 @@ import os
 import json
 import shutil
 
-from apppaths import BASE
+from apppaths import BASE, DATA_BASE
 
-DATA = os.path.join(BASE, "data")
+DATA = os.path.join(DATA_BASE, "data")
 PROFILES_DIR = os.path.join(DATA, "profiles")
 
 # プロファイル毎に持てる単語系ファイル

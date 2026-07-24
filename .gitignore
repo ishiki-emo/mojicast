@@ -59,3 +59,4 @@ tools/manual/shots/
 
 # アプリアイコン（ビルド時に PNG から Mojicast.spec が再生成する）
 assets/branding/*.ico
+assets/branding/*.icns

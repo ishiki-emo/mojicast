@@ -19,11 +19,11 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
-from apppaths import BASE
+from apppaths import BASE, DATA_BASE
 import platform_compat
 import wordstore
 
-APP_VERSION = "0.7.0"
+APP_VERSION = "0.7.1"
 
 # 更新チェック用のマニフェスト（GitHub raw）。リリース時に latest.json を更新する。
 # 中身: {"version": "0.5.1", "url": "<配布ページ>", "notes": "<一行紹介>"}
@@ -1125,7 +1125,7 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/logs/open":
             # 文字起こしログは engine.py と同じく BASE/logs に保存される。
             # まだ配信していない場合も、入口としてフォルダを作ってから開く。
-            d = os.path.join(BASE, "logs")
+            d = os.path.join(DATA_BASE, "logs")
             os.makedirs(d, exist_ok=True)
             try:
                 platform_compat.open_folder(d)   # OSのファイラで開く
