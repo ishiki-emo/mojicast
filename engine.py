@@ -88,7 +88,10 @@ def _dir_size_mb(path):
     for root, _, files in os.walk(path):
         for f in files:
             try:
-                total += os.path.getsize(os.path.join(root, f))
+                # lstat: symlinkは実体を辿らず数える。HFキャッシュ(mac/Linux)は
+                # blobs実体 + snapshotsリンクの構造で、getsizeだとDL量が
+                # 約2倍に見える（進捗が推定を大きく超過して99%に張り付く）
+                total += os.lstat(os.path.join(root, f)).st_size
             except OSError:
                 pass
     return total / 1e6
