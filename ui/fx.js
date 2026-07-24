@@ -503,6 +503,19 @@
     }
   };
 
+  /** 自動消去：box.autoClear が真なら clearSec 秒後に行をフェードアウトして消す */
+  FX.scheduleAutoClear = function (line, box) {
+    const sec = box && box.autoClear ? +box.clearSec || 0 : 0;
+    if (sec <= 0) return;
+    setTimeout(() => {
+      if (!line.isConnected || line._pruning) return;
+      line._pruning = true;
+      line.animate([{ opacity: 1 }, { opacity: 0 }],
+        { duration: 600, easing: "ease-out", fill: "forwards" })
+        .onfinish = () => line.remove();
+    }, sec * 1000);
+  };
+
   /**
    * スムーズスクロール（FLIP方式・transformのみ＝GPU合成で軽量）
    * addFn() の中で行を追加すると、伸びた分だけ一瞬元の位置に戻してから

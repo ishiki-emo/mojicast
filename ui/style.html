@@ -261,6 +261,8 @@
         <div class="fr only-flow advanced-only"><label><span data-i18n="sy.max_lines">保持する行数</span> <output id="o_bml"></output></label><input type="range" id="b_maxLines" min="2" max="40" step="1"></div>
         <div class="fr chk only-flow advanced-only"><input type="checkbox" id="b_smooth"><span data-i18n="sy.smooth_scroll">スムーズスクロール</span></div>
         <div class="fr only-flow advanced-only"><label><span data-i18n="sy.scroll_speed">スクロール速度</span> <output id="o_bsm"></output></label><input type="range" id="b_smoothMs" min="100" max="600" step="50"></div>
+        <div class="fr chk only-flow advanced-only"><input type="checkbox" id="b_autoClear"><span data-i18n="sy.auto_clear">一定時間で字幕を消す</span></div>
+        <div class="fr only-flow advanced-only" id="r_clearSec"><label><span data-i18n="sy.clear_after">消えるまでの時間</span> <output id="o_bclear"></output></label><input type="range" id="b_clearSec" min="2" max="30" step="1"></div>
         <div class="fr only-lyric advanced-only"><label data-i18n="sy.lyric_mood">演出の雰囲気</label>
           <select id="b_lyricMood">
             <option value="auto" data-i18n="sy.mood_auto">おまかせ</option>
@@ -628,6 +630,9 @@
       el.style.display = lyric ? "none" : "";
     for (const el of document.querySelectorAll(".only-lyric"))
       el.style.display = lyric ? "" : "none";
+    // 自動消去の秒数はチェックONのときだけ出す
+    if (!lyric && !$("b_autoClear").checked)
+      $("r_clearSec").style.display = "none";
   }
 
   function loadBoxForm() {
@@ -650,6 +655,8 @@
     setR("b_maxLines", "o_bml", b.maxLines ?? 20, v => v + "行");
     $("b_smooth").checked = b.smooth !== false;
     setR("b_smoothMs", "o_bsm", b.smoothMs ?? 250, v => v + "ms");
+    $("b_autoClear").checked = !!b.autoClear;
+    setR("b_clearSec", "o_bclear", b.clearSec ?? 5, v => v + "秒");
     $("b_lyricMood").value = b.lyricMood || "auto";
     setR("b_lyricScale", "o_bscale", b.lyricScale ?? 1, v => "×" + v);
     setR("b_lifeSec", "o_blife", b.lifeSec ?? 6, v => v + "秒");
@@ -703,6 +710,8 @@
     b.maxLines = +$("b_maxLines").value;
     b.smooth = $("b_smooth").checked;
     b.smoothMs = +$("b_smoothMs").value;
+    b.autoClear = $("b_autoClear").checked;
+    b.clearSec = +$("b_clearSec").value;
     b.mode = $("b_mode").value;
     b.lyricMood = $("b_lyricMood").value;
     b.lyricScale = +$("b_lyricScale").value;
@@ -766,6 +775,7 @@
       FX.applyLineStyle(d, p, p.size);   // 実寸（縮小はstageInnerのscaleが担う）
       FX.renderWords(d, STAGE_LINES[stageN++ % STAGE_LINES.length], table, p);
       sc.appendChild(d);
+      FX.scheduleAutoClear(d, b);
       while (sc.children.length > (b.maxLines || 30)) sc.removeChild(sc.firstChild);
     });
     setTimeout(() => FX.pruneClipped($("stageClip"), sc, b),
@@ -866,6 +876,7 @@
       b_bgOpacity: ["o_bop", v => v], b_radius: ["o_brad", v => v + "px"],
       b_padding: ["o_bpad", v => v + "px"], b_borderWidth: ["o_bbw", v => v + "px"],
       b_maxLines: ["o_bml", v => v + "行"], b_smoothMs: ["o_bsm", v => v + "ms"],
+      b_clearSec: ["o_bclear", v => v + "秒"],
       b_lyricScale: ["o_bscale", v => "×" + v],
       b_lifeSec: ["o_blife", v => v + "秒"], b_lyricMaxScenes: ["o_bmc", v => v + "文"],
     };
@@ -876,6 +887,7 @@
         $("editBoxName").textContent = boxes[curBox].name;
         renderBoxList();
         if (el.id === "b_mode") { updateModeRows(); stageClear(); stageAdd(); }
+        else if (el.id === "b_autoClear") updateModeRows();
         clearTimeout(bt);
         bt = setTimeout(stageApply, 120);
       });
