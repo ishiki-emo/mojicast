@@ -95,21 +95,21 @@
 <body>
   <!-- ========== プロファイルバー ========== -->
   <div class="pbar">
-    <span data-i18n="wd.profile_label">編集する配信セット:</span>
+    <span data-i18n="wd.profile_label">編集する単語セット:</span>
     <select id="profileSel" onchange="onProfileSelect(this.value)"></select>
-    <button class="btn" onclick="showNewProfile()" data-i18n="wd.profile_new">＋ 新しい配信セット</button>
+    <button class="btn" onclick="showNewProfile()" data-i18n="wd.profile_new">＋ 新しい単語セット</button>
     <button class="btn" id="btnDelProf" onclick="askDeleteProfile()" data-i18n="wd.profile_delete">🗑 削除</button>
     <span id="delConfirm" hidden>
       <span data-i18n="wd.del_confirm">本当に削除？</span>
       <button class="btn" onclick="doDeleteProfile()" data-i18n="wd.yes">はい</button>
       <button class="btn" onclick="$('delConfirm').hidden = true" data-i18n="wd.no">いいえ</button>
     </span>
-    <span class="pbHint" data-i18n="wd.pbar_hint">配信セットは「共通」に<b>加算</b>して使われます（同じ単語は配信セット優先）</span>
+    <span class="pbHint" data-i18n="wd.pbar_hint">単語セットは「共通」に<b>加算</b>して使われます（同じ単語は単語セット優先）</span>
     <span class="pbErr" id="loadErr"></span>
     <button class="btn" id="retryLoad" hidden onclick="retryData()" data-i18n="wd.reload">再読み込み</button>
   </div>
   <div class="pbar" id="newProfBar" hidden>
-    <span data-i18n="wd.profile_name_label">配信セット名:</span>
+    <span data-i18n="wd.profile_name_label">単語セット名:</span>
     <input id="newProfName" maxlength="40" placeholder="例: ゲーム実況" data-i18n-ph="wd.profile_name_ph"
            onkeydown="if(event.key==='Enter')doCreateProfile()">
     <span data-i18n="wd.start_content_label">開始内容:</span>
@@ -476,7 +476,7 @@
   async function saveAll() {
     const profile = curProfile;
     if (loadedProfile !== profile) {
-      $("loadErr").textContent = "この配信セットを読み込んでから保存してください。";
+      $("loadErr").textContent = "この単語セットを読み込んでから保存してください。";
       $("retryLoad").hidden = false;
       return false;
     }
