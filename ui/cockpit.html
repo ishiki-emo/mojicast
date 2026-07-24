@@ -282,11 +282,13 @@
   .advanced-card .hint { white-space: normal; }
   details.minor { margin-top: 10px; color: var(--dim); font-size: 11px; }
   details.minor summary { cursor: pointer; }
-  #copyToast { position: fixed; right: 18px; bottom: 34px; z-index: 20;
+  #copyToast, #vcToast { position: fixed; right: 18px; bottom: 34px; z-index: 20;
     background: var(--ok); color: #082116; border-radius: 999px; padding: 8px 14px;
     font-size: 12px; font-weight: 800; opacity: 0; transform: translateY(8px);
     pointer-events: none; transition: opacity .18s, transform .18s; }
-  #copyToast.show { opacity: 1; transform: translateY(0); }
+  #copyToast.show, #vcToast.show { opacity: 1; transform: translateY(0); }
+  #vcToast { bottom: 74px; }              /* copyToastと重ならない位置 */
+  #vcToast.err { background: var(--warn, #ffb84d); color: #241a05; }
   :root[data-theme="light"] .group { background: rgba(0,0,0,.02); }
   .ghead { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
   .gicon {
@@ -524,6 +526,7 @@
 
   <footer>Mojicast <span id="verTag"></span></footer>
   <div id="copyToast" role="status">OBS用URLをコピーしました</div>
+  <div id="vcToast" role="status"></div>
 
 <script>
   const $ = (id) => document.getElementById(id);
@@ -827,12 +830,15 @@
   const RESTART_KEYS = ["asr_model", "asr_lang", "translate_lang", "precision",
     "device", "silence_ms", "interval", "max_utt", "hotwords_score",
     "use_hotwords", "word_profile", "collab", "collab_source",
-    "collab_process", "collab_device", "self_name", "guest_name"];
+    "collab_process", "collab_device", "self_name", "guest_name",
+    "vc_enabled", "vc_wake"];
 
   async function refreshPresets() {   // スタイル/単語/コラボ/モデル窓での保存を反映
     const prev = cfg;
     cfg = await api("/api/config");
-    if (running && RESTART_KEYS.some(k => prev[k] !== cfg[k]))
+    // vc_wake等の配列キーも正しく比較できるようJSON文字列で比べる
+    if (running && RESTART_KEYS.some(
+        k => JSON.stringify(prev[k]) !== JSON.stringify(cfg[k])))
       $("restartHint").style.display = "";
     await loadWordProfiles();
     presets = (await api("/api/presets")).presets || [];
@@ -942,6 +948,16 @@
     toast.classList.add("show");
     clearTimeout(copyUrl.timer);
     copyUrl.timer = setTimeout(() => toast.classList.remove("show"), 1600);
+  }
+
+  // ボイスコマンドの実行結果（サーバーのvcイベント）をトースト表示
+  function vcToast(message, ok) {
+    const toast = $("vcToast");
+    toast.textContent = (ok ? "🎤 " : "🎤 ⚠ ") + (message || "");
+    toast.classList.toggle("err", !ok);
+    toast.classList.add("show");
+    clearTimeout(vcToast.timer);
+    vcToast.timer = setTimeout(() => toast.classList.remove("show"), 3000);
   }
 
   // ---------- 字幕スタジオ（見た目・言葉） / アプリ設定（機器・AI・接続） ----------
@@ -1132,6 +1148,7 @@
       else if (m.type === "level") $("meterBar").style.width = (m.value * 100) + "%";
       else if (m.type === "clear") { monitor.innerHTML = ""; partials.clear(); }
       else if (m.type === "style") { setPreviewStyle(m); refreshPresets(); }
+      else if (m.type === "vc") vcToast(m.message, m.ok);
       else if (m.type === "theme") { cfg.theme = m.theme; applyTheme(m.theme); }
       else if (m.type === "ui_lang") { cfg.ui_lang = m.ui_lang; if (window.MojicastI18n) { window.MojicastI18n.applyLang(m.ui_lang); setState(lastState); syncModelCard(); } }
     };
