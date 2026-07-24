@@ -122,6 +122,7 @@
     <button data-section="hearing" onclick="switchSection('hearing')"><span class="icon">🎙</span><strong data-i18n="st.nav_hearing">声の聞き取り</strong><small data-i18n="st.nav_hearing_d">マイク・認識・区切り</small></button>
     <button data-section="translation" onclick="switchSection('translation')"><span class="icon">🌐</span><strong data-i18n="st.nav_translation">翻訳</strong><small data-i18n="st.nav_translation_d">翻訳先・使用モデル</small></button>
     <button data-section="collab" onclick="switchSection('collab')"><span class="icon">🎧</span><strong data-i18n="st.nav_collab">コラボ音声</strong><small data-i18n="st.nav_collab_d">通話アプリ・表示名</small></button>
+    <button data-section="voice" onclick="switchSection('voice')"><span class="icon">🎤</span><strong data-i18n="st.nav_voice">ボイスコマンド</strong><small data-i18n="st.nav_voice_d">声でレイアウト切替</small></button>
     <button data-section="obs" onclick="switchSection('obs')"><span class="icon">🎬</span><strong data-i18n="st.nav_obs">OBS接続</strong><small data-i18n="st.nav_obs_d">表示URL・ポート</small></button>
     <button data-section="other" onclick="switchSection('other')"><span class="icon">⚙</span><strong data-i18n="st.nav_other">その他</strong><small data-i18n="st.nav_other_d">ログ・表示処理</small></button>
     <button data-section="about" onclick="switchSection('about')"><span class="icon">ℹ️</span><strong data-i18n="st.nav_about">情報・連絡先</strong><small data-i18n="st.nav_about_d">バージョン・作者</small></button>
@@ -193,6 +194,26 @@
       </div>
     </section>
 
+    <section class="pane" id="pVoice">
+      <h1 data-i18n="st.h1_voice">ボイスコマンド</h1><p class="lead" data-i18n="st.lead_voice">配信中に、声でMojicastを操作します。まずはレイアウト切替から。</p>
+      <div class="warnbar" data-i18n="st.warn_vc">💡 コマンドはすぐ使えます。呼びかけを認識されやすくする効果（認識誘導）だけは「■ 停止 → ▶ 開始」後に反映されます。</div>
+      <div class="grid">
+        <article class="card wide"><h2 data-i18n="st.card_voice">ウェイクワード（呼びかけの名前）</h2><p data-i18n="st.card_voice_d">この名前に続けて話した発話だけがコマンドになります。</p>
+          <label class="checkrow"><input id="vcEnabled" type="checkbox"><span><b data-i18n="st.chk_vc">ボイスコマンドを使う</b><small data-i18n="st.chk_vc_d">コマンドの発話は字幕に表示されません</small></span></label>
+          <div class="field"><label for="vcWake" data-i18n="st.f_wake">ウェイクワード（「、」区切りで複数OK）</label><input id="vcWake" type="text" maxlength="200" placeholder="例：ステラ、すてら" data-i18n-ph="st.ph_wake"></div>
+          <div class="note" data-i18n="st.note_wake">カタカナ・ひらがなの名前が認識されやすいです。違う言葉に化けるときは、字幕に出たその表記もそのまま並べて登録してください（例：モジキャスト、文字キャスト）。</div>
+        </article>
+        <article class="card wide"><h2 data-i18n="st.card_vcuse">使えるコマンド</h2><p data-i18n="st.card_vcuse_d">ウェイクワードに続けて、ひと息に話します。</p>
+          <div class="note" data-i18n="st.vc_ex1">「ステラ、レイアウトを下部バーに」…名前で切替</div>
+          <div class="note" data-i18n="st.vc_ex2">「ステラ、レイアウト2」…並び順の番号で切替（字幕スタジオの一覧の上から数えます）</div>
+          <div class="note" data-i18n="st.vc_ex4">「ステラ、レイアウト変えて」…おまかせで別のレイアウトに切替</div>
+          <div class="note" data-i18n="st.vc_ex6">「ステラ、デザインをサイバーに」「ステラ、デザイン変えて」…字幕デザインも同じように切替できます</div>
+          <div class="note" data-i18n="st.vc_ex5">「ステラ、翻訳を英語に」「ステラ、翻訳オフ」…翻訳の切替（認識の動作中は自動で再起動します）</div>
+          <div class="note" data-i18n="st.vc_ex3">実行すると、コックピットの画面右下に結果が表示されます。</div>
+        </article>
+      </div>
+    </section>
+
     <section class="pane" id="pObs">
       <h1 data-i18n="st.h1_obs">OBS接続</h1><p class="lead" data-i18n="st.lead_obs">字幕をOBSのブラウザソースへ表示するための接続設定です。</p>
       <div class="grid">
@@ -246,10 +267,10 @@
 <script>
   const $ = id => document.getElementById(id);
   const qs = new URLSearchParams(location.search);
-  const panes = { hearing:"pHearing", translation:"pTranslation", collab:"pCollab", obs:"pObs", other:"pOther", about:"pAbout" };
-  const descsJa = { hearing:"マイク・認識・区切りを設定", translation:"翻訳先とモデルを設定", collab:"通話相手の音声を設定", obs:"OBSとの接続を設定", other:"ログと画面表示を設定", about:"バージョンと連絡先" };
+  const panes = { hearing:"pHearing", translation:"pTranslation", collab:"pCollab", voice:"pVoice", obs:"pObs", other:"pOther", about:"pAbout" };
+  const descsJa = { hearing:"マイク・認識・区切りを設定", translation:"翻訳先とモデルを設定", collab:"通話相手の音声を設定", voice:"声でレイアウトを切り替え", obs:"OBSとの接続を設定", other:"ログと画面表示を設定", about:"バージョンと連絡先" };
   const T = (key, jaDefault) => window.MojicastI18n ? window.MojicastI18n.t(key, jaDefault) : jaDefault;
-  let cfg = {}, running = false, savedTimer, nameTimer, curSection = "hearing";
+  let cfg = {}, running = false, savedTimer, nameTimer, vcTimer, curSection = "hearing";
 
   async function api(path, body) {
     const opt = body === undefined ? {} : { method:"POST", body:JSON.stringify(body) };
@@ -348,6 +369,7 @@
     $("useHotwords").checked = cfg.use_hotwords !== false; $("numArabic").checked = cfg.num_arabic !== false; $("highPrecision").checked = cfg.precision === "fp32";
     $("translate").checked = !!cfg.translate; $("translateLang").value = cfg.translate_lang || "en";
     $("collab").checked = !!cfg.collab; $("selfName").value = cfg.self_name || ""; $("guestName").value = cfg.guest_name || "";
+    $("vcEnabled").checked = !!cfg.vc_enabled; $("vcWake").value = (cfg.vc_wake || []).join("、");
     $("obsUrl").value = location.origin + "/"; $("port").value = cfg.port || 8765;
     $("punctuate").checked = cfg.punctuate !== false; $("saveLog").checked = cfg.save_log !== false; $("theme").value = cfg.theme || "light";
     $("uiLang").value = cfg.ui_lang || "ja";
@@ -381,6 +403,8 @@
   $("translate").addEventListener("change", e => save({translate:e.target.checked},false));
   $("translateLang").addEventListener("change", e => { cfg.translate_lang=e.target.value; syncTranslationRoute(); save({translate_lang:e.target.value}); });
   $("collab").addEventListener("change", e => save({collab:e.target.checked}));
+  $("vcEnabled").addEventListener("change", e => save({vc_enabled:e.target.checked}));
+  $("vcWake").addEventListener("input", e => { clearTimeout(vcTimer); vcTimer = setTimeout(() => save({vc_wake:e.target.value.split(/[、,，]/).map(s => s.trim()).filter(Boolean)}), 400); });
   $("collabProcess").addEventListener("change", e => save({collab_process:e.target.value,collab_source:"process"}));
   $("reloadApps").addEventListener("click", loadApps);
   for (const id of ["selfName","guestName"]) $(id).addEventListener("input", e => { clearTimeout(nameTimer); nameTimer=setTimeout(() => save({[e.target.id === "selfName" ? "self_name" : "guest_name"]:e.target.value}),400); });

@@ -14,6 +14,7 @@ import os
 import sys
 import json
 import queue
+import random
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
@@ -54,6 +55,9 @@ DEFAULT_CONFIG = {
     "collab_process": "", "collab_device": None,
     "self_name": "自分", "guest_name": "ゲスト",
     "guest_preset": "collab", "guest_box": "half-left",   # 相手の見た目割当
+    # ボイスコマンド（「〈ウェイクワード〉、レイアウトを〇〇に」で操作）
+    "vc_enabled": False,
+    "vc_wake": [],          # ウェイクワード（ゆれ表記を含む複数形。空=無効）
 }
 
 _clients = []
@@ -515,6 +519,117 @@ def _init_event():
     return ev
 
 
+# ---------------- ボイスコマンド ----------------
+
+def _try_voice_command(text, spk=""):
+    """確定テキストがボイスコマンドなら実行して True（字幕には出さない）。
+
+    コラボ中は自分の声だけ受け付ける（相手の声からは発動しない）。
+    """
+    cfg = load_config()
+    if not (cfg.get("vc_enabled") and cfg.get("vc_wake")):
+        return False
+    if cfg.get("collab"):
+        self_name = (cfg.get("self_name") or "自分").strip() or "自分"
+        if spk not in ("", self_name):
+            return False
+    import voicecmd
+    boxes = _read_json(_boxes_path(), {"boxes": []})["boxes"]
+    presets = _read_json(_presets_path(), {"presets": []})["presets"]
+    cmd = voicecmd.parse(text, cfg.get("vc_wake"), boxes, presets)
+    if cmd is None:
+        return False
+    suffix = ""
+    if cmd["action"] == "box_random":
+        # 現在と違うレイアウトからおまかせで選ぶ
+        candidates = [b for b in boxes if b.get("id") != cfg.get("box")]
+        if candidates:
+            b = random.choice(candidates)
+            cmd = {"action": "box", "id": b.get("id"), "name": b.get("name")}
+            suffix = "（おまかせ）"
+        else:
+            cmd = {"action": "unknown"}
+    elif cmd["action"] == "preset_random":
+        candidates = [p for p in presets if p.get("id") != cfg.get("preset")]
+        if candidates:
+            p = random.choice(candidates)
+            cmd = {"action": "preset", "id": p.get("id"), "name": p.get("name")}
+            suffix = "（おまかせ）"
+        else:
+            cmd = {"action": "unknown"}
+    if cmd["action"] in ("box", "preset"):
+        key = "box" if cmd["action"] == "box" else "preset"
+        label = "レイアウト" if key == "box" else "字幕デザイン"
+        with _config_lock:
+            cfg = load_config()
+            cfg[key] = cmd["id"]
+            save_config(cfg)
+        ev = {"type": "style"}
+        ev.update(resolve_style(load_config()))
+        broadcast(ev)
+        broadcast({"type": "vc", "ok": True,
+                   "message": f"{label}を「{cmd['name']}」に切り替えました{suffix}"})
+    elif cmd["action"] in ("translate_on", "translate_off", "translate_lang"):
+        with _config_lock:
+            cfg = load_config()
+            prev = (cfg.get("translate"), cfg.get("translate_lang"))
+            if cmd["action"] == "translate_off":
+                cfg["translate"] = False
+                msg = "翻訳をオフにしました"
+            else:
+                cfg["translate"] = True
+                if cmd["action"] == "translate_lang":
+                    cfg["translate_lang"] = cmd["lang"]
+                    msg = f"翻訳を{cmd['label']}に切り替えました"
+                else:
+                    msg = "翻訳をオンにしました"
+            changed = prev != (cfg.get("translate"), cfg.get("translate_lang"))
+            if changed:
+                save_config(cfg)
+        if not changed:
+            broadcast({"type": "vc", "ok": True,
+                       "message": "翻訳はすでにその設定です"})
+            return True
+        ev = {"type": "style"}
+        ev.update(resolve_style(load_config()))
+        broadcast(ev)
+        if _engine is not None and _engine.running:
+            msg += "（反映のため再起動しています…）"
+            _restart_engine_async()
+        broadcast({"type": "vc", "ok": True, "message": msg})
+    else:
+        broadcast({"type": "vc", "ok": False,
+                   "message": "コマンドを聞き取れませんでした"})
+    return True
+
+
+def _restart_engine_async():
+    """設定反映のための停止→開始を裏スレッドで行う（ボイスコマンド用）。
+
+    確定コールバック（エンジン自身のスレッド）から呼ばれるため、ここでは
+    joinせず、別スレッドで停止完了を待ってから開始し直す。
+    """
+    def work():
+        import time
+        eng = get_engine()
+        eng.stop(timeout=30)
+        deadline = time.time() + 30
+        while time.time() < deadline:
+            if eng.start(load_config()):
+                return
+            time.sleep(0.3)
+
+    threading.Thread(target=work, daemon=True, name="vc-restart").start()
+
+
+def _engine_on_final(text, fid, spk=""):
+    if _try_voice_command(text, spk):
+        # コマンド発話は字幕に出さず、発話中に見えていた薄文字だけ消す
+        broadcast({"type": "partial", "text": "", "speaker": spk})
+        return
+    broadcast({"type": "final", "text": text, "id": fid, "speaker": spk})
+
+
 # ---------------- エンジン連携 ----------------
 
 def get_engine():
@@ -525,8 +640,7 @@ def get_engine():
             _engine = CaptionEngine(
                 on_partial=lambda t, spk="": broadcast(
                     {"type": "partial", "text": t, "speaker": spk}),
-                on_final=lambda t, fid, spk="": broadcast(
-                    {"type": "final", "text": t, "id": fid, "speaker": spk}),
+                on_final=_engine_on_final,
                 on_level=lambda v, spk="": broadcast(
                     {"type": "level", "value": round(v, 3), "speaker": spk}),
                 on_state=_on_state,
@@ -774,6 +888,15 @@ class Handler(BaseHTTPRequestHandler):
             if ("collab_source" in body
                     and body.get("collab_source") not in ("process", "device")):
                 body["collab_source"] = "process"   # 未知値は推奨方式へ
+            if "vc_wake" in body:
+                # 文字列リストへ正規化（最大10件・各30文字。不正型は無視）
+                raw = body.get("vc_wake")
+                if not isinstance(raw, list):
+                    raw = []
+                body["vc_wake"] = [str(w).strip()[:30] for w in raw[:10]
+                                   if str(w).strip()]
+            if "vc_enabled" in body:
+                body["vc_enabled"] = bool(body.get("vc_enabled"))
             # ThreadingHTTPServer上で複数の設定窓が同時保存しても、後着の
             # read-modify-write が先着変更を巻き戻さないよう一連を排他する。
             with _config_lock:

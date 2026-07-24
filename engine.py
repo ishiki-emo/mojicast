@@ -286,6 +286,12 @@ class CaptionEngine:
         # ホットワードは共通＋使用中プロファイルの合成（内容が変わればASRを再ロード）
         hw_entries = (wordstore.merged_hotwords(cfg.get("word_profile", ""))
                       if cfg.get("use_hotwords", True) else [])
+        # ボイスコマンドのウェイクワードも認識誘導へ（かな表記なら誤変換が減る）。
+        # sig に含まれるため、ウェイクワード変更はASR再ロードで反映される。
+        if cfg.get("vc_enabled"):
+            hw_entries = hw_entries + [(w, w, None) for w in
+                                       (str(x).strip() for x in
+                                        cfg.get("vc_wake") or []) if w]
         sig = (cfg.get("precision", "int8-fp32"), tuple(hw_entries),
                cfg.get("hotwords_score", 2.0),
                cfg.get("asr_model", "k2-ja"), cfg.get("asr_lang", "auto"))
