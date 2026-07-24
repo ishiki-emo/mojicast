@@ -40,6 +40,15 @@ class LocalOriginGuardTests(unittest.TestCase):
         conn.request(method, path, body=body, headers=headers)
         return conn, conn.getresponse()
 
+    @staticmethod
+    def _drain(response):
+        """後始末のbody読み捨て。拒否時はサーバが即クローズするため、macOSでは
+        未読bodyがRSTになり読み取りが失敗しうる（拒否自体は検証済みなので無視）"""
+        try:
+            response.read()
+        except (ConnectionResetError, http.client.IncompleteRead):
+            pass
+
     def test_localhost_origin_is_allowed_for_post(self):
         origin = f"http://localhost:{self.port}"
         conn, response = self.request(
@@ -51,7 +60,7 @@ class LocalOriginGuardTests(unittest.TestCase):
         try:
             self.assertEqual(response.status, 200)
         finally:
-            response.read()
+            self._drain(response)
             conn.close()
 
     def test_127_origin_is_allowed_for_post(self):
@@ -65,7 +74,7 @@ class LocalOriginGuardTests(unittest.TestCase):
         try:
             self.assertEqual(response.status, 200)
         finally:
-            response.read()
+            self._drain(response)
             conn.close()
 
     def test_originless_local_client_is_allowed(self):
@@ -77,7 +86,7 @@ class LocalOriginGuardTests(unittest.TestCase):
         try:
             self.assertEqual(response.status, 200)
         finally:
-            response.read()
+            self._drain(response)
             conn.close()
 
     def test_local_sse_is_allowed_without_cors(self):
@@ -120,7 +129,7 @@ class LocalOriginGuardTests(unittest.TestCase):
                 self.assertEqual(response.status, 200)
                 self.assertTrue(fake.started)
             finally:
-                response.read()
+                self._drain(response)
                 conn.close()
         finally:
             app_server._engine = previous
@@ -135,7 +144,7 @@ class LocalOriginGuardTests(unittest.TestCase):
             self.assertEqual(response.status, 403)
             self.assertIsNone(response.getheader("Access-Control-Allow-Origin"))
         finally:
-            response.read()
+            self._drain(response)
             conn.close()
 
     def test_external_origin_is_rejected_for_post(self):
@@ -148,7 +157,7 @@ class LocalOriginGuardTests(unittest.TestCase):
         try:
             self.assertEqual(response.status, 403)
         finally:
-            response.read()
+            self._drain(response)
             conn.close()
 
     def test_cross_site_post_without_origin_is_rejected(self):
@@ -161,7 +170,7 @@ class LocalOriginGuardTests(unittest.TestCase):
         try:
             self.assertEqual(response.status, 403)
         finally:
-            response.read()
+            self._drain(response)
             conn.close()
 
     def test_dns_rebinding_host_is_rejected(self):
@@ -172,7 +181,7 @@ class LocalOriginGuardTests(unittest.TestCase):
         try:
             self.assertEqual(response.status, 421)
         finally:
-            response.read()
+            self._drain(response)
             conn.close()
 
     def test_oversized_request_is_rejected_before_body_read(self):
@@ -189,7 +198,7 @@ class LocalOriginGuardTests(unittest.TestCase):
         try:
             self.assertEqual(response.status, 413)
         finally:
-            response.read()
+            self._drain(response)
             conn.close()
 
     def test_sse_client_count_has_a_high_but_finite_limit(self):
@@ -207,7 +216,7 @@ class LocalOriginGuardTests(unittest.TestCase):
             try:
                 self.assertEqual(response.status, 503)
             finally:
-                response.read()
+                self._drain(response)
                 conn.close()
         finally:
             with app_server._clients_lock:
