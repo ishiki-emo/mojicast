@@ -259,6 +259,8 @@
   .feature-row input:checked::after { transform:translateX(17px); background:var(--accent); }
   .feature-edit { border: 0; background: transparent; color: var(--accent); padding: 4px;
     font-size: 12px; font-weight: 800; }
+  .feature-row.unsupported { opacity: .55; }
+  .feature-row.unsupported .feature-edit { color: var(--dim); cursor: default; }
   .quick-today { flex: none; padding: 11px 12px; overflow: visible; }
   .quick-today .today-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
   .quick-today .today-head b { font-size: 15px; }
@@ -745,8 +747,20 @@
   }
   // トグル状態と「方式／相手名」の1行サマリを反映
   function syncCollab() {
-    $("collabOn").checked = !!cfg.collab;
     const s = $("collabSummary");
+    if (cfg.collab_supported === false) {
+      // コラボ未対応OS（mac）: 欄ごとグレーアウトして理由を1行で示す
+      const row = $("collabOn").closest(".feature-row");
+      row.classList.add("unsupported");
+      $("collabOn").checked = false;
+      $("collabOn").disabled = true;
+      row.querySelector(".feature-edit").disabled = true;
+      s.textContent = T("cp.collab_unsupported",
+                        "macOS版では現在利用できません（Windows版の機能）");
+      s.style.display = "block";
+      return;
+    }
+    $("collabOn").checked = !!cfg.collab;
     if (!cfg.collab) { s.style.display = "none"; return; }
     // 仮想ケーブル表示はUI非公開の保険設定（config直編集）のときだけ
     const src = (cfg.collab_source || "process") === "process"

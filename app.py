@@ -8,8 +8,10 @@ Mojicast — 配信用リアルタイム字幕アプリ
 - 単語スタジオ窓（別窓）  : ホットワード登録 / エフェクト単語の管理
 - OBS連携                : ブラウザソースに http://localhost:8765 を指定
 """
+import os
 import sys
 import socket
+import threading
 import time
 
 import apppaths  # noqa: F401  HF系より先に読み込み、凍結時のパス/オフライン設定を確定
@@ -17,21 +19,10 @@ import apppaths  # noqa: F401  HF系より先に読み込み、凍結時のパ�
 import webview
 
 import app_server
+import platform_compat
 
 
-def _ui_scale() -> float:
-    """起動モニタの解像度からUIの拡大率を決める。
-    QHD(2560)幅以上は等倍、狭い画面ほど縮小（下限0.75 / FullHDで約0.8）。
-    overlay(OBS表示)には効かせず、コックピット等のGUI窓だけに適用する。"""
-    try:
-        import ctypes
-        w = ctypes.windll.user32.GetSystemMetrics(0)   # SM_CXSCREEN（論理px）
-        return max(0.75, min(1.0, round(w / 2400, 2)))
-    except Exception:
-        return 1.0
-
-
-UI_SCALE = _ui_scale()
+UI_SCALE = platform_compat.ui_scale()   # コックピット等のGUI窓のみ。overlayには効かせない
 UI_SESSION = int(time.time())  # WebView2が前回のUIを復元しないための起動単位キャッシュキー
 
 
@@ -108,8 +99,22 @@ class JsApi:
         window = self._windows.pop(key, None)
         if window is None:
             return {"ok": True}
-        window.destroy()
+        # この呼び出し自体が「閉じようとしている窓」のWebViewから来ている。
+        # ここで同期destroyすると、pywebviewが戻り値を返すevaluate_jsが破棄済み
+        # WebViewで宙に浮き、そのスレッド（非daemon）が永久待ちになって
+        # アプリ終了をブロックする（macで顕在化・タイミング依存）。
+        # 応答を返し終えてから破棄する。
+        timer = threading.Timer(0.2, self._destroy_quietly, args=(window,))
+        timer.daemon = True
+        timer.start()
         return {"ok": True}
+
+    @staticmethod
+    def _destroy_quietly(window):
+        try:
+            window.destroy()
+        except Exception:
+            pass   # 利用者がほぼ同時に閉じた場合は破棄済み
 
     def open_external(self, url):
         """クレジット/連絡先などの外部URLをOSの既定ブラウザで開く。
@@ -145,11 +150,8 @@ def _port_free(port: int) -> bool:
 
 
 def _fatal(msg: str):
-    """起動不能エラーの通知。windowed exe ではコンソールが無いので MessageBox で出す"""
-    try:
-        import ctypes
-        ctypes.windll.user32.MessageBoxW(0, msg, "Mojicast", 0x10)  # MB_ICONERROR
-    except Exception:
+    """起動不能エラーの通知。windowed exe ではコンソールが無いのでOSダイアログで出す"""
+    if not platform_compat.fatal_dialog(msg):
         print(msg)
     sys.exit(1)
 
@@ -190,6 +192,14 @@ def main():
 
     window.events.closed += on_closed
     webview.start()  # 窓が全部閉じるまでブロック
+
+    # 保険: pywebview内部の取り残しスレッド（非daemon）が interpreter shutdown を
+    # 塞いでも、猶予後は確実にプロセスを終える。正常時はこの前に自然終了する。
+    def _exit_watchdog():
+        time.sleep(10)   # engine.stop(join≤5s) と応答返却の猶予
+        os._exit(0)
+
+    threading.Thread(target=_exit_watchdog, daemon=True).start()
 
 
 if __name__ == "__main__":
