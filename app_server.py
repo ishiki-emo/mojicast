@@ -231,6 +231,38 @@ def _scenes_path():
     return wordstore.data_path("scenes.json")
 
 
+def _vc_commands_path():
+    return wordstore.data_path("vc_commands.json")
+
+
+# カスタムコマンドの動作カタログ（保存時の検証と実行の対応表）
+_VC_ACTION_TYPES = ("scene", "box", "preset", "random",
+                    "translate_lang", "translate_on", "translate_off", "clear")
+_VC_RANDOM_TARGETS = ("scene", "box", "preset")
+_VC_TRANS_LANGS = ("en", "zh", "zh_tw", "zh_hk", "id", "ja", "ko")
+
+
+def _valid_vc_command(c):
+    """カスタムコマンド1件の形を検証する（言い回し最大5件・各30文字）"""
+    if not (isinstance(c, dict) and c.get("id")
+            and isinstance(c.get("phrases"), list)):
+        return False
+    phrases = [str(p).strip() for p in c["phrases"] if str(p).strip()]
+    if not phrases or len(phrases) > 5 or any(len(p) > 30 for p in phrases):
+        return False
+    a = c.get("action")
+    if not (isinstance(a, dict) and a.get("type") in _VC_ACTION_TYPES):
+        return False
+    t = a["type"]
+    if t in ("scene", "box", "preset"):
+        return isinstance(a.get("id"), str) and a["id"] != ""
+    if t == "random":
+        return a.get("target") in _VC_RANDOM_TARGETS
+    if t == "translate_lang":
+        return a.get("lang") in _VC_TRANS_LANGS
+    return True    # translate_on / translate_off / clear は追加項目なし
+
+
 def _seed_style_defaults():
     """アップデートで増えた既定プリセット/ボックスを既存環境へ一度だけ追加する。
 
@@ -541,10 +573,40 @@ def _try_voice_command(text, spk=""):
     boxes = _read_json(_boxes_path(), {"boxes": []})["boxes"]
     presets = _read_json(_presets_path(), {"presets": []})["presets"]
     scenes = _read_json(_scenes_path(), {"scenes": []})["scenes"]
-    cmd = voicecmd.parse(text, cfg.get("vc_wake"), boxes, presets, scenes)
+    commands = _read_json(_vc_commands_path(), {"commands": []})["commands"]
+    cmd = voicecmd.parse(text, cfg.get("vc_wake"), boxes, presets, scenes,
+                         commands)
     if cmd is None:
         return False
     suffix = ""
+    if cmd["action"] == "custom":
+        # 登録済みの動作を組み込みのアクション形へ解決する
+        act = (cmd["command"].get("action") or {})
+        t = act.get("type")
+        if t in ("scene", "box", "preset"):
+            items = {"scene": scenes, "box": boxes, "preset": presets}[t]
+            it = next((x for x in items if x.get("id") == act.get("id")), None)
+            if it is None:
+                broadcast({"type": "vc", "ok": False,
+                           "message": "コマンドの切替先が見つかりません"
+                                      "（削除された可能性があります）"})
+                return True
+            cmd = {"action": t, "id": it["id"], "name": it.get("name")}
+        elif t == "random":
+            cmd = {"action": act.get("target", "box") + "_random"}
+        elif t == "translate_lang":
+            labels = {code: label for code, label, _k in voicecmd._TRANS_LANGS}
+            cmd = {"action": "translate_lang", "lang": act.get("lang"),
+                   "label": labels.get(act.get("lang"), act.get("lang"))}
+        elif t in ("translate_on", "translate_off"):
+            cmd = {"action": t}
+        elif t == "clear":
+            broadcast({"type": "clear"})
+            broadcast({"type": "vc", "ok": True,
+                       "message": "字幕をクリアしました"})
+            return True
+        else:
+            cmd = {"action": "unknown"}
     if cmd["action"] == "scene_random":
         # 今の組み合わせと違うシーンからおまかせで選ぶ
         cur = (cfg.get("preset"), cfg.get("box"))
@@ -836,6 +898,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json(_read_json(_boxes_path(), {"boxes": []}))
         elif path == "/api/scenes":
             self._json(_read_json(_scenes_path(), {"scenes": []}))
+        elif path == "/api/vc-commands":
+            self._json(_read_json(_vc_commands_path(), {"commands": []}))
         elif path == "/api/style-defaults":
             # 同梱項目の「初期状態に戻す」と新規作成の基準データ。
             self._json({
@@ -1004,6 +1068,17 @@ class Handler(BaseHTTPRequestHandler):
             ev = {"type": "style"}
             ev.update(resolve_style(cfg))
             broadcast(ev)
+            self._json({"ok": True})
+        elif path == "/api/vc-commands":
+            commands = body.get("commands", [])
+            if not (isinstance(commands, list) and len(commands) <= 50
+                    and all(_valid_vc_command(c) for c in commands)):
+                self._json({"ok": False, "error": "invalid commands"}, 400)
+                return
+            for c in commands:   # 言い回しは空白を除去した形へ正規化して保存
+                c["phrases"] = [str(p).strip() for p in c["phrases"]
+                                if str(p).strip()]
+            _write_json(_vc_commands_path(), {"commands": commands})
             self._json({"ok": True})
         elif path == "/api/scenes":
             scenes = body.get("scenes", [])
