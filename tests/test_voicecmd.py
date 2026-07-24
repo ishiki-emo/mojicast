@@ -193,6 +193,47 @@ class TestScene(unittest.TestCase):
         self.assertEqual(cmd["action"], "box")
 
 
+COMMANDS = [
+    {"id": "c1", "phrases": ["歌枠モード", "うたわく"],
+     "action": {"type": "scene", "id": "song"}},
+    {"id": "c2", "phrases": ["おそうじ"], "action": {"type": "clear"}},
+    {"id": "c3", "phrases": ["翻訳オン"],
+     "action": {"type": "translate_lang", "lang": "ko"}},
+]
+
+
+class TestCustom(unittest.TestCase):
+    def test_match_phrase(self):
+        cmd = voicecmd.parse("モジキャスト、おそうじして", WAKES, BOXES,
+                             PRESETS, SCENES, COMMANDS)
+        self.assertEqual(cmd["action"], "custom")
+        self.assertEqual(cmd["command"]["id"], "c2")
+
+    def test_kana_variant_phrase(self):
+        # ひらがな登録の言い回しにカタカナ認識でも当たる
+        cmd = voicecmd.parse("モジキャスト、ウタワク", WAKES, BOXES,
+                             PRESETS, SCENES, COMMANDS)
+        self.assertEqual(cmd["command"]["id"], "c1")
+
+    def test_custom_wins_over_builtin(self):
+        # 組み込みの「翻訳オン」と同じ言い回しはカスタム側が優先
+        cmd = voicecmd.parse("モジキャスト、翻訳オン", WAKES, BOXES,
+                             PRESETS, SCENES, COMMANDS)
+        self.assertEqual(cmd["action"], "custom")
+        self.assertEqual(cmd["command"]["id"], "c3")
+
+    def test_custom_wins_over_scene_name(self):
+        # シーン名「歌枠」を含む「歌枠モード」はカスタムの最長一致で拾う
+        cmd = voicecmd.parse("モジキャスト、歌枠モード", WAKES, BOXES,
+                             PRESETS, SCENES, COMMANDS)
+        self.assertEqual(cmd["action"], "custom")
+
+    def test_no_commands_falls_through(self):
+        cmd = voicecmd.parse("モジキャスト、歌枠モード", WAKES, BOXES,
+                             PRESETS, SCENES, None)
+        self.assertEqual(cmd["action"], "scene")
+
+
 class TestTranslate(unittest.TestCase):
     def test_lang_en(self):
         cmd = voicecmd.parse("モジキャスト、翻訳を英語に", WAKES, BOXES)

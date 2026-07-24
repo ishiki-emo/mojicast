@@ -80,6 +80,17 @@ def strip_wake(text, wakes):
     return None
 
 
+def match_custom(rest, commands):
+    """カスタムコマンドの言い回し照合（正規化して包含・最長一致）"""
+    best, best_len = None, 0
+    for c in commands or []:
+        for ph in c.get("phrases") or []:
+            np = normalize(ph)
+            if np and np in rest and len(np) > best_len:
+                best, best_len = c, len(np)
+    return best
+
+
 def _name_forms(item):
     """名前つき項目の照合形（正規化済み・長い順）。括弧注釈を外した形も含む"""
     name = item.get("name") or ""
@@ -98,11 +109,12 @@ def _match_named(rest, items):
     return best
 
 
-def parse(text, wakes, boxes, presets=None, scenes=None):
+def parse(text, wakes, boxes, presets=None, scenes=None, commands=None):
     """確定テキストをコマンド解釈する。
 
     返り値:
         None                                   … ウェイクワードなし（普通の字幕）
+        {"action": "custom", "command": dict}  … カスタムコマンド（言い回し→動作の登録）
         {"action": "scene", "id", "name"}      … シーン切替（デザイン＋レイアウト一括）
         {"action": "scene_random"}             … シーンをおまかせで切替
         {"action": "box", "id", "name"}        … レイアウト切替
@@ -116,6 +128,12 @@ def parse(text, wakes, boxes, presets=None, scenes=None):
     rest = strip_wake(text, wakes)
     if rest is None:
         return None
+
+    # カスタムコマンドが最優先（ユーザーが明示的に登録した言い回しなので、
+    # 組み込みの解釈より先に拾う。組み込みと同じ言い回しの上書きも可能）
+    c = match_custom(rest, commands)
+    if c is not None:
+        return {"action": "custom", "command": c}
 
     # 翻訳: 「翻訳を英語に」「翻訳オン/オフ」「翻訳して」（「翻訳」が門番）
     if "翻訳" in rest or "ほんやく" in rest:
