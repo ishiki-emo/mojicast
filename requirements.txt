@@ -1,4 +1,4 @@
-# Mojicast 依存パッケージ（Python 3.11 で検証）
+# Mojicast 依存パッケージ（Python 3.11 で検証・Windows / macOS 両対応）
 #
 #   pip install -r requirements.txt
 #
@@ -9,14 +9,20 @@
 #   tools/convert_models.py のコメントに従って別途インストールしてください。
 
 huggingface_hub==1.22.0
-sherpa-onnx==1.13.4
+# sherpa-onnx: 1.13.4 の macOS arm64 wheel は k2(zipformer) の認識結果が崩壊する
+# リグレッションあり（fp32/int8とも。1.13.3 は正常。2026-07-24 実機で特定）。
+# バージョンを上げるときは mac で k2 の認識文が出ることを確認してから。
+sherpa-onnx==1.13.4; sys_platform == "win32"
+sherpa-onnx==1.13.3; sys_platform == "darwin"
 onnxruntime==1.27.0
 ctranslate2==4.8.1
 sentencepiece==0.2.1
 opencc==1.4.1
 numpy==2.4.6
 pywebview==6.2.1
-pythonnet==3.1.0
+# pythonnet: pywebview の WinForms/WebView2 バックエンド用（Windows専用。
+# mac では pywebview が pyobjc/WKWebView を自動使用するため不要）
+pythonnet==3.1.0; sys_platform == "win32"
 sounddevice==0.5.5
 
 # パッケージング（配布用exeを作る場合のみ）
