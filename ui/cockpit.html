@@ -461,6 +461,7 @@
             <div class="today-label"><b data-i18n="cp.today_scene">シーン</b><span data-i18n="cp.today_scene_d">デザイン＋レイアウトのセット</span></div>
             <div class="selrow">
               <select id="sceneSel"></select>
+              <button id="sceneOw" hidden title="調整した内容をこのシーンに上書き保存" data-i18n-title="cp.scene_ow_t" data-i18n="cp.scene_ow">上書き</button>
               <button id="sceneSave" title="今のデザイン＋レイアウトの組み合わせをシーンとして保存" data-i18n-title="cp.scene_save_t">＋</button>
               <button id="sceneDel" title="選択中のシーンを削除" data-i18n-title="cp.scene_del_t">🗑</button>
             </div>
@@ -811,25 +812,48 @@
 
   // ---------- シーン（デザイン＋レイアウトのセット） ----------
   let scenes = [];
+  let lastSceneId = null;   // 直近に選んだ/一致したシーン（「調整中」の基準）
 
-  // 現在のデザイン＋位置の組み合わせに一致するシーンを選択状態にする
+  // 現在の組み合わせに一致するシーンを選択状態に。一致しなくても直前の
+  // シーンを覚えていれば「〇〇（調整中）」表示にして、上書き保存を出す
   function renderScenes() {
     const sel = $("sceneSel");
     const cur = scenes.find(s => s.preset === cfg.preset && s.box === cfg.box);
+    if (cur) lastSceneId = cur.id;
+    const base = !cur && scenes.find(s => s.id === lastSceneId);
     sel.innerHTML =
       `<option value="">${escHtml(T("cp.scene_pick", "（シーンで一括切替）"))}</option>` +
       scenes.map(s =>
-        `<option value="${escHtml(s.id)}">${escHtml(s.name)}</option>`).join("");
-    sel.value = cur ? cur.id : "";
+        `<option value="${escHtml(s.id)}">${escHtml(s.name)}</option>`).join("") +
+      (base ? `<option value="__dirty__" hidden>${escHtml(
+        base.name + T("cp.scene_dirty", "（調整中）"))}</option>` : "");
+    sel.value = cur ? cur.id : (base ? "__dirty__" : "");
+    $("sceneOw").hidden = !base;
+    $("sceneSave").textContent = base ? T("cp.scene_new", "新規") : "＋";
   }
 
   $("sceneSel").addEventListener("change", async e => {
+    if (e.target.value === "") {       // 手動で空へ = 調整中の文脈を破棄
+      lastSceneId = null;
+      renderScenes();
+      return;
+    }
     const s = scenes.find(x => x.id === e.target.value);
     if (!s) return;
+    lastSceneId = s.id;
     cfg.preset = s.preset;
     cfg.box = s.box;
     await api("/api/config", { preset: s.preset, box: s.box });
-    renderPresets(); renderBoxes();
+    renderPresets(); renderBoxes(); renderScenes();
+  });
+
+  $("sceneOw").addEventListener("click", async () => {
+    const s = scenes.find(x => x.id === lastSceneId);
+    if (!s) return;
+    s.preset = cfg.preset;
+    s.box = cfg.box;
+    await api("/api/scenes", { scenes });
+    renderScenes();    // 一致するようになるので「調整中」が解けて通常表示に戻る
   });
 
   $("sceneSave").addEventListener("click", async () => {
@@ -843,10 +867,12 @@
   });
 
   $("sceneDel").addEventListener("click", async () => {
-    const s = scenes.find(x => x.id === $("sceneSel").value);
+    const v = $("sceneSel").value;
+    const s = scenes.find(x => x.id === (v === "__dirty__" ? lastSceneId : v));
     if (!s || !confirm(T("cp.scene_del_q", "シーン「{name}」を削除しますか？")
         .replace("{name}", s.name))) return;
     scenes = scenes.filter(x => x.id !== s.id);
+    if (s.id === lastSceneId) lastSceneId = null;
     await api("/api/scenes", { scenes });
     renderScenes();
   });
