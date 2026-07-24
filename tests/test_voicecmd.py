@@ -80,6 +80,27 @@ class TestParse(unittest.TestCase):
         cmd = voicecmd.parse("モジキャスト、レイアウト99", WAKES, BOXES)
         self.assertEqual(cmd["action"], "unknown")
 
+    def test_box_by_kanji_number(self):
+        # 数字正規化を通らず漢数字のまま届いても番号指定が効く
+        cmd = voicecmd.parse("モジキャスト、レイアウト二番", WAKES, BOXES)
+        self.assertEqual(cmd["id"], "lower")
+
+    def test_box_by_kanji_number_ten(self):
+        boxes = [{"id": f"b{i}", "name": f"ボックス{i}"} for i in range(12)]
+        cmd = voicecmd.parse("モジキャスト、レイアウト十一", WAKES, boxes)
+        self.assertEqual(cmd["id"], "b10")   # 11番目（1始まり）
+
+    def test_random_change(self):
+        for phrase in ("レイアウト変えて", "レイアウトをチェンジ",
+                       "れいあうと、おまかせ", "レイアウト変更"):
+            cmd = voicecmd.parse("モジキャスト、" + phrase, WAKES, BOXES)
+            self.assertEqual(cmd["action"], "box_random", phrase)
+
+    def test_random_needs_layout_word(self):
+        # 「変えて」だけでは発動しない（誤爆防止）
+        cmd = voicecmd.parse("モジキャスト、変えて", WAKES, BOXES)
+        self.assertEqual(cmd["action"], "unknown")
+
     def test_longest_name_wins(self):
         boxes = BOXES + [{"id": "lower2", "name": "下部バー2"}]
         cmd = voicecmd.parse("モジキャスト、下部バー2にして", WAKES, boxes)

@@ -14,6 +14,7 @@ import os
 import sys
 import json
 import queue
+import random
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
@@ -537,6 +538,16 @@ def _try_voice_command(text, spk=""):
     cmd = voicecmd.parse(text, cfg.get("vc_wake"), boxes)
     if cmd is None:
         return False
+    suffix = ""
+    if cmd["action"] == "box_random":
+        # 現在と違うレイアウトからおまかせで選ぶ
+        candidates = [b for b in boxes if b.get("id") != cfg.get("box")]
+        if candidates:
+            b = random.choice(candidates)
+            cmd = {"action": "box", "id": b.get("id"), "name": b.get("name")}
+            suffix = "（おまかせ）"
+        else:
+            cmd = {"action": "unknown"}
     if cmd["action"] == "box":
         with _config_lock:
             cfg = load_config()
@@ -546,7 +557,7 @@ def _try_voice_command(text, spk=""):
         ev.update(resolve_style(load_config()))
         broadcast(ev)
         broadcast({"type": "vc", "ok": True,
-                   "message": f"レイアウトを「{cmd['name']}」に切り替えました"})
+                   "message": f"レイアウトを「{cmd['name']}」に切り替えました{suffix}"})
     else:
         broadcast({"type": "vc", "ok": False,
                    "message": "コマンドを聞き取れませんでした"})

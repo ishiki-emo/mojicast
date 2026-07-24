@@ -21,6 +21,30 @@ _IGNORE_RE = re.compile(r"[\s、。，．,.!！?？・:：;；「」『』()（�
 # レイアウト名の括弧付き注釈「（枠なし)」等
 _PAREN_RE = re.compile(r"（[^）]*）|\([^)]*\)")
 
+# 漢数字→アラビア数字（1〜99。「レイアウト二番」等の取りこぼし対策。
+# 数字正規化(numnorm)を通らない経路・モデルでも番号指定が効くようにする）
+_KANJI_DIGITS = {"一": 1, "二": 2, "三": 3, "四": 4, "五": 5,
+                 "六": 6, "七": 7, "八": 8, "九": 9}
+_KANJI_NUM_RE = re.compile(r"[一二三四五六七八九]?十[一二三四五六七八九]?"
+                           r"|[一二三四五六七八九]")
+
+
+def _arabicize(text):
+    """テキスト中の漢数字（1〜99）をアラビア数字へ置き換える"""
+    def conv(m):
+        s = m.group(0)
+        if "十" not in s:
+            return str(_KANJI_DIGITS[s])
+        tens, _, ones = s.partition("十")
+        return str((_KANJI_DIGITS[tens] if tens else 1) * 10
+                   + (_KANJI_DIGITS[ones] if ones else 0))
+    return _KANJI_NUM_RE.sub(conv, text)
+
+# 「おまかせで変えて」系の言い回し（正規化後の形で照合）
+_RANDOM_WORDS = ("かえて", "かえよう", "かえろ", "変えて", "変えよう",
+                 "へんこう", "変更", "ちぇんじ", "しゃっふる",
+                 "おまかせ", "らんだむ")
+
 
 def normalize(text):
     """照合用の正規化: NFKC → 記号除去 → カタカナ→ひらがな → 小文字化"""
@@ -64,15 +88,17 @@ def parse(text, wakes, boxes):
     返り値:
         None                                   … ウェイクワードなし（普通の字幕）
         {"action": "box", "id", "name"}        … レイアウト切替
+        {"action": "box_random"}               … レイアウトをおまかせで切替
         {"action": "unknown", "rest": str}     … ウェイクは合ったが解釈不能
     """
     rest = strip_wake(text, wakes)
     if rest is None:
         return None
 
-    # 番号指定: 「れいあうと2」「2番」（数字は認識側でアラビア数字化済み）
-    m = (re.search(r"れいあうと(?:を)?(\d{1,2})", rest)
-         or re.search(r"(\d{1,2})(?:ばん|番)", rest))
+    # 番号指定: 「れいあうと2」「2番」「レイアウト二番」（漢数字も吸収）
+    rest_n = _arabicize(rest)
+    m = (re.search(r"れいあうと(?:を)?(\d{1,2})", rest_n)
+         or re.search(r"(\d{1,2})(?:ばん|番)", rest_n))
     if m:
         i = int(m.group(1)) - 1
         if 0 <= i < len(boxes or []):
@@ -84,5 +110,9 @@ def parse(text, wakes, boxes):
     b = _match_box(rest, boxes)
     if b is not None:
         return {"action": "box", "id": b.get("id"), "name": b.get("name")}
+
+    # 指定なしの切替: 「レイアウト変えて」「レイアウトをチェンジ」→ おまかせ
+    if "れいあうと" in rest and any(w in rest for w in _RANDOM_WORDS):
+        return {"action": "box_random"}
 
     return {"action": "unknown", "rest": rest}
