@@ -101,6 +101,45 @@ class TestParse(unittest.TestCase):
         cmd = voicecmd.parse("モジキャスト、変えて", WAKES, BOXES)
         self.assertEqual(cmd["action"], "unknown")
 
+
+class TestTranslate(unittest.TestCase):
+    def test_lang_en(self):
+        cmd = voicecmd.parse("モジキャスト、翻訳を英語に", WAKES, BOXES)
+        self.assertEqual(cmd, {"action": "translate_lang",
+                               "lang": "en", "label": "英語"})
+
+    def test_lang_zh_simplified_default(self):
+        cmd = voicecmd.parse("モジキャスト、翻訳を中国語にして", WAKES, BOXES)
+        self.assertEqual(cmd["lang"], "zh")
+
+    def test_lang_zh_tw_specific_wins(self):
+        # 「繁体字」が「中国語」より優先される
+        cmd = voicecmd.parse("モジキャスト、翻訳を中国語の繁体字に", WAKES, BOXES)
+        self.assertEqual(cmd["lang"], "zh_tw")
+
+    def test_lang_ko(self):
+        cmd = voicecmd.parse("モジキャスト、翻訳を韓国語に変えて", WAKES, BOXES)
+        self.assertEqual(cmd["lang"], "ko")
+
+    def test_off_before_on(self):
+        # 「オフにして」の「して」でオンに誤爆しない
+        cmd = voicecmd.parse("モジキャスト、翻訳オフにして", WAKES, BOXES)
+        self.assertEqual(cmd["action"], "translate_off")
+
+    def test_on(self):
+        for phrase in ("翻訳オン", "翻訳して", "翻訳つけて"):
+            cmd = voicecmd.parse("モジキャスト、" + phrase, WAKES, BOXES)
+            self.assertEqual(cmd["action"], "translate_on", phrase)
+
+    def test_off(self):
+        for phrase in ("翻訳を消して", "翻訳やめて", "翻訳なしで"):
+            cmd = voicecmd.parse("モジキャスト、" + phrase, WAKES, BOXES)
+            self.assertEqual(cmd["action"], "translate_off", phrase)
+
+    def test_translate_unknown(self):
+        cmd = voicecmd.parse("モジキャスト、翻訳ってすごいよね", WAKES, BOXES)
+        self.assertEqual(cmd["action"], "unknown")
+
     def test_longest_name_wins(self):
         boxes = BOXES + [{"id": "lower2", "name": "下部バー2"}]
         cmd = voicecmd.parse("モジキャスト、下部バー2にして", WAKES, boxes)

@@ -45,6 +45,22 @@ _RANDOM_WORDS = ("かえて", "かえよう", "かえろ", "変えて", "変え�
                  "へんこう", "変更", "ちぇんじ", "しゃっふる",
                  "おまかせ", "らんだむ")
 
+# 翻訳先の言い回し → translate_lang コード。特定的な言い方（繁体・広東等）を
+# 先に置き、「中国語」単独は簡体へ落とす
+_TRANS_LANGS = (
+    ("zh_tw", "中国語（繁体字）", ("繁体", "はんたい", "台湾", "たいわん")),
+    ("zh_hk", "広東語", ("広東", "かんとん", "香港", "ほんこん")),
+    ("zh", "中国語（簡体字）", ("中国語", "ちゅうごくご", "簡体", "かんたい")),
+    ("id", "インドネシア語", ("いんどねしあ",)),
+    ("ko", "韓国語", ("韓国", "かんこく", "はんぐる")),
+    ("ja", "日本語", ("日本語", "にほんご")),
+    ("en", "英語", ("英語", "えいご")),
+)
+# オフ判定を先に行う（「翻訳オフにして」の「して」でオンに誤爆しないよう）
+_TRANS_OFF = ("おふ", "きって", "切って", "けして", "消して", "やめて",
+              "停止", "ていし", "なし")
+_TRANS_ON = ("おん", "つけて", "付けて", "開始", "かいし", "あり", "して")
+
 
 def normalize(text):
     """照合用の正規化: NFKC → 記号除去 → カタカナ→ひらがな → 小文字化"""
@@ -89,11 +105,24 @@ def parse(text, wakes, boxes):
         None                                   … ウェイクワードなし（普通の字幕）
         {"action": "box", "id", "name"}        … レイアウト切替
         {"action": "box_random"}               … レイアウトをおまかせで切替
+        {"action": "translate_lang", "lang", "label"} … 翻訳先の切替（翻訳ONも兼ねる）
+        {"action": "translate_on" / "translate_off"}  … 翻訳のオン/オフ
         {"action": "unknown", "rest": str}     … ウェイクは合ったが解釈不能
     """
     rest = strip_wake(text, wakes)
     if rest is None:
         return None
+
+    # 翻訳: 「翻訳を英語に」「翻訳オン/オフ」「翻訳して」（「翻訳」が門番）
+    if "翻訳" in rest or "ほんやく" in rest:
+        for code, label, keys in _TRANS_LANGS:
+            if any(k in rest for k in keys):
+                return {"action": "translate_lang", "lang": code, "label": label}
+        if any(k in rest for k in _TRANS_OFF):
+            return {"action": "translate_off"}
+        if any(k in rest for k in _TRANS_ON):
+            return {"action": "translate_on"}
+        return {"action": "unknown", "rest": rest}
 
     # 番号指定: 「れいあうと2」「2番」「レイアウト二番」（漢数字も吸収）
     rest_n = _arabicize(rest)

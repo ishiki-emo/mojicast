@@ -558,10 +558,57 @@ def _try_voice_command(text, spk=""):
         broadcast(ev)
         broadcast({"type": "vc", "ok": True,
                    "message": f"レイアウトを「{cmd['name']}」に切り替えました{suffix}"})
+    elif cmd["action"] in ("translate_on", "translate_off", "translate_lang"):
+        with _config_lock:
+            cfg = load_config()
+            prev = (cfg.get("translate"), cfg.get("translate_lang"))
+            if cmd["action"] == "translate_off":
+                cfg["translate"] = False
+                msg = "翻訳をオフにしました"
+            else:
+                cfg["translate"] = True
+                if cmd["action"] == "translate_lang":
+                    cfg["translate_lang"] = cmd["lang"]
+                    msg = f"翻訳を{cmd['label']}に切り替えました"
+                else:
+                    msg = "翻訳をオンにしました"
+            changed = prev != (cfg.get("translate"), cfg.get("translate_lang"))
+            if changed:
+                save_config(cfg)
+        if not changed:
+            broadcast({"type": "vc", "ok": True,
+                       "message": "翻訳はすでにその設定です"})
+            return True
+        ev = {"type": "style"}
+        ev.update(resolve_style(load_config()))
+        broadcast(ev)
+        if _engine is not None and _engine.running:
+            msg += "（反映のため再起動しています…）"
+            _restart_engine_async()
+        broadcast({"type": "vc", "ok": True, "message": msg})
     else:
         broadcast({"type": "vc", "ok": False,
                    "message": "コマンドを聞き取れませんでした"})
     return True
+
+
+def _restart_engine_async():
+    """設定反映のための停止→開始を裏スレッドで行う（ボイスコマンド用）。
+
+    確定コールバック（エンジン自身のスレッド）から呼ばれるため、ここでは
+    joinせず、別スレッドで停止完了を待ってから開始し直す。
+    """
+    def work():
+        import time
+        eng = get_engine()
+        eng.stop(timeout=30)
+        deadline = time.time() + 30
+        while time.time() < deadline:
+            if eng.start(load_config()):
+                return
+            time.sleep(0.3)
+
+    threading.Thread(target=work, daemon=True, name="vc-restart").start()
 
 
 def _engine_on_final(text, fid, spk=""):
