@@ -15,6 +15,7 @@
 | モデル | 用途 | ライセンス | オリジナル配布元 |
 |---|---|---|---|
 | ReazonSpeech k2 v2 | 日本語音声認識 | Apache-2.0 | [reazon-research/reazonspeech-k2-v2](https://huggingface.co/reazon-research/reazonspeech-k2-v2) |
+| SenseVoice small | 多言語音声認識（中・英・日・韓・広東語） | **FunASR Model License** | [FunAudioLLM/SenseVoiceSmall](https://huggingface.co/FunAudioLLM/SenseVoiceSmall)（作者: Alibaba Group） |
 | BERT base Japanese char v3 | 句読点付けの土台（ONNX変換して利用） | Apache-2.0 | [tohoku-nlp/bert-base-japanese-char-v3](https://huggingface.co/tohoku-nlp/bert-base-japanese-char-v3) |
 | BERT Japanese punctuation | 句読点の重み（同上） | Apache-2.0 | [bobfromjapan/bert_japanese_punctuation](https://huggingface.co/bobfromjapan/bert_japanese_punctuation) |
 | FuguMT ja-en | 日→英翻訳（CTranslate2変換して利用） | **CC BY-SA 4.0** | [staka/fugumt-ja-en](https://huggingface.co/staka/fugumt-ja-en) |
@@ -25,6 +26,14 @@
 > 配布リポジトリの FuguMT 変換版（CTranslate2形式）には CC BY-SA 4.0 が継承されます。
 > 配布リポジトリには原作者（Fugu Machine Translator / staka 氏）のクレジットと
 > 同ライセンス表記を必ず掲載してください。モデル同梱の配布物を作る場合も同様です。
+
+> **SenseVoice について**: SenseVoice は Alibaba Group（Tongyi Lab / FunAudioLLM チーム）が
+> 開発・公開する音声認識モデルです。実際にダウンロードされるのは csukuangfj 氏が
+> sherpa-onnx 向けに変換した int8 版
+> （[csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17](https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17)）で、
+> ライセンスはオリジナルの
+> [FunASR Model Open Source License](https://github.com/modelscope/FunASR/blob/main/MODEL_LICENSE)
+> に従います（出典・作者情報の帰属表示とモデル名の保持が条件）。
 
 ---
 
