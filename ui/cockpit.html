@@ -505,6 +505,12 @@
             <input type="checkbox" id="translateOn">
           </div>
           <div class="feature-row">
+            <span class="feature-icon">🥽</span>
+            <span class="feature-copy"><b data-i18n="cp.vrchat">VRChat送信</b><span data-i18n="cp.vrchat_d">チャットボックスに字幕を表示</span></span>
+            <button class="feature-edit" onclick="openSettings('vrchat')" data-i18n="cp.configure">設定</button>
+            <input type="checkbox" id="vrchatOn">
+          </div>
+          <div class="feature-row">
             <span class="feature-icon">🎧</span>
             <span class="feature-copy"><b data-i18n="cp.collab">1対1コラボ</b><span data-i18n="cp.collab_d">相手の声も字幕にする</span></span>
             <button class="feature-edit" onclick="openSettings('collab')" data-i18n="cp.configure">設定</button>
@@ -601,7 +607,7 @@
   }
 
   // 表示だけで完結し、認識エンジンを再開始しなくても反映される設定。
-  const IMMEDIATE_CFG_KEYS = new Set(["word_fx"]);
+  const IMMEDIATE_CFG_KEYS = new Set(["word_fx", "vrchat"]);   // 再起動不要で即反映
   let pendingCfgPatch = {};
   const flushCfg = debounce(async () => {
     const patch = pendingCfgPatch;
@@ -731,9 +737,11 @@
   function syncMovedToggles() {
     $("wordFx").checked = !!cfg.word_fx;
     $("translateOn").checked = !!cfg.translate;
+    $("vrchatOn").checked = !!cfg.vrchat;
   }
   $("wordFx").addEventListener("change", e => { cfg.word_fx = e.target.checked; saveCfg("word_fx"); });
   $("translateOn").addEventListener("change", e => { cfg.translate = e.target.checked; saveCfg("translate"); });
+  $("vrchatOn").addEventListener("change", e => { cfg.vrchat = e.target.checked; saveCfg("vrchat"); });
 
   $("device").addEventListener("change", e => {
     cfg.device = e.target.value === "default" ? null : +e.target.value; saveCfg("device");

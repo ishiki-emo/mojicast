@@ -125,6 +125,7 @@
     <button data-section="collab" onclick="switchSection('collab')"><span class="icon">🎧</span><strong data-i18n="st.nav_collab">コラボ音声</strong><small data-i18n="st.nav_collab_d">通話アプリ・表示名</small></button>
     <button data-section="voice" onclick="switchSection('voice')"><span class="icon">🎤</span><strong data-i18n="st.nav_voice">ボイスコマンド</strong><small data-i18n="st.nav_voice_d">声でレイアウト切替</small></button>
     <button data-section="obs" onclick="switchSection('obs')"><span class="icon">🎬</span><strong data-i18n="st.nav_obs">OBS接続</strong><small data-i18n="st.nav_obs_d">表示URL・ポート</small></button>
+    <button data-section="vrchat" onclick="switchSection('vrchat')"><span class="icon">🥽</span><strong data-i18n="st.nav_vrchat">VRChat連携</strong><small data-i18n="st.nav_vrchat_d">チャットボックス送信</small></button>
     <button data-section="other" onclick="switchSection('other')"><span class="icon">⚙</span><strong data-i18n="st.nav_other">その他</strong><small data-i18n="st.nav_other_d">ログ・表示処理</small></button>
     <button data-section="about" onclick="switchSection('about')"><span class="icon">ℹ️</span><strong data-i18n="st.nav_about">情報・連絡先</strong><small data-i18n="st.nav_about_d">バージョン・作者</small></button>
   </nav>
@@ -235,6 +236,21 @@
       </div>
     </section>
 
+    <section class="pane" id="pVrchat">
+      <h1 data-i18n="st.h1_vrchat">VRChat連携</h1><p class="lead" data-i18n="st.lead_vrchat">認識した字幕をVRChatのチャットボックスへ表示します（OSC送信）。</p>
+      <div class="grid">
+        <article class="card wide"><h2 data-i18n="st.card_vrchat">チャットボックス送信</h2><p data-i18n="st.card_vrchat_d">再起動なしですぐ反映されます。コックピットからもオン・オフできます。</p>
+          <label class="checkrow"><input id="vrchatOn" type="checkbox"><span><b data-i18n="st.chk_vrchat">VRChatへ送信する</b><small data-i18n="st.chk_vrchat_d">VRChat側でもOSCを有効にしてください（アクションメニュー → Options → OSC → Enabled）</small></span></label>
+          <div class="field"><label for="vrchatSource" data-i18n="st.f_vrcsource">送信内容</label><select id="vrchatSource"><option value="ja" data-i18n="st.opt_vrc_ja">文字起こし（認識した文章）</option><option value="tr" data-i18n="st.opt_vrc_tr">訳文（翻訳がONのとき）</option></select></div>
+          <div class="note" data-i18n="st.note_vrchat">チャットボックスは144文字まで。発話が続くときはVRChatのスパム対策に合わせ、約1.6秒間隔でまとめて送られます。コラボ中は自分の発話だけが送られます。</div>
+        </article>
+        <article class="card"><h2 data-i18n="st.card_vrcport">OSCポート</h2><p data-i18n="st.card_vrcport_d">通常は変更する必要はありません。</p>
+          <div class="field"><label for="vrchatPort" data-i18n="st.f_port">ポート番号</label><input id="vrchatPort" type="number" min="1024" max="65535"></div>
+          <div class="note" data-i18n="st.note_vrcport">VRChatのOSC受信ポート（既定9000）に合わせます。</div>
+        </article>
+      </div>
+    </section>
+
     <section class="pane" id="pOther">
       <h1 data-i18n="st.h1_other">その他</h1><p class="lead" data-i18n="st.lead_other">字幕処理とアプリ画面の設定です。</p>
       <div class="grid">
@@ -274,8 +290,8 @@
 <script>
   const $ = id => document.getElementById(id);
   const qs = new URLSearchParams(location.search);
-  const panes = { hearing:"pHearing", translation:"pTranslation", collab:"pCollab", voice:"pVoice", obs:"pObs", other:"pOther", about:"pAbout" };
-  const descsJa = { hearing:"マイク・認識・区切りを設定", translation:"翻訳先とモデルを設定", collab:"通話相手の音声を設定", voice:"声でレイアウトを切り替え", obs:"OBSとの接続を設定", other:"ログと画面表示を設定", about:"バージョンと連絡先" };
+  const panes = { hearing:"pHearing", translation:"pTranslation", collab:"pCollab", voice:"pVoice", obs:"pObs", vrchat:"pVrchat", other:"pOther", about:"pAbout" };
+  const descsJa = { hearing:"マイク・認識・区切りを設定", translation:"翻訳先とモデルを設定", collab:"通話相手の音声を設定", voice:"声でレイアウトを切り替え", obs:"OBSとの接続を設定", vrchat:"VRChatのチャットボックスへ送信", other:"ログと画面表示を設定", about:"バージョンと連絡先" };
   const T = (key, jaDefault) => window.MojicastI18n ? window.MojicastI18n.t(key, jaDefault) : jaDefault;
   let cfg = {}, running = false, savedTimer, nameTimer, vcTimer, curSection = "hearing";
 
@@ -391,6 +407,7 @@
     $("vcEnabled").checked = !!cfg.vc_enabled; $("vcWake").value = (cfg.vc_wake || []).join("、");
     loadVcCmds();   // カスタムコマンド（非同期・失敗しても他の設定表示は継続）
     $("obsUrl").value = location.origin + "/"; $("port").value = cfg.port || 8765;
+    $("vrchatOn").checked = !!cfg.vrchat; $("vrchatSource").value = cfg.vrchat_source || "ja"; $("vrchatPort").value = cfg.vrchat_port || 9000;
     $("punctuate").checked = cfg.punctuate !== false; $("saveLog").checked = cfg.save_log !== false; $("theme").value = cfg.theme || "light";
     $("uiLang").value = cfg.ui_lang || "ja";
     if (cfg.version) $("aboutVer").textContent = "Mojicast v" + cfg.version;
@@ -512,6 +529,9 @@
   for (const id of ["selfName","guestName"]) $(id).addEventListener("input", e => { clearTimeout(nameTimer); nameTimer=setTimeout(() => save({[e.target.id === "selfName" ? "self_name" : "guest_name"]:e.target.value}),400); });
   $("port").addEventListener("change", async e => { const v=Math.round(+e.target.value); if(v<1024||v>65535){e.target.value=cfg.port;return;} await save({port:v},false); toast(T("st.saved_port","✓ 保存しました。再起動後に反映されます")); });
   $("copyObs").addEventListener("click", async () => { try { await navigator.clipboard.writeText($("obsUrl").value); } catch(e) { $("obsUrl").select(); document.execCommand("copy"); } toast(T("st.copied_obs","✓ OBS用URLをコピーしました")); });
+  $("vrchatOn").addEventListener("change", e => save({vrchat:e.target.checked},false));
+  $("vrchatSource").addEventListener("change", e => save({vrchat_source:e.target.value},false));
+  $("vrchatPort").addEventListener("change", async e => { const v=Math.round(+e.target.value); if(v<1024||v>65535){e.target.value=cfg.vrchat_port||9000;return;} await save({vrchat_port:v},false); });
   $("punctuate").addEventListener("change", e => save({punctuate:e.target.checked},false));
   $("saveLog").addEventListener("change", e => save({save_log:e.target.checked},false));
   $("openLogs").addEventListener("click", async () => {
