@@ -94,6 +94,10 @@
   main { flex: 1; display: grid; grid-template-columns: 1fr 320px; gap: 12px; padding: 12px; min-height: 0; }
   .col { display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; }
   .col-right { overflow-y: auto; }
+  /* スタジオ/設定への入口は、右カラムが窓の高さを超えても
+     スクロールせずに届くよう最下部へ固定表示する */
+  .studio-nav { position: sticky; bottom: 0; margin-top: auto; z-index: 1;
+                background: var(--bg); padding-top: 8px; }
   #centerPanel { flex: 1; }
   /* 設定バー（マイク／入力レベル／⚙聞き取りの調整 を横並び） */
   .setrow { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
@@ -546,7 +550,7 @@
         <div class="hint" data-i18n="cp.obs_hint">推奨サイズ: 配信解像度と同じ（例 1920×1080）</div>
         <button class="feature-edit" onclick="openSettings('obs')" style="margin-top:10px" data-i18n="cp.obs_connect">接続設定</button>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="studio-nav" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         <button onclick="openStudio('pillar=captions')" style="text-align:left;color:var(--dim)" data-i18n="cp.studio">🎨 字幕スタジオ</button>
         <button onclick="openSettings('hearing')" style="text-align:left;color:var(--dim)" data-i18n="cp.app_settings">⚙ アプリ設定</button>
       </div>

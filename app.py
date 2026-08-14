@@ -175,7 +175,10 @@ def main():
         "Mojicast",
         (f"http://127.0.0.1:{port}/ui/cockpit?s={UI_SCALE}&v={UI_SESSION}"
          f"&theme={cfg.get('theme', 'light')}"),
-        width=int(1100 * UI_SCALE), height=int(720 * UI_SCALE),
+        # 高さは右カラム（トグル・単語セット・OBS・スタジオ入口）が
+        # スクロールなしで収まる目安。最小構成のFullHD（scale 0.8）でも
+        # 800*0.8=640px と画面高に収まる
+        width=int(1100 * UI_SCALE), height=int(800 * UI_SCALE),
         min_size=(int(900 * UI_SCALE), int(600 * UI_SCALE)),
         background_color="#0d1117" if cfg.get("theme") == "dark" else "#f7f9fc",
         js_api=api)
