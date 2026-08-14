@@ -453,7 +453,10 @@ def resolve_style(cfg):
     else:
         effects, hot_surfaces = [], []
     out = {"style": style, "box": box, "effects": effects,
-           "hotwords": hot_surfaces}
+           "hotwords": hot_surfaces,
+           # 英訳のみ表示（style.displayMode="en"）のフォールバック判定用。
+           # 翻訳OFFなら overlay 側が併記（日本語）表示に自動で戻る
+           "translate": bool(cfg.get("translate"))}
     if cfg.get("collab"):
         self_name = (cfg.get("self_name") or "自分").strip() or "自分"
         guest_name = (cfg.get("guest_name") or "ゲスト").strip() or "ゲスト"
