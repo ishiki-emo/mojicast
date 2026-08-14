@@ -441,6 +441,15 @@ class CaptionEngine:
             self._fid += 1
             return self._fid
 
+    def translating(self) -> bool:
+        """翻訳ワーカーが実際に有効か。
+
+        設定の translate=True でも、再起動待ち・翻訳モデルのロード失敗・
+        原文=翻訳先ではワーカーは動かない。翻訳のみ表示（displayMode="en"）の
+        併記フォールバック判定は cfg ではなくこちらを使う。
+        """
+        return bool(self._translate_on)
+
     # ---------------- 開始 / 停止 ----------------
 
     @property

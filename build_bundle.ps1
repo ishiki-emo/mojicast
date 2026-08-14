@@ -29,7 +29,7 @@ Write-Host "  asset : ui\"
 # --- ドキュメント / ヘルパー ---
 # CREDITS.md は第三者ライブラリ/モデルのライセンス表記（Apache/MIT/BSD の attribution 義務・
 # FuguMT の CC BY-SA など）を配布物側でも満たすために同梱する。
-foreach ($f in @("README_TESTER.txt", "マニュアル.html", "ブロック解除.bat", "CREDITS.md")) {
+foreach ($f in @("README_TESTER.txt", "マニュアル.html", "ブロック解除.bat", "CREDITS.md", "LICENSE")) {
     Copy-Item (Join-Path $root $f) $app -Force
     Write-Host "  doc   : $f"
 }

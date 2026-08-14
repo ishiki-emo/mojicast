@@ -21,9 +21,10 @@ from urllib.parse import urlparse, parse_qs
 
 from apppaths import BASE, DATA_BASE
 import platform_compat
+import vrcchat
 import wordstore
 
-APP_VERSION = "0.7.1"
+APP_VERSION = "0.8.0"
 
 # 更新チェック用のマニフェスト（GitHub raw）。リリース時に latest.json を更新する。
 # 中身: {"version": "0.5.1", "url": "<配布ページ>", "notes": "<一行紹介>"}
@@ -59,6 +60,10 @@ DEFAULT_CONFIG = {
     # ボイスコマンド（「〈ウェイクワード〉、レイアウトを〇〇に」で操作）
     "vc_enabled": False,
     "vc_wake": [],          # ウェイクワード（ゆれ表記を含む複数形。空=無効）
+    # VRChat連携: 確定字幕をOSCチャットボックスへ転送（エンジン再起動不要）
+    "vrchat": False,
+    "vrchat_source": "ja",  # 送信内容（ja=文字起こし / tr=訳文）
+    "vrchat_port": 9000,    # VRChatのOSC受信ポート（既定9000）
 }
 
 _clients = []
@@ -433,6 +438,20 @@ def _pick(items, key, wanted):
                 items[0] if items else {})
 
 
+def _translating(cfg):
+    """「実際に翻訳が動いているか」。エンジン稼働中はエンジンの実態を優先する。
+
+    設定は translate=True でも、停止→開始の再起動待ち・翻訳モデルのロード失敗・
+    原文=翻訳先ではエンジンは翻訳しない。cfg の値だけを信じると、翻訳のみ表示が
+    「…」のまま何も出なくなるため、稼働中は engine.translating() を返す。
+    """
+    with _engine_state_lock:
+        running = _engine_state.get("state") == "running"
+    if running and _engine is not None:
+        return _engine.translating()
+    return bool(cfg.get("translate"))
+
+
 def resolve_style(cfg):
     """現在のプリセット＋ボックス＋エフェクト＋ハイライト単語をまとめて返す
 
@@ -453,7 +472,10 @@ def resolve_style(cfg):
     else:
         effects, hot_surfaces = [], []
     out = {"style": style, "box": box, "effects": effects,
-           "hotwords": hot_surfaces}
+           "hotwords": hot_surfaces,
+           # 翻訳のみ表示（style.displayMode="en"）のフォールバック判定用。
+           # 翻訳が実際に動いていなければ overlay 側が併記（日本語）表示に戻る
+           "translate": _translating(cfg)}
     if cfg.get("collab"):
         self_name = (cfg.get("self_name") or "自分").strip() or "自分"
         guest_name = (cfg.get("guest_name") or "ゲスト").strip() or "ゲスト"
@@ -683,9 +705,20 @@ def _restart_engine_async():
 def _engine_on_final(text, fid, spk=""):
     if _try_voice_command(text, spk):
         # コマンド発話は字幕に出さず、発話中に見えていた薄文字だけ消す
-        broadcast({"type": "partial", "text": "", "speaker": spk})
+        _engine_on_partial("", spk)
         return
     broadcast({"type": "final", "text": text, "id": fid, "speaker": spk})
+    vrcchat.on_final(text, fid, spk)
+
+
+def _engine_on_partial(text, spk=""):
+    broadcast({"type": "partial", "text": text, "speaker": spk})
+    vrcchat.on_partial(text, spk)   # VRChatのタイピング中表示
+
+
+def _engine_on_translation(fid, en):
+    broadcast({"type": "translation", "id": fid, "text": en})
+    vrcchat.on_translation(fid, en)
 
 
 # ---------------- エンジン連携 ----------------
@@ -696,14 +729,12 @@ def get_engine():
         if _engine is None:
             from engine import CaptionEngine
             _engine = CaptionEngine(
-                on_partial=lambda t, spk="": broadcast(
-                    {"type": "partial", "text": t, "speaker": spk}),
+                on_partial=_engine_on_partial,
                 on_final=_engine_on_final,
                 on_level=lambda v, spk="": broadcast(
                     {"type": "level", "value": round(v, 3), "speaker": spk}),
                 on_state=_on_state,
-                on_translation=lambda fid, en: broadcast(
-                    {"type": "translation", "id": fid, "text": en}),
+                on_translation=_engine_on_translation,
             )
         return _engine
 
@@ -711,7 +742,12 @@ def get_engine():
 def _on_state(state, detail=""):
     with _engine_state_lock:
         _engine_state.update({"state": state, "detail": detail})
-    broadcast({"type": "state", "state": state, "detail": detail})
+    ev = {"type": "state", "state": state, "detail": detail}
+    # 起動完了時に「翻訳が実際に動いているか」を通知（翻訳のみ表示の判定を
+    # cfg 由来の値から実態へ更新する。再起動で翻訳ONが反映された瞬間に切り替わる）
+    if state == "running" and _engine is not None:
+        ev["translate"] = _engine.translating()
+    broadcast(ev)
 
 
 # ---------------- HTTPハンドラ ----------------
@@ -806,6 +842,10 @@ class Handler(BaseHTTPRequestHandler):
         query = {k: v[0] for k, v in parse_qs(url.query).items()}
         if path in ("/", "/overlay"):
             self._file(os.path.join(BASE, "overlay.html"))
+        elif path == "/CREDITS.md":
+            # サードパーティのクレジット（帰属表示にUIから到達できるように公開）
+            self._file(os.path.join(BASE, "CREDITS.md"),
+                       "text/plain; charset=utf-8")
         elif path == "/events":
             self._events()
         elif path.startswith("/ui/"):
@@ -966,12 +1006,22 @@ class Handler(BaseHTTPRequestHandler):
                                    if str(w).strip()]
             if "vc_enabled" in body:
                 body["vc_enabled"] = bool(body.get("vc_enabled"))
+            if "vrchat" in body:
+                body["vrchat"] = bool(body.get("vrchat"))
+            if "vrchat_source" in body and body["vrchat_source"] not in ("ja", "tr"):
+                body["vrchat_source"] = "ja"
+            if "vrchat_port" in body:
+                try:
+                    body["vrchat_port"] = min(65535, max(1024, int(body["vrchat_port"])))
+                except (TypeError, ValueError):
+                    body["vrchat_port"] = 9000
             # ThreadingHTTPServer上で複数の設定窓が同時保存しても、後着の
             # read-modify-write が先着変更を巻き戻さないよう一連を排他する。
             with _config_lock:
                 cfg = load_config()
                 cfg.update({k: v for k, v in body.items() if k in DEFAULT_CONFIG})
                 save_config(cfg)
+            vrcchat.configure(cfg)   # VRChat転送は再起動なしで即反映
             # プリセット・プロファイル変更は表示側へ即反映
             ev = {"type": "style"}
             ev.update(resolve_style(cfg))
@@ -1232,6 +1282,7 @@ class _QuietHTTPServer(ThreadingHTTPServer):
 def start(port: int = 8765):
     wordstore.ensure_data()   # data/ 作成・旧配置からの移行・既定データの複製
     _seed_style_defaults()    # 後から増えた既定スタイルを既存環境へ一度だけ追加
+    vrcchat.configure(load_config())   # VRChat転送の設定スナップショット
     server = _QuietHTTPServer(("127.0.0.1", port), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server

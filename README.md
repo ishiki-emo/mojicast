@@ -29,6 +29,8 @@ _A fully-offline real-time captioning app for live streaming: Japanese speech re
 | 「ありがとう」でキラキラを飛ばしたい | [エフェクトガイド](docs/EFFECT_GUIDE.md) |
 | 名前・ゲーム名が誤認識される | 認識させる単語 — [マニュアル 6章](docs/MANUAL.md#6-スタジオ字幕の見た目と言葉) |
 | 英語・中国語などの字幕も併記したい | [マニュアル 7章](docs/MANUAL.md#7-翻訳の併記) |
+| 日本語を出さず訳文だけの字幕にしたい | 表示モード「翻訳のみ」— [マニュアル 7章](docs/MANUAL.md#7-翻訳の併記) |
+| VRChatのチャットボックスに字幕を出したい | VRChat連携 — [マニュアル 4章](docs/MANUAL.md#4-アプリ設定声の聞き取り翻訳コラボ接続) |
 | 日本語以外の言語で配信したい | 多言語モデル — [マニュアル 4章](docs/MANUAL.md#4-アプリ設定声の聞き取り翻訳コラボ接続) |
 | 海外の配信を日本語字幕で見たい | 多言語認識＋翻訳先=日本語 — [マニュアル 7章](docs/MANUAL.md#7-翻訳の併記) |
 | コラボ相手の字幕も出したい | [マニュアル 8章](docs/MANUAL.md#8-1対1コラボ字幕) |
@@ -48,7 +50,8 @@ _A fully-offline real-time captioning app for live streaming: Japanese speech re
 - 🌐 **翻訳の併記** — 英訳（FuguMT）／中国語（簡体字・台湾繁体字・香港繁体字）・インドネシア語・
   日本語・韓国語〔試験的〕（M2M-100 ＋ OpenCC）を切替可能。認識言語×翻訳先から使用モデルを自動選択
   （中国語認識＋英訳=中→英 など）。配信用語の組み込み辞書つき（配信→stream / 直播 等）。
-  翻訳字幕は本文と独立して見た目を調整可能。※軽量ローカルモデルのため訳質は「それなり」
+  翻訳字幕は本文と独立して見た目を調整可能。**表示モード「翻訳のみ」**で日本語なしの
+  訳文だけの字幕にもできる。※軽量ローカルモデルのため訳質は「それなり」
   （固有名詞は英訳固定語で補正・[伸ばす余地](docs/TECH_GUIDE.md#精度と伸ばす余地)あり）
 - 🎧 **1対1コラボ字幕** — Discord 等の通話音声から**相手の字幕も表示**
   （WASAPI プロセスループバックで通話アプリの音だけを取り込み。相手側の準備は一切不要・仮想ケーブルも不要）
@@ -56,6 +59,8 @@ _A fully-offline real-time captioning app for live streaming: Japanese speech re
 - ✨ **エフェクト/スタイル** — 単語装飾・パーティクル・プリセット・レイアウト。
   `.mojipack` ファイルでスタイルの配布・取り込みも可能
 - 🎬 **OBS 連携** — ブラウザソースに URL を入れるだけ。貼る前に「配信プレビュー」で実寸確認
+- 🥽 **VRChat連携** — 字幕（文字起こし／訳文）をVRChatのチャットボックスへOSC送信。
+  VRChat内の会話支援やイベント登壇に。配信とは独立して使用可能
 - 🎛 **配信者向けUI** — コックピット（字幕の見た目・配信プレビュー）／スタジオ／アプリ設定の3画面。
   ライト基調（ヘッダーの 🌙/☀ でダーク切替可・字幕の色には非干渉）
 - 🔌 **完全オフライン** — 音声もテキストも外部送信なし
@@ -200,7 +205,7 @@ pyinstaller --noconfirm Mojicast.spec
   **相手の同意を得たうえで**ご利用ください。
 - **AIモデル・ライセンス**: 初回にダウンロードされるモデルは各配布元のもので、各ライセンスに従います（[CREDITS.md](CREDITS.md)）。
   特に翻訳モデル FuguMT は CC BY-SA 4.0 で、再配布時は各条件の遵守が必要です。
-- **商標・非提携**: OBS / Discord / ReazonSpeech 等の名称は各権利者に帰属し、本プロジェクトとは提携関係にありません。
+- **商標・非提携**: OBS / Discord / ReazonSpeech / VRChat 等の名称は各権利者に帰属し、本プロジェクトとは提携関係にありません。
 - **ベータ版**: 開発中のため、予告なく仕様変更や不具合が生じる可能性があります。
 
 <details>
@@ -210,7 +215,7 @@ pyinstaller --noconfirm Mojicast.spec
 - **On-stream display**: Speech recognition, translation, and word masking are **not perfect** — misrecognition, mistranslation, and missed masking can occur. Please double-check important moments yourself so nothing inappropriate is shown.
 - **Your collab partner's voice**: 1-on-1 collab **captions and logs your partner's voice**. As this involves recording and privacy, please use it **only with your partner's consent**.
 - **AI models & licenses**: Models downloaded on first run come from their original distributors and follow their respective licenses (see [CREDITS.md](CREDITS.md)). In particular, the FuguMT translation model is CC BY-SA 4.0; redistribution must comply with its terms.
-- **Trademarks & non-affiliation**: OBS, Discord, ReazonSpeech and other names belong to their respective owners; this project is not affiliated with them.
+- **Trademarks & non-affiliation**: OBS, Discord, ReazonSpeech, VRChat and other names belong to their respective owners; this project is not affiliated with them.
 - **Beta**: As this is under active development, specifications may change and bugs may occur without notice.
 
 </details>
@@ -222,7 +227,7 @@ pyinstaller --noconfirm Mojicast.spec
 - **直播中的显示**: 语音识别、翻译、屏蔽词（打码）**并不完美**，可能出现误识别、误翻译、漏打码。请在重要场合自行确认，避免显示不当内容。
 - **连麦对方的声音**: 1对1连麦会**将对方的声音转为字幕并记录日志**。这涉及录音与隐私，请**在取得对方同意后**使用。
 - **AI模型与许可**: 首次运行时下载的模型来自各自的发布方，遵循各自的许可（见 [CREDITS.md](CREDITS.md)）。其中翻译模型 FuguMT 为 CC BY-SA 4.0，再分发时需遵守其条款。
-- **商标与非关联**: OBS / Discord / ReazonSpeech 等名称归各自权利人所有，本项目与其无关联关系。
+- **商标与非关联**: OBS / Discord / ReazonSpeech / VRChat 等名称归各自权利人所有，本项目与其无关联关系。
 - **测试版**: 本应用仍在开发中，可能在未事先通知的情况下更改规格或出现缺陷。
 
 </details>

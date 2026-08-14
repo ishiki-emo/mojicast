@@ -39,7 +39,8 @@ done
 # --- ライセンス表記（Apache/MIT/BSD の attribution・FuguMT の CC BY-SA 等）は
 #     配布物側でも満たす必要があるため .app 内にも持たせる ---
 cp CREDITS.md "$RES/CREDITS.md"
-echo "  doc   : CREDITS.md (app内)"
+cp LICENSE "$RES/LICENSE"
+echo "  doc   : CREDITS.md / LICENSE (app内)"
 
 # --- アセット追加でバンドルの署名が崩れるため、ad-hoc で締め直す
 #     （未署名だと Apple Silicon では起動すらできない） ---
@@ -52,7 +53,7 @@ rm -rf "$STAGE"
 mkdir -p "$STAGE"
 cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
-for f in "はじめにお読みください（Mac版）.html" "マニュアル.html" CREDITS.md; do
+for f in "はじめにお読みください（Mac版）.html" "マニュアル.html" CREDITS.md LICENSE; do
     cp "$f" "$STAGE/"
     echo "  doc   : $f"
 done

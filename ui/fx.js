@@ -228,14 +228,25 @@
     return [...map.entries()].sort((a, b) => b[0].length - a[0].length);
   };
 
+  // エフェクト単語のマッチ判定。ASCII英数の語は前後が英数字だと不採用にして
+  // 語中の誤爆を防ぐ（英訳字幕で "cat" が "category" に効かない）。日本語は従来どおり部分一致
+  const ALNUM = /[A-Za-z0-9]/;
+  function matchAt(text, i, table) {
+    for (const [w, fx] of table || []) {
+      if (!w || !text.startsWith(w, i)) continue;
+      if (ALNUM.test(w[0]) && i > 0 && ALNUM.test(text[i - 1])) continue;
+      if (ALNUM.test(w[w.length - 1]) && ALNUM.test(text[i + w.length] || "")) continue;
+      return [w, fx];
+    }
+    return null;
+  }
+
   FX.renderWords = function (el, text, table, style) {
     el.textContent = "";
     let i = 0;
     text = text || "";
     while (i < text.length) {
-      let hit = null;
-      for (const [w, fx] of table)
-        if (w && text.startsWith(w, i)) { hit = [w, fx]; break; }
+      const hit = matchAt(text, i, table);
       if (hit) {
         const [w, fx] = hit;
         const span = document.createElement("span");
@@ -279,8 +290,7 @@
         i += w.length;
       } else {
         let j = i + 1;
-        outer: for (; j < text.length; j++)
-          for (const [w] of table) if (w && text.startsWith(w, j)) break outer;
+        for (; j < text.length; j++) if (matchAt(text, j, table)) break;
         el.appendChild(document.createTextNode(text.slice(i, j)));
         i = j;
       }
@@ -587,10 +597,8 @@
     const flush = () => { if (buf) { out.push(...segmentWords(buf)); buf = ""; } };
     let i = 0;
     while (i < text.length) {
-      let hit = null;
-      for (const [w] of table || [])
-        if (w && text.startsWith(w, i)) { hit = w; break; }
-      if (hit) { flush(); out.push(hit); i += hit.length; }
+      const m = matchAt(text, i, table);
+      if (m) { flush(); out.push(m[0]); i += m[0].length; }
       else { buf += text[i]; i++; }
     }
     flush();

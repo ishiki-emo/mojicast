@@ -69,7 +69,6 @@ binaries = [x for x in binaries if not x[0].lower().endswith((".lib", ".pdb", ".
 
 # 動的 import で拾い漏れやすいもの
 hiddenimports += [
-    "bottle", "proxy_tools",     # pywebview の内部依存
     "onnxruntime",               # 句読点（punct.py）が使用・標準フックでDLL収集
     "sherpa_onnx",
 ]
@@ -91,6 +90,7 @@ a = Analysis(
     # torch/transformers は実行時不要（ONNX/CT2移行済み。混入したら失敗させる）
     excludes=["tkinter", "matplotlib", "PyQt5", "PyQt6", "PySide2", "PySide6",
               "pytest", "IPython", "notebook",
+              "PIL",   # このspec冒頭のアイコン生成でのみ使用（実行時は不要）
               "torch", "transformers", "tokenizers", "safetensors",
               "fugashi", "unidic_lite", "MeCab",
               # reazonspeech(k2)排除に伴い不要になった科学計算系の玉突き依存
@@ -99,6 +99,11 @@ a = Analysis(
               "threadpoolctl", "lazy_loader", "msgpack"],
     noarchive=False,
 )
+# ctranslate2 の wheel が同梱してくる cuDNN は CPU 専用ビルドでは未使用。
+# プロプライエタリで再配布条件も伴うため確実に落とす（ライセンス総点検 2026-08-14）。
+# collect_all の datas 側や Analysis の依存スキャンでも紛れ込むため、Analysis 後に除く
+a.binaries = [x for x in a.binaries if "cudnn" not in x[0].lower()]
+a.datas = [x for x in a.datas if "cudnn" not in x[0].lower()]
 pyz = PYZ(a.pure)
 
 exe = EXE(

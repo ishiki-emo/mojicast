@@ -35,31 +35,57 @@
 > [FunASR Model Open Source License](https://github.com/modelscope/FunASR/blob/main/MODEL_LICENSE)
 > に従います（出典・作者情報の帰属表示とモデル名の保持が条件）。
 
+> **変換済みモデルの実際の取得元**: 句読点BERTは
+> [ishiki-emo/mojicast-punct-onnx](https://huggingface.co/ishiki-emo/mojicast-punct-onnx)、
+> FuguMTは [ishiki-emo/mojicast-fugumt-ja-en-ct2](https://huggingface.co/ishiki-emo/mojicast-fugumt-ja-en-ct2)、
+> M2M-100は [ishiki-emo/mojicast-m2m100-ct2](https://huggingface.co/ishiki-emo/mojicast-m2m100-ct2)
+> からダウンロードされます。各リポジトリのREADMEに原作者クレジット・元モデルへのリンク・
+> 継承ライセンスを掲載しています。
+
+> **Silero VAD について**: `silero_vad.onnx`（MIT・[snakers4/silero-vad](https://github.com/snakers4/silero-vad)）
+> のみ、DL方式ではなく本体・配布物に同梱しています。
+
 ---
 
 ## ライブラリ
 
-すべて寛容型ライセンス（Apache-2.0 / BSD / MIT）です。
+アプリが直接利用する主要ライブラリです（いずれも寛容型ライセンス）。
 
 | ライブラリ | 役割 | ライセンス |
 |---|---|---|
 | ONNX Runtime | 句読点BERT の実行 | MIT |
-| CTranslate2 | FuguMT 翻訳の実行 | MIT |
+| CTranslate2 | FuguMT / M2M-100 翻訳の実行 | MIT |
 | SentencePiece | 翻訳トークナイザ | Apache-2.0 |
 | OpenCC | 中国語の台湾正体字・香港繁体字への地域表記変換 | Apache-2.0 |
 | huggingface-hub | モデル取得 | Apache-2.0 |
-| sherpa-onnx (+core) | k2 ASR / VAD 実行 | Apache-2.0 |
-| ReazonSpeech (k2-asr) | ASR ラッパ | Apache-2.0 |
+| sherpa-onnx (+core) | k2 / SenseVoice ASR・VAD 実行 | Apache-2.0 |
 | NumPy | 数値計算 | BSD-3-Clause |
 | pywebview | デスクトップGUI（WebView） | BSD-3-Clause |
-| pythonnet / clr_loader | WebView2 バックエンド | MIT |
+| pythonnet / clr_loader | WebView2 バックエンド（Windows版） | MIT |
+| PyObjC (AppKit / WebKit ほか) | Cocoa バックエンド（macOS版） | MIT |
 | sounddevice | マイク入力 | MIT |
-| bottle / proxy_tools | pywebview 依存 | MIT |
+
+### 配布版に含まれるその他のコンポーネント
+
+上記の依存として、配布パッケージには次のコンポーネントも含まれます。
+
+| コンポーネント | 由来 | ライセンス |
+|---|---|---|
+| CPython 3.11 本体 | 実行環境 | PSF License |
+| PyInstaller ブートローダ | 実行ファイル化 | GPL-2.0（例外条項により本アプリのライセンスへは非伝播） |
+| PortAudio | sounddevice の音声入出力 | MIT |
+| OpenBLAS | NumPy の線形代数 | BSD-3-Clause |
+| Intel OpenMP (libiomp5md) | CTranslate2 の並列実行 | Intel Simplified Software License |
+| Microsoft WebView2 SDK / .NET ランタイム | GUI（Windows版） | Microsoft ライセンス / MIT |
+| certifi | HTTPS 証明書 | MPL-2.0 |
+| Pillow / PyYAML / protobuf / hf_xet / tqdm / click ほか | 依存ライブラリ | MIT / BSD / Apache-2.0 等 |
 
 モデル変換時（開発作業のみ・配布物には含まれない）には PyTorch (BSD-3-Clause) と
 Transformers (Apache-2.0) を使用しています。
 
-各ライブラリの完全なライセンス文は、それぞれの配布パッケージに含まれます。
+主要パッケージのライセンス文は配布物の `_internal` フォルダ内（各パッケージの
+`*.dist-info/licenses` 等）に含まれます。各ライブラリのライセンス全文は、
+それぞれの公式配布元でも参照できます。
 
 ---
 
