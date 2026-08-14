@@ -1,4 +1,4 @@
-# Mojicast 配布パッケージ組み立てスクリプト
+﻿# Mojicast 配布パッケージ組み立てスクリプト
 # PyInstaller ビルド後に実行し、モデル・アセット・設定を dist\Mojicast\ 直下へ配置する。
 #
 #   .\reazonspeech-env\Scripts\pyinstaller.exe --noconfirm Mojicast.spec
