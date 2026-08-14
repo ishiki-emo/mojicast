@@ -32,7 +32,7 @@
     color: "#ffffff", outlineColor: "#000000", outlineWidth: 2,
     glow: "", glowSize: 0, shadow: true, hotColor: "#ffd400",
     animIn: "slide", partialOpacity: 0.55, letterSpacing: 0,
-    enScale: 0.6, enOpacity: 0.82
+    enScale: 0.6, enOpacity: 0.82, displayMode: "both"
   };
   const DEFAULT_BOX = {   // 既定はフリー（従来と同じ見た目）
     x: 0, y: 0, w: 100, h: 100, bg: "", bgOpacity: 0, radius: 0,
@@ -43,8 +43,18 @@
   let effects = [];        // エフェクト・ハイライト単語は話者間で共有
   let hotwords = [];
   let speakerNames = [];   // コラボ中の話者名（空=ソロ）
+  let translateOn = false; // 翻訳ON/OFF（styleイベントに同梱）。英訳のみ表示の成立条件
 
   const isLyric = (box) => (box.mode || "flow") === "lyric";
+  // 英訳のみ表示（displayMode="en"）。翻訳OFF時は偽＝併記（日本語）へ自動フォールバック
+  const enOnly = (p) => translateOn && p.style.displayMode === "en";
+
+  // 英訳待ちの確定行: fid → ペイン。translation イベントに speaker が無いため、
+  // final 受信時にどのペインへ出すかをここで覚えておく。fid は単調増加・
+  // Map は挿入順なので、上限超過は先頭（最古）から捨てる
+  const pendingEn = new Map();
+  const PENDING_MAX = 64;
+  const PENDING_HIDE_MS = 12000;  // 翻訳が来ない行の「…」を消すまでの時間
 
   // ---------------- ペイン（話者1人ぶんの描画一式） ----------------
 
@@ -105,6 +115,7 @@
   function updatePanes(msg) {
     if (msg.effects) effects = msg.effects;
     if (msg.hotwords) hotwords = msg.hotwords;
+    if ("translate" in msg) translateOn = !!msg.translate;
 
     const def = panes.get("");
     if (msg.style) def.style = Object.assign({}, DEFAULT_STYLE, msg.style);
@@ -114,6 +125,7 @@
     // いなくなった話者のペインを撤去
     for (const name of [...panes.keys()])
       if (name !== "" && !(spk && spk[name])) {
+        clearTimeout(panes.get(name)._enWait);
         panes.get(name).boxEl.remove();
         panes.delete(name);
       }
@@ -135,15 +147,8 @@
 
   // ---------------- 字幕の描画 ----------------
 
-  function addFinal(p, text, id) {
-    if (!text) { p.partialEl.textContent = ""; return; }
-
-    if (isLyric(p.box)) {   // フレーズを画面に散らすタイポグラフィ演出
-      p.partialEl.textContent = "";
-      FX.lyricSpawn(p.boxEl, text, { style: p.style, table: p.table, box: p.box });
-      return;
-    }
-
+  // 1行を確定表示するフルパイプライン（エフェクト・入場・自動消去込み）
+  function appendLine(p, text, id) {
     const div = document.createElement("div");
     div.className = "line";
     if (id != null) div.dataset.fid = id;   // 英訳を後から結び付けるための目印
@@ -164,7 +169,51 @@
                (p.box.smoothMs || 250) + 80);
   }
 
+  function addFinal(p, text, id) {
+    if (enOnly(p)) {
+      // 英訳のみ: 日本語は出さず、翻訳待ちの目印「…」だけ立てる。
+      // 翻訳が来ない行（失敗・混雑時の間引き）は表示しない仕様のため、
+      // 一定時間で「…」だけ静かに消す（Mapは残す＝遅れて来た翻訳は表示してよい）
+      p.partialEl.textContent = text ? "…" : "";
+      clearTimeout(p._enWait);
+      if (text && id != null) {
+        pendingEn.set(id, p);
+        while (pendingEn.size > PENDING_MAX)
+          pendingEn.delete(pendingEn.keys().next().value);
+        p._enWait = setTimeout(() => { p.partialEl.textContent = ""; },
+                               PENDING_HIDE_MS);
+      }
+      return;
+    }
+    if (!text) { p.partialEl.textContent = ""; return; }
+
+    if (isLyric(p.box)) {   // フレーズを画面に散らすタイポグラフィ演出
+      p.partialEl.textContent = "";
+      FX.lyricSpawn(p.boxEl, text, { style: p.style, table: p.table, box: p.box });
+      return;
+    }
+
+    appendLine(p, text, id);
+  }
+
+  // 英訳のみモード: 翻訳到着時に英訳を本文としてフル装飾で表示する
+  function addEnLine(p, en, id) {
+    clearTimeout(p._enWait);
+    if (isLyric(p.box)) {
+      p.partialEl.textContent = "";
+      FX.lyricSpawn(p.boxEl, en, { style: p.style, table: p.table, box: p.box });
+      return;
+    }
+    appendLine(p, en, id);
+  }
+
   function setPartial(p, text) {
+    if (enOnly(p)) {
+      // 英訳のみ: 日本語の途中経過は出さず「…」で発話中だけ伝える
+      p.partialEl.textContent = text ? "…" : "";
+      FX.pruneClipped(p.clipEl, p.finalsEl, p.box);
+      return;
+    }
     // 薄文字（暫定表示）は既定でエフェクトなし＝プレーン。
     // style.partialFx が真のときだけ確定文字と同じ装飾を乗せる。
     if (p.style.partialFx)
@@ -198,6 +247,13 @@
   // fid は話者をまたいで一意なので全ペインから探す。
   function addTranslation(id, en) {
     if (!en || id == null) return;
+    // 英訳のみモードの行はここで初めて描画する（日本語行のDOMは存在しない）
+    const wait = pendingEn.get(id);
+    if (wait) {
+      pendingEn.delete(id);
+      // ペイン撤去済み・モード切替直後は下の併記経路へ（行が無ければ無視される）
+      if (wait.boxEl.isConnected && enOnly(wait)) { addEnLine(wait, en, id); return; }
+    }
     for (const p of panes.values()) {
       const line = p.finalsEl.querySelector('.line[data-fid="' + id + '"]');
       if (!line) continue;
@@ -223,7 +279,9 @@
       case "translation": addTranslation(msg.id, msg.text); break;
       case "partial": setPartial(paneFor(msg.speaker), msg.text); break;
       case "clear":
+        pendingEn.clear();   // 消去後に届く stale な翻訳を英訳のみ経路に乗せない
         for (const p of panes.values()) {
+          clearTimeout(p._enWait);
           p.finalsEl.textContent = ""; p.partialEl.textContent = "";
           FX.lyricClear(p.boxEl);
         }
