@@ -278,6 +278,10 @@
       case "final":   addFinal(paneFor(msg.speaker), msg.text, msg.id); break;
       case "translation": addTranslation(msg.id, msg.text); break;
       case "partial": setPartial(paneFor(msg.speaker), msg.text); break;
+      case "state":
+        // 起動完了時に翻訳の実態が届く（翻訳のみ表示⇄併記の切替に即反映）
+        if ("translate" in msg) translateOn = !!msg.translate;
+        break;
       case "clear":
         pendingEn.clear();   // 消去後に届く stale な翻訳を英訳のみ経路に乗せない
         for (const p of panes.values()) {

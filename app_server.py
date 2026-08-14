@@ -438,6 +438,20 @@ def _pick(items, key, wanted):
                 items[0] if items else {})
 
 
+def _translating(cfg):
+    """「実際に翻訳が動いているか」。エンジン稼働中はエンジンの実態を優先する。
+
+    設定は translate=True でも、停止→開始の再起動待ち・翻訳モデルのロード失敗・
+    原文=翻訳先ではエンジンは翻訳しない。cfg の値だけを信じると、翻訳のみ表示が
+    「…」のまま何も出なくなるため、稼働中は engine.translating() を返す。
+    """
+    with _engine_state_lock:
+        running = _engine_state.get("state") == "running"
+    if running and _engine is not None:
+        return _engine.translating()
+    return bool(cfg.get("translate"))
+
+
 def resolve_style(cfg):
     """現在のプリセット＋ボックス＋エフェクト＋ハイライト単語をまとめて返す
 
@@ -459,9 +473,9 @@ def resolve_style(cfg):
         effects, hot_surfaces = [], []
     out = {"style": style, "box": box, "effects": effects,
            "hotwords": hot_surfaces,
-           # 英訳のみ表示（style.displayMode="en"）のフォールバック判定用。
-           # 翻訳OFFなら overlay 側が併記（日本語）表示に自動で戻る
-           "translate": bool(cfg.get("translate"))}
+           # 翻訳のみ表示（style.displayMode="en"）のフォールバック判定用。
+           # 翻訳が実際に動いていなければ overlay 側が併記（日本語）表示に戻る
+           "translate": _translating(cfg)}
     if cfg.get("collab"):
         self_name = (cfg.get("self_name") or "自分").strip() or "自分"
         guest_name = (cfg.get("guest_name") or "ゲスト").strip() or "ゲスト"
@@ -728,7 +742,12 @@ def get_engine():
 def _on_state(state, detail=""):
     with _engine_state_lock:
         _engine_state.update({"state": state, "detail": detail})
-    broadcast({"type": "state", "state": state, "detail": detail})
+    ev = {"type": "state", "state": state, "detail": detail}
+    # 起動完了時に「翻訳が実際に動いているか」を通知（翻訳のみ表示の判定を
+    # cfg 由来の値から実態へ更新する。再起動で翻訳ONが反映された瞬間に切り替わる）
+    if state == "running" and _engine is not None:
+        ev["translate"] = _engine.translating()
+    broadcast(ev)
 
 
 # ---------------- HTTPハンドラ ----------------
