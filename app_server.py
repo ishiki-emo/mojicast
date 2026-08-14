@@ -823,6 +823,10 @@ class Handler(BaseHTTPRequestHandler):
         query = {k: v[0] for k, v in parse_qs(url.query).items()}
         if path in ("/", "/overlay"):
             self._file(os.path.join(BASE, "overlay.html"))
+        elif path == "/CREDITS.md":
+            # サードパーティのクレジット（帰属表示にUIから到達できるように公開）
+            self._file(os.path.join(BASE, "CREDITS.md"),
+                       "text/plain; charset=utf-8")
         elif path == "/events":
             self._events()
         elif path.startswith("/ui/"):
