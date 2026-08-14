@@ -66,9 +66,6 @@ for pkg in _HEAVY_PKGS:
 # ビルド用の残骸（インポートライブラリ等・実行時不要）を落とす
 datas = [x for x in datas if not x[0].lower().endswith((".lib", ".pdb", ".exp"))]
 binaries = [x for x in binaries if not x[0].lower().endswith((".lib", ".pdb", ".exp"))]
-# ctranslate2 の wheel が同梱してくる cuDNN は CPU 専用ビルドでは未使用。
-# プロプライエタリで再配布条件も伴うため確実に落とす（ライセンス総点検 2026-08-14）
-binaries = [x for x in binaries if "cudnn" not in x[0].lower()]
 
 # 動的 import で拾い漏れやすいもの
 hiddenimports += [
@@ -102,6 +99,11 @@ a = Analysis(
               "threadpoolctl", "lazy_loader", "msgpack"],
     noarchive=False,
 )
+# ctranslate2 の wheel が同梱してくる cuDNN は CPU 専用ビルドでは未使用。
+# プロプライエタリで再配布条件も伴うため確実に落とす（ライセンス総点検 2026-08-14）。
+# collect_all の datas 側や Analysis の依存スキャンでも紛れ込むため、Analysis 後に除く
+a.binaries = [x for x in a.binaries if "cudnn" not in x[0].lower()]
+a.datas = [x for x in a.datas if "cudnn" not in x[0].lower()]
 pyz = PYZ(a.pure)
 
 exe = EXE(
