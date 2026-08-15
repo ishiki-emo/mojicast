@@ -54,6 +54,9 @@ DEFAULT_CONFIG = {
     # GUI窓の拡大率。"auto"=起動モニタから自動判定 / 0.75〜1.5=利用者の明示指定。
     # overlayは対象外（OBSに映る字幕の大きさは変わらない）
     "ui_scale": "auto",
+    # 窓ごとの大きさ・位置（閉じた時点の値を次回起動で復元）。
+    # {"cockpit": {"x","y","w","h","scale"}, ...}。書き換えは save_window_geometry 経由
+    "window_geometry": {},
     # 1対1コラボ（案A改・出力キャプチャ）。collab=Trueで②の入力を相手話者として取り込む
     # collab_source: "process"=アプリ音声を直接取り込み（方式2・推奨）/ "device"=仮想ケーブル
     "collab": False, "collab_source": "process",
@@ -190,6 +193,46 @@ def normalize_ui_scale(value):
     if scale != scale:   # NaN。比較が常に偽になりクランプをすり抜ける
         return "auto"
     return round(min(UI_SCALE_MAX, max(UI_SCALE_MIN, scale)), 2)
+
+
+def normalize_window_geometry(value):
+    """窓の記憶値を {キー: {"x","y","w","h","scale"}} の形へ正規化する。
+
+    壊れている項目だけを落とし、他の窓の記憶は残す。w/h が無い要素は
+    復元に使えないため捨てる（位置だけ復元しても大きさが決まらない）。
+    """
+    if not isinstance(value, dict):
+        return {}
+    cleaned = {}
+    for key, geom in value.items():
+        if not isinstance(key, str) or not isinstance(geom, dict):
+            continue
+        entry = {}
+        for field in ("x", "y", "w", "h", "scale"):
+            raw = geom.get(field)
+            # bool は int の派生。True が座標1として通らないよう先に弾く
+            if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+                continue
+            if raw != raw:   # NaN
+                continue
+            entry[field] = round(float(raw), 2) if field == "scale" else int(raw)
+        if entry.get("w") and entry.get("h"):
+            cleaned[key[:32]] = entry
+    return cleaned
+
+
+def save_window_geometry(key, geom):
+    """窓の大きさ・位置を次回起動用に記録する。
+
+    複数の窓がほぼ同時に閉じても、後着の read-modify-write が先着の記録を
+    巻き戻さないよう一連を排他する。
+    """
+    with _config_lock:
+        cfg = load_config()
+        store = dict(cfg.get("window_geometry") or {})   # DEFAULT_CONFIG を汚さない
+        store[str(key)] = geom
+        cfg["window_geometry"] = normalize_window_geometry(store)
+        save_config(cfg)
 
 
 def resolve_ui_scale(cfg=None):
@@ -1032,6 +1075,9 @@ class Handler(BaseHTTPRequestHandler):
                 body["ui_lang"] = "ja"    # 未知値は日本語へ（既定）
             if "ui_scale" in body:
                 body["ui_scale"] = normalize_ui_scale(body.get("ui_scale"))
+            if "window_geometry" in body:
+                body["window_geometry"] = normalize_window_geometry(
+                    body.get("window_geometry"))
             if ("collab_source" in body
                     and body.get("collab_source") not in ("process", "device")):
                 body["collab_source"] = "process"   # 未知値は推奨方式へ

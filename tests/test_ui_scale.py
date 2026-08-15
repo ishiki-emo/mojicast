@@ -141,5 +141,94 @@ class ConfigApiUiScaleTests(unittest.TestCase):
         self.assertEqual(res["config"]["ui_scale"], "auto")
 
 
+class NormalizeWindowGeometryTests(unittest.TestCase):
+    """窓の記憶値の正規化。壊れた記録で起動を止めないこと"""
+
+    def test_valid_entry_kept(self):
+        got = app_server.normalize_window_geometry(
+            {"cockpit": {"x": 10, "y": 20, "w": 880, "h": 640, "scale": 0.8}})
+        self.assertEqual(got, {"cockpit": {"x": 10, "y": 20, "w": 880,
+                                           "h": 640, "scale": 0.8}})
+
+    def test_entry_without_size_dropped(self):
+        # 位置だけでは復元できない（大きさが決まらない）
+        got = app_server.normalize_window_geometry({"cockpit": {"x": 10, "y": 20}})
+        self.assertEqual(got, {})
+
+    def test_broken_entry_does_not_drop_others(self):
+        got = app_server.normalize_window_geometry(
+            {"cockpit": {"w": 880, "h": 640}, "studio": "こわれている"})
+        self.assertIn("cockpit", got)
+        self.assertNotIn("studio", got)
+
+    def test_bool_is_not_a_coordinate(self):
+        # bool は int の派生。True が座標1として通らないこと
+        got = app_server.normalize_window_geometry(
+            {"cockpit": {"x": True, "w": 880, "h": 640}})
+        self.assertNotIn("x", got["cockpit"])
+
+    def test_non_dict_input(self):
+        self.assertEqual(app_server.normalize_window_geometry(None), {})
+        self.assertEqual(app_server.normalize_window_geometry([1, 2]), {})
+
+
+class RememberedGeometryTests(unittest.TestCase):
+    """前回の大きさ・位置の復元（app.py）"""
+
+    SCREENS = [(0, 0, 1920, 1080)]
+    WORK = (1920, 1032)
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            import app
+        except ImportError as e:      # pywebview未導入の環境ではGUI側の検証は行わない
+            raise unittest.SkipTest(f"app.py を読み込めません: {e}")
+        cls.app = app
+
+    def remember(self, geometry, scale=0.8):
+        return self.app._remembered(
+            "cockpit", 1100, 800, scale, self.WORK,
+            {"window_geometry": geometry}, self.SCREENS)
+
+    def test_no_memory_uses_default_size_and_centering(self):
+        width, height, x, y = self.remember({})
+        self.assertEqual((width, height), (880, 640))
+        self.assertIsNone(x)   # None は pywebview 側の中央配置
+        self.assertIsNone(y)
+
+    def test_saved_size_and_position_restored(self):
+        width, height, x, y = self.remember(
+            {"cockpit": {"x": 40, "y": 60, "w": 760, "h": 540, "scale": 0.8}})
+        self.assertEqual((width, height, x, y), (760, 540, 40, 60))
+
+    def test_size_follows_scale_change(self):
+        # 0.8で760x540まで縮めた窓を、1.25へ変えて起動した場合
+        width, height, _, _ = self.remember(
+            {"cockpit": {"x": 40, "y": 60, "w": 760, "h": 540, "scale": 0.8}},
+            scale=1.25)
+        self.assertEqual((width, height), (1187, 843))
+
+    def test_offscreen_position_is_discarded(self):
+        # モニタを外した後などに、掴めない位置へ復元しないこと
+        width, height, x, y = self.remember(
+            {"cockpit": {"x": -3000, "y": 500, "w": 760, "h": 540, "scale": 0.8}})
+        self.assertEqual((width, height), (760, 540))   # 大きさは活かす
+        self.assertIsNone(x)
+        self.assertIsNone(y)
+
+    def test_size_never_below_minimum(self):
+        # 記憶が壊れて極小でも、最小サイズ未満の窓は作らない
+        width, height, _, _ = self.remember(
+            {"cockpit": {"x": 10, "y": 10, "w": 50, "h": 40, "scale": 0.8}})
+        self.assertEqual((width, height), self.app._fit(900, 600, 0.8, self.WORK))
+
+    def test_oversized_memory_clamped_to_largest_screen(self):
+        width, height, _, _ = self.remember(
+            {"cockpit": {"x": 0, "y": 0, "w": 9000, "h": 9000, "scale": 0.8}})
+        self.assertLessEqual(width, 1920)
+        self.assertLessEqual(height, 1080)
+
+
 if __name__ == "__main__":
     unittest.main()
