@@ -4,6 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>リリック演出ラボ</title>
+  <script>
+    // GUI窓の拡大率（app.pyが ?s= で渡す。他のGUI窓と同じ流儀）
+    (function () {
+      const s = parseFloat(new URLSearchParams(location.search).get("s"));
+      if (s > 0 && s !== 1) document.documentElement.style.zoom = s;
+    })();
+  </script>
   <style>
     :root {
       color-scheme: dark;

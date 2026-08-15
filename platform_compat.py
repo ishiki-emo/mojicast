@@ -24,11 +24,14 @@ def collab_supported() -> bool:
 
 
 def ui_scale() -> float:
-    """起動モニタの論理px幅からGUI窓の拡大率を決める（overlayには効かせない）。
+    """起動モニタの論理px幅からGUI窓の拡大率を自動で決める（overlayには効かせない）。
 
     論理pxの相場がOSで違うため分母は別々:
     - Windows: QHD(2560)以上=等倍、FullHDで約0.8、下限0.75
     - macOS: Retina論理幅は1280〜1728程度が相場なので1600を基準に緩く縮小
+
+    ここが返すのは「自動」時の値のみ。利用者が config の ui_scale で明示した
+    場合は app.py 側でこの値より優先される（等倍超の拡大も可能）。
     """
     try:
         if IS_WIN:
@@ -42,6 +45,37 @@ def ui_scale() -> float:
     except Exception:
         pass
     return 1.0
+
+
+def screen_work_area() -> tuple:
+    """起動モニタの作業領域（タスクバー/Dockを除いた論理px）を (幅, 高さ) で返す。
+
+    拡大率を上げたとき、窓や最小サイズが画面からはみ出して操作できなくなるのを
+    防ぐためのクランプに使う。取得できないOS・環境では (0, 0) を返し、
+    呼び元はクランプせずそのまま進む。
+    """
+    try:
+        if IS_WIN:
+            import ctypes
+            from ctypes import wintypes
+
+            class RECT(ctypes.Structure):
+                _fields_ = [("left", wintypes.LONG), ("top", wintypes.LONG),
+                            ("right", wintypes.LONG), ("bottom", wintypes.LONG)]
+
+            rect = RECT()
+            # SPI_GETWORKAREA=0x0030。プライマリモニタのタスクバーを除いた領域
+            if ctypes.windll.user32.SystemParametersInfoW(
+                    0x0030, 0, ctypes.byref(rect), 0):
+                return rect.right - rect.left, rect.bottom - rect.top
+        if IS_MAC:
+            from AppKit import NSScreen
+            # visibleFrame はメニューバー/Dockを除いた領域
+            size = NSScreen.mainScreen().visibleFrame().size
+            return int(size.width), int(size.height)
+    except Exception:
+        pass
+    return 0, 0
 
 
 def fatal_dialog(msg: str):

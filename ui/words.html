@@ -6,8 +6,9 @@
 <script>
   (function () {
     const qs = new URLSearchParams(location.search);
-    const s = parseFloat(qs.get("s"));
-    if (s > 0 && s < 1) document.documentElement.style.zoom = s;
+    // 埋め込み時は親スタジオ側のzoomで一緒に拡縮されるため、ここでは掛けない（二重適用の防止）
+    const s = qs.get("embed") === "1" ? NaN : parseFloat(qs.get("s"));
+    if (s > 0 && s !== 1) document.documentElement.style.zoom = s;
     try {
       const theme = qs.get("theme") || localStorage.getItem("mojicast-theme");
       if (theme === "light") document.documentElement.dataset.theme = "light";

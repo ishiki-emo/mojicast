@@ -22,16 +22,31 @@ import app_server
 import platform_compat
 
 
-UI_SCALE = platform_compat.ui_scale()   # コックピット等のGUI窓のみ。overlayには効かせない
 UI_SESSION = int(time.time())  # WebView2が前回のUIを復元しないための起動単位キャッシュキー
+
+
+def _fit(width, height, scale, work):
+    """基準サイズへ倍率を掛け、画面の作業領域に収まる範囲へ抑える。
+
+    拡大率を上げたとき、窓や最小サイズが画面より大きくなって
+    タイトルバーやボタンに手が届かなくなるのを防ぐ。work が (0, 0)
+    （取得できないOS・環境）のときはクランプせず倍率だけ掛ける。
+    """
+    max_w, max_h = work
+    w = int(width * scale)
+    h = int(height * scale)
+    return (min(w, max_w) if max_w > 0 else w,
+            min(h, max_h) if max_h > 0 else h)
 
 
 class JsApi:
     """コックピットの JS から呼べるネイティブAPI"""
 
-    def __init__(self, port):
+    def __init__(self, port, scale=1.0, work=(0, 0)):
         self._windows = {}   # key -> webview.Window
         self._port = port    # 実際に起動しているポート（configの値ではなく起動時の実ポート）
+        self._scale = scale  # GUI窓の拡大率（コックピットと揃える）
+        self._work = work    # 画面の作業領域（拡大時のはみ出し防止）
         self._closing = False
 
     def _open(self, key, title, path, width, height):
@@ -43,7 +58,7 @@ class JsApi:
         sep = "&" if "?" in path else "?"
         theme = app_server.load_config().get("theme", "light")
         background = "#f7f9fc" if theme == "light" else "#0d1117"
-        url = (f"http://127.0.0.1:{port}{path}{sep}s={UI_SCALE}&v={UI_SESSION}"
+        url = (f"http://127.0.0.1:{port}{path}{sep}s={self._scale}&v={UI_SESSION}"
                f"&theme={theme}")
         existing = self._windows.get(key)
         if existing is not None:
@@ -55,10 +70,11 @@ class JsApi:
             existing.restore()
             existing.show()
             return
+        win_w, win_h = _fit(width, height, self._scale, self._work)
         w = webview.create_window(
             f"{title} — Mojicast",
             url,
-            width=int(width * UI_SCALE), height=int(height * UI_SCALE),
+            width=win_w, height=win_h,
             background_color=background, js_api=self)
         self._windows[key] = w
         w.events.closed += lambda: self._windows.pop(key, None)
@@ -170,16 +186,23 @@ def main():
 
     app_server.start(port)
 
-    api = JsApi(port)
+    # コックピット等のGUI窓のみ。overlay（OBSに映る字幕）には効かせない。
+    # config の ui_scale が "auto" なら起動モニタからの自動判定。
+    scale = app_server.resolve_ui_scale(cfg)
+    work = platform_compat.screen_work_area()
+
+    api = JsApi(port, scale, work)
+    # 高さは右カラム（トグル・単語セット・OBS・スタジオ入口）が
+    # スクロールなしで収まる目安。最小構成のFullHD（scale 0.8）でも
+    # 800*0.8=640px と画面高に収まる。拡大指定時は _fit が画面内へ抑える。
+    win_w, win_h = _fit(1100, 800, scale, work)
+    min_w, min_h = _fit(900, 600, scale, work)
     window = webview.create_window(
         "Mojicast",
-        (f"http://127.0.0.1:{port}/ui/cockpit?s={UI_SCALE}&v={UI_SESSION}"
+        (f"http://127.0.0.1:{port}/ui/cockpit?s={scale}&v={UI_SESSION}"
          f"&theme={cfg.get('theme', 'light')}"),
-        # 高さは右カラム（トグル・単語セット・OBS・スタジオ入口）が
-        # スクロールなしで収まる目安。最小構成のFullHD（scale 0.8）でも
-        # 800*0.8=640px と画面高に収まる
-        width=int(1100 * UI_SCALE), height=int(800 * UI_SCALE),
-        min_size=(int(900 * UI_SCALE), int(600 * UI_SCALE)),
+        width=win_w, height=win_h,
+        min_size=(min_w, min_h),
         background_color="#0d1117" if cfg.get("theme") == "dark" else "#f7f9fc",
         js_api=api)
 
