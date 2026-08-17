@@ -158,9 +158,14 @@ class LocalOriginGuardTests(unittest.TestCase):
 
     def test_sound_rules_sanitizer_drops_unknown_and_clamps(self):
         raw = {
-            "笑い": {"on": 1, "images": ["ok.png", "../bad.png", 5],
-                     "pos": {"x": 9, "y": -3}, "size": 99, "duration": 1,
-                     "particle": "confetti" * 10},
+            "笑い": {"on": 1,
+                     "variants": [
+                         {"image": "ok.png", "pos": {"x": 9, "y": -3},
+                          "size": 99},
+                         {"image": "../bad.png"},    # 不正名 → この項だけ捨てる
+                         "壊れた型",
+                     ],
+                     "duration": 1, "particle": "confetti" * 10},
             "未知のグループ": {"on": True},
             "泣き": "壊れた型",
             "拍手・歓声": {"pos": {"x": "abc"}},   # 数値でない → ルールごと捨てる
@@ -169,12 +174,22 @@ class LocalOriginGuardTests(unittest.TestCase):
         self.assertEqual(set(clean), {"笑い"})
         rule = clean["笑い"]
         self.assertIs(rule["on"], True)
-        self.assertEqual(rule["images"], ["ok.png"])
-        self.assertEqual(rule["pos"], {"x": 1.0, "y": 0.0})
-        self.assertEqual(rule["size"], 1.0)
+        self.assertEqual(rule["variants"],
+                         [{"image": "ok.png", "pos": {"x": 1.0, "y": 0.0},
+                           "size": 1.0}])
         self.assertEqual(rule["duration"], 200)
         self.assertEqual(len(rule["particle"]), 20)
         self.assertEqual(app_server._sanitize_sound_rules("not a dict"), {})
+
+    def test_sound_rules_migrate_legacy_images_to_variants(self):
+        # 旧形式（images配列＋共通pos/size）は、共通位置を持つvariantsへ変換する
+        raw = {"笑い": {"on": True, "images": ["a.png", "b.png"],
+                        "pos": {"x": 0.7, "y": 0.2}, "size": 0.3}}
+        rule = app_server._sanitize_sound_rules(raw)["笑い"]
+        self.assertEqual(
+            rule["variants"],
+            [{"image": "a.png", "pos": {"x": 0.7, "y": 0.2}, "size": 0.3},
+             {"image": "b.png", "pos": {"x": 0.7, "y": 0.2}, "size": 0.3}])
 
     def test_soundfx_test_fire_rejects_unknown_group(self):
         conn, response = self.request(

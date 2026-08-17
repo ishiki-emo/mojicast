@@ -588,16 +588,42 @@ def _sanitize_sound_rules(raw):
     return out
 
 
+def _clean_pos(pos):
+    pos = pos or {}
+    return {"x": min(1.0, max(0.0, float(pos.get("x", 0.5)))),
+            "y": min(1.0, max(0.0, float(pos.get("y", 0.3))))}
+
+
+def _clean_size(v, default=0.2):
+    return min(1.0, max(0.02, float(v if v is not None else default)))
+
+
 def _clean_sound_rule(rule):
-    pos = rule.get("pos") or {}
+    # variants: 画像ごとの配置（image・pos・size のセット）。ランダム表示は
+    # バリアント単位で選ぶので、画像それぞれに別の位置・大きさを持てる
+    variants = []
+    for v in (rule.get("variants") or [])[:10]:
+        if not isinstance(v, dict):
+            continue
+        name = _soundfx_image_name(v.get("image"))
+        if name is None:
+            continue
+        variants.append({"image": name, "pos": _clean_pos(v.get("pos")),
+                         "size": _clean_size(v.get("size"))})
+    if not variants:
+        # 旧形式（images配列＋共通pos/size）からの引き継ぎ
+        shared_pos = _clean_pos(rule.get("pos"))
+        shared_size = _clean_size(rule.get("size"))
+        variants = [{"image": n, "pos": dict(shared_pos), "size": shared_size}
+                    for n in map(_soundfx_image_name, rule.get("images") or [])
+                    if n][:10]
     return {
         "on": bool(rule.get("on")),
-        "images": [n for n in map(_soundfx_image_name, rule.get("images") or [])
-                   if n][:10],
+        "variants": variants,
         "particle": str(rule.get("particle") or "none")[:20],
-        "pos": {"x": min(1.0, max(0.0, float(pos.get("x", 0.5)))),
-                "y": min(1.0, max(0.0, float(pos.get("y", 0.3))))},
-        "size": min(1.0, max(0.02, float(rule.get("size", 0.2)))),
+        # pos/size はパーティクルのみ（バリアント無し）のときの表示位置
+        "pos": _clean_pos(rule.get("pos")),
+        "size": _clean_size(rule.get("size")),
         "jitter": min(0.5, max(0.0, float(rule.get("jitter", 0.0)))),
         "enter": str(rule.get("enter") or "pop")[:20],
         "anim": str(rule.get("anim") or "none")[:20],

@@ -115,24 +115,30 @@
     if (rule.enter && rule.enter !== "none")
       el.classList.add("sfx-enter-" + rule.enter);
 
+    // ランダム表示はバリアント（画像・位置・大きさのセット）単位。
+    // バリアント無し（パーティクルのみ）はルール既定の pos/size を使う
+    const variants = rule.variants || [];
+    const v = variants.length
+      ? variants[Math.floor(Math.random() * variants.length)] : null;
+    const pos = v?.pos ?? rule.pos;
+    const size = v?.size ?? rule.size;
+
     // 位置: 画面比率＋ジッター。サイズ: 画面幅比×スコア強化(〜1.3倍)
     const jx = (Math.random() - 0.5) * 2 * (rule.jitter || 0);
     const jy = (Math.random() - 0.5) * 2 * (rule.jitter || 0);
-    const x = Math.min(1, Math.max(0, (rule.pos?.x ?? 0.5) + jx));
-    const y = Math.min(1, Math.max(0, (rule.pos?.y ?? 0.3) + jy));
-    const wpx = innerWidth * (rule.size || 0.2) * (1 + 0.3 * k);
+    const x = Math.min(1, Math.max(0, (pos?.x ?? 0.5) + jx));
+    const y = Math.min(1, Math.max(0, (pos?.y ?? 0.3) + jy));
+    const wpx = innerWidth * (size || 0.2) * (1 + 0.3 * k);
     el.style.left = (x * 100) + "%";
     el.style.top = (y * 100) + "%";
     el.style.width = wpx + "px";
     // パーティクルの粒サイズの基準（spawnParticles が fontSize を見る）
     el.style.fontSize = Math.max(24, wpx * 0.22) + "px";
 
-    const imgs = rule.images || [];
-    if (imgs.length) {
+    if (v) {
       const img = document.createElement("img");
       img.alt = "";
-      img.src = "/soundfx/" + encodeURIComponent(
-        imgs[Math.floor(Math.random() * imgs.length)]);
+      img.src = "/soundfx/" + encodeURIComponent(v.image);
       if (rule.anim && rule.anim !== "none") {
         // 表示中アニメは登場アニメが終わってから（transformの競合を避ける）
         const start = () => img.classList.add("fx", "fx-" + rule.anim);
