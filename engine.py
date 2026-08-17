@@ -10,6 +10,7 @@ transcribe_stream.py の疑似ストリーミング処理を、開始/停止で�
     on_level(rms)          マイク入力レベル 0.0-1.0（約100ms間隔）
     on_state(state, detail) loading / ready / running / stopped / error
     on_translation(fid, en) 確定行の英訳（別スレッドで遅れて届く。fid で行に対応）
+    on_sound_event(group, score, speaker) 音イベント検出（笑い・拍手等。soundfx.py）
 """
 import os
 import time
@@ -44,6 +45,7 @@ _MODEL_SIZES_MB = {
     "punct": 364,         # 句読点BERT（ONNX変換済み・単一ファイル）
     "translate": 124,     # FuguMT（CTranslate2変換済み＋SentencePiece）
     "translate_zh": 470,  # M2M-100 418M（CT2 int8＋SentencePiece）
+    "soundfx": 27,        # 音イベント分類（AudioSet zipformer int8＋ラベル）
 }
 
 
@@ -99,12 +101,14 @@ def _dir_size_mb(path):
 
 class CaptionEngine:
     def __init__(self, on_partial=None, on_final=None,
-                 on_level=None, on_state=None, on_translation=None):
+                 on_level=None, on_state=None, on_translation=None,
+                 on_sound_event=None):
         self.on_partial = on_partial or (lambda t, spk="": None)
         self.on_final = on_final or (lambda t, fid, spk="": None)
         self.on_level = on_level or (lambda v, spk="": None)
         self.on_state = on_state or (lambda s, d="": None)
         self.on_translation = on_translation or (lambda fid, en: None)
+        self.on_sound_event = on_sound_event or (lambda g, s, spk="": None)
         self._rec_lock = threading.Lock()   # 単一Recognizerへの decode を直列化（2話者共有）
         self._fid_lock = threading.Lock()   # fid採番の排他（話者をまたいで一意に）
         self._translate_on = False
@@ -113,6 +117,7 @@ class CaptionEngine:
         self._model_sig = None      # (precision, hotwords mtime, score) 変更検知
         self._replacer = None
         self._punct = None
+        self._sfx_tagger = None     # 音イベント分類器（sound_fx 無効時 None）
         self._translate = None      # 翻訳関数（無効時 None。ロード済みなら再利用）
         self._translate_sig = None  # ロード済み翻訳経路 (engine, src, tgt)
         self._asr_caps = {"hotwords": True, "punct": False, "itn": False,
@@ -264,6 +269,10 @@ class CaptionEngine:
             import punct
             if not punct.cached():
                 total += _MODEL_SIZES_MB["punct"]
+        if cfg.get("sound_fx", False):
+            import soundfx
+            if not soundfx.cached():
+                total += _MODEL_SIZES_MB["soundfx"]
         plan = self._translate_plan(cfg)
         if plan:
             import translate
@@ -315,6 +324,11 @@ class CaptionEngine:
             self._punct = None
         need_punct = (cfg.get("punctuate", True)
                       and not model_caps["punct"] and self._punct is None)
+        # 音イベント検出（笑い・拍手等）はASRと独立した付加機能。
+        # OFFに切り替えたら分類器を解放する（約115MB返却）
+        if not cfg.get("sound_fx", False):
+            self._sfx_tagger = None
+        need_sfx = cfg.get("sound_fx", False) and self._sfx_tagger is None
         plan = self._translate_plan(cfg)
         need_trans = plan is not None and self._translate_sig != plan
         if cfg.get("translate", False) and plan is None:
@@ -322,7 +336,7 @@ class CaptionEngine:
             self._translate = None
             self._translate_sig = None
             self._load_warn = "認識言語と翻訳先が同じため、翻訳はスキップされます"
-        if not (reload_asr or need_punct or need_trans):
+        if not (reload_asr or need_punct or need_trans or need_sfx):
             return  # ロード対象なし（設定のON/OFFは次の _run で即反映）
 
         # 軽量版はモデルが無ければ初回だけ自動DLされる。その進捗をGUIへ流す。
@@ -370,6 +384,16 @@ class CaptionEngine:
                     self._punct = None
                     self._load_warn = "句読点の読み込みに失敗"
                     self._log_load_error("句読点モデル")
+
+            if need_sfx:
+                self.on_state("loading", "音イベント検出モデルをロード中...")
+                try:
+                    import soundfx
+                    self._sfx_tagger = soundfx.load_tagger()
+                except Exception:
+                    self._sfx_tagger = None
+                    self._load_warn = "音イベント検出の読み込みに失敗（演出なしで続行）"
+                    self._log_load_error("音イベント検出モデル")
 
             if need_trans:
                 eng, src, tgt = plan
@@ -642,6 +666,14 @@ class CaptionEngine:
             audio_q: "queue.Queue[np.ndarray]" = queue.Queue(
                 maxsize=AUDIO_QUEUE_MAX_BLOCKS)
             last_level_t = [0.0]
+            # 音イベント検出（笑い・拍手等）。VADとは独立に同じ音声を見る
+            # （笑い声は「発話」と見なされず、VAD経由ではASRに届かないため）。
+            # 検出器はソースごと・分類器は全ソース共有（soundfx側で直列化）
+            sfx = None
+            if self._sfx_tagger is not None:
+                from soundfx import SoundFxDetector
+                sfx = SoundFxDetector(self._sfx_tagger,
+                                      self.on_sound_event, speaker)
 
             def handle_mono(mono):
                 mono = np.asarray(mono, dtype=np.float32).reshape(-1)
@@ -692,7 +724,10 @@ class CaptionEngine:
                         continue
                     buffer = np.concatenate([buffer, block])
                     while len(buffer) >= WINDOW_SIZE:
-                        vad.accept_waveform(buffer[:WINDOW_SIZE])
+                        chunk = buffer[:WINDOW_SIZE]
+                        vad.accept_waveform(chunk)
+                        if sfx is not None:
+                            sfx.feed(chunk)
                         buffer = buffer[WINDOW_SIZE:]
 
                     # 確定した発話

@@ -20,6 +20,7 @@
   .line .en { line-height: 1.25; font-weight: 600; }
 </style>
 <script src="/ui/fx.js"></script>
+<script src="/ui/soundfx.js"></script>
 </head>
 <body>
 
@@ -274,7 +275,9 @@
       case "init":
       case "style":
         updatePanes(msg);
+        if ("sound_rules" in msg) SFX.setRules(msg.sound_rules);
         break;
+      case "sound":   SFX.play(msg.group, msg.score); break;
       case "final":   addFinal(paneFor(msg.speaker), msg.text, msg.id); break;
       case "translation": addTranslation(msg.id, msg.text); break;
       case "partial": setPartial(paneFor(msg.speaker), msg.text); break;

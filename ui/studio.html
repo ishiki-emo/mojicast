@@ -158,6 +158,7 @@
       </div>
     </div>
     <button data-pillar="effects" onclick="switchPillar('effects')"><span class="icon">✨</span><strong data-i18n="su.p_effects">ワード演出</strong><small data-i18n="su.p_effects_d">言葉・動き・パーティクル</small></button>
+    <button data-pillar="soundfx" onclick="switchPillar('soundfx')"><span class="icon">🔔</span><strong data-i18n="su.p_soundfx">サウンド演出</strong><small data-i18n="su.p_soundfx_d">笑い声・拍手で画像を出す</small></button>
     <div class="utility"><div class="nav-caption" data-i18n="su.nav_other">そのほか</div>
       <button data-pillar="share" onclick="switchPillar('share')"><span class="icon">↗</span><strong data-i18n="su.p_share">保存・共有</strong><small data-i18n="su.p_share_d">バックアップ・受け渡し</small></button>
     </div>
@@ -191,6 +192,8 @@
 
     <section class="pane feature-pane" id="pEffects"><div class="feature-head"><h1 class="page-title" data-i18n="su.h1_effects">ワード演出</h1><p class="lead" data-i18n="su.lead_effects">言った瞬間に、文字の色やパーティクルを変えられます。</p><div class="feature-master"><div><strong data-i18n="su.use_fx">ワード演出を使う</strong><small data-i18n="su.use_fx_d">同梱プリセットがあるので、オンにするだけでも楽しめます</small></div><button class="switch" id="effectsSwitch" onclick="toggleFeature('word_fx',this)" aria-label="ワード演出をオン・オフ"><i></i></button></div></div><iframe class="embedded" id="fEffects" title="ワード演出"></iframe></section>
 
+    <section class="pane feature-pane" id="pSoundfx"><div class="feature-head"><h1 class="page-title" data-i18n="su.h1_soundfx">サウンド演出</h1><p class="lead" data-i18n="su.lead_soundfx">笑い声・拍手などの「音」を検出して、画像やパーティクルを画面に出します。オンにすると初回だけ検出モデル（約27MB）を取得し、次回の ▶開始 から動きます。</p></div><iframe class="embedded" id="fSoundfx" title="サウンド演出"></iframe></section>
+
     <section class="pane scroll" id="pShare"><div class="inner"><h1 class="page-title" data-i18n="su.h1_share">保存・共有</h1><p class="lead" data-i18n="su.lead_share">作った字幕デザインをファイルにして、バックアップや受け渡しに使えます。</p><div class="sharegrid"><div class="card"><span class="card-icon">📤</span><h3 data-i18n="su.export_title">カスタマイズを書き出す</h3><p data-i18n="su.export_d">字幕デザインと位置を .mojipack にまとめます。</p><div class="card-foot"><button class="btn primary" onclick="exportAll()" data-i18n="su.save_file">ファイルに保存</button><button class="btn" onclick="openFolder()" data-i18n="su.open_folder">保存先を開く</button></div></div><div class="card"><span class="card-icon">📥</span><h3 data-i18n="su.import_title">もらったカスタマイズを使う</h3><p data-i18n="su.import_d">受け取った .mojipack を追加します。今ある設定は上書きしません。</p><div class="card-foot"><button class="btn" onclick="impFile.click()" data-i18n="su.choose_file">ファイルを選ぶ</button><input type="file" id="impFile" accept=".mojipack,.json" hidden onchange="doImport(this.files[0])"></div></div></div><div class="saved" id="shareMsg"></div></div></section>
   </main>
 </div>
@@ -201,9 +204,11 @@
   const basePass = ["s","v"].filter(k => qs.get(k)).map(k => `&${k}=${encodeURIComponent(qs.get(k))}`).join("");
   const descriptions = {
     captions:"字幕の見た目・位置・認識単語を編集", translation:"翻訳字幕の見た目と固定訳を編集",
-    effects:"反応する言葉と演出を編集", share:"作った設定を保存・共有"
+    effects:"反応する言葉と演出を編集", soundfx:"笑い声・拍手に反応する演出を編集",
+    share:"作った設定を保存・共有"
   };
-  const pillarPanes = { captions:"pCaptions", translation:"pTranslation", effects:"pEffects", share:"pShare" };
+  const pillarPanes = { captions:"pCaptions", translation:"pTranslation", effects:"pEffects",
+                        soundfx:"pSoundfx", share:"pShare" };
   let cfg = {}, profiles = [], currentPillar = "captions", currentDetail = "", styleReturnPillar = "captions";
 
   function applyTheme(theme) {
@@ -273,6 +278,8 @@
     $("studioDesc").textContent = T("su.desc_" + currentPillar, descriptions[currentPillar]);
     showPane(pillarPanes[currentPillar]);
     if (currentPillar === "effects") setSrc("fEffects", wordUrl("fx"));
+    if (currentPillar === "soundfx")
+      setSrc("fSoundfx", "/ui/soundfx_settings?embed=1" + childPass());
     refreshOverview();
   }
   function openSystemSettings(section) {
