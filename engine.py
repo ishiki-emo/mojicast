@@ -115,8 +115,9 @@ class CaptionEngine:
         self._punct = None
         self._translate = None      # 翻訳関数（無効時 None。ロード済みなら再利用）
         self._translate_sig = None  # ロード済み翻訳経路 (engine, src, tgt)
-        self._asr_caps = {"hotwords": True, "punct": False,
-                          "spaces": False, "multilang": False}  # 既定=k2
+        self._asr_caps = {"hotwords": True, "punct": False, "itn": False,
+                          "spaces": False, "multilang": False,
+                          "pad": True}  # 既定=k2
         self._tq = None             # 翻訳ジョブのキュー
         self._tworker = None        # 翻訳ワーカースレッド
         self._fid = 0               # 確定行の通し番号（英訳の対応付け用）
@@ -425,14 +426,17 @@ class CaptionEngine:
     # 上流 reazonspeech.k2.asr.transcribe と同じ無音パディング（k2の認識精度に効く）。
     # ラッパー2関数のためだけに librosa→sklearn/scipy 系が配布物に入っていたため、
     # 実体（パディング＋sherpa_onnxデコード）をここへインライン化した。
+    # SenseVoice には入れない（caps["pad"]=False）。入れると感情ラベルが潰れ、
+    # かつトークン間へ余分な空白が入るため、素の発話をそのまま食わせる。
     PAD_SECONDS = 0.9
 
     def _recognize(self, samples):
         # 単一Recognizerを2話者で共有するため decode を直列化（交互会話ならほぼ待ち無し）
         with self._rec_lock:
-            padded = np.pad(samples, int(self.PAD_SECONDS * SAMPLE_RATE))
+            if self._asr_caps.get("pad", True):
+                samples = np.pad(samples, int(self.PAD_SECONDS * SAMPLE_RATE))
             stream = self._model.create_stream()
-            stream.accept_waveform(SAMPLE_RATE, padded)
+            stream.accept_waveform(SAMPLE_RATE, samples)
             self._model.decode_stream(stream)
             return stream.result.text.strip()
 
@@ -705,10 +709,11 @@ class CaptionEngine:
                                 text = strip_cjk_spaces(text)
                             if self._replacer is not None:
                                 text = self._replacer(text)
-                            # SenseVoice系は句読点・数字正規化(ITN)を内蔵しているため
-                            # 後段のnumnorm/BERTはスキップ（日本語以外にBERTは使えない）
+                            # SenseVoice系は句読点を内蔵しているため後段のBERTは
+                            # スキップ（日本語以外にBERTは使えない）。数字は
+                            # アラビア数字で出ないので numnorm は通す。
                             if (cfg.get("num_arabic", True)
-                                    and not self._asr_caps.get("punct")):
+                                    and not self._asr_caps.get("itn")):
                                 text = normalize_numbers(text)   # 三十五 → 35
                             if (self._punct is not None
                                     and cfg.get("punctuate", True)
@@ -756,7 +761,7 @@ class CaptionEngine:
                                 from asr_model import strip_cjk_spaces
                                 p = strip_cjk_spaces(p)
                             if (cfg.get("num_arabic", True)
-                                    and not self._asr_caps.get("punct")):
+                                    and not self._asr_caps.get("itn")):
                                 p = normalize_numbers(p)
                             if self._mask is not None:      # 認識中(薄文字)も伏せ字化
                                 p = self._mask(p)

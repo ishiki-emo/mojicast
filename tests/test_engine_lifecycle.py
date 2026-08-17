@@ -1,4 +1,5 @@
 import threading
+import numpy as np
 import time
 import unittest
 import queue
@@ -310,6 +311,65 @@ class CaptionEngineLifecycleTests(unittest.TestCase):
         self.assertIsNone(self.engine._tworker)
         self.assertIsNone(self.engine._tq)
         self.assertEqual(translated, [])
+
+
+class _RecordingModel:
+    """decode に渡されたサンプル数だけ覚えるダミー認識器"""
+
+    def __init__(self):
+        self.decoded_len = None
+
+    class _Stream:
+        def __init__(self, owner):
+            self._owner = owner
+
+        def accept_waveform(self, sample_rate, samples):
+            self._owner.decoded_len = len(samples)
+
+        @property
+        def result(self):
+            return type("R", (), {"text": " ok "})()
+
+    def create_stream(self):
+        return self._Stream(self)
+
+    def decode_stream(self, stream):
+        pass
+
+
+class RecognizePaddingTests(unittest.TestCase):
+    """無音パディングはモデルの caps["pad"] で切り替わる。
+
+    SenseVoice にパディングを入れると感情ラベルが全て EMO_UNKNOWN に潰れ、
+    数字まわりに余分な空白も入るため、素の発話を渡さなければならない。
+    """
+
+    def _decode_len(self, caps):
+        engine = CaptionEngine()
+        engine._model = _RecordingModel()
+        engine._asr_caps = caps
+        engine._recognize(np.zeros(SAMPLE_RATE, dtype=np.float32))
+        return engine._model.decoded_len
+
+    def test_k2_keeps_the_silence_padding(self):
+        expected = SAMPLE_RATE + 2 * int(CaptionEngine.PAD_SECONDS * SAMPLE_RATE)
+        self.assertEqual(self._decode_len({"pad": True}), expected)
+
+    def test_sensevoice_receives_the_raw_utterance(self):
+        self.assertEqual(self._decode_len({"pad": False}), SAMPLE_RATE)
+
+    def test_unknown_model_falls_back_to_padding(self):
+        expected = SAMPLE_RATE + 2 * int(CaptionEngine.PAD_SECONDS * SAMPLE_RATE)
+        self.assertEqual(self._decode_len({}), expected)
+
+    def test_registry_marks_sensevoice_as_unpadded_and_needing_numnorm(self):
+        import asr_model
+
+        self.assertTrue(asr_model.MODELS["k2-ja"]["caps"]["pad"])
+        self.assertFalse(asr_model.MODELS["sensevoice"]["caps"]["pad"])
+        # 句読点は内蔵、数字は漢数字で出るので numnorm を通す必要がある
+        self.assertTrue(asr_model.MODELS["sensevoice"]["caps"]["punct"])
+        self.assertFalse(asr_model.MODELS["sensevoice"]["caps"]["itn"])
 
 
 if __name__ == "__main__":
