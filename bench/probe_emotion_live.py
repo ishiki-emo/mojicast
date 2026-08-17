@@ -70,6 +70,15 @@ TAG_GROUPS = {
 }
 TAG_WATCH = set().union(*TAG_GROUPS.values())
 
+# グループ別のしきい値（未指定は --tag-min の既定値を使う）。
+# 咳は笑いと混じる: 咳をすると Laughter が 0.42〜0.57 立ち、笑うと Cough が
+# 0.33 立つ（2026-08-17 マイク実測）。笑い側を上げると本物の笑い（実配信で
+# 0.56）を落とすので、咳側だけ上げて弱い誤発火を切る。
+TAG_MIN_BY_GROUP = {
+    "咳・くしゃみ": 0.5,
+    "驚き・叫び": 0.25,   # 表現によっては弱く出るため少し下げる
+}
+
 
 def _tag(s):
     """'<|HAPPY|>' → 'HAPPY'（タグでなければそのまま）"""
@@ -116,11 +125,14 @@ def load_tagging(num_threads=2, top_k=20):
     return sherpa_onnx.AudioTagging(cfg)
 
 
-def _merge_events(hits, group, gap=2.0):
+def _merge_events(hits, group, gap=1.0):
     """近接した検出を1つの出来事にまとめ [(開始秒, 最大スコア), ...] を返す。
 
     笑い1回で連続する窓が何度も立つため、そのまま数えるとエフェクトが連発する。
     実装時も同じまとめ方（発火後は gap 秒クールダウン）が要る。
+
+    gap=1.0 は実測から決めた値。2.5秒差の別々の笑いの間でスコアが1.25秒ほど
+    0.00 に落ちるので、2.0秒だと2回の笑いが1回に統合されてしまう。
     """
     events = []
     for r in sorted(hits, key=lambda r: r["at"]):
@@ -140,9 +152,14 @@ class Tagger:
     SenseVoice側には届かないことがあるため）。
     """
 
-    def __init__(self, tagger, min_prob=0.3, log_path=None):
+    def __init__(self, tagger, min_prob=0.3, gap=1.0, log_path=None,
+                 min_by_group=None, exclusive=True):
         self.t = tagger
-        self.min_prob = min_prob   # グループ合算スコアのしきい値
+        self.min_prob = min_prob   # グループ合算スコアの既定しきい値
+        self.min_by_group = dict(TAG_MIN_BY_GROUP)
+        self.min_by_group.update(min_by_group or {})
+        self.exclusive = exclusive  # 1窓につき最上位グループだけ採用するか
+        self.gap = gap             # この秒数以内の検出は1回にまとめる
         self.rows = []
         self.n = 0
         self.t_start = time.time()
@@ -171,7 +188,13 @@ class Tagger:
         at = at if at is not None else time.time() - self.t_start
 
         groups = self.group_scores(top)
-        fired = {g: s for g, s in groups.items() if s >= self.min_prob}
+        fired = {g: s for g, s in groups.items()
+                 if s >= self.min_by_group.get(g, self.min_prob)}
+        if self.exclusive and len(fired) > 1:
+            # 咳と笑いのように取り違えが起きる組でも、正解側のスコアが常に高い。
+            # エフェクトも1回に1つ出れば十分なので、最上位だけ残す。
+            g = max(fired, key=lambda k: fired[k])
+            fired = {g: fired[g]}
 
         who = f"{speaker[:6]:<6}" if speaker else ""
         if fired:
@@ -210,7 +233,7 @@ class Tagger:
                     continue
                 # 1回の笑いは連続する窓で何度も立つ。エフェクトは「1回の出来事に
                 # 1回」出したいので、近接した検出はまとめて数える
-                events = _merge_events(hits, g)
+                events = _merge_events(hits, g, self.gap)
                 best = max(r["groups"][g] for r in hits)
                 when = "  ".join(f"{t:.0f}s({s:.2f})" for t, s in events[:10])
                 print(f"      {g:<10} {len(events):3d}回"
@@ -541,17 +564,29 @@ def main():
     p.add_argument("--tag-window", type=float, default=1.5,
                    help="1回の分類に使う直近の秒数（既定1.5。実測でこれが最良。"
                         "3秒だと笑いが薄まってピークが半減する）")
-    p.add_argument("--tag-hop", type=float, default=0.5,
-                   help="分類する間隔（既定0.5秒ごと）")
+    p.add_argument("--tag-hop", type=float, default=0.25,
+                   help="分類する間隔（既定0.25秒ごと）。0.5秒だと笑いの山を"
+                        "踏み外してスコアが半減することがある。1回7.5msなので"
+                        "0.25秒間隔でもCPUは3%程度")
     p.add_argument("--tag-min", type=float, default=0.3,
-                   help="★を付けるグループ合算スコアのしきい値（既定0.3）")
+                   help="★を付けるグループ合算スコアのしきい値（既定0.3。"
+                        "実測では0.15まで下げると笑っていない箇所を拾う）")
+    p.add_argument("--tag-gap", type=float, default=1.0,
+                   help="この秒数以内の検出は1回の出来事にまとめる（既定1.0）")
+    p.add_argument("--tag-min-group", default="",
+                   help="グループ別しきい値。例 \"咳・くしゃみ=0.5,笑い=0.35\"。"
+                        f"既定: {TAG_MIN_BY_GROUP}")
+    p.add_argument("--tag-multi", action="store_true",
+                   help="1窓で複数グループが立ったら全部出す"
+                        "（既定は最上位だけ。咳と笑いの取り違え対策）")
     p.add_argument("--no-log", action="store_true")
     p.add_argument("--record", action="store_true",
                    help="取り込んだ音を logs/ にwav保存する（条件を変えた再解析用）")
     a = p.parse_args()
 
-    try:
+    try:   # 日本語のラベル・エラーが端末で化けないように
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
         pass
 
@@ -601,10 +636,22 @@ def main():
 
     probe = Probe(rec, pad=a.pad, pad_compare=a.pad_compare,
                   log_path=log_path) if rec is not None else None
+    overrides = {}
+    for part in filter(None, a.tag_min_group.split(",")):
+        if "=" not in part:
+            p.error(f"--tag-min-group の書式が不正です: {part}")
+        g, v = part.rsplit("=", 1)
+        g = g.strip()
+        if g not in TAG_GROUPS:
+            p.error(f"未知のグループ: {g}（{'/'.join(TAG_GROUPS)}）")
+        overrides[g] = float(v)
+
     tagger = None
     if a.tagging:
         print("音イベント分類 ロード中…")
         tagger = Tagger(load_tagging(a.threads), min_prob=a.tag_min,
+                        gap=a.tag_gap, min_by_group=overrides,
+                        exclusive=not a.tag_multi,
                         log_path=(log_path or "").replace(".jsonl", "_tags.jsonl")
                         or None)
 
