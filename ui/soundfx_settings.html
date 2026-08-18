@@ -486,6 +486,9 @@
     rules = cfg.sound_fx_rules || {};
     $("master").setAttribute("aria-pressed", String(!!cfg.sound_fx));
     sel = groups[0] || null;
+    // テスト発火・実発火はプレビュー枠の中に縮小表示する
+    // （画面全体に出すと、設定画面自体に演出が被って事故に見える）
+    SFX.mount($("preview"));
     renderGroups(); renderEditor();
     connect();
   })();

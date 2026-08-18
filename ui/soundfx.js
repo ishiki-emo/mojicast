@@ -58,14 +58,24 @@
   // ---------------- レイヤー・CSS ----------------
 
   let layer = null;
+  let host = null;    // 描画先。null=画面全体（overlay） / 要素=その中に縮小表示
+
+  /** 演出を指定要素の中に出す（設定UIのプレビュー枠用）。
+      位置・大きさは要素の幅を画面幅とみなして同じ比率で描く */
+  SFX.mount = function (el) {
+    host = el || null;
+    if (layer) { layer.remove(); layer = null; }
+  };
+
   function getLayer() {
     if (!layer || !layer.isConnected) {
       layer = document.createElement("div");
       layer.id = "sfx-layer";
-      // 字幕より前・パーティクル(9999)より後ろ
-      layer.style.cssText =
-        "position:fixed;inset:0;pointer-events:none;z-index:9000;overflow:hidden;";
-      document.body.appendChild(layer);
+      layer.style.cssText = host
+        ? "position:absolute;inset:0;pointer-events:none;overflow:hidden;"
+        : // 字幕より前・パーティクル(9999)より後ろ
+          "position:fixed;inset:0;pointer-events:none;z-index:9000;overflow:hidden;";
+      (host || document.body).appendChild(layer);
     }
     return layer;
   }
@@ -142,12 +152,14 @@
     const jy = (Math.random() - 0.5) * 2 * (rule.jitter || 0);
     const x = Math.min(1, Math.max(0, (pos?.x ?? 0.5) + jx));
     const y = Math.min(1, Math.max(0, (pos?.y ?? 0.3) + jy));
-    const wpx = innerWidth * (size || 0.2) * (1 + 0.3 * k);
+    const baseW = host ? host.clientWidth : innerWidth;
+    const wpx = baseW * (size || 0.2) * (1 + 0.3 * k);
+    if (host) el.style.position = "absolute";   // CSSの fixed をプレビュー用に上書き
     el.style.left = (x * 100) + "%";
     el.style.top = (y * 100) + "%";
     el.style.width = wpx + "px";
     // パーティクルの粒サイズの基準（spawnParticles が fontSize を見る）
-    el.style.fontSize = Math.max(24, wpx * 0.22) + "px";
+    el.style.fontSize = Math.max(host ? 8 : 24, wpx * 0.22) + "px";
 
     if (v) {
       const img = document.createElement("img");
