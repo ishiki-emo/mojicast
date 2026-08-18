@@ -93,6 +93,8 @@
   .preview .marker img { width: 100%; height: auto; display: block; pointer-events: none; }
   .preview .marker .phicon { display: grid; place-items: center; width: 100%; height: 100%;
     color: var(--accent); font-size: 26px; }
+  .beta { flex: none; padding: 2px 8px; border-radius: 999px; font-size: 11px;
+    font-weight: 700; color: var(--warn); border: 1px solid var(--warn); }
   .hint { color: var(--dim); font-size: 12px; margin: 6px 0 12px; }
   .note { background: var(--panel2); border-left: 3px solid var(--warn);
     padding: 8px 12px; border-radius: 6px; font-size: 12px; color: var(--dim);
@@ -104,7 +106,9 @@
 <body>
 <header>
   <span class="t">🎉 リアクション演出</span>
-  <span class="d">笑い声・拍手などを検出して、画像やパーティクルを画面に出します</span>
+  <span class="beta">実験的</span>
+  <span class="d">笑い声・拍手などを検出して、画像やパーティクルを画面に出します。
+    検出のしやすさには声質・笑い方の個人差があります</span>
   <span style="font-size:12px;color:var(--dim)">機能を使う</span>
   <button class="switch" id="master" aria-label="リアクション演出をオン・オフ"
           onclick="toggleMaster()"><i></i></button>
