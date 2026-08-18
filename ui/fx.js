@@ -165,6 +165,11 @@
     background-size:220% 100%; -webkit-background-clip:text; background-clip:text;
     text-shadow:none !important;
   }
+  .lyr-en {
+    left:50%; bottom:5%; transform:translateX(-50%);
+    max-width:92%; white-space:normal; text-align:center; line-height:1.3;
+    animation: linfade .4s ease-out;
+  }
   .lyr-accent { position:absolute; pointer-events:none; will-change:transform,opacity,clip-path; }
   .lyr-line { height:3px; border-radius:99px; transform-origin:left center;
     background:linear-gradient(90deg,var(--lyr-accent,#69f0dd),var(--lyr-color,#fff));
@@ -928,6 +933,8 @@
     const state = container._lyr ?? (container._lyr = { scenes: [], lastPattern: "", strongCooldown: 0 });
     const pattern = lyricChoose(text, opts.box || {}, state);
     const scene = lyricScene(container, opts.style, pattern);
+    // 遅れて届く訳文をこのシーンへ結び付けるための目印（lyricTranslate が探す）
+    if (opts.fid != null) scene.dataset.fid = String(opts.fid);
     lyricBuilders[pattern.id](scene, text, opts);
     state.scenes.push(scene);
     const maxScenes = Math.max(1, Math.min(3, opts.box.lyricMaxScenes ?? 2));
@@ -940,6 +947,39 @@
     }, life);
     FX.burstLine(scene.querySelector(".lyr-unit") || scene);
     return pattern.id;
+  };
+
+  /** リリックシーンへ訳文を併記する。fid のシーンが生きていれば下部帯に出して
+      true、既に消えていれば false（呼び出し側は通常表示の「見切れた行は無視」と
+      同じ扱いで捨てる）。訳文はシーンの子なので、寿命・退場も本文と一緒。 */
+  FX.lyricTranslate = function (container, fid, en, style) {
+    const state = container._lyr;
+    if (!state || !en) return false;
+    const scene = state.scenes.find(s => s.dataset.fid === String(fid));
+    if (!scene) return false;
+    let el = scene.querySelector(".lyr-en");
+    if (!el) {
+      el = document.createElement("div");
+      el.className = "lyr-unit lyr-en";
+      scene.appendChild(el);
+    }
+    // 併記（.en）と同じ設定体系: 本文サイズ × enScale、色・フォント・縁取りの上書き
+    const size = Math.max(12, Math.round((style.size || 42) * (style.enScale ?? 0.6)));
+    FX.applyLineStyle(el, style, size);
+    el.style.opacity = style.enOpacity ?? 0.82;
+    if (style.enColor) el.style.color = style.enColor;
+    if (style.enFont) el.style.fontFamily = style.enFont;
+    if (style.enDeco) {
+      el.style.textShadow = FX.buildTextShadow({
+        outlineWidth: style.enOutlineWidth ?? 2,
+        outlineColor: style.enOutlineColor || "#000000",
+        glow: (style.enGlowSize > 0 ? (style.enGlowColor || "#00e5ff") : ""),
+        glowSize: style.enGlowSize || 0,
+        shadow: style.shadow,
+      });
+    }
+    el.textContent = en;
+    return true;
   };
 
   FX.lyricClear = function (container) {

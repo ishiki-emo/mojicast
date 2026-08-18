@@ -206,7 +206,8 @@
 
     if (isLyric(p.box)) {   // フレーズを画面に散らすタイポグラフィ演出
       p.partialEl.textContent = "";
-      FX.lyricSpawn(p.boxEl, text, { style: p.style, table: p.table, box: p.box });
+      FX.lyricSpawn(p.boxEl, text,
+                    { style: p.style, table: p.table, box: p.box, fid: id });
       return;
     }
 
@@ -272,6 +273,12 @@
       if (wait.boxEl.isConnected && enOnly(wait)) { addEnLine(wait, en, id); return; }
     }
     for (const p of panes.values()) {
+      if (isLyric(p.box)) {
+        // リリックは .line[data-fid] を作らないため、シーンへ直接併記する。
+        // シーンが既に消えていれば false → 見切れた行と同じ扱いで捨てる
+        if (FX.lyricTranslate(p.boxEl, id, en, p.style)) return;
+        continue;
+      }
       const line = p.finalsEl.querySelector('.line[data-fid="' + id + '"]');
       if (!line) continue;
       let el = line.querySelector(".en");
