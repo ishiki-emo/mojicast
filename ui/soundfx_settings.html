@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<title>サウンド演出</title>
+<title>リアクション演出</title>
 <script>
   // 起動モニタに合わせたUI縮小＋テーマ先読み（cockpitと同じ流儀）
   (function () {
@@ -104,10 +104,10 @@
 </head>
 <body>
 <header>
-  <span class="t">🔔 サウンド演出</span>
+  <span class="t">🎉 リアクション演出</span>
   <span class="d">笑い声・拍手などを検出して、画像やパーティクルを画面に出します</span>
   <span style="font-size:12px;color:var(--dim)">機能を使う</span>
-  <button class="switch" id="master" aria-label="サウンド演出をオン・オフ"
+  <button class="switch" id="master" aria-label="リアクション演出をオン・オフ"
           onclick="toggleMaster()"><i></i></button>
 </header>
 <main>
@@ -118,7 +118,7 @@
     <div class="row">
       <label>この音で演出</label>
       <label class="checkline"><input type="checkbox" id="rOn" onchange="upd()">有効にする</label>
-      <button class="act primary" style="margin-left:auto" onclick="testFire()">🔔 テスト発火</button>
+      <button class="act primary" style="margin-left:auto" onclick="testFire()">🎉 テスト発火</button>
     </div>
     <div class="row" style="align-items:flex-start">
       <label style="padding-top:6px">画像</label>
