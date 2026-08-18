@@ -38,8 +38,22 @@
   let rules = {};
   const active = new Map();     // group → {el, hideTimer, killTimer}
   const fireLog = new Map();    // group → [発火時刻ms, ...]
+  const preloaded = new Map();  // 画像名 → Image（発火時のロード待ちを無くす）
 
-  SFX.setRules = function (r) { rules = r || {}; };
+  SFX.setRules = function (r) {
+    rules = r || {};
+    // ルールで使う画像を先読みしておく。発火してからロードを始めると、
+    // 特に複数画像のランダム表示で「出るまで一拍遅れる」のが見えてしまう
+    for (const rule of Object.values(rules)) {
+      for (const v of rule.variants || []) {
+        if (!preloaded.has(v.image)) {
+          const im = new Image();
+          im.src = "/soundfx/" + encodeURIComponent(v.image);
+          preloaded.set(v.image, im);
+        }
+      }
+    }
+  };
 
   // ---------------- レイヤー・CSS ----------------
 

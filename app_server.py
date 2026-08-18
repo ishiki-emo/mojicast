@@ -915,6 +915,34 @@ class Handler(BaseHTTPRequestHandler):
         except OSError:
             self._send_body(404, b"not found", "text/plain")
 
+    def _soundfx_image_file(self, name):
+        """演出画像の配信。_send_body は全応答 no-store（GUI更新の都合）だが、
+        画像は発火のたびに <img> が取り直すため、それだと毎回フルDLになり
+        表示が遅れる。更新時刻で再検証させ、変わっていなければ 304 で済ませる"""
+        path = os.path.join(_soundfx_dir(), name)
+        try:
+            mtime = os.path.getmtime(path)
+            etag = f'"{int(mtime)}-{os.path.getsize(path)}"'
+            if self.headers.get("If-None-Match") == etag:
+                self.send_response(304)
+                self.send_header("ETag", etag)
+                self.end_headers()
+                return
+            with open(path, "rb") as f:
+                body = f.read()
+        except OSError:
+            self._send_body(404, b"not found", "text/plain")
+            return
+        self.send_response(200)
+        self.send_header("Content-Type",
+                         _SOUNDFX_IMAGE_EXT[os.path.splitext(name)[1].lower()])
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("ETag", etag)
+        # 同名アップロードで差し替わるため max-age は短く、以後は ETag 再検証
+        self.send_header("Cache-Control", "private, max-age=60")
+        self.end_headers()
+        self.wfile.write(body)
+
     def _body_json(self):
         n = int(self.headers.get("Content-Length", 0))
         if n < 0 or n > MAX_REQUEST_BODY_BYTES:
@@ -964,8 +992,7 @@ class Handler(BaseHTTPRequestHandler):
             if name is None:
                 self._send_body(404, b"not found", "text/plain")
                 return
-            ctype = _SOUNDFX_IMAGE_EXT[os.path.splitext(name)[1].lower()]
-            self._file(os.path.join(_soundfx_dir(), name), ctype)
+            self._soundfx_image_file(name)
         elif path == "/api/soundfx/images":
             d = _soundfx_dir()
             names = sorted(n for n in os.listdir(d)

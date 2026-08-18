@@ -73,9 +73,15 @@
     border-radius: 8px; padding: 4px 8px; cursor: pointer; background: var(--panel2);
     font-size: 12px; }
   .chip img { width: 26px; height: 26px; object-fit: contain; }
-  .chip.used { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-  .chip .del { color: var(--dim); cursor: pointer; padding: 0 2px; }
+  .chip.used { border-color: var(--accent); }
+  .chip.selc { box-shadow: 0 0 0 2px var(--accent); }
+  .chip .no, .marker .no { display: inline-grid; place-items: center;
+    width: 16px; height: 16px; border-radius: 50%; background: var(--accent);
+    color: #002230; font-size: 11px; font-weight: 700; }
+  .marker .no { position: absolute; top: -7px; left: -7px; z-index: 1; }
+  .chip .del, .chip .rm { color: var(--dim); cursor: pointer; padding: 0 2px; }
   .chip .del:hover { color: var(--err); }
+  .chip .rm:hover { color: var(--warn); }
   .preview { position: relative; width: 100%; max-width: 560px; aspect-ratio: 16/9;
     background: repeating-conic-gradient(var(--panel2) 0% 25%, var(--panel) 0% 50%) 0 0/28px 28px;
     border: 1px solid var(--line); border-radius: 10px; cursor: crosshair; overflow: hidden; }
@@ -118,7 +124,8 @@
       <label style="padding-top:6px">画像</label>
       <div style="flex:1">
         <div class="chips" id="chips"></div>
-        <div class="hint">クリックで使用/解除（複数選ぶとランダム表示）・×で削除。GIFも使えます</div>
+        <div class="hint">クリックで追加・選択（複数選ぶと発火のたびランダムで1枚）。
+          番号①②…がプレビューの画像と対応します。−で演出から外す・×でファイル削除。GIFも使えます</div>
         <button class="act" onclick="$('file').click()">＋ 画像を追加…</button>
         <input type="file" id="file" accept=".png,.jpg,.jpeg,.gif,.webp" hidden
                onchange="uploadImage(this.files[0])">
@@ -271,17 +278,25 @@
       return;
     }
     for (const name of images) {
+      const i = r.variants.findIndex(v => v.image === name);
       const c = document.createElement("span");
-      c.className = "chip" + (used.has(name) ? " used" : "");
-      c.innerHTML = `<img src="/soundfx/${encodeURIComponent(name)}" alt="">` +
-        `<span>${name}</span><span class="del" title="この画像を削除">×</span>`;
+      c.className = "chip" + (i >= 0 ? " used" : "")
+                  + (i >= 0 && i === selVar ? " selc" : "");
+      c.innerHTML =
+        (i >= 0 ? `<span class="no">${i + 1}</span>` : "") +
+        `<img src="/soundfx/${encodeURIComponent(name)}" alt="">` +
+        `<span>${name}</span>` +
+        (i >= 0 ? `<span class="rm" title="この演出から外す">−</span>` : "") +
+        `<span class="del" title="この画像を削除">×</span>`;
       c.onclick = (e) => {
         if (e.target.classList.contains("del")) return deleteImage(name);
-        const i = r.variants.findIndex(v => v.image === name);
-        if (i >= 0) {                       // 解除
+        if (e.target.classList.contains("rm")) {   // 演出から外す
           r.variants.splice(i, 1);
-          selVar = r.variants.length ? Math.min(selVar, r.variants.length - 1) : -1;
-        } else {                            // 追加（少しずらした位置に置いて選択）
+          selVar = r.variants.length ? Math.min(Math.max(selVar, 0),
+                                                r.variants.length - 1) : -1;
+        } else if (i >= 0) {                       // 使用中 → 選択するだけ
+          selVar = i;
+        } else {                                   // 未使用 → 追加して選択
           const base = r.variants[r.variants.length - 1]?.pos || r.pos
                        || { x: 0.8, y: 0.25 };
           r.variants.push({ image: name,
@@ -318,7 +333,8 @@
       m.style.left = v.pos.x * 100 + "%";
       m.style.top = v.pos.y * 100 + "%";
       m.style.width = v.size * pv.clientWidth + "px";
-      m.innerHTML = `<img src="/soundfx/${encodeURIComponent(v.image)}" alt=""` +
+      m.innerHTML = `<span class="no">${i + 1}</span>` +
+        `<img src="/soundfx/${encodeURIComponent(v.image)}" alt=""` +
         (v.rot ? ` style="transform:rotate(${v.rot}deg)"` : "") + `>`;
       m.onpointerdown = (e) => startDrag(e, i, m);
       pv.appendChild(m);
@@ -333,6 +349,7 @@
       selVar = i;
       syncVariantSliders();
       renderVals();
+      renderChips();     // チップ側の「選択中」表示も同期
       pv.querySelectorAll(".marker").forEach(el => el.classList.remove("sel"));
       m.classList.add("sel");
     }
