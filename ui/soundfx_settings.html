@@ -130,6 +130,10 @@
     <div class="row"><label>大きさ</label>
       <input type="range" id="rSize" min="4" max="60" step="1" oninput="upd()">
       <span class="val" id="vSize"></span></div>
+    <div class="row"><label>回転</label>
+      <input type="range" id="rRot" min="-180" max="180" step="5" oninput="upd()"
+             ondblclick="this.value=0;upd()">
+      <span class="val" id="vRot"></span></div>
     <div class="row"><label>表示時間</label>
       <input type="range" id="rDur" min="400" max="6000" step="100" oninput="upd()">
       <span class="val" id="vDur"></span></div>
@@ -219,6 +223,17 @@
       ? r.variants[selVar].size : (r.size || 0.2);
   }
 
+  function curRot() {
+    const r = rule();
+    return selVar >= 0 && r.variants[selVar]
+      ? (r.variants[selVar].rot || 0) : 0;
+  }
+
+  function syncVariantSliders() {
+    syncVariantSliders();
+    $("rRot").value = curRot();
+  }
+
   function renderEditor() {
     if (!sel) { $("editor").style.display = "none"; return; }
     $("editor").style.display = "";
@@ -230,7 +245,7 @@
     $("rParticle").value = r.particle || "none";
     $("rEnter").value = r.enter || "pop";
     $("rAnim").value = r.anim || "none";
-    $("rSize").value = Math.round(curSize() * 100);
+    syncVariantSliders();
     $("rDur").value = r.duration || 1500;
     $("rJitter").value = Math.round((r.jitter || 0) * 100);
     $("rScale").checked = r.scale_by_score !== false;
@@ -241,6 +256,7 @@
 
   function renderVals() {
     $("vSize").textContent = $("rSize").value + "%";
+    $("vRot").textContent = $("rRot").value + "°";
     $("vDur").textContent = ($("rDur").value / 1000).toFixed(1) + "秒";
     $("vJitter").textContent = $("rJitter").value + "%";
   }
@@ -271,10 +287,11 @@
           r.variants.push({ image: name,
             pos: { x: Math.min(1, base.x + r.variants.length * 0.04),
                    y: Math.min(1, base.y + r.variants.length * 0.04) },
-            size: r.variants[r.variants.length - 1]?.size || r.size || 0.2 });
+            size: r.variants[r.variants.length - 1]?.size || r.size || 0.2,
+            rot: 0 });
           selVar = r.variants.length - 1;
         }
-        $("rSize").value = Math.round(curSize() * 100);
+        syncVariantSliders();
         renderChips(); renderVals(); renderMarkers(); save();
       };
       box.appendChild(c);
@@ -301,7 +318,8 @@
       m.style.left = v.pos.x * 100 + "%";
       m.style.top = v.pos.y * 100 + "%";
       m.style.width = v.size * pv.clientWidth + "px";
-      m.innerHTML = `<img src="/soundfx/${encodeURIComponent(v.image)}" alt="">`;
+      m.innerHTML = `<img src="/soundfx/${encodeURIComponent(v.image)}" alt=""` +
+        (v.rot ? ` style="transform:rotate(${v.rot}deg)"` : "") + `>`;
       m.onpointerdown = (e) => startDrag(e, i, m);
       pv.appendChild(m);
     });
@@ -313,7 +331,7 @@
     const r = rule(), pv = $("preview"), rect = pv.getBoundingClientRect();
     if (selVar !== i) {
       selVar = i;
-      $("rSize").value = Math.round(curSize() * 100);
+      syncVariantSliders();
       renderVals();
       pv.querySelectorAll(".marker").forEach(el => el.classList.remove("sel"));
       m.classList.add("sel");
@@ -352,10 +370,13 @@
     r.particle = $("rParticle").value;
     r.enter = $("rEnter").value;
     r.anim = $("rAnim").value;
-    // 大きさは「選択中の画像」に効く（画像なしのときはルール既定へ）
-    if (selVar >= 0 && r.variants[selVar])
+    // 大きさ・回転は「選択中の画像」に効く（画像なしのときはルール既定へ）
+    if (selVar >= 0 && r.variants[selVar]) {
       r.variants[selVar].size = $("rSize").value / 100;
-    else r.size = $("rSize").value / 100;
+      r.variants[selVar].rot = +$("rRot").value;
+    } else {
+      r.size = $("rSize").value / 100;
+    }
     r.duration = +$("rDur").value;
     r.jitter = $("rJitter").value / 100;
     r.scale_by_score = $("rScale").checked;
@@ -400,7 +421,8 @@
       ru.variants.push({ image: r.name,
         pos: { ...(ru.variants[ru.variants.length - 1]?.pos || ru.pos
                    || { x: 0.8, y: 0.25 }) },
-        size: ru.variants[ru.variants.length - 1]?.size || ru.size || 0.2 });
+        size: ru.variants[ru.variants.length - 1]?.size || ru.size || 0.2,
+        rot: 0 });
       selVar = ru.variants.length - 1;
     }
     renderChips(); renderMarkers(); save();

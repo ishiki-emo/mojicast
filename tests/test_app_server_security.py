@@ -161,7 +161,7 @@ class LocalOriginGuardTests(unittest.TestCase):
             "笑い": {"on": 1,
                      "variants": [
                          {"image": "ok.png", "pos": {"x": 9, "y": -3},
-                          "size": 99},
+                          "size": 99, "rot": 999},
                          {"image": "../bad.png"},    # 不正名 → この項だけ捨てる
                          "壊れた型",
                      ],
@@ -176,7 +176,7 @@ class LocalOriginGuardTests(unittest.TestCase):
         self.assertIs(rule["on"], True)
         self.assertEqual(rule["variants"],
                          [{"image": "ok.png", "pos": {"x": 1.0, "y": 0.0},
-                           "size": 1.0}])
+                           "size": 1.0, "rot": 180.0}])
         self.assertEqual(rule["duration"], 200)
         self.assertEqual(len(rule["particle"]), 20)
         self.assertEqual(app_server._sanitize_sound_rules("not a dict"), {})
@@ -188,8 +188,10 @@ class LocalOriginGuardTests(unittest.TestCase):
         rule = app_server._sanitize_sound_rules(raw)["笑い"]
         self.assertEqual(
             rule["variants"],
-            [{"image": "a.png", "pos": {"x": 0.7, "y": 0.2}, "size": 0.3},
-             {"image": "b.png", "pos": {"x": 0.7, "y": 0.2}, "size": 0.3}])
+            [{"image": "a.png", "pos": {"x": 0.7, "y": 0.2}, "size": 0.3,
+              "rot": 0.0},
+             {"image": "b.png", "pos": {"x": 0.7, "y": 0.2}, "size": 0.3,
+              "rot": 0.0}])
 
     def test_soundfx_test_fire_rejects_unknown_group(self):
         conn, response = self.request(

@@ -145,7 +145,16 @@
         el.classList.contains("sfx-item") && rule.enter !== "none"
           ? setTimeout(start, 500) : start();
       }
-      el.appendChild(img);
+      // 回転は専用ラッパに持たせる。外側(el)は登場アニメ・内側(img)は
+      // 表示中アニメが transform を使うため、そのどちらにも書けない
+      if (v.rot) {
+        const rotor = document.createElement("div");
+        rotor.style.transform = `rotate(${v.rot}deg)`;
+        rotor.appendChild(img);
+        el.appendChild(rotor);
+      } else {
+        el.appendChild(img);
+      }
     } else {
       // 画像なし（パーティクルだけ）でも発射位置は寸法どおり確保する
       el.style.height = wpx * 0.6 + "px";

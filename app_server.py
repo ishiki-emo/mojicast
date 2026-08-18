@@ -609,12 +609,15 @@ def _clean_sound_rule(rule):
         if name is None:
             continue
         variants.append({"image": name, "pos": _clean_pos(v.get("pos")),
-                         "size": _clean_size(v.get("size"))})
+                         "size": _clean_size(v.get("size")),
+                         "rot": min(180.0, max(-180.0,
+                                               float(v.get("rot", 0))))})
     if not variants:
         # 旧形式（images配列＋共通pos/size）からの引き継ぎ
         shared_pos = _clean_pos(rule.get("pos"))
         shared_size = _clean_size(rule.get("size"))
-        variants = [{"image": n, "pos": dict(shared_pos), "size": shared_size}
+        variants = [{"image": n, "pos": dict(shared_pos), "size": shared_size,
+                     "rot": 0.0}
                     for n in map(_soundfx_image_name, rule.get("images") or [])
                     if n][:10]
     return {
