@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <title>AIモデル設定</title>
 <script>
-  // 起動モニタに合わせたUI縮小＋テーマ先読み（cockpitと同じ流儀）
+  // GUI窓の拡大率＋テーマ先読み（cockpitと同じ流儀）
   (function () {
     const qs = new URLSearchParams(location.search);
     const s = parseFloat(qs.get("s"));
-    if (s > 0 && s < 1) document.documentElement.style.zoom = s;
+    if (s > 0 && s !== 1) document.documentElement.style.zoom = s;
     try { if (localStorage.getItem("mojicast-theme") === "light")
       document.documentElement.dataset.theme = "light"; } catch (e) {}
     if (qs.get("embed") === "1") document.documentElement.classList.add("embed");

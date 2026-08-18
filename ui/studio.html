@@ -7,7 +7,7 @@
   (function () {
     const q = new URLSearchParams(location.search);
     const s = parseFloat(q.get("s"));
-    if (s > 0 && s < 1) document.documentElement.style.zoom = s;
+    if (s > 0 && s !== 1) document.documentElement.style.zoom = s;
     try {
       const theme = q.get("theme") || localStorage.getItem("mojicast-theme");
       if (theme === "light") document.documentElement.dataset.theme = "light";
@@ -201,7 +201,9 @@
 <script>
   const $ = id => document.getElementById(id);
   const qs = new URLSearchParams(location.search);
-  const basePass = ["s","v"].filter(k => qs.get(k)).map(k => `&${k}=${encodeURIComponent(qs.get(k))}`).join("");
+  // s（拡大率）は渡さない。iframeはこの窓のzoomで一緒に拡縮されるため、子側で
+  // 再度掛けると二重になる。v は WebView2 のキャッシュ回避用で子にも必要。
+  const basePass = ["v"].filter(k => qs.get(k)).map(k => `&${k}=${encodeURIComponent(qs.get(k))}`).join("");
   const descriptions = {
     captions:"字幕の見た目・位置・認識単語を編集", translation:"翻訳字幕の見た目と固定訳を編集",
     effects:"反応する言葉と演出を編集", soundfx:"笑い声・拍手に反応する演出を編集",

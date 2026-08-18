@@ -51,6 +51,12 @@ DEFAULT_CONFIG = {
     "word_profile": "",     # 使用中の単語プロファイル（"" = 共通のみ）
     "theme": "light",       # GUI窓のテーマ（light / dark）。既定ライト。overlayは対象外
     "ui_lang": "ja",        # GUI表示言語（ja / zh / en）。明示選択・既定ja。overlayは対象外
+    # GUI窓の拡大率。"auto"=起動モニタから自動判定 / 0.75〜1.5=利用者の明示指定。
+    # overlayは対象外（OBSに映る字幕の大きさは変わらない）
+    "ui_scale": "auto",
+    # 窓ごとの大きさ・位置（閉じた時点の値を次回起動で復元）。
+    # {"cockpit": {"x","y","w","h","scale"}, ...}。書き換えは save_window_geometry 経由
+    "window_geometry": {},
     # 1対1コラボ（案A改・出力キャプチャ）。collab=Trueで②の入力を相手話者として取り込む
     # collab_source: "process"=アプリ音声を直接取り込み（方式2・推奨）/ "device"=仮想ケーブル
     "collab": False, "collab_source": "process",
@@ -168,6 +174,77 @@ def load_config():
 def save_config(cfg):
     with _config_lock:
         _write_json(wordstore.data_path("config.json"), cfg)
+
+
+# GUI窓の拡大率の許容範囲。下限は既存の自動判定と揃え、上限はFullHDでも
+# コックピット（1100x800基準）が作業領域に収まる範囲として1.5とする。
+UI_SCALE_MIN = 0.75
+UI_SCALE_MAX = 1.5
+
+
+def normalize_ui_scale(value):
+    """UI倍率を "auto"（自動判定）か UI_SCALE_MIN〜UI_SCALE_MAX の数値へ正規化する。
+
+    壊れた値やレンジ外で窓が作れなくなるのを防ぐため、保存前と読み出し後の
+    両方をここに通す。解釈できない値は "auto"（従来動作）へ倒す。
+    """
+    if value is None or value == "" or value == "auto":
+        return "auto"
+    try:
+        scale = float(value)
+    except (TypeError, ValueError):
+        return "auto"
+    if scale != scale:   # NaN。比較が常に偽になりクランプをすり抜ける
+        return "auto"
+    return round(min(UI_SCALE_MAX, max(UI_SCALE_MIN, scale)), 2)
+
+
+def normalize_window_geometry(value):
+    """窓の記憶値を {キー: {"x","y","w","h","scale"}} の形へ正規化する。
+
+    壊れている項目だけを落とし、他の窓の記憶は残す。w/h が無い要素は
+    復元に使えないため捨てる（位置だけ復元しても大きさが決まらない）。
+    """
+    if not isinstance(value, dict):
+        return {}
+    cleaned = {}
+    for key, geom in value.items():
+        if not isinstance(key, str) or not isinstance(geom, dict):
+            continue
+        entry = {}
+        for field in ("x", "y", "w", "h", "scale"):
+            raw = geom.get(field)
+            # bool は int の派生。True が座標1として通らないよう先に弾く
+            if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+                continue
+            if raw != raw:   # NaN
+                continue
+            entry[field] = round(float(raw), 2) if field == "scale" else int(raw)
+        if entry.get("w") and entry.get("h"):
+            cleaned[key[:32]] = entry
+    return cleaned
+
+
+def save_window_geometry(key, geom):
+    """窓の大きさ・位置を次回起動用に記録する。
+
+    複数の窓がほぼ同時に閉じても、後着の read-modify-write が先着の記録を
+    巻き戻さないよう一連を排他する。
+    """
+    with _config_lock:
+        cfg = load_config()
+        store = dict(cfg.get("window_geometry") or {})   # DEFAULT_CONFIG を汚さない
+        store[str(key)] = geom
+        cfg["window_geometry"] = normalize_window_geometry(store)
+        save_config(cfg)
+
+
+def resolve_ui_scale(cfg=None):
+    """実際にGUI窓へ適用する拡大率。明示指定があればそれを、なければ自動判定を返す。"""
+    if cfg is None:
+        cfg = load_config()
+    scale = normalize_ui_scale(cfg.get("ui_scale", "auto"))
+    return platform_compat.ui_scale() if scale == "auto" else scale
 
 
 def _version_tuple(s):
@@ -541,6 +618,7 @@ def _init_event():
     # 現在のテーマへ即座に揃えられるよう初期イベントにも含める。
     ev["theme"] = cfg.get("theme", "light")
     ev["ui_lang"] = cfg.get("ui_lang", "ja")
+    ev["ui_scale"] = resolve_ui_scale(cfg)
     return ev
 
 
@@ -1007,6 +1085,9 @@ class Handler(BaseHTTPRequestHandler):
             cfg["version"] = APP_VERSION   # 表示用（保存はされない: POSTでは既知キーのみ更新）
             # OS能力（表示用）。UIはこれでコラボ欄をグレーアウトする
             cfg["collab_supported"] = platform_compat.collab_supported()
+            # 表示・適用用。resolved=実際に効いている倍率、auto=「自動」を選んだ場合の倍率
+            cfg["ui_scale_resolved"] = resolve_ui_scale(cfg)
+            cfg["ui_scale_auto"] = platform_compat.ui_scale()
             self._json(cfg)
         elif path == "/api/update-check":
             # GUIから起動時に1回呼ぶ。force=1 で手動再取得。ネット不通でも安全に返す。
@@ -1138,6 +1219,11 @@ class Handler(BaseHTTPRequestHandler):
                 body["theme"] = "light"   # 未知値はライトへ（既定）
             if "ui_lang" in body and body.get("ui_lang") not in ("ja", "zh", "en"):
                 body["ui_lang"] = "ja"    # 未知値は日本語へ（既定）
+            if "ui_scale" in body:
+                body["ui_scale"] = normalize_ui_scale(body.get("ui_scale"))
+            if "window_geometry" in body:
+                body["window_geometry"] = normalize_window_geometry(
+                    body.get("window_geometry"))
             if ("collab_source" in body
                     and body.get("collab_source") not in ("process", "device")):
                 body["collab_source"] = "process"   # 未知値は推奨方式へ
@@ -1183,6 +1269,11 @@ class Handler(BaseHTTPRequestHandler):
                 broadcast({"type": "theme", "theme": cfg.get("theme", "light")})
             if "ui_lang" in body:
                 broadcast({"type": "ui_lang", "ui_lang": cfg.get("ui_lang", "ja")})
+            # 拡大率は解決済みの実効値を配る（"auto" は自動判定の数値へ）。
+            # 開いている窓の中身は即座に拡縮するが、ネイティブ窓自体の
+            # ピクセルサイズは起動時に決まるため次回起動から反映される。
+            if "ui_scale" in body:
+                broadcast({"type": "ui_scale", "ui_scale": resolve_ui_scale(cfg)})
             self._json({"ok": True, "config": cfg})
         elif path == "/api/profiles":
             self._post_profiles(body)

@@ -22,16 +22,122 @@ import app_server
 import platform_compat
 
 
-UI_SCALE = platform_compat.ui_scale()   # コックピット等のGUI窓のみ。overlayには効かせない
 UI_SESSION = int(time.time())  # WebView2が前回のUIを復元しないための起動単位キャッシュキー
+
+
+def _fit(width, height, scale, work):
+    """基準サイズへ倍率を掛け、画面の作業領域に収まる範囲へ抑える。
+
+    拡大率を上げたとき、窓や最小サイズが画面より大きくなって
+    タイトルバーやボタンに手が届かなくなるのを防ぐ。work が (0, 0)
+    （取得できないOS・環境）のときはクランプせず倍率だけ掛ける。
+    """
+    max_w, max_h = work
+    w = int(width * scale)
+    h = int(height * scale)
+    return (min(w, max_w) if max_w > 0 else w,
+            min(h, max_h) if max_h > 0 else h)
+
+
+def _screens():
+    """全モニタの矩形 (x, y, 幅, 高さ) を論理pxで返す。取得できなければ空。"""
+    try:
+        return [(s.x, s.y, s.width, s.height) for s in webview.screens]
+    except Exception:
+        return []
+
+
+def _on_screen(x, y, screens):
+    """記憶した位置が、今のモニタ構成でつかめる場所にあるか。
+
+    モニタを外した・配置を変えた後に画面外へ復元してしまうと、窓を
+    動かすことも閉じることもできなくなる。左上がどれかのモニタ内に
+    あり、かつタイトルバー相当（100x40）が残る場合だけ採用する。
+    """
+    for sx, sy, sw, sh in screens:
+        if sx <= x <= sx + sw - 100 and sy <= y <= sy + sh - 40:
+            return True
+    return False
+
+
+def _remembered(key, base_w, base_h, scale, work, cfg, screens):
+    """前回閉じたときの大きさ・位置を今の環境に合わせて返す → (幅, 高さ, x, y)
+
+    記憶が無い・使えない場合は既定サイズと x=y=None（pywebviewが中央へ置く）。
+    """
+    width, height = _fit(base_w, base_h, scale, work)
+    geom = app_server.normalize_window_geometry(
+        cfg.get("window_geometry") or {}).get(key)
+    if not geom:
+        return width, height, None, None
+
+    # 記憶した大きさは「保存時の倍率での実サイズ」。倍率を変えていた場合は
+    # 同じ比率で伸縮させ、中身が入りきらない大きさで開かないようにする。
+    saved_scale = geom.get("scale") or scale
+    ratio = scale / saved_scale if saved_scale > 0 else 1.0
+    # 記憶値はその環境で実際に収まっていた大きさ。主モニタより広い別モニタへ
+    # 置いていることもあるため、上限は全モニタ中の最大寸法で見る。
+    limit = work
+    if screens:
+        limit = (max(s[2] for s in screens), max(s[3] for s in screens))
+    width, height = _fit(geom["w"], geom["h"], ratio, limit)
+    # 最小サイズを下回ると窓を作れない組み合わせが生じる
+    min_w, min_h = _fit(900, 600, scale, work)
+    width, height = max(width, min_w), max(height, min_h)
+
+    x, y = geom.get("x"), geom.get("y")
+    if x is None or y is None or not _on_screen(x, y, screens):
+        return width, height, None, None
+    return width, height, x, y
+
+
+class _WindowMemory:
+    """窓の大きさ・位置を追い、閉じるときに次回起動用として残す。
+
+    resized/moved は操作中に何度も飛ぶため、その都度 config へ書かず
+    メモリ上の最新値だけ更新し、窓を閉じる時に一度だけ保存する。
+    """
+
+    def __init__(self, key, scale):
+        self._key = key
+        self._scale = scale   # 保存時の倍率。次回起動で倍率が変わった際の換算に使う
+        self._geom = {}
+
+    def attach(self, window, width, height, x, y):
+        self._geom = {"w": int(width), "h": int(height)}
+        if x is not None and y is not None:
+            self._geom.update({"x": int(x), "y": int(y)})
+        window.events.resized += self._on_resized
+        window.events.moved += self._on_moved
+
+    def _on_resized(self, width, height):
+        self._geom["w"], self._geom["h"] = int(width), int(height)
+
+    def _on_moved(self, x, y):
+        # 最小化中のWindowsは -32000 のような座標を報告する（記憶しない）
+        if x > -10000 and y > -10000:
+            self._geom["x"], self._geom["y"] = int(x), int(y)
+
+    def save(self):
+        if not self._geom.get("w"):
+            return
+        try:
+            app_server.save_window_geometry(
+                self._key, dict(self._geom, scale=self._scale))
+        except Exception:
+            pass   # 記憶できなくても、次回は既定の大きさで開けばよい
 
 
 class JsApi:
     """コックピットの JS から呼べるネイティブAPI"""
 
-    def __init__(self, port):
+    def __init__(self, port, scale=1.0, work=(0, 0), screens=()):
         self._windows = {}   # key -> webview.Window
+        self._memories = {}  # key -> _WindowMemory（閉じるときに大きさ・位置を残す）
         self._port = port    # 実際に起動しているポート（configの値ではなく起動時の実ポート）
+        self._scale = scale  # GUI窓の拡大率（コックピットと揃える）
+        self._work = work    # 画面の作業領域（拡大時のはみ出し防止）
+        self._screens = screens   # 全モニタの矩形（記憶した位置が今も見えるかの判定用）
         self._closing = False
 
     def _open(self, key, title, path, width, height):
@@ -43,7 +149,7 @@ class JsApi:
         sep = "&" if "?" in path else "?"
         theme = app_server.load_config().get("theme", "light")
         background = "#f7f9fc" if theme == "light" else "#0d1117"
-        url = (f"http://127.0.0.1:{port}{path}{sep}s={UI_SCALE}&v={UI_SESSION}"
+        url = (f"http://127.0.0.1:{port}{path}{sep}s={self._scale}&v={UI_SESSION}"
                f"&theme={theme}")
         existing = self._windows.get(key)
         if existing is not None:
@@ -55,18 +161,36 @@ class JsApi:
             existing.restore()
             existing.show()
             return
+        win_w, win_h, win_x, win_y = _remembered(
+            key, width, height, self._scale, self._work,
+            app_server.load_config(), self._screens)
         w = webview.create_window(
             f"{title} — Mojicast",
             url,
-            width=int(width * UI_SCALE), height=int(height * UI_SCALE),
+            width=win_w, height=win_h, x=win_x, y=win_y,
             background_color=background, js_api=self)
         self._windows[key] = w
-        w.events.closed += lambda: self._windows.pop(key, None)
+        memory = _WindowMemory(key, self._scale)
+        memory.attach(w, win_w, win_h, win_x, win_y)
+        self._memories[key] = memory
+        w.events.closed += lambda: self._forget(key)
+
+    def _forget(self, key):
+        """窓が閉じられたときの後始末。大きさ・位置を次回起動用に残す。"""
+        self._windows.pop(key, None)
+        memory = self._memories.pop(key, None)
+        if memory is not None:
+            memory.save()
 
     def close_all_windows(self):
         """メイン窓の終了に合わせ、残っている補助窓をすべて閉じる"""
         self._closing = True
         windows = list(self._windows.values())
+        # 破棄後のclosedイベントはアプリ終了に間に合わないことがあるため先に残す
+        memories = list(self._memories.values())
+        self._memories.clear()
+        for memory in memories:
+            memory.save()
         self._windows.clear()
         for window in windows:
             try:
@@ -170,22 +294,35 @@ def main():
 
     app_server.start(port)
 
-    api = JsApi(port)
+    # コックピット等のGUI窓のみ。overlay（OBSに映る字幕）には効かせない。
+    # config の ui_scale が "auto" なら起動モニタからの自動判定。
+    scale = app_server.resolve_ui_scale(cfg)
+    work = platform_compat.screen_work_area()
+    screens = _screens()
+
+    api = JsApi(port, scale, work, screens)
+    # 既定の高さは右カラム（トグル・単語セット・OBS・スタジオ入口）が
+    # スクロールなしで収まる目安。最小構成のFullHD（scale 0.8）でも
+    # 800*0.8=640px と画面高に収まる。拡大指定時は _fit が画面内へ抑える。
+    # 前回この窓を閉じたときの大きさ・位置があればそちらを優先する。
+    win_w, win_h, win_x, win_y = _remembered(
+        "cockpit", 1100, 800, scale, work, cfg, screens)
+    min_w, min_h = _fit(900, 600, scale, work)
     window = webview.create_window(
         "Mojicast",
-        (f"http://127.0.0.1:{port}/ui/cockpit?s={UI_SCALE}&v={UI_SESSION}"
+        (f"http://127.0.0.1:{port}/ui/cockpit?s={scale}&v={UI_SESSION}"
          f"&theme={cfg.get('theme', 'light')}"),
-        # 高さは右カラム（トグル・単語セット・OBS・スタジオ入口）が
-        # スクロールなしで収まる目安。最小構成のFullHD（scale 0.8）でも
-        # 800*0.8=640px と画面高に収まる
-        width=int(1100 * UI_SCALE), height=int(800 * UI_SCALE),
-        min_size=(int(900 * UI_SCALE), int(600 * UI_SCALE)),
+        width=win_w, height=win_h, x=win_x, y=win_y,
+        min_size=(min_w, min_h),
         background_color="#0d1117" if cfg.get("theme") == "dark" else "#f7f9fc",
         js_api=api)
+    memory = _WindowMemory("cockpit", scale)
+    memory.attach(window, win_w, win_h, win_x, win_y)
 
     def on_closed():
         # コックピットをアプリの親窓として扱う。補助窓が残っていても閉じ、
         # 認識エンジンも止めて webview.start() を確実に終了させる。
+        memory.save()
         api.close_all_windows()
         try:
             eng = app_server.get_engine()

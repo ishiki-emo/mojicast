@@ -4,11 +4,12 @@
 <meta charset="utf-8">
 <title>Mojicast</title>
 <script>
-  // 起動モニタに合わせたUI縮小（app.pyが ?s= で倍率を渡す。FullHDで約0.8）
+  // GUI窓の拡大率（app.pyが ?s= で渡す。既定は起動モニタからの自動判定でFullHDなら約0.8、
+  // アプリ設定で明示指定した場合は等倍超の拡大も入る）
   (function () {
     const qs = new URLSearchParams(location.search);
     const s = parseFloat(qs.get("s"));
-    if (s > 0 && s < 1) document.documentElement.style.zoom = s;
+    if (s > 0 && s !== 1) document.documentElement.style.zoom = s;
     // テーマ先読み（configロード前のちらつき防止。真の値はloadAllで上書き）
     try {
       const theme = qs.get("theme") || localStorage.getItem("mojicast-theme");
@@ -640,6 +641,14 @@
     if (b) { b.textContent = light ? "☀" : "🌙"; }
     try { localStorage.setItem("mojicast-theme", light ? "light" : "dark"); } catch (e) {}
   }
+  // GUI窓の拡大率。URLの ?s= は窓を開いた時点の値なので、起動後にアプリ設定で
+  // 変えた場合はここで上書きする（窓自体のピクセルサイズは次回起動から）。
+  function applyScale(scale) {
+    const s = parseFloat(scale);
+    if (!(s > 0)) return;
+    // 等倍は zoom を外す。拡大／縮小からの戻りで指定が残らないようにする。
+    document.documentElement.style.zoom = s === 1 ? "" : s;
+  }
   function toggleTheme() {
     cfg.theme = cfg.theme === "light" ? "dark" : "light";
     applyTheme(cfg.theme);
@@ -805,6 +814,7 @@
   async function loadAll() {
     cfg = await api("/api/config");
     applyTheme(cfg.theme);   // 保存済みテーマを確定反映（先読みの上書き）
+    applyScale(cfg.ui_scale_resolved);   // 起動後に倍率を変えていた場合の追従
     if (window.MojicastI18n) window.MojicastI18n.applyLang(cfg.ui_lang || "ja");   // 表示言語
     if (cfg.version) $("verTag").textContent = "v" + cfg.version;
     checkUpdate();   // 更新のお知らせ（非同期・失敗は無視）
@@ -1268,6 +1278,7 @@
       else if (m.type === "style") { setPreviewStyle(m); refreshPresets(); }
       else if (m.type === "vc") vcToast(m.message, m.ok);
       else if (m.type === "theme") { cfg.theme = m.theme; applyTheme(m.theme); }
+      else if (m.type === "ui_scale") applyScale(m.ui_scale);
       else if (m.type === "ui_lang") { cfg.ui_lang = m.ui_lang; if (window.MojicastI18n) { window.MojicastI18n.applyLang(m.ui_lang); setState(lastState); syncModelCard(); } }
     };
     es.onerror = () => { es.close(); setTimeout(connect, 1000); };
