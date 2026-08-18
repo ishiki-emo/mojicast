@@ -63,7 +63,8 @@ ENTER_BY_GROUP = {
 }
 
 _REPO = "k2-fsa/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15"
-_FILES = ["model.int8.onnx", "class_labels_indices.csv"]
+# README はライセンス宣言（Apache-2.0）の保持のため一緒に取得する（SenseVoiceと同じ流儀）
+_FILES = ["model.int8.onnx", "class_labels_indices.csv", "README.md"]
 
 
 def _resolve(download=True):
