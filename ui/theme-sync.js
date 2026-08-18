@@ -30,6 +30,11 @@
     if (!(s > 0)) return;
     // 等倍は zoom を外す。拡大／縮小からの戻りで指定が残らないようにする。
     document.documentElement.style.zoom = s === 1 ? "" : s;
+    // 100vh は zoom に連動しないため、高さ補正用の変数も必ず揃えて更新する。
+    // ここを忘れると calc(100vh / var(--ui-zoom)) が古い倍率のまま残り、
+    // フッターの下に余白が出る（cockpit の applyScale と同じ処置）
+    if (s === 1) document.documentElement.style.removeProperty("--ui-zoom");
+    else document.documentElement.style.setProperty("--ui-zoom", s);
   }
 
   function connect() {
