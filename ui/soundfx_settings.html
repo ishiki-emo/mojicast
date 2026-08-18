@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>リアクション演出</title>
+<script>
+  // 起動モニタに合わせたUI縮小＋テーマ先読み（cockpitと同じ流儀）
+  (function () {
+    const qs = new URLSearchParams(location.search);
+    const s = parseFloat(qs.get("s"));
+    if (s > 0 && s < 1) document.documentElement.style.zoom = s;
+    try { if (localStorage.getItem("mojicast-theme") === "light")
+      document.documentElement.dataset.theme = "light"; } catch (e) {}
+    if (qs.get("embed") === "1") document.documentElement.classList.add("embed");
+  })();
+</script>
+<script src="/ui/theme-sync.js" defer></script>
+<script src="/ui/fx.js"></script>
+<script src="/ui/soundfx.js"></script>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161c26; --panel2: #1c2432;
+    --line: #2a3547; --text: #dce6f5; --dim: #7d8ba1;
+    --accent: #00e5ff; --accent2: #ff2d95; --ok: #3dffa0; --warn: #ffb84d; --err: #ff5c5c;
+  }
+  :root[data-theme="light"] {
+    --bg: #f7f9fc; --panel: #ffffff; --panel2: #eef2f8;
+    --line: #dbe2ec; --text: #16202e; --dim: #5c6b80;
+    --accent: #0499bd; --accent2: #d4247a; --ok: #12a05f; --warn: #b5761a; --err: #d94141;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'Yu Gothic UI', 'Meiryo', sans-serif; font-size: 15px;
+    min-height: 100vh; display: flex; flex-direction: column; user-select: none;
+  }
+  header { display: flex; align-items: center; gap: 12px;
+    padding: 12px 18px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  header .t { font-weight: 900; letter-spacing: .06em; }
+  header .d { color: var(--dim); font-size: 12px; flex: 1; }
+  .switch { width: 46px; height: 26px; border-radius: 13px; border: 1px solid var(--line);
+    background: var(--panel2); position: relative; cursor: pointer; flex: none; }
+  .switch i { position: absolute; top: 2px; left: 2px; width: 20px; height: 20px;
+    border-radius: 50%; background: var(--dim); transition: .15s; }
+  .switch[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); }
+  .switch[aria-pressed="true"] i { left: 22px; background: #fff; }
+  main { flex: 1; display: flex; gap: 14px; padding: 14px 18px; overflow-y: auto; }
+  .groups { width: 240px; flex: none; }
+  .grow { display: flex; align-items: center; gap: 9px; width: 100%;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    color: var(--text); padding: 10px 12px; margin-bottom: 8px; cursor: pointer;
+    font-size: 14px; text-align: left; }
+  .grow.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .grow .emoji { font-size: 20px; }
+  .grow .st { margin-left: auto; font-size: 11px; color: var(--dim); }
+  .grow .st.on { color: var(--ok); }
+  .editor { flex: 1; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 16px; min-width: 0; }
+  .editor h2 { font-size: 16px; margin-bottom: 4px; }
+  .editor .sub { color: var(--dim); font-size: 12px; margin-bottom: 14px; }
+  .row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .row label { width: 108px; flex: none; color: var(--dim); font-size: 13px; }
+  select, button.act {
+    background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 6px 10px; font-size: 13px; font-family: inherit; }
+  button.act { cursor: pointer; }
+  button.primary { background: var(--accent); color: #002230; font-weight: 700;
+    border: none; padding: 8px 18px; }
+  input[type="range"] { flex: 1; max-width: 220px; accent-color: var(--accent); }
+  .val { font-size: 12px; color: var(--dim); width: 52px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; flex: 1; }
+  .chip { display: flex; align-items: center; gap: 6px; border: 1px solid var(--line);
+    border-radius: 8px; padding: 4px 8px; cursor: pointer; background: var(--panel2);
+    font-size: 12px; }
+  .chip img { width: 26px; height: 26px; object-fit: contain; }
+  .chip.used { border-color: var(--accent); }
+  .chip.selc { box-shadow: 0 0 0 2px var(--accent); }
+  .chip .no, .marker .no { display: inline-grid; place-items: center;
+    width: 16px; height: 16px; border-radius: 50%; background: var(--accent);
+    color: #002230; font-size: 11px; font-weight: 700; }
+  .marker .no { position: absolute; top: -7px; left: -7px; z-index: 1; }
+  .chip .del, .chip .rm { color: var(--dim); cursor: pointer; padding: 0 2px; }
+  .chip .del:hover { color: var(--err); }
+  .chip .rm:hover { color: var(--warn); }
+  .preview { position: relative; width: 100%; max-width: 560px; aspect-ratio: 16/9;
+    background: repeating-conic-gradient(var(--panel2) 0% 25%, var(--panel) 0% 50%) 0 0/28px 28px;
+    border: 1px solid var(--line); border-radius: 10px; cursor: crosshair; overflow: hidden; }
+  .preview .marker { position: absolute; transform: translate(-50%,-50%);
+    cursor: grab; border-radius: 6px; }
+  .preview .marker:active { cursor: grabbing; }
+  .preview .marker.sel { outline: 2px solid var(--accent);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 30%, transparent); }
+  .preview .marker.ph { pointer-events: none; }
+  .preview .marker img { width: 100%; height: auto; display: block; pointer-events: none; }
+  .preview .marker .phicon { display: grid; place-items: center; width: 100%; height: 100%;
+    color: var(--accent); font-size: 26px; }
+  .hint { color: var(--dim); font-size: 12px; margin: 6px 0 12px; }
+  .note { background: var(--panel2); border-left: 3px solid var(--warn);
+    padding: 8px 12px; border-radius: 6px; font-size: 12px; color: var(--dim);
+    margin-bottom: 12px; }
+  .checkline { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+  input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; }
+</style>
+</head>
+<body>
+<header>
+  <span class="t">🎉 リアクション演出</span>
+  <span class="d">笑い声・拍手などを検出して、画像やパーティクルを画面に出します</span>
+  <span style="font-size:12px;color:var(--dim)">機能を使う</span>
+  <button class="switch" id="master" aria-label="リアクション演出をオン・オフ"
+          onclick="toggleMaster()"><i></i></button>
+</header>
+<main>
+  <div class="groups" id="groupList"></div>
+  <div class="editor" id="editor" style="display:none">
+    <h2 id="edTitle"></h2>
+    <div class="sub" id="edSub"></div>
+    <div class="row">
+      <label>この音で演出</label>
+      <label class="checkline"><input type="checkbox" id="rOn" onchange="upd()">有効にする</label>
+      <button class="act primary" style="margin-left:auto" onclick="testFire()">🎉 テスト発火</button>
+    </div>
+    <div class="row" style="align-items:flex-start">
+      <label style="padding-top:6px">画像</label>
+      <div style="flex:1">
+        <div class="chips" id="chips"></div>
+        <div class="hint">クリックで追加・選択（複数選ぶと発火のたびランダムで1枚）。
+          番号①②…がプレビューの画像と対応します。−で演出から外す・×でファイル削除。GIFも使えます</div>
+        <button class="act" onclick="$('file').click()">＋ 画像を追加…</button>
+        <input type="file" id="file" accept=".png,.jpg,.jpeg,.gif,.webp" hidden
+               onchange="uploadImage(this.files[0])">
+      </div>
+    </div>
+    <div class="row"><label>パーティクル</label><select id="rParticle" onchange="upd()"></select></div>
+    <div class="row"><label>登場</label><select id="rEnter" onchange="upd()"></select>
+      <label style="width:auto">表示中</label><select id="rAnim" onchange="upd()"></select></div>
+    <div class="row"><label>大きさ</label>
+      <input type="range" id="rSize" min="4" max="60" step="1" oninput="upd()">
+      <span class="val" id="vSize"></span></div>
+    <div class="row"><label>回転</label>
+      <input type="range" id="rRot" min="-180" max="180" step="5" oninput="upd()"
+             ondblclick="this.value=0;upd()">
+      <span class="val" id="vRot"></span></div>
+    <div class="row"><label>表示時間</label>
+      <input type="range" id="rDur" min="400" max="6000" step="100" oninput="upd()">
+      <span class="val" id="vDur"></span></div>
+    <div class="row"><label>位置ゆらぎ</label>
+      <input type="range" id="rJitter" min="0" max="30" step="1" oninput="upd()">
+      <span class="val" id="vJitter"></span></div>
+    <div class="row"><label>強弱</label>
+      <label class="checkline"><input type="checkbox" id="rScale" onchange="upd()">
+        音の大きさ（スコア）で演出を強くする</label></div>
+    <div class="row" style="align-items:flex-start"><label style="padding-top:6px">位置</label>
+      <div style="flex:1">
+        <div class="preview" id="preview" onclick="setPos(event)"></div>
+        <div class="hint">画像をドラッグして配置（画像ごとに別の位置・大きさを持てます）。
+          クリックで選択し、「大きさ」スライダーは選択中の画像に効きます。
+          OBSに映る画面全体が枠です</div>
+      </div></div>
+  </div>
+</main>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const EMOJI = { "笑い": "😄", "拍手・歓声": "👏", "歌・口笛": "🎵",
+                  "泣き": "😢", "驚き・叫び": "❗", "咳・くしゃみ": "🤧" };
+  const SUBS = {
+    "笑い": "声を出して笑ったとき（検出精度がいちばん高い音です）",
+    "拍手・歓声": "拍手・歓声・かけ声",
+    "歌・口笛": "歌・ハミング・口笛（BGMのボーカルにも反応します）",
+    "泣き": "泣き声・すすり泣き",
+    "驚き・叫び": "悲鳴・叫び声（表現によっては拾えないことがあります）",
+    "咳・くしゃみ": "咳・くしゃみ・咳払い",
+  };
+  // variants = 画像ごとの配置（image・pos・size）。pos/size はパーティクルのみの
+  // ときの位置と、画像を追加したときの初期値
+  const DEFAULT_RULE = { on: false, variants: [], particle: "none",
+    pos: { x: 0.8, y: 0.25 }, size: 0.2, jitter: 0.05, enter: "pop",
+    anim: "none", duration: 1500, scale_by_score: true };
+
+  let cfg = {}, groups = [], rules = {}, images = [], sel = null, saveTimer = null;
+  let selVar = -1;   // 選択中バリアント（-1 = なし。位置・大きさの編集対象）
+
+  async function api(path, body) {
+    const r = await fetch(path, body !== undefined
+      ? { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body) } : {});
+    return r.json();
+  }
+
+  function fillSelect(el, pairs) {
+    el.innerHTML = "";
+    for (const [v, label] of pairs) {
+      const o = document.createElement("option");
+      o.value = v; o.textContent = label; el.appendChild(o);
+    }
+  }
+
+  // ---------------- グループ一覧 ----------------
+  function renderGroups() {
+    const box = $("groupList");
+    box.innerHTML = "";
+    for (const g of groups) {
+      const b = document.createElement("button");
+      b.className = "grow" + (g === sel ? " sel" : "");
+      const on = rules[g]?.on;
+      b.innerHTML = `<span class="emoji">${EMOJI[g] || "🔉"}</span>` +
+        `<span>${g}</span><span class="st${on ? " on" : ""}">${on ? "ON" : "OFF"}</span>`;
+      b.onclick = () => { sel = g; renderGroups(); renderEditor(); };
+      box.appendChild(b);
+    }
+  }
+
+  // ---------------- 編集パネル ----------------
+  function rule() {
+    if (!rules[sel]) rules[sel] = JSON.parse(JSON.stringify(DEFAULT_RULE));
+    const r = rules[sel];
+    if (!r.variants) {
+      // 旧形式（images配列＋共通pos/size）で保存されていた場合の引き継ぎ
+      r.variants = (r.images || []).map(n => ({
+        image: n, pos: { ...(r.pos || DEFAULT_RULE.pos) },
+        size: r.size || DEFAULT_RULE.size }));
+      delete r.images;
+    }
+    // このUIは「1画像=1バリアント」前提（チップ表示・−ボタンが最初の1件しか
+    // 扱えない）。重複が保存されていたら最初の1件だけ残す
+    const seen = new Set();
+    r.variants = r.variants.filter(
+      v => !seen.has(v.image) && (seen.add(v.image), true));
+    return r;
+  }
+
+  function curSize() {
+    const r = rule();
+    return selVar >= 0 && r.variants[selVar]
+      ? r.variants[selVar].size : (r.size || 0.2);
+  }
+
+  function curRot() {
+    const r = rule();
+    return selVar >= 0 && r.variants[selVar]
+      ? (r.variants[selVar].rot || 0) : 0;
+  }
+
+  function syncVariantSliders() {
+    $("rSize").value = Math.round(curSize() * 100);
+    $("rRot").value = curRot();
+  }
+
+  function renderEditor() {
+    if (!sel) { $("editor").style.display = "none"; return; }
+    $("editor").style.display = "";
+    const r = rule();
+    selVar = r.variants.length ? 0 : -1;
+    $("edTitle").textContent = `${EMOJI[sel] || ""} ${sel}`;
+    $("edSub").textContent = SUBS[sel] || "";
+    $("rOn").checked = !!r.on;
+    $("rParticle").value = r.particle || "none";
+    $("rEnter").value = r.enter || "pop";
+    $("rAnim").value = r.anim || "none";
+    syncVariantSliders();
+    $("rDur").value = r.duration || 1500;
+    $("rJitter").value = Math.round((r.jitter || 0) * 100);
+    $("rScale").checked = r.scale_by_score !== false;
+    renderChips();
+    renderVals();
+    renderMarkers();
+  }
+
+  function renderVals() {
+    $("vSize").textContent = $("rSize").value + "%";
+    $("vRot").textContent = $("rRot").value + "°";
+    $("vDur").textContent = ($("rDur").value / 1000).toFixed(1) + "秒";
+    $("vJitter").textContent = $("rJitter").value + "%";
+  }
+
+  function renderChips() {
+    const box = $("chips");
+    box.innerHTML = "";
+    const r = rule();
+    const used = new Set(r.variants.map(v => v.image));
+    if (!images.length) {
+      box.innerHTML = '<span class="hint">まだ画像がありません。「＋画像を追加」から</span>';
+      return;
+    }
+    for (const name of images) {
+      const i = r.variants.findIndex(v => v.image === name);
+      const c = document.createElement("span");
+      c.className = "chip" + (i >= 0 ? " used" : "")
+                  + (i >= 0 && i === selVar ? " selc" : "");
+      c.innerHTML =
+        (i >= 0 ? `<span class="no">${i + 1}</span>` : "") +
+        `<img src="/soundfx/${encodeURIComponent(name)}" alt="">` +
+        `<span>${name}</span>` +
+        (i >= 0 ? `<span class="rm" title="この演出から外す">−</span>` : "") +
+        `<span class="del" title="この画像を削除">×</span>`;
+      c.onclick = (e) => {
+        if (e.target.classList.contains("del")) return deleteImage(name);
+        if (e.target.classList.contains("rm")) {   // 演出から外す
+          r.variants.splice(i, 1);
+          selVar = r.variants.length ? Math.min(Math.max(selVar, 0),
+                                                r.variants.length - 1) : -1;
+        } else if (i >= 0) {                       // 使用中 → 選択するだけ
+          selVar = i;
+        } else {                                   // 未使用 → 追加して選択
+          const base = r.variants[r.variants.length - 1]?.pos || r.pos
+                       || { x: 0.8, y: 0.25 };
+          r.variants.push({ image: name,
+            pos: { x: Math.min(1, base.x + r.variants.length * 0.04),
+                   y: Math.min(1, base.y + r.variants.length * 0.04) },
+            size: r.variants[r.variants.length - 1]?.size || r.size || 0.2,
+            rot: 0 });
+          selVar = r.variants.length - 1;
+        }
+        syncVariantSliders();
+        renderChips(); renderVals(); renderMarkers(); save();
+      };
+      box.appendChild(c);
+    }
+  }
+
+  function renderMarkers() {
+    const r = rule(), pv = $("preview");
+    pv.querySelectorAll(".marker").forEach(m => m.remove());
+    if (!r.variants.length) {
+      // パーティクルのみ: ルール既定位置にプレースホルダを出す
+      const m = document.createElement("div");
+      m.className = "marker ph";
+      m.style.left = (r.pos?.x ?? 0.5) * 100 + "%";
+      m.style.top = (r.pos?.y ?? 0.3) * 100 + "%";
+      m.style.width = m.style.height = (r.size || 0.2) * pv.clientWidth + "px";
+      m.innerHTML = `<div class="phicon">${EMOJI[sel] || "🔉"}</div>`;
+      pv.appendChild(m);
+      return;
+    }
+    r.variants.forEach((v, i) => {
+      const m = document.createElement("div");
+      m.className = "marker" + (i === selVar ? " sel" : "");
+      m.style.left = v.pos.x * 100 + "%";
+      m.style.top = v.pos.y * 100 + "%";
+      m.style.width = v.size * pv.clientWidth + "px";
+      m.innerHTML = `<span class="no">${i + 1}</span>` +
+        `<img src="/soundfx/${encodeURIComponent(v.image)}" alt=""` +
+        (v.rot ? ` style="transform:rotate(${v.rot}deg)"` : "") + `>`;
+      m.onpointerdown = (e) => startDrag(e, i, m);
+      pv.appendChild(m);
+    });
+  }
+
+  // 画像マーカーのドラッグ移動（クリックだけなら選択のみ）
+  function startDrag(e, i, m) {
+    e.preventDefault();
+    const r = rule(), pv = $("preview"), rect = pv.getBoundingClientRect();
+    if (selVar !== i) {
+      selVar = i;
+      syncVariantSliders();
+      renderVals();
+      renderChips();     // チップ側の「選択中」表示も同期
+      pv.querySelectorAll(".marker").forEach(el => el.classList.remove("sel"));
+      m.classList.add("sel");
+    }
+    m.setPointerCapture(e.pointerId);
+    const move = (ev) => {
+      r.variants[i].pos = {
+        x: Math.min(1, Math.max(0, (ev.clientX - rect.left) / rect.width)),
+        y: Math.min(1, Math.max(0, (ev.clientY - rect.top) / rect.height)) };
+      m.style.left = r.variants[i].pos.x * 100 + "%";
+      m.style.top = r.variants[i].pos.y * 100 + "%";
+    };
+    const up = () => {
+      m.removeEventListener("pointermove", move);
+      m.removeEventListener("pointerup", up);
+      save();
+    };
+    m.addEventListener("pointermove", move);
+    m.addEventListener("pointerup", up);
+  }
+
+  function setPos(e) {
+    if (e.target.closest(".marker:not(.ph)")) return;  // ドラッグ側で処理済み
+    const rect = $("preview").getBoundingClientRect();
+    const r = rule();
+    const p = { x: Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)),
+                y: Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height)) };
+    if (selVar >= 0 && r.variants[selVar]) r.variants[selVar].pos = p;
+    else r.pos = p;
+    renderMarkers(); save();
+  }
+
+  function upd() {
+    const r = rule();
+    r.on = $("rOn").checked;
+    r.particle = $("rParticle").value;
+    r.enter = $("rEnter").value;
+    r.anim = $("rAnim").value;
+    // 大きさ・回転は「選択中の画像」に効く（画像なしのときはルール既定へ）
+    if (selVar >= 0 && r.variants[selVar]) {
+      r.variants[selVar].size = $("rSize").value / 100;
+      r.variants[selVar].rot = +$("rRot").value;
+    } else {
+      r.size = $("rSize").value / 100;
+    }
+    r.duration = +$("rDur").value;
+    r.jitter = $("rJitter").value / 100;
+    r.scale_by_score = $("rScale").checked;
+    renderVals(); renderMarkers(); renderGroups(); save();
+  }
+
+  // ---------------- 保存・テスト ----------------
+  function save() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+      await api("/api/config", { sound_fx_rules: rules });
+    }, 400);
+  }
+
+  async function toggleMaster() {
+    cfg.sound_fx = !cfg.sound_fx;
+    $("master").setAttribute("aria-pressed", String(cfg.sound_fx));
+    await api("/api/config", { sound_fx: cfg.sound_fx });
+  }
+
+  async function testFire() {
+    // 保存を待ってから発火（直前の編集をoverlayにも反映させる）
+    clearTimeout(saveTimer);
+    await api("/api/config", { sound_fx_rules: rules });
+    await api("/api/soundfx/test", { group: sel });
+  }
+
+  async function uploadImage(file) {
+    if (!file) return;
+    if (file.size > 2.5 * 1024 * 1024) { alert("画像は2.5MB以下にしてください"); return; }
+    const b64 = await new Promise((ok, ng) => {
+      const fr = new FileReader();
+      fr.onload = () => ok(fr.result.split(",")[1]);
+      fr.onerror = ng;
+      fr.readAsDataURL(file);
+    });
+    const r = await api("/api/soundfx/image", { name: file.name, data: b64 });
+    if (!r.ok) { alert(r.error || "アップロードに失敗しました"); return; }
+    images = (await api("/api/soundfx/images")).images || [];
+    const ru = rule();
+    if (!ru.variants.some(v => v.image === r.name)) {
+      ru.variants.push({ image: r.name,
+        pos: { ...(ru.variants[ru.variants.length - 1]?.pos || ru.pos
+                   || { x: 0.8, y: 0.25 }) },
+        size: ru.variants[ru.variants.length - 1]?.size || ru.size || 0.2,
+        rot: 0 });
+      selVar = ru.variants.length - 1;
+    }
+    renderChips(); renderMarkers(); save();
+    $("file").value = "";
+  }
+
+  async function deleteImage(name) {
+    if (!confirm(`「${name}」を削除しますか？`)) return;
+    await api("/api/soundfx/image-delete", { name });
+    images = images.filter(n => n !== name);
+    for (const g of Object.keys(rules))    // 参照も掃除
+      if (rules[g].variants)
+        rules[g].variants = rules[g].variants.filter(v => v.image !== name);
+    selVar = rule().variants.length ? 0 : -1;
+    renderChips(); renderMarkers(); save();
+  }
+
+  // ---------------- 実発火のプレビュー（SSE購読） ----------------
+  function connect() {
+    const es = new EventSource("/events");
+    es.onmessage = (e) => {
+      const msg = JSON.parse(e.data);
+      if (msg.type === "sound") SFX.play(msg.group, msg.score);
+      else if (msg.type === "init" || msg.type === "style") {
+        if ("sound_rules" in msg) SFX.setRules(msg.sound_rules);
+      }
+    };
+    es.onerror = () => { es.close(); setTimeout(connect, 1500); };
+  }
+
+  // ---------------- 初期化 ----------------
+  (async function init() {
+    fillSelect($("rParticle"), FX.PARTICLES);
+    fillSelect($("rEnter"), SFX.ENTER_ANIMS);
+    fillSelect($("rAnim"), SFX.LOOP_ANIMS);
+    const [c, g, im] = await Promise.all(
+      [api("/api/config"), api("/api/soundfx/groups"), api("/api/soundfx/images")]);
+    cfg = c; groups = g.groups || []; images = im.images || [];
+    rules = cfg.sound_fx_rules || {};
+    $("master").setAttribute("aria-pressed", String(!!cfg.sound_fx));
+    sel = groups[0] || null;
+    // テスト発火・実発火はプレビュー枠の中に縮小表示する
+    // （画面全体に出すと、設定画面自体に演出が被って事故に見える）
+    SFX.mount($("preview"));
+    renderGroups(); renderEditor();
+    connect();
+  })();
+</script>
+</body>
+</html>

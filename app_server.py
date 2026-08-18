@@ -17,7 +17,7 @@ import queue
 import random
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, unquote
 
 from apppaths import BASE, DATA_BASE
 import platform_compat
@@ -64,6 +64,10 @@ DEFAULT_CONFIG = {
     "vrchat": False,
     "vrchat_source": "ja",  # 送信内容（ja=文字起こし / tr=訳文）
     "vrchat_port": 9000,    # VRChatのOSC受信ポート（既定9000）
+    # 音イベント演出（笑い・拍手等 → 画像/パーティクル）。既定OFF
+    # （ONで初回27MB DL＋CPU約5%。低スペック機に黙って足さない）
+    "sound_fx": False,
+    "sound_fx_rules": {},   # グループ名 → 演出ルール（soundfx_settings.html が編集）
 }
 
 _clients = []
@@ -475,7 +479,10 @@ def resolve_style(cfg):
            "hotwords": hot_surfaces,
            # 翻訳のみ表示（style.displayMode="en"）のフォールバック判定用。
            # 翻訳が実際に動いていなければ overlay 側が併記（日本語）表示に戻る
-           "translate": _translating(cfg)}
+           "translate": _translating(cfg),
+           # 音イベント演出のルール。マスタースイッチOFFでも配る
+           # （設定UIの［テスト発火］はエンジン停止中でも効かせるため）
+           "sound_rules": cfg.get("sound_fx_rules", {})}
     if cfg.get("collab"):
         self_name = (cfg.get("self_name") or "自分").strip() or "自分"
         guest_name = (cfg.get("guest_name") or "ゲスト").strip() or "ゲスト"
@@ -535,6 +542,97 @@ def _init_event():
     ev["theme"] = cfg.get("theme", "light")
     ev["ui_lang"] = cfg.get("ui_lang", "ja")
     return ev
+
+
+# ---------------- 音イベント演出（soundfx） ----------------
+
+# ユーザー画像の上限。リクエスト全体の上限(4MB)内にbase64(+33%)で収める
+SOUNDFX_IMAGE_MAX_BYTES = int(2.5 * 1024 * 1024)
+_SOUNDFX_IMAGE_EXT = {".png": "image/png", ".jpg": "image/jpeg",
+                      ".jpeg": "image/jpeg", ".gif": "image/gif",
+                      ".webp": "image/webp"}
+
+
+def _soundfx_dir():
+    d = wordstore.data_path("soundfx")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def _soundfx_image_name(raw):
+    """アップロード/配信で使う画像名の検証。パス区切りや隠しファイルを拒否し、
+    安全な basename だけを返す（不正は None）"""
+    name = str(raw or "").strip()
+    if (not name or name != os.path.basename(name)
+            or name.startswith(".") or "/" in name or "\\" in name):
+        return None
+    if os.path.splitext(name)[1].lower() not in _SOUNDFX_IMAGE_EXT:
+        return None
+    return name
+
+
+def _sanitize_sound_rules(raw):
+    """sound_fx_rules の保存前検証。未知グループ・不正型を落とし数値を丸める"""
+    import soundfx
+    if not isinstance(raw, dict):
+        return {}
+    out = {}
+    for group, rule in raw.items():
+        if group not in soundfx.GROUPS or not isinstance(rule, dict):
+            continue
+        try:
+            clean = _clean_sound_rule(rule)
+        except (TypeError, ValueError, AttributeError):
+            continue                 # 型が壊れたルールは黙って捨てる
+        out[group] = clean
+    return out
+
+
+def _clean_pos(pos):
+    pos = pos or {}
+    return {"x": min(1.0, max(0.0, float(pos.get("x", 0.5)))),
+            "y": min(1.0, max(0.0, float(pos.get("y", 0.3))))}
+
+
+def _clean_size(v, default=0.2):
+    return min(1.0, max(0.02, float(v if v is not None else default)))
+
+
+def _clean_sound_rule(rule):
+    # variants: 画像ごとの配置（image・pos・size のセット）。ランダム表示は
+    # バリアント単位で選ぶので、画像それぞれに別の位置・大きさを持てる
+    variants = []
+    for v in (rule.get("variants") or [])[:10]:
+        if not isinstance(v, dict):
+            continue
+        name = _soundfx_image_name(v.get("image"))
+        if name is None:
+            continue
+        variants.append({"image": name, "pos": _clean_pos(v.get("pos")),
+                         "size": _clean_size(v.get("size")),
+                         "rot": min(180.0, max(-180.0,
+                                               float(v.get("rot", 0))))})
+    if not variants:
+        # 旧形式（images配列＋共通pos/size）からの引き継ぎ
+        shared_pos = _clean_pos(rule.get("pos"))
+        shared_size = _clean_size(rule.get("size"))
+        variants = [{"image": n, "pos": dict(shared_pos), "size": shared_size,
+                     "rot": 0.0}
+                    for n in map(_soundfx_image_name, rule.get("images") or [])
+                    if n][:10]
+    return {
+        "on": bool(rule.get("on")),
+        "variants": variants,
+        "particle": str(rule.get("particle") or "none")[:20],
+        # pos/size はパーティクルのみ（バリアント無し）のときの表示位置
+        "pos": _clean_pos(rule.get("pos")),
+        "size": _clean_size(rule.get("size")),
+        "jitter": min(0.5, max(0.0, float(rule.get("jitter", 0.0)))),
+        "enter": str(rule.get("enter") or "pop")[:20],
+        "anim": str(rule.get("anim") or "none")[:20],
+        "duration": min(10000, max(200, int(rule.get("duration", 1500)))),
+        "scale_by_score": bool(rule.get("scale_by_score", True)),
+    }
 
 
 # ---------------- ボイスコマンド ----------------
@@ -735,6 +833,9 @@ def get_engine():
                     {"type": "level", "value": round(v, 3), "speaker": spk}),
                 on_state=_on_state,
                 on_translation=_engine_on_translation,
+                on_sound_event=lambda g, s, spk="": broadcast(
+                    {"type": "sound", "group": g, "score": round(s, 2),
+                     "speaker": spk}),
             )
         return _engine
 
@@ -814,6 +915,34 @@ class Handler(BaseHTTPRequestHandler):
         except OSError:
             self._send_body(404, b"not found", "text/plain")
 
+    def _soundfx_image_file(self, name):
+        """演出画像の配信。_send_body は全応答 no-store（GUI更新の都合）だが、
+        画像は発火のたびに <img> が取り直すため、それだと毎回フルDLになり
+        表示が遅れる。更新時刻で再検証させ、変わっていなければ 304 で済ませる"""
+        path = os.path.join(_soundfx_dir(), name)
+        try:
+            mtime = os.path.getmtime(path)
+            etag = f'"{int(mtime)}-{os.path.getsize(path)}"'
+            if self.headers.get("If-None-Match") == etag:
+                self.send_response(304)
+                self.send_header("ETag", etag)
+                self.end_headers()
+                return
+            with open(path, "rb") as f:
+                body = f.read()
+        except OSError:
+            self._send_body(404, b"not found", "text/plain")
+            return
+        self.send_response(200)
+        self.send_header("Content-Type",
+                         _SOUNDFX_IMAGE_EXT[os.path.splitext(name)[1].lower()])
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("ETag", etag)
+        # 同名アップロードで差し替わるため max-age は短く、以後は ETag 再検証
+        self.send_header("Cache-Control", "private, max-age=60")
+        self.end_headers()
+        self.wfile.write(body)
+
     def _body_json(self):
         n = int(self.headers.get("Content-Length", 0))
         if n < 0 or n > MAX_REQUEST_BODY_BYTES:
@@ -856,6 +985,23 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_body(404, b"not found", "text/plain")
                 return
             self._file(os.path.join(BASE, "ui", name))
+        elif path.startswith("/soundfx/"):
+            # 音イベント演出のユーザー画像（overlay が <img> で読む）。
+            # 日本語ファイル名は encodeURIComponent で届くため復号してから検証する
+            name = _soundfx_image_name(unquote(path[len("/soundfx/"):]))
+            if name is None:
+                self._send_body(404, b"not found", "text/plain")
+                return
+            self._soundfx_image_file(name)
+        elif path == "/api/soundfx/images":
+            d = _soundfx_dir()
+            names = sorted(n for n in os.listdir(d)
+                           if _soundfx_image_name(n)
+                           and os.path.isfile(os.path.join(d, n)))
+            self._json({"images": names})
+        elif path == "/api/soundfx/groups":
+            import soundfx
+            self._json({"groups": list(soundfx.GROUPS)})
         elif path == "/api/config":
             cfg = load_config()
             cfg["version"] = APP_VERSION   # 表示用（保存はされない: POSTでは既知キーのみ更新）
@@ -1015,6 +1161,11 @@ class Handler(BaseHTTPRequestHandler):
                     body["vrchat_port"] = min(65535, max(1024, int(body["vrchat_port"])))
                 except (TypeError, ValueError):
                     body["vrchat_port"] = 9000
+            if "sound_fx" in body:
+                body["sound_fx"] = bool(body.get("sound_fx"))
+            if "sound_fx_rules" in body:
+                body["sound_fx_rules"] = _sanitize_sound_rules(
+                    body.get("sound_fx_rules"))
             # ThreadingHTTPServer上で複数の設定窓が同時保存しても、後着の
             # read-modify-write が先着変更を巻き戻さないよう一連を排他する。
             with _config_lock:
@@ -1069,6 +1220,52 @@ class Handler(BaseHTTPRequestHandler):
             ev = {"type": "style"}
             ev.update(resolve_style(load_config()))
             broadcast(ev)
+            self._json({"ok": True})
+        elif path == "/api/soundfx/test":
+            # 設定UIの［テスト発火］。本物と同じ形の SSE を流すので、
+            # 実際に笑わなくても OBS 上の overlay で演出を調整できる
+            import soundfx
+            group = body.get("group")
+            if group not in soundfx.GROUPS:
+                self._json({"ok": False, "error": "unknown group"}, 400)
+                return
+            try:
+                score = float(body.get("score", 1.0))
+            except (TypeError, ValueError):
+                score = 1.0
+            broadcast({"type": "sound", "group": group,
+                       "score": round(min(3.0, max(0.0, score)), 2),
+                       "speaker": "", "test": True})
+            self._json({"ok": True})
+        elif path == "/api/soundfx/image":
+            # 画像アップロード（base64）。data/soundfx/ へ保存して名前を返す
+            name = _soundfx_image_name(body.get("name"))
+            if name is None:
+                self._json({"ok": False,
+                            "error": "png/jpg/gif/webp のファイル名を指定してください"}, 400)
+                return
+            import base64
+            try:
+                data = base64.b64decode(body.get("data") or "", validate=True)
+            except (ValueError, TypeError):
+                self._json({"ok": False, "error": "bad data"}, 400)
+                return
+            if not data or len(data) > SOUNDFX_IMAGE_MAX_BYTES:
+                self._json({"ok": False,
+                            "error": "画像は2.5MB以下にしてください"}, 400)
+                return
+            with open(os.path.join(_soundfx_dir(), name), "wb") as f:
+                f.write(data)
+            self._json({"ok": True, "name": name})
+        elif path == "/api/soundfx/image-delete":
+            name = _soundfx_image_name(body.get("name"))
+            if name is None:
+                self._json({"ok": False, "error": "bad name"}, 400)
+                return
+            try:
+                os.remove(os.path.join(_soundfx_dir(), name))
+            except OSError:
+                pass                     # 既に無ければそれで良い
             self._json({"ok": True})
         elif path == "/api/presets":
             presets = body.get("presets", [])
