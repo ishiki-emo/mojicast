@@ -221,6 +221,11 @@
         size: r.size || DEFAULT_RULE.size }));
       delete r.images;
     }
+    // このUIは「1画像=1バリアント」前提（チップ表示・−ボタンが最初の1件しか
+    // 扱えない）。重複が保存されていたら最初の1件だけ残す
+    const seen = new Set();
+    r.variants = r.variants.filter(
+      v => !seen.has(v.image) && (seen.add(v.image), true));
     return r;
   }
 
@@ -237,7 +242,7 @@
   }
 
   function syncVariantSliders() {
-    syncVariantSliders();
+    $("rSize").value = Math.round(curSize() * 100);
     $("rRot").value = curRot();
   }
 
