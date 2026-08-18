@@ -8,7 +8,7 @@
   (function () {
     const qs = new URLSearchParams(location.search);
     const s = parseFloat(qs.get("s"));
-    if (s > 0 && s < 1) document.documentElement.style.zoom = s;
+    if (s > 0 && s !== 1) { document.documentElement.style.zoom = s; document.documentElement.style.setProperty("--ui-zoom", s); }
     try {
       const theme = qs.get("theme") || localStorage.getItem("mojicast-theme");
       if (theme === "light") document.documentElement.dataset.theme = "light";
@@ -30,7 +30,7 @@
     --warn:#b5761a; --err:#d94141;
   }
   * { box-sizing:border-box; }
-  html,body { height:100%; }
+  html,body { height: calc(100vh / var(--ui-zoom, 1)); }
   body { margin:0; overflow:hidden; background:var(--bg); color:var(--text);
     font-family:'Yu Gothic UI','Meiryo',sans-serif; font-size:15px; user-select:none; }
   button,select,input { font:inherit; }
@@ -262,6 +262,14 @@
         <article class="card"><h2 data-i18n="st.card_appscr">アプリ画面</h2><p data-i18n="st.card_appscr_d">OBSに映る字幕の色には影響しません。</p>
           <div class="field"><label for="uiLang" data-i18n="st.f_lang">表示言語</label><select id="uiLang"><option value="ja">日本語</option><option value="zh">中文</option><option value="en">English</option></select></div>
           <div class="field"><label for="theme" data-i18n="st.f_theme">画面テーマ</label><select id="theme"><option value="light" data-i18n="st.opt_light">ライト</option><option value="dark" data-i18n="st.opt_dark">ダーク</option></select></div>
+          <div class="field"><label for="uiScale" data-i18n="st.f_scale">文字とボタンの大きさ</label><select id="uiScale">
+            <option value="auto" data-i18n="st.opt_scale_auto">自動（画面に合わせる）</option>
+            <option value="0.8" data-i18n="st.opt_scale_s">小</option>
+            <option value="1" data-i18n="st.opt_scale_m">標準</option>
+            <option value="1.25" data-i18n="st.opt_scale_l">大</option>
+            <option value="1.5" data-i18n="st.opt_scale_xl">特大</option>
+          </select></div>
+          <div class="note" id="uiScaleNote"></div>
         </article>
       </div>
     </section>
@@ -276,6 +284,9 @@
         <article class="card"><h2 data-i18n="st.card_contact">作者・連絡先</h2><p data-i18n="st.card_contact_d">不具合報告や要望はこちらからどうぞ。ブラウザで開きます。</p>
           <div class="linkrow" onclick="openExternal('https://github.com/ishiki-emo/mojicast')" role="link" tabindex="0">
             <span class="lk-ico">🐙</span><span class="lk-body"><b>GitHub</b><small data-i18n="st.lk_github_d">ソース・不具合報告（Issues）</small></span><span class="lk-arw">↗</span>
+          </div>
+          <div class="linkrow" onclick="openExternal('https://discord.gg/Qmx7Mrf6TE')" role="link" tabindex="0">
+            <span class="lk-ico">💬</span><span class="lk-body"><b>Discord</b><small data-i18n="st.lk_discord_d">使い方の質問・要望・雑談（コミュニティ）</small></span><span class="lk-arw">↗</span>
           </div>
           <div class="linkrow" onclick="openExternal('https://x.com/ishiki_emo')" role="link" tabindex="0">
             <span class="lk-ico">𝕏</span><span class="lk-body"><b>X（@ishiki_emo）</b><small data-i18n="st.lk_x_d">作者へ直接ひとこと</small></span><span class="lk-arw">↗</span>
@@ -345,7 +356,18 @@
     if (section === "collab") loadApps();
   }
   // 言語が切り替わったら動的テキスト（ページ説明）を再適用
-  window.addEventListener("mojicast-lang-changed", () => { $("pageDesc").textContent = T("st.desc_" + curSection, descsJa[curSection]); syncTranslationRoute(); });
+  window.addEventListener("mojicast-lang-changed", () => { $("pageDesc").textContent = T("st.desc_" + curSection, descsJa[curSection]); syncTranslationRoute(); syncScaleNote(); });
+  // 画面の大きさ: 効いている倍率と、反映範囲（窓サイズは次回起動から）を明示する
+  function syncScaleNote() {
+    const pct = v => Math.round(v * 100) + "%";
+    const auto = cfg.ui_scale_auto || 1;
+    const value = $("uiScale").value;
+    const effective = value === "auto" ? auto : parseFloat(value);
+    $("uiScaleNote").textContent = T(
+      "st.scale_note",
+      "いまの大きさは {p}（自動なら {a}）。開いている画面はすぐ変わり、ウィンドウそのものの大きさは次回の起動から変わります。OBSに映る字幕の大きさには影響しません。")
+      .replace("{p}", pct(effective)).replace("{a}", pct(auto));
+  }
   function syncAsrLanguage() { $("asrLangRow").style.display = $("asrModel").value === "sensevoice" ? "" : "none"; }
   function syncTranslationRoute() {
     const sv = cfg.asr_model === "sensevoice";
@@ -413,6 +435,10 @@
     $("vrchatOn").checked = !!cfg.vrchat; $("vrchatSource").value = cfg.vrchat_source || "ja"; $("vrchatPort").value = cfg.vrchat_port || 9000;
     $("punctuate").checked = cfg.punctuate !== false; $("saveLog").checked = cfg.save_log !== false; $("theme").value = cfg.theme || "light";
     $("uiLang").value = cfg.ui_lang || "ja";
+    // 選択肢にない倍率（旧版・手書きconfig）は「自動」に見せる。保存し直すまで実効値はそのまま
+    $("uiScale").value = String(cfg.ui_scale ?? "auto");
+    if (!$("uiScale").value) $("uiScale").value = "auto";
+    syncScaleNote();
     if (cfg.version) $("aboutVer").textContent = "Mojicast v" + cfg.version;
     let sec = qs.get("section") || "hearing";
     if (sec === "collab" && cfg.collab_supported === false) sec = "hearing";   // 未対応OSでは直リンクも逃がす
@@ -546,6 +572,11 @@
   });
   $("theme").addEventListener("change", e => { applyTheme(e.target.value); save({theme:e.target.value},false); });
   $("uiLang").addEventListener("change", e => { if (window.MojicastI18n) window.MojicastI18n.applyLang(e.target.value); save({ui_lang:e.target.value},false); });
+  // 保存すると全GUI窓へSSEで配られ、この窓自身も theme-sync.js 側で拡縮される
+  $("uiScale").addEventListener("change", e => {
+    const value = e.target.value === "auto" ? "auto" : parseFloat(e.target.value);
+    save({ui_scale:value},false).then(syncScaleNote);
+  });
   load();
 </script>
 </body>

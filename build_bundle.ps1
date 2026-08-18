@@ -23,6 +23,9 @@ foreach ($f in @("overlay.html", "silero_vad.onnx")) {
 Remove-Item (Join-Path $app "defaults") -Recurse -Force -EA SilentlyContinue
 Copy-Item (Join-Path $root "defaults") (Join-Path $app "defaults") -Recurse -Force
 Write-Host "  asset : defaults\  (初回起動時にデータファイルを生成)"
+# 既存フォルダへの Copy-Item -Recurse は「中へ入れ子コピー」になり、再実行時に
+# 古いファイルが残る（defaults と同じく先に消してから丸ごとコピーする）
+Remove-Item (Join-Path $app "ui") -Recurse -Force -EA SilentlyContinue
 Copy-Item (Join-Path $root "ui") (Join-Path $app "ui") -Recurse -Force
 Write-Host "  asset : ui\"
 
@@ -33,6 +36,7 @@ foreach ($f in @("README_TESTER.txt", "マニュアル.html", "ブロック解�
     Copy-Item (Join-Path $root $f) $app -Force
     Write-Host "  doc   : $f"
 }
+Remove-Item (Join-Path $app "ガイド") -Recurse -Force -EA SilentlyContinue
 Copy-Item (Join-Path $root "ガイド") (Join-Path $app "ガイド") -Recurse -Force
 Write-Host "  doc   : ガイド\  (スタイルガイド / エフェクトガイド)"
 

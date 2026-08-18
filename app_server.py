@@ -17,14 +17,14 @@ import queue
 import random
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, unquote
 
 from apppaths import BASE, DATA_BASE
 import platform_compat
 import vrcchat
 import wordstore
 
-APP_VERSION = "0.8.0"
+APP_VERSION = "0.9.0"
 
 # 更新チェック用のマニフェスト（GitHub raw）。リリース時に latest.json を更新する。
 # 中身: {"version": "0.5.1", "url": "<配布ページ>", "notes": "<一行紹介>"}
@@ -51,6 +51,12 @@ DEFAULT_CONFIG = {
     "word_profile": "",     # 使用中の単語プロファイル（"" = 共通のみ）
     "theme": "light",       # GUI窓のテーマ（light / dark）。既定ライト。overlayは対象外
     "ui_lang": "ja",        # GUI表示言語（ja / zh / en）。明示選択・既定ja。overlayは対象外
+    # GUI窓の拡大率。"auto"=起動モニタから自動判定 / 0.75〜1.5=利用者の明示指定。
+    # overlayは対象外（OBSに映る字幕の大きさは変わらない）
+    "ui_scale": "auto",
+    # 窓ごとの大きさ・位置（閉じた時点の値を次回起動で復元）。
+    # {"cockpit": {"x","y","w","h","scale"}, ...}。書き換えは save_window_geometry 経由
+    "window_geometry": {},
     # 1対1コラボ（案A改・出力キャプチャ）。collab=Trueで②の入力を相手話者として取り込む
     # collab_source: "process"=アプリ音声を直接取り込み（方式2・推奨）/ "device"=仮想ケーブル
     "collab": False, "collab_source": "process",
@@ -64,6 +70,10 @@ DEFAULT_CONFIG = {
     "vrchat": False,
     "vrchat_source": "ja",  # 送信内容（ja=文字起こし / tr=訳文）
     "vrchat_port": 9000,    # VRChatのOSC受信ポート（既定9000）
+    # 音イベント演出（笑い・拍手等 → 画像/パーティクル）。既定OFF
+    # （ONで初回27MB DL＋CPU約5%。低スペック機に黙って足さない）
+    "sound_fx": False,
+    "sound_fx_rules": {},   # グループ名 → 演出ルール（soundfx_settings.html が編集）
 }
 
 _clients = []
@@ -164,6 +174,77 @@ def load_config():
 def save_config(cfg):
     with _config_lock:
         _write_json(wordstore.data_path("config.json"), cfg)
+
+
+# GUI窓の拡大率の許容範囲。下限は既存の自動判定と揃え、上限はFullHDでも
+# コックピット（1100x800基準）が作業領域に収まる範囲として1.5とする。
+UI_SCALE_MIN = 0.75
+UI_SCALE_MAX = 1.5
+
+
+def normalize_ui_scale(value):
+    """UI倍率を "auto"（自動判定）か UI_SCALE_MIN〜UI_SCALE_MAX の数値へ正規化する。
+
+    壊れた値やレンジ外で窓が作れなくなるのを防ぐため、保存前と読み出し後の
+    両方をここに通す。解釈できない値は "auto"（従来動作）へ倒す。
+    """
+    if value is None or value == "" or value == "auto":
+        return "auto"
+    try:
+        scale = float(value)
+    except (TypeError, ValueError):
+        return "auto"
+    if scale != scale:   # NaN。比較が常に偽になりクランプをすり抜ける
+        return "auto"
+    return round(min(UI_SCALE_MAX, max(UI_SCALE_MIN, scale)), 2)
+
+
+def normalize_window_geometry(value):
+    """窓の記憶値を {キー: {"x","y","w","h","scale"}} の形へ正規化する。
+
+    壊れている項目だけを落とし、他の窓の記憶は残す。w/h が無い要素は
+    復元に使えないため捨てる（位置だけ復元しても大きさが決まらない）。
+    """
+    if not isinstance(value, dict):
+        return {}
+    cleaned = {}
+    for key, geom in value.items():
+        if not isinstance(key, str) or not isinstance(geom, dict):
+            continue
+        entry = {}
+        for field in ("x", "y", "w", "h", "scale"):
+            raw = geom.get(field)
+            # bool は int の派生。True が座標1として通らないよう先に弾く
+            if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+                continue
+            if raw != raw:   # NaN
+                continue
+            entry[field] = round(float(raw), 2) if field == "scale" else int(raw)
+        if entry.get("w") and entry.get("h"):
+            cleaned[key[:32]] = entry
+    return cleaned
+
+
+def save_window_geometry(key, geom):
+    """窓の大きさ・位置を次回起動用に記録する。
+
+    複数の窓がほぼ同時に閉じても、後着の read-modify-write が先着の記録を
+    巻き戻さないよう一連を排他する。
+    """
+    with _config_lock:
+        cfg = load_config()
+        store = dict(cfg.get("window_geometry") or {})   # DEFAULT_CONFIG を汚さない
+        store[str(key)] = geom
+        cfg["window_geometry"] = normalize_window_geometry(store)
+        save_config(cfg)
+
+
+def resolve_ui_scale(cfg=None):
+    """実際にGUI窓へ適用する拡大率。明示指定があればそれを、なければ自動判定を返す。"""
+    if cfg is None:
+        cfg = load_config()
+    scale = normalize_ui_scale(cfg.get("ui_scale", "auto"))
+    return platform_compat.ui_scale() if scale == "auto" else scale
 
 
 def _version_tuple(s):
@@ -475,7 +556,10 @@ def resolve_style(cfg):
            "hotwords": hot_surfaces,
            # 翻訳のみ表示（style.displayMode="en"）のフォールバック判定用。
            # 翻訳が実際に動いていなければ overlay 側が併記（日本語）表示に戻る
-           "translate": _translating(cfg)}
+           "translate": _translating(cfg),
+           # 音イベント演出のルール。マスタースイッチOFFでも配る
+           # （設定UIの［テスト発火］はエンジン停止中でも効かせるため）
+           "sound_rules": cfg.get("sound_fx_rules", {})}
     if cfg.get("collab"):
         self_name = (cfg.get("self_name") or "自分").strip() or "自分"
         guest_name = (cfg.get("guest_name") or "ゲスト").strip() or "ゲスト"
@@ -534,7 +618,99 @@ def _init_event():
     # 現在のテーマへ即座に揃えられるよう初期イベントにも含める。
     ev["theme"] = cfg.get("theme", "light")
     ev["ui_lang"] = cfg.get("ui_lang", "ja")
+    ev["ui_scale"] = resolve_ui_scale(cfg)
     return ev
+
+
+# ---------------- 音イベント演出（soundfx） ----------------
+
+# ユーザー画像の上限。リクエスト全体の上限(4MB)内にbase64(+33%)で収める
+SOUNDFX_IMAGE_MAX_BYTES = int(2.5 * 1024 * 1024)
+_SOUNDFX_IMAGE_EXT = {".png": "image/png", ".jpg": "image/jpeg",
+                      ".jpeg": "image/jpeg", ".gif": "image/gif",
+                      ".webp": "image/webp"}
+
+
+def _soundfx_dir():
+    d = wordstore.data_path("soundfx")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def _soundfx_image_name(raw):
+    """アップロード/配信で使う画像名の検証。パス区切りや隠しファイルを拒否し、
+    安全な basename だけを返す（不正は None）"""
+    name = str(raw or "").strip()
+    if (not name or name != os.path.basename(name)
+            or name.startswith(".") or "/" in name or "\\" in name):
+        return None
+    if os.path.splitext(name)[1].lower() not in _SOUNDFX_IMAGE_EXT:
+        return None
+    return name
+
+
+def _sanitize_sound_rules(raw):
+    """sound_fx_rules の保存前検証。未知グループ・不正型を落とし数値を丸める"""
+    import soundfx
+    if not isinstance(raw, dict):
+        return {}
+    out = {}
+    for group, rule in raw.items():
+        if group not in soundfx.GROUPS or not isinstance(rule, dict):
+            continue
+        try:
+            clean = _clean_sound_rule(rule)
+        except (TypeError, ValueError, AttributeError):
+            continue                 # 型が壊れたルールは黙って捨てる
+        out[group] = clean
+    return out
+
+
+def _clean_pos(pos):
+    pos = pos or {}
+    return {"x": min(1.0, max(0.0, float(pos.get("x", 0.5)))),
+            "y": min(1.0, max(0.0, float(pos.get("y", 0.3))))}
+
+
+def _clean_size(v, default=0.2):
+    return min(1.0, max(0.02, float(v if v is not None else default)))
+
+
+def _clean_sound_rule(rule):
+    # variants: 画像ごとの配置（image・pos・size のセット）。ランダム表示は
+    # バリアント単位で選ぶので、画像それぞれに別の位置・大きさを持てる
+    variants = []
+    for v in (rule.get("variants") or [])[:10]:
+        if not isinstance(v, dict):
+            continue
+        name = _soundfx_image_name(v.get("image"))
+        if name is None:
+            continue
+        variants.append({"image": name, "pos": _clean_pos(v.get("pos")),
+                         "size": _clean_size(v.get("size")),
+                         "rot": min(180.0, max(-180.0,
+                                               float(v.get("rot", 0))))})
+    if not variants:
+        # 旧形式（images配列＋共通pos/size）からの引き継ぎ
+        shared_pos = _clean_pos(rule.get("pos"))
+        shared_size = _clean_size(rule.get("size"))
+        variants = [{"image": n, "pos": dict(shared_pos), "size": shared_size,
+                     "rot": 0.0}
+                    for n in map(_soundfx_image_name, rule.get("images") or [])
+                    if n][:10]
+    return {
+        "on": bool(rule.get("on")),
+        "variants": variants,
+        "particle": str(rule.get("particle") or "none")[:20],
+        # pos/size はパーティクルのみ（バリアント無し）のときの表示位置
+        "pos": _clean_pos(rule.get("pos")),
+        "size": _clean_size(rule.get("size")),
+        "jitter": min(0.5, max(0.0, float(rule.get("jitter", 0.0)))),
+        "enter": str(rule.get("enter") or "pop")[:20],
+        "anim": str(rule.get("anim") or "none")[:20],
+        "duration": min(10000, max(200, int(rule.get("duration", 1500)))),
+        "scale_by_score": bool(rule.get("scale_by_score", True)),
+    }
 
 
 # ---------------- ボイスコマンド ----------------
@@ -735,6 +911,9 @@ def get_engine():
                     {"type": "level", "value": round(v, 3), "speaker": spk}),
                 on_state=_on_state,
                 on_translation=_engine_on_translation,
+                on_sound_event=lambda g, s, spk="": broadcast(
+                    {"type": "sound", "group": g, "score": round(s, 2),
+                     "speaker": spk}),
             )
         return _engine
 
@@ -814,6 +993,34 @@ class Handler(BaseHTTPRequestHandler):
         except OSError:
             self._send_body(404, b"not found", "text/plain")
 
+    def _soundfx_image_file(self, name):
+        """演出画像の配信。_send_body は全応答 no-store（GUI更新の都合）だが、
+        画像は発火のたびに <img> が取り直すため、それだと毎回フルDLになり
+        表示が遅れる。更新時刻で再検証させ、変わっていなければ 304 で済ませる"""
+        path = os.path.join(_soundfx_dir(), name)
+        try:
+            mtime = os.path.getmtime(path)
+            etag = f'"{int(mtime)}-{os.path.getsize(path)}"'
+            if self.headers.get("If-None-Match") == etag:
+                self.send_response(304)
+                self.send_header("ETag", etag)
+                self.end_headers()
+                return
+            with open(path, "rb") as f:
+                body = f.read()
+        except OSError:
+            self._send_body(404, b"not found", "text/plain")
+            return
+        self.send_response(200)
+        self.send_header("Content-Type",
+                         _SOUNDFX_IMAGE_EXT[os.path.splitext(name)[1].lower()])
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("ETag", etag)
+        # 同名アップロードで差し替わるため max-age は短く、以後は ETag 再検証
+        self.send_header("Cache-Control", "private, max-age=60")
+        self.end_headers()
+        self.wfile.write(body)
+
     def _body_json(self):
         n = int(self.headers.get("Content-Length", 0))
         if n < 0 or n > MAX_REQUEST_BODY_BYTES:
@@ -856,11 +1063,31 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_body(404, b"not found", "text/plain")
                 return
             self._file(os.path.join(BASE, "ui", name))
+        elif path.startswith("/soundfx/"):
+            # 音イベント演出のユーザー画像（overlay が <img> で読む）。
+            # 日本語ファイル名は encodeURIComponent で届くため復号してから検証する
+            name = _soundfx_image_name(unquote(path[len("/soundfx/"):]))
+            if name is None:
+                self._send_body(404, b"not found", "text/plain")
+                return
+            self._soundfx_image_file(name)
+        elif path == "/api/soundfx/images":
+            d = _soundfx_dir()
+            names = sorted(n for n in os.listdir(d)
+                           if _soundfx_image_name(n)
+                           and os.path.isfile(os.path.join(d, n)))
+            self._json({"images": names})
+        elif path == "/api/soundfx/groups":
+            import soundfx
+            self._json({"groups": list(soundfx.GROUPS)})
         elif path == "/api/config":
             cfg = load_config()
             cfg["version"] = APP_VERSION   # 表示用（保存はされない: POSTでは既知キーのみ更新）
             # OS能力（表示用）。UIはこれでコラボ欄をグレーアウトする
             cfg["collab_supported"] = platform_compat.collab_supported()
+            # 表示・適用用。resolved=実際に効いている倍率、auto=「自動」を選んだ場合の倍率
+            cfg["ui_scale_resolved"] = resolve_ui_scale(cfg)
+            cfg["ui_scale_auto"] = platform_compat.ui_scale()
             self._json(cfg)
         elif path == "/api/update-check":
             # GUIから起動時に1回呼ぶ。force=1 で手動再取得。ネット不通でも安全に返す。
@@ -992,6 +1219,11 @@ class Handler(BaseHTTPRequestHandler):
                 body["theme"] = "light"   # 未知値はライトへ（既定）
             if "ui_lang" in body and body.get("ui_lang") not in ("ja", "zh", "en"):
                 body["ui_lang"] = "ja"    # 未知値は日本語へ（既定）
+            if "ui_scale" in body:
+                body["ui_scale"] = normalize_ui_scale(body.get("ui_scale"))
+            if "window_geometry" in body:
+                body["window_geometry"] = normalize_window_geometry(
+                    body.get("window_geometry"))
             if ("collab_source" in body
                     and body.get("collab_source") not in ("process", "device")):
                 body["collab_source"] = "process"   # 未知値は推奨方式へ
@@ -1015,6 +1247,11 @@ class Handler(BaseHTTPRequestHandler):
                     body["vrchat_port"] = min(65535, max(1024, int(body["vrchat_port"])))
                 except (TypeError, ValueError):
                     body["vrchat_port"] = 9000
+            if "sound_fx" in body:
+                body["sound_fx"] = bool(body.get("sound_fx"))
+            if "sound_fx_rules" in body:
+                body["sound_fx_rules"] = _sanitize_sound_rules(
+                    body.get("sound_fx_rules"))
             # ThreadingHTTPServer上で複数の設定窓が同時保存しても、後着の
             # read-modify-write が先着変更を巻き戻さないよう一連を排他する。
             with _config_lock:
@@ -1032,6 +1269,11 @@ class Handler(BaseHTTPRequestHandler):
                 broadcast({"type": "theme", "theme": cfg.get("theme", "light")})
             if "ui_lang" in body:
                 broadcast({"type": "ui_lang", "ui_lang": cfg.get("ui_lang", "ja")})
+            # 拡大率は解決済みの実効値を配る（"auto" は自動判定の数値へ）。
+            # 開いている窓の中身は即座に拡縮するが、ネイティブ窓自体の
+            # ピクセルサイズは起動時に決まるため次回起動から反映される。
+            if "ui_scale" in body:
+                broadcast({"type": "ui_scale", "ui_scale": resolve_ui_scale(cfg)})
             self._json({"ok": True, "config": cfg})
         elif path == "/api/profiles":
             self._post_profiles(body)
@@ -1069,6 +1311,52 @@ class Handler(BaseHTTPRequestHandler):
             ev = {"type": "style"}
             ev.update(resolve_style(load_config()))
             broadcast(ev)
+            self._json({"ok": True})
+        elif path == "/api/soundfx/test":
+            # 設定UIの［テスト発火］。本物と同じ形の SSE を流すので、
+            # 実際に笑わなくても OBS 上の overlay で演出を調整できる
+            import soundfx
+            group = body.get("group")
+            if group not in soundfx.GROUPS:
+                self._json({"ok": False, "error": "unknown group"}, 400)
+                return
+            try:
+                score = float(body.get("score", 1.0))
+            except (TypeError, ValueError):
+                score = 1.0
+            broadcast({"type": "sound", "group": group,
+                       "score": round(min(3.0, max(0.0, score)), 2),
+                       "speaker": "", "test": True})
+            self._json({"ok": True})
+        elif path == "/api/soundfx/image":
+            # 画像アップロード（base64）。data/soundfx/ へ保存して名前を返す
+            name = _soundfx_image_name(body.get("name"))
+            if name is None:
+                self._json({"ok": False,
+                            "error": "png/jpg/gif/webp のファイル名を指定してください"}, 400)
+                return
+            import base64
+            try:
+                data = base64.b64decode(body.get("data") or "", validate=True)
+            except (ValueError, TypeError):
+                self._json({"ok": False, "error": "bad data"}, 400)
+                return
+            if not data or len(data) > SOUNDFX_IMAGE_MAX_BYTES:
+                self._json({"ok": False,
+                            "error": "画像は2.5MB以下にしてください"}, 400)
+                return
+            with open(os.path.join(_soundfx_dir(), name), "wb") as f:
+                f.write(data)
+            self._json({"ok": True, "name": name})
+        elif path == "/api/soundfx/image-delete":
+            name = _soundfx_image_name(body.get("name"))
+            if name is None:
+                self._json({"ok": False, "error": "bad name"}, 400)
+                return
+            try:
+                os.remove(os.path.join(_soundfx_dir(), name))
+            except OSError:
+                pass                     # 既に無ければそれで良い
             self._json({"ok": True})
         elif path == "/api/presets":
             presets = body.get("presets", [])

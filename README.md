@@ -189,6 +189,7 @@ pyinstaller --noconfirm Mojicast.spec
 
 | 窓口 | 用途 |
 |---|---|
+| 💬 [Discord](https://discord.gg/Qmx7Mrf6TE) | 使い方の質問・要望・雑談（コミュニティ） |
 | 🐙 [GitHub Issues](https://github.com/ishiki-emo/mojicast/issues) | 不具合報告・機能要望（推奨） |
 | 𝕏 [X @ishiki_emo](https://x.com/ishiki_emo) | 作者へ直接ひとこと・最新情報 |
 

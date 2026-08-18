@@ -21,6 +21,7 @@
 | FuguMT ja-en | 日→英翻訳（CTranslate2変換して利用） | **CC BY-SA 4.0** | [staka/fugumt-ja-en](https://huggingface.co/staka/fugumt-ja-en) |
 | M2M-100 418M | 中国語・インドネシア語等の多言語翻訳（CTranslate2変換して利用） | MIT | [facebook/m2m100_418M](https://huggingface.co/facebook/m2m100_418M) |
 | Silero VAD | 無音（発話区間）検出 | MIT | [snakers4/silero-vad](https://github.com/snakers4/silero-vad) |
+| Zipformer audio tagging (small) | 音イベント検出（リアクション演出。笑い声・拍手等） | Apache-2.0 | [k2-fsa/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15](https://huggingface.co/k2-fsa/sherpa-onnx-zipformer-small-audio-tagging-2024-04-15) |
 
 > **FuguMT の変換版について**: 変換済みモデルの配布は**派生物の再配布**にあたるため、
 > 配布リポジトリの FuguMT 変換版（CTranslate2形式）には CC BY-SA 4.0 が継承されます。
@@ -44,6 +45,14 @@
 
 > **Silero VAD について**: `silero_vad.onnx`（MIT・[snakers4/silero-vad](https://github.com/snakers4/silero-vad)）
 > のみ、DL方式ではなく本体・配布物に同梱しています。
+
+> **音イベント検出モデルについて**: リアクション演出の音イベント検出には、
+> Next-gen Kaldi（k2-fsa）プロジェクトが公開する Zipformer 音声タグ付けモデル
+> （Apache-2.0・icefall で学習）を利用します。他モデルと同じく非同梱で、機能を
+> オンにしたときだけダウンロードされます。同梱のクラス定義
+> `class_labels_indices.csv` は Google の
+> [AudioSet](https://research.google.com/audioset/) オントロジー（CC BY 4.0）に
+> 由来します。
 
 ---
 

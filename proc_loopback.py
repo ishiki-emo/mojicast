@@ -8,6 +8,7 @@ Windows 10 2004 (build 19041) 以降の Process Loopback API で
 提供するもの:
   is_supported()                 この Windows で使えるか
   list_audio_apps()              音声セッションを持つアプリ一覧（UI の選択肢用）
+  list_audio_sessions()          同上をプロセス単位で（pid 付き・切り分け用）
   resolve_pid(exe_name)          exe 名 → キャプチャ対象の root PID
   ProcessLoopbackCapture(...)    キャプチャ本体（context manager・16kHz mono float32）
 """
@@ -435,10 +436,25 @@ def _pid_to_exe(pid):
 def list_audio_apps():
     """全ての再生デバイスの音声セッションから [(exe名, 再生中か)] を集める。
     戻り値: [{"name": "Discord.exe", "active": True}, ...]（active優先・名前順）"""
+    apps = {}     # exe名 → active
+    for exe, _pid, active in list_audio_sessions(raw=True):
+        apps[exe] = apps.get(exe, False) or active
+    return [{"name": n, "active": a} for n, a in
+            sorted(apps.items(), key=lambda kv: (not kv[1], kv[0].lower()))]
+
+
+def list_audio_sessions(raw=False):
+    """音声セッションを1件ずつ返す（同じexeが複数プロセスに分かれる場合の切り分け用）。
+
+    Chrome のようにプロセスが多数あるアプリでは、exe名だけでは実際に音を
+    出しているプロセスを特定できない。ここで得た pid を
+    ProcessLoopbackCapture へ直接渡せば、確実にそのツリーを掴める。
+    戻り値: [{"name", "pid", "active"}, ...]（active優先・名前順）
+    """
     if not is_supported():
         return []
     uninit = _coinit()
-    apps = {}     # exe名 → active
+    out = []      # [(exe名, pid, active), ...]
     enum = c_void_p()
     try:
         _check(_ole32.CoCreateInstance(
@@ -456,7 +472,7 @@ def list_audio_apps():
                 if _com(coll, 4, c_uint, POINTER(c_void_p))(i, byref(dev)) < 0:
                     continue
                 try:
-                    _collect_sessions(dev, apps)
+                    _collect_sessions(dev, out)
                 finally:
                     _release(dev)
         finally:
@@ -467,12 +483,14 @@ def list_audio_apps():
         _release(enum)
         if uninit:
             _ole32.CoUninitialize()
-    return [{"name": n, "active": a} for n, a in
-            sorted(apps.items(), key=lambda kv: (not kv[1], kv[0].lower()))]
+    out.sort(key=lambda r: (not r[2], r[0].lower(), r[1]))
+    if raw:
+        return out
+    return [{"name": n, "pid": p, "active": a} for n, p, a in out]
 
 
-def _collect_sessions(dev, apps):
-    """1つの再生デバイスのセッションを apps（exe名→active）へマージ"""
+def _collect_sessions(dev, out):
+    """1つの再生デバイスのセッションを out へ (exe名, pid, active) で積む"""
     mgr = c_void_p()
     if _com(dev, 3, POINTER(GUID), wintypes.DWORD, c_void_p,
             POINTER(c_void_p))(byref(IID_IAudioSessionManager2), 1, None,
@@ -507,7 +525,7 @@ def _collect_sessions(dev, apps):
                     state = c_uint()
                     _com(ctl2, 3, POINTER(c_uint))(byref(state))
                     active = state.value == 1      # AudioSessionStateActive
-                    apps[exe] = apps.get(exe, False) or active
+                    out.append((exe, pid.value, active))
                 finally:
                     _release(ctl2)
             finally:

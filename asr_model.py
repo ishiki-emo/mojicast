@@ -79,20 +79,26 @@ def load_model(device: str = "cpu", hotwords_file: str = "",
 # ---------------- モデルレジストリ（多言語/軽量モードの受け皿） ----------------
 # capabilities（engine が見て後処理を自動切替する）:
 #   hotwords: 認識誘導（コンテキストバイアス）が使えるか（transducer系のみ）
-#   punct:    句読点・数字正規化(ITN)を内蔵するか（True なら後段のBERT/numnormをスキップ）
+#   punct:    句読点を内蔵するか（True なら後段の句読点BERTをスキップ）
+#   itn:      数字をアラビア数字で出すか（False なら後段の numnorm を通す）
 #   spaces:   CJK文字間に余分な空白が入るか（True なら後段で除去）
 #   multilang:言語指定（asr_lang）を受け付けるか
+#   pad:      認識前に無音パディングを入れるか（k2は精度が上がる／SenseVoiceは害）
 
 MODELS = {
     "k2-ja": {
         "name": "日本語特化（ReazonSpeech k2）",
-        "caps": {"hotwords": True, "punct": False,
-                 "spaces": False, "multilang": False},
+        "caps": {"hotwords": True, "punct": False, "itn": False,
+                 "spaces": False, "multilang": False, "pad": True},
     },
     "sensevoice": {
         "name": "多言語（SenseVoice: 中・英・日・韓・広東語）",
-        "caps": {"hotwords": False, "punct": True,
-                 "spaces": True, "multilang": True},
+        # pad=False: 無音パディングを入れると感情ラベルが全て EMO_UNKNOWN に
+        # 潰れ、さらにトークン間へ余分な空白が入る（2026-08-16 実測）。
+        # itn=False: パディング無しだと数字を漢数字で出す（二千二十六年）ため、
+        # 句読点は内蔵のまま数字だけ後段の numnorm に任せる。
+        "caps": {"hotwords": False, "punct": True, "itn": False,
+                 "spaces": True, "multilang": True, "pad": False},
     },
 }
 

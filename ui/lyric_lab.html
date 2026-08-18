@@ -4,6 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>リリック演出ラボ</title>
+  <script>
+    // GUI窓の拡大率（app.pyが ?s= で渡す。他のGUI窓と同じ流儀）
+    (function () {
+      const s = parseFloat(new URLSearchParams(location.search).get("s"));
+      if (s > 0 && s !== 1) { document.documentElement.style.zoom = s; document.documentElement.style.setProperty("--ui-zoom", s); }
+    })();
+  </script>
   <style>
     :root {
       color-scheme: dark;
@@ -33,7 +40,7 @@
     body {
       margin: 0;
       min-width: 1080px;
-      min-height: 100vh;
+      min-height: calc(100vh / var(--ui-zoom, 1));
       overflow: hidden;
       color: var(--text);
       background:
@@ -44,7 +51,7 @@
     button, input, select { font: inherit; }
     button { color: inherit; }
     .app {
-      height: 100vh;
+      height: calc(100vh / var(--ui-zoom, 1));
       display: grid;
       grid-template-columns: minmax(620px, 1fr) 360px;
       gap: 18px;

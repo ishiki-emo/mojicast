@@ -21,6 +21,22 @@
     if (lang && window.MojicastI18n) window.MojicastI18n.applyLang(lang);
   }
 
+  // GUI窓の拡大率。URLの ?s= は窓を開いた時点の値なので、起動後に設定を
+  // 変えた場合はここで上書きする（窓自体のピクセルサイズは次回起動から）。
+  function applyScale(scale) {
+    // 埋め込みiframeは親スタジオのzoomで一緒に拡縮される（二重適用の防止）
+    if (embedded) return;
+    const s = parseFloat(scale);
+    if (!(s > 0)) return;
+    // 等倍は zoom を外す。拡大／縮小からの戻りで指定が残らないようにする。
+    document.documentElement.style.zoom = s === 1 ? "" : s;
+    // 100vh は zoom に連動しないため、高さ補正用の変数も必ず揃えて更新する。
+    // ここを忘れると calc(100vh / var(--ui-zoom)) が古い倍率のまま残り、
+    // フッターの下に余白が出る（cockpit の applyScale と同じ処置）
+    if (s === 1) document.documentElement.style.removeProperty("--ui-zoom");
+    else document.documentElement.style.setProperty("--ui-zoom", s);
+  }
+
   function connect() {
     const events = new EventSource("/events");
     events.onmessage = event => {
@@ -30,6 +46,8 @@
           applyTheme(message.theme);
         if ((message.type === "ui_lang" || message.type === "init") && message.ui_lang)
           applyLang(message.ui_lang);
+        if ((message.type === "ui_scale" || message.type === "init") && message.ui_scale)
+          applyScale(message.ui_scale);
       } catch (e) {}
     };
     events.onerror = () => {
@@ -53,7 +71,12 @@
   // 設定窓をテーマ変更直後に開いた場合の初期色ずれを防ぐ。
   fetch("/api/config", { cache: "no-store" })
     .then(response => response.json())
-    .then(config => { applyTheme(config.theme || "light"); applyLang(config.ui_lang || "ja"); })
+    .then(config => {
+      applyTheme(config.theme || "light");
+      applyLang(config.ui_lang || "ja");
+      // URLの ?s= は窓を開いた時点の値。起動後に倍率を変えていた場合はここで揃う。
+      applyScale(config.ui_scale_resolved);
+    })
     .catch(() => {})
     .finally(() => { if (!embedded) connect(); });
 })();
