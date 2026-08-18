@@ -93,6 +93,22 @@
   }
 
   function applyPane(p) {
+    // 表示のしかた（mode）が実際に変わったときだけ、前モードの表示物を一掃する。
+    // 通常表示の確定行はリリックに切り替えると誰にも消されず残り続け、
+    // リリックのシーンも逆方向で同様に残るため（#6）。モードが同じ style
+    // イベント（フォント調整等のライブプレビュー）や初回適用では消さない
+    const mode = p.box.mode || "flow";
+    if (p._mode !== undefined && p._mode !== mode) {
+      p.finalsEl.textContent = "";
+      p.partialEl.textContent = "";
+      FX.lyricClear(p.boxEl);
+      clearTimeout(p._enWait);
+      // 切替前の行あての翻訳が後から届いても、英訳のみ経路で再表示させない
+      for (const [id, wp] of pendingEn)
+        if (wp === p) pendingEn.delete(id);
+    }
+    p._mode = mode;
+
     // URLクエリは最優先で上書き
     const size = qp.get("size") || p.style.size;
     p.style.hotColor = qp.get("hot") || p.style.hotColor;
