@@ -8,7 +8,7 @@
   (function () {
     const qs = new URLSearchParams(location.search);
     const s = parseFloat(qs.get("s"));
-    if (s > 0 && s < 1) document.documentElement.style.zoom = s;
+    if (s > 0 && s !== 1) { document.documentElement.style.zoom = s; document.documentElement.style.setProperty("--ui-zoom", s); }
     try { if (localStorage.getItem("mojicast-theme") === "light")
       document.documentElement.dataset.theme = "light"; } catch (e) {}
     if (qs.get("embed") === "1") document.documentElement.classList.add("embed");
@@ -32,7 +32,7 @@
   body {
     background: var(--bg); color: var(--text);
     font-family: 'Yu Gothic UI', 'Meiryo', sans-serif; font-size: 15px;
-    min-height: 100vh; display: flex; flex-direction: column; user-select: none;
+    min-height: calc(100vh / var(--ui-zoom, 1)); display: flex; flex-direction: column; user-select: none;
   }
   header { display: flex; align-items: center; gap: 12px;
     padding: 12px 18px; background: var(--panel); border-bottom: 1px solid var(--line); }

@@ -9,7 +9,7 @@
   (function () {
     const qs = new URLSearchParams(location.search);
     const s = parseFloat(qs.get("s"));
-    if (s > 0 && s !== 1) document.documentElement.style.zoom = s;
+    if (s > 0 && s !== 1) { document.documentElement.style.zoom = s; document.documentElement.style.setProperty("--ui-zoom", s); }
     // テーマ先読み（configロード前のちらつき防止。真の値はloadAllで上書き）
     try {
       const theme = qs.get("theme") || localStorage.getItem("mojicast-theme");
@@ -40,7 +40,7 @@
   body {
     background: var(--bg); color: var(--text);
     font-family: 'Yu Gothic UI', 'Meiryo', sans-serif;
-    font-size: 15px; height: 100vh; display: flex; flex-direction: column;
+    font-size: 15px; height: calc(100vh / var(--ui-zoom, 1)); display: flex; flex-direction: column;
     user-select: none; overflow: hidden;
   }
   /* ---------- ヘッダー ---------- */
@@ -648,6 +648,10 @@
     if (!(s > 0)) return;
     // 等倍は zoom を外す。拡大／縮小からの戻りで指定が残らないようにする。
     document.documentElement.style.zoom = s === 1 ? "" : s;
+    // 100vh は zoom に連動しないため、高さ補正用の変数も揃えて更新する
+    // （外さないと縮小時にフッター下へ余白が残る）
+    if (s === 1) document.documentElement.style.removeProperty("--ui-zoom");
+    else document.documentElement.style.setProperty("--ui-zoom", s);
   }
   function toggleTheme() {
     cfg.theme = cfg.theme === "light" ? "dark" : "light";

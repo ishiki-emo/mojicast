@@ -7,7 +7,7 @@
   (function () {
     const q = new URLSearchParams(location.search);
     const s = parseFloat(q.get("s"));
-    if (s > 0 && s !== 1) document.documentElement.style.zoom = s;
+    if (s > 0 && s !== 1) { document.documentElement.style.zoom = s; document.documentElement.style.setProperty("--ui-zoom", s); }
     try {
       const theme = q.get("theme") || localStorage.getItem("mojicast-theme");
       if (theme === "light") document.documentElement.dataset.theme = "light";
@@ -29,7 +29,7 @@
     --accent2:#d4247a; --ok:#12a05f; --warn:#b5761a; --err:#d94141;
   }
   * { box-sizing:border-box; }
-  html,body { height:100%; }
+  html,body { height: calc(100vh / var(--ui-zoom, 1)); }
   body { margin:0; overflow:hidden; background:var(--bg); color:var(--text);
     font-family:"Yu Gothic UI","Meiryo",sans-serif; font-size:15px; }
   button,select,input { font:inherit; }
