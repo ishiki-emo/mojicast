@@ -232,14 +232,16 @@ def translate_m2m(text: str, src: str = "ja", tgt: str = "zh",
     広東語yueはM2M-100非対応のため翻訳先には使わない（音声認識のみ）。
 
     - ja→zh のときだけ配信用語の事前置換（_STREAM_TERMS_ZH）を適用
-    - repetition_penalty 省略時は言語別の既定を使う: 韓国語は greedy だと
-      反復暴走するため 1.2（実測 2026-07-22）、他は 1.0
+    - repetition_penalty 省略時は言語別の既定を使う: greedy だと相槌・
+      繰り返し口語で反復暴走するため、韓国語（実測 2026-07-22）に続き
+      中国語も 1.2（#7 実測 2026-08-18: 実配信3298文中90件の暴走が、
+      1.2＋no_repeat_ngram=3 で0件。対照12文の劣化なし・速度差なし）
     """
     if not text or not text.strip():
         return ""
     model_tgt = "zh" if tgt in _ZH_VARIANT_CONFIGS else tgt
     if repetition_penalty is None:
-        repetition_penalty = 1.2 if model_tgt == "ko" else 1.0
+        repetition_penalty = 1.2 if model_tgt in ("ko", "zh") else 1.0
     if _m2m is None:
         load_translator_zh()
     if src == "ja" and model_tgt == "zh":
@@ -255,11 +257,20 @@ def translate_m2m(text: str, src: str = "ja", tgt: str = "zh",
     res = _m2m.translate_batch([source], target_prefix=[[f"__{model_tgt}__"]],
                                beam_size=1,
                                repetition_penalty=repetition_penalty,
+                               # フレーズ単位の反復暴走（「是的,是的,…」×30等）は
+                               # repetition_penalty だけでは残るため、3-gram の
+                               # 再出現を禁止して確実に断ち切る（#7）
+                               no_repeat_ngram_size=3,
                                max_decoding_length=max_new_tokens)
     out = [t for t in res[0].hypotheses[0]
            if not (t.startswith("__") and t.endswith("__"))
            and t not in ("</s>", "<pad>", "<unk>")]
-    translated = _sp_m2m.decode(out).strip()
+    translated = _sp_m2m.decode(out).replace("<unk>", "").strip()
+    # 反復抑止の副産物で、訳せない入力（「うどん」等の単語単発）が「。」や
+    # 記号だけの断片になることがある。文字を1つも含まない出力は空として扱い、
+    # ゴミを字幕に出さない（空の扱いは従来どおり＝訳文行を出さない）
+    if not re.search(r"\w", translated):
+        return ""
     return convert_zh_variant(translated, tgt)
 
 
