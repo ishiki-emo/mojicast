@@ -1,5 +1,5 @@
 {
-  "version": "0.8.0",
+  "version": "0.9.0",
   "url": "https://emo-ishiki.booth.pm/items/8643987",
-  "notes": "字幕の表示モード「翻訳のみ」と、VRChatチャットボックスへの字幕送信を追加"
+  "notes": "リアクション演出（笑い声・拍手で画像を出す・実験的）と、GUI窓の大きさ調整を追加"
 }
