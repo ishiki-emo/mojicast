@@ -50,8 +50,12 @@ _MODEL_SIZES_MB = {
 }
 
 
-def _punct_precision(cfg):
-    """句読点BERTの精度は認識モデルの設定に揃える（設定の「高精度モード」= 両方fp32）"""
+def _aux_precision(cfg):
+    """句読点BERT・英訳モデルの精度は認識モデルの設定に揃える。
+
+    設定の「高精度モード」（precision=fp32）で3つまとめて高精度側へ切り替わる。
+    中国語訳などの M2M-100 は変換時点で int8 量子化済みのため対象外。
+    """
     return "fp32" if cfg.get("precision", "int8-fp32") == "fp32" else "int8"
 
 
@@ -273,7 +277,7 @@ class CaptionEngine:
         # 句読点内蔵モデル（SenseVoice等）ではBERTを使わないためDLも不要
         if cfg.get("punctuate", True) and not caps["punct"]:
             import punct
-            prec = _punct_precision(cfg)
+            prec = _aux_precision(cfg)
             if not punct.cached(prec):
                 total += _MODEL_SIZES_MB[
                     "punct" if prec == "fp32" else "punct_int8"]
@@ -330,19 +334,22 @@ class CaptionEngine:
             import punct
             punct.unload()
             self._punct = None
-        punct_prec = _punct_precision(cfg)
+        aux_prec = _aux_precision(cfg)
         need_punct = cfg.get("punctuate", True) and not model_caps["punct"]
         if need_punct and self._punct is not None:
             import punct
             # 常駐中と同じ精度ならそのまま使う（高精度モードの切替時だけ積み直し）
-            need_punct = punct.loaded_precision() != punct_prec
+            need_punct = punct.loaded_precision() != aux_prec
         # 音イベント検出（笑い・拍手等）はASRと独立した付加機能。
         # OFFに切り替えたら分類器を解放する（約115MB返却）
         if not cfg.get("sound_fx", False):
             self._sfx_tagger = None
         need_sfx = cfg.get("sound_fx", False) and self._sfx_tagger is None
         plan = self._translate_plan(cfg)
-        need_trans = plan is not None and self._translate_sig != plan
+        # FuguMT(英訳)だけは精度が切り替わるので sig に含める。M2M系は変換時点で
+        # int8 のため、高精度モードを切り替えても積み直す必要がない
+        tsig = plan + ((aux_prec,) if plan and plan[0] == "fugumt" else ())
+        need_trans = plan is not None and self._translate_sig != tsig
         if cfg.get("translate", False) and plan is None:
             # 認識言語と翻訳先が同じ（例: 中国語認識＋中国語訳）→ 翻訳は無意味
             self._translate = None
@@ -390,9 +397,9 @@ class CaptionEngine:
                 self.on_state("loading", "句読点モデルをロード中...")
                 try:
                     import punct
-                    if punct.loaded_precision() not in (None, punct_prec):
+                    if punct.loaded_precision() not in (None, aux_prec):
                         punct.unload()   # 精度切替: 旧モデルを先に返してピークを抑える
-                    punct.load_punctuator(precision=punct_prec)
+                    punct.load_punctuator(precision=aux_prec)
                     self._punct = punct.add_punctuation
                 except Exception:
                     self._punct = None
@@ -419,8 +426,12 @@ class CaptionEngine:
                 self.on_state("loading", f"翻訳モデル({label})をロード中...")
                 try:
                     if eng == "fugumt":
-                        from translate import translate as _tr, load_translator
-                        load_translator()
+                        from translate import (translate as _tr,
+                                               load_translator, loaded_precision)
+                        import translate as _tmod
+                        if loaded_precision() not in (None, aux_prec):
+                            _tmod.unload("fugumt")   # 精度切替は先に解放してから
+                        load_translator(precision=aux_prec)
                         self._translate = _tr
                     elif eng == "opencc":
                         from translate import convert_zh_variant
@@ -433,7 +444,7 @@ class CaptionEngine:
                         load_translator_zh()
                         self._translate = (lambda t, _s=src, _t=tgt:
                                            translate_m2m(t, _s, _t))
-                    self._translate_sig = plan
+                    self._translate_sig = tsig
                     # 切替で使わなくなった側の翻訳バックエンドを解放（メモリ返却）
                     from translate import unload as unload_translator
                     if eng != "fugumt":

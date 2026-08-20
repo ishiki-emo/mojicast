@@ -82,6 +82,14 @@ _SUBDIR = "fugumt-ja-en-ct2"                         # ローカル models_conv/
 _translator = None
 _sp_src = None
 _sp_tgt = None
+_loaded_precision = None    # ロード済みモデルの精度（切替時の再ロード判定に使う）
+
+# CTranslate2 は実行時に重みの精度を選べる（モデルの再変換・再配布は不要）。
+# int8_float32 = 重みint8・計算float32。実測（2026-08-21・実配信400文）で
+# 常駐 481MB→311MB（-170MB）・28ms→9ms（3倍速）、訳文はfp32と62%一致で
+# 差分の大半は同等の言い換え。fp32が文の後半を落とす例がint8では残るなど、
+# 総合的な品質は互角のため int8 を既定にする。
+_COMPUTE_TYPE = {"int8": "int8_float32", "fp32": "float32"}
 
 
 def _resolve_dir(download=True):
@@ -109,10 +117,10 @@ def cached() -> bool:
         return False
 
 
-def load_translator(num_threads: int = 4):
-    """モデルとトークナイザをロード（初回のみ実行）"""
-    global _translator, _sp_src, _sp_tgt
-    if _translator is not None:
+def load_translator(num_threads: int = 4, precision: str = "int8"):
+    """モデルとトークナイザをロード（初回、および精度が変わったときのみ実行）"""
+    global _translator, _sp_src, _sp_tgt, _loaded_precision
+    if _translator is not None and _loaded_precision == precision:
         return
     import ctranslate2
     import sentencepiece as spm
@@ -127,14 +135,16 @@ def load_translator(num_threads: int = 4):
 
     _sp_src = _sp_load(os.path.join(d, "source.spm"))
     _sp_tgt = _sp_load(os.path.join(d, "target.spm"))
-    _translator = ctranslate2.Translator(d, device="cpu",
-                                         compute_type="float32",
-                                         inter_threads=1,
-                                         intra_threads=num_threads)
+    _translator = ctranslate2.Translator(
+        d, device="cpu",
+        compute_type=_COMPUTE_TYPE.get(precision, _COMPUTE_TYPE["int8"]),
+        inter_threads=1, intra_threads=num_threads)
+    _loaded_precision = precision
     # ロード直後の自己診断: 1文訳して空なら異常として失敗させる。
     # （エンジン側が英訳だけ無効化して字幕本体を守れる）
     if not translate("これはテストです。").strip():
         _translator = None
+        _loaded_precision = None
         raise RuntimeError("翻訳モデルの自己診断に失敗（出力が空）")
 
 
@@ -325,15 +335,21 @@ def translate_zh(text: str, max_new_tokens: int = 96) -> str:
     return translate_m2m(text, "ja", "zh", max_new_tokens)
 
 
+def loaded_precision():
+    """常駐中の英訳モデルの精度（未ロードなら None）"""
+    return _loaded_precision
+
+
 def unload(which: str):
     """使わなくなった翻訳バックエンドを解放してメモリを返す（次回使用時に再ロード）。
 
     翻訳経路の切替（FuguMT⇔M2M）で旧バックエンドが常駐し続けるのを防ぐ。
     which: "fugumt" | "m2m"
     """
-    global _translator, _sp_src, _sp_tgt, _m2m, _sp_m2m
+    global _translator, _sp_src, _sp_tgt, _m2m, _sp_m2m, _loaded_precision
     if which == "fugumt":
         _translator = _sp_src = _sp_tgt = None
+        _loaded_precision = None
     elif which == "m2m":
         _m2m = _sp_m2m = None
 
