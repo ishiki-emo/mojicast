@@ -13,6 +13,7 @@ from engine import (
     CaptionEngine,
     _offer_bounded_latest,
     _aux_precision,
+    _should_emit_partial,
 )
 
 
@@ -371,6 +372,35 @@ class RecognizePaddingTests(unittest.TestCase):
         # 句読点は内蔵、数字は漢数字で出るので numnorm を通す必要がある
         self.assertTrue(asr_model.MODELS["sensevoice"]["caps"]["punct"])
         self.assertFalse(asr_model.MODELS["sensevoice"]["caps"]["itn"])
+
+
+class FinalOnlyTests(unittest.TestCase):
+    """「確定した字幕だけ表示する」= 途中経過（薄文字）を作らない設定。
+
+    表示を止めるだけでなく末尾デコードごと省くため、CPU負荷も下がる。
+    最長時間での強制確定（vad.flush）は従来どおり効く必要がある。
+    """
+
+    def test_skips_the_partial_when_final_only(self):
+        self.assertFalse(_should_emit_partial(
+            {"final_only": True}, SAMPLE_RATE, 0, 100))
+
+    def test_emits_the_partial_by_default(self):
+        self.assertTrue(_should_emit_partial({}, SAMPLE_RATE, 0, 100))
+        self.assertTrue(_should_emit_partial(
+            {"final_only": False}, SAMPLE_RATE, 0, 100))
+
+    def test_waits_until_enough_new_audio_arrived(self):
+        # 前回から gap ぶん貯まるまでは出さない（適応スロットリング）
+        self.assertFalse(_should_emit_partial({}, SAMPLE_RATE, SAMPLE_RATE - 10, 100))
+
+    def test_ignores_utterances_shorter_than_the_minimum(self):
+        self.assertFalse(_should_emit_partial({}, int(0.2 * SAMPLE_RATE), 0, 100))
+
+    def test_default_config_keeps_the_partial_on(self):
+        import app_server
+
+        self.assertIs(app_server.DEFAULT_CONFIG["final_only"], False)
 
 
 class AuxPrecisionTests(unittest.TestCase):
