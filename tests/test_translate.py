@@ -33,5 +33,28 @@ class FixCaseTests(unittest.TestCase):
         self.assertEqual(_fix_case(""), "")
 
 
+class StreamTermsTests(unittest.TestCase):
+    """配信スラングの事前置換。素の FuguMT では壊れる語を名詞形で差し替える。"""
+
+    def test_replaces_stream_slang(self):
+        # 「メン限」は素だと "talk to men" と訳されるため対策が要る
+        self.assertIn("members-only", _apply_stream_terms("メン限でしか話せない"))
+        self.assertIn("description", _apply_stream_terms("概要欄を見てください"))
+        self.assertIn("viral", _apply_stream_terms("めちゃくちゃバズってましたね"))
+        self.assertIn("favorite", _apply_stream_terms("推しが尊すぎる"))
+        self.assertIn("lol", _apply_stream_terms("それは草。"))
+
+    def test_does_not_fire_on_ordinary_words(self):
+        # 「草」は前が漢字（雑草）／後ろが仮名（草むら）なら笑いの草ではない
+        self.assertNotIn("lol", _apply_stream_terms("草むらの奥に隠れていました。"))
+        self.assertNotIn("lol", _apply_stream_terms("雑草を抜くのが大変です。"))
+        # 「推して」「推した」は動詞なので置換しない
+        self.assertNotIn("favorite", _apply_stream_terms("彼を推してみようと思います。"))
+
+    def test_keeps_existing_terms(self):
+        self.assertIn("Super Chat", _apply_stream_terms("スパチャありがとう"))
+        self.assertIn("clip", _apply_stream_terms("切り抜きを見た"))
+
+
 if __name__ == "__main__":
     unittest.main()

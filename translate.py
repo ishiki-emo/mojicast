@@ -33,6 +33,20 @@ _STREAM_TERMS = [
     (re.compile(r"コメ欄"), "comment section"),
     (re.compile(r"高評価"), "like"),
     (re.compile(r"歌枠"), "singing stream"),
+    # --- 配信スラング（2026-08-21 追加）。素の FuguMT では
+    # 「メン限」→"talk to men"・「推し」→"stigma"・「バズった」→"messy scum" のように
+    # 壊れるため、名詞形で事前置換する。活用する語（尊い/凸待ち/初見殺し）は
+    # 置換しても英文が不自然になるだけなので入れない ---
+    (re.compile(r"メン限"), "members-only"),
+    (re.compile(r"概要欄"), "description"),
+    (re.compile(r"待機所"), "waiting room"),
+    (re.compile(r"同時視聴"), "watch party"),
+    (re.compile(r"神回"), "legendary stream"),
+    (re.compile(r"リスナーさん|リスナー"), "viewers"),
+    (re.compile(r"バズ(ってる|って|った|る|り)"), "viral"),
+    (re.compile(r"推し(?![てたまさ])"), "favorite"),   # 「推して/推した」は動詞なので除く
+    # 笑いの「草」だけを拾う（前が漢字なら「雑草」等、後ろが仮名なら「草むら」等で不発）
+    (re.compile(r"(?<![一-龥])草(?=[。、！!？?]|$)"), "lol"),
 ]
 
 
