@@ -41,6 +41,27 @@ def _apply_stream_terms(text: str) -> str:
         text = pat.sub(en, text)
     return text
 
+
+_SENT_HEAD = re.compile(r"(^|[!?]\s+)([a-z])")
+_LONE_I = re.compile(r"\bi\b")
+_TIGHT = re.compile(r"([!?])([A-Za-z])")
+
+
+def _fix_case(text: str) -> str:
+    """英訳の文頭が小文字になることがあるので直す（一人称 i も大文字へ）。
+
+    FuguMT は入力の末尾に句点が無い・話し言葉が続くといった条件で
+    `i forgot to say that` のように全体を小文字で出すことがある。
+    字幕として目立つため、文頭と終止符の直後、および単独の i を大文字にする。
+    """
+    if not text:
+        return text
+    # 「Thank you for Super Chat!I'll use it.」のように終止符の直後が詰まることがある。
+    # ピリオドは略語（U.S.A.）を壊すので触らず、! ? のみ空けを入れる
+    text = _TIGHT.sub(lambda m: m.group(1) + " " + m.group(2), text)
+    text = _SENT_HEAD.sub(lambda m: m.group(1) + m.group(2).upper(), text)
+    return _LONE_I.sub("I", text)
+
 _REPO_ID = "ishiki-emo/mojicast-fugumt-ja-en-ct2"   # 変換済みモデルの配布リポジトリ
 _SUBDIR = "fugumt-ja-en-ct2"                         # ローカル models_conv/ 内のフォルダ名
 
@@ -103,8 +124,15 @@ def load_translator(num_threads: int = 4):
         raise RuntimeError("翻訳モデルの自己診断に失敗（出力が空）")
 
 
-def translate(text: str, max_new_tokens: int = 96) -> str:
-    """日本語テキストを英訳して返す（greedy＝最速）。空文字は空文字を返す。"""
+def translate(text: str, max_new_tokens: int = 96,
+              repetition_penalty: float = 1.2) -> str:
+    """日本語テキストを英訳して返す（greedy＝最速）。空文字は空文字を返す。
+
+    repetition_penalty と no_repeat_ngram_size は中国語・韓国語（#7）と同じ
+    反復暴走の対策。「だめだだめだ、逃げて逃げて」のような繰り返しの口語で
+    `no, no, no, ...` と延々続く出力になるのを断ち切る（実測 2026-08-21:
+    実配信965文＋定型8文で暴走6件→0件・速度差なし・訳文の劣化なし）。
+    """
     if not text or not text.strip():
         return ""
     if _translator is None:
@@ -115,10 +143,12 @@ def translate(text: str, max_new_tokens: int = 96) -> str:
         tokens = tokens[:511]
     tokens.append("</s>")
     res = _translator.translate_batch([tokens], beam_size=1,
+                                      repetition_penalty=repetition_penalty,
+                                      no_repeat_ngram_size=3,
                                       max_decoding_length=max_new_tokens)
     out = [t for t in res[0].hypotheses[0]
            if t not in ("</s>", "<pad>", "<unk>")]
-    return _sp_tgt.decode(out).strip()
+    return _fix_case(_sp_tgt.decode(out).strip())
 
 
 # ---------------- 中国語訳（M2M-100 418M / int8） ----------------
@@ -271,6 +301,8 @@ def translate_m2m(text: str, src: str = "ja", tgt: str = "zh",
     # ゴミを字幕に出さない（空の扱いは従来どおり＝訳文行を出さない）
     if not re.search(r"\w", translated):
         return ""
+    if model_tgt == "en":
+        translated = _fix_case(translated)
     return convert_zh_variant(translated, tgt)
 
 
