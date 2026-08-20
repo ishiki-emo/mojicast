@@ -33,6 +33,20 @@ _STREAM_TERMS = [
     (re.compile(r"コメ欄"), "comment section"),
     (re.compile(r"高評価"), "like"),
     (re.compile(r"歌枠"), "singing stream"),
+    # --- 配信スラング（2026-08-21 追加）。素の FuguMT では
+    # 「メン限」→"talk to men"・「推し」→"stigma"・「バズった」→"messy scum" のように
+    # 壊れるため、名詞形で事前置換する。活用する語（尊い/凸待ち/初見殺し）は
+    # 置換しても英文が不自然になるだけなので入れない ---
+    (re.compile(r"メン限"), "members-only"),
+    (re.compile(r"概要欄"), "description"),
+    (re.compile(r"待機所"), "waiting room"),
+    (re.compile(r"同時視聴"), "watch party"),
+    (re.compile(r"神回"), "legendary stream"),
+    (re.compile(r"リスナーさん|リスナー"), "viewers"),
+    (re.compile(r"バズ(ってる|って|った|る|り)"), "viral"),
+    (re.compile(r"推し(?![てたまさ])"), "favorite"),   # 「推して/推した」は動詞なので除く
+    # 笑いの「草」だけを拾う（前が漢字なら「雑草」等、後ろが仮名なら「草むら」等で不発）
+    (re.compile(r"(?<![一-龥])草(?=[。、！!？?]|$)"), "lol"),
 ]
 
 
@@ -41,12 +55,41 @@ def _apply_stream_terms(text: str) -> str:
         text = pat.sub(en, text)
     return text
 
+
+_SENT_HEAD = re.compile(r"(^|[!?]\s+)([a-z])")
+_LONE_I = re.compile(r"\bi\b")
+_TIGHT = re.compile(r"([!?])([A-Za-z])")
+
+
+def _fix_case(text: str) -> str:
+    """英訳の文頭が小文字になることがあるので直す（一人称 i も大文字へ）。
+
+    FuguMT は入力の末尾に句点が無い・話し言葉が続くといった条件で
+    `i forgot to say that` のように全体を小文字で出すことがある。
+    字幕として目立つため、文頭と終止符の直後、および単独の i を大文字にする。
+    """
+    if not text:
+        return text
+    # 「Thank you for Super Chat!I'll use it.」のように終止符の直後が詰まることがある。
+    # ピリオドは略語（U.S.A.）を壊すので触らず、! ? のみ空けを入れる
+    text = _TIGHT.sub(lambda m: m.group(1) + " " + m.group(2), text)
+    text = _SENT_HEAD.sub(lambda m: m.group(1) + m.group(2).upper(), text)
+    return _LONE_I.sub("I", text)
+
 _REPO_ID = "ishiki-emo/mojicast-fugumt-ja-en-ct2"   # 変換済みモデルの配布リポジトリ
 _SUBDIR = "fugumt-ja-en-ct2"                         # ローカル models_conv/ 内のフォルダ名
 
 _translator = None
 _sp_src = None
 _sp_tgt = None
+_loaded_precision = None    # ロード済みモデルの精度（切替時の再ロード判定に使う）
+
+# CTranslate2 は実行時に重みの精度を選べる（モデルの再変換・再配布は不要）。
+# int8_float32 = 重みint8・計算float32。実測（2026-08-21・実配信400文）で
+# 常駐 481MB→311MB（-170MB）・28ms→9ms（3倍速）、訳文はfp32と62%一致で
+# 差分の大半は同等の言い換え。fp32が文の後半を落とす例がint8では残るなど、
+# 総合的な品質は互角のため int8 を既定にする。
+_COMPUTE_TYPE = {"int8": "int8_float32", "fp32": "float32"}
 
 
 def _resolve_dir(download=True):
@@ -74,10 +117,10 @@ def cached() -> bool:
         return False
 
 
-def load_translator(num_threads: int = 4):
-    """モデルとトークナイザをロード（初回のみ実行）"""
-    global _translator, _sp_src, _sp_tgt
-    if _translator is not None:
+def load_translator(num_threads: int = 4, precision: str = "int8"):
+    """モデルとトークナイザをロード（初回、および精度が変わったときのみ実行）"""
+    global _translator, _sp_src, _sp_tgt, _loaded_precision
+    if _translator is not None and _loaded_precision == precision:
         return
     import ctranslate2
     import sentencepiece as spm
@@ -92,19 +135,28 @@ def load_translator(num_threads: int = 4):
 
     _sp_src = _sp_load(os.path.join(d, "source.spm"))
     _sp_tgt = _sp_load(os.path.join(d, "target.spm"))
-    _translator = ctranslate2.Translator(d, device="cpu",
-                                         compute_type="float32",
-                                         inter_threads=1,
-                                         intra_threads=num_threads)
+    _translator = ctranslate2.Translator(
+        d, device="cpu",
+        compute_type=_COMPUTE_TYPE.get(precision, _COMPUTE_TYPE["int8"]),
+        inter_threads=1, intra_threads=num_threads)
+    _loaded_precision = precision
     # ロード直後の自己診断: 1文訳して空なら異常として失敗させる。
     # （エンジン側が英訳だけ無効化して字幕本体を守れる）
     if not translate("これはテストです。").strip():
         _translator = None
+        _loaded_precision = None
         raise RuntimeError("翻訳モデルの自己診断に失敗（出力が空）")
 
 
-def translate(text: str, max_new_tokens: int = 96) -> str:
-    """日本語テキストを英訳して返す（greedy＝最速）。空文字は空文字を返す。"""
+def translate(text: str, max_new_tokens: int = 96,
+              repetition_penalty: float = 1.2) -> str:
+    """日本語テキストを英訳して返す（greedy＝最速）。空文字は空文字を返す。
+
+    repetition_penalty と no_repeat_ngram_size は中国語・韓国語（#7）と同じ
+    反復暴走の対策。「だめだだめだ、逃げて逃げて」のような繰り返しの口語で
+    `no, no, no, ...` と延々続く出力になるのを断ち切る（実測 2026-08-21:
+    実配信965文＋定型8文で暴走6件→0件・速度差なし・訳文の劣化なし）。
+    """
     if not text or not text.strip():
         return ""
     if _translator is None:
@@ -115,10 +167,12 @@ def translate(text: str, max_new_tokens: int = 96) -> str:
         tokens = tokens[:511]
     tokens.append("</s>")
     res = _translator.translate_batch([tokens], beam_size=1,
+                                      repetition_penalty=repetition_penalty,
+                                      no_repeat_ngram_size=3,
                                       max_decoding_length=max_new_tokens)
     out = [t for t in res[0].hypotheses[0]
            if t not in ("</s>", "<pad>", "<unk>")]
-    return _sp_tgt.decode(out).strip()
+    return _fix_case(_sp_tgt.decode(out).strip())
 
 
 # ---------------- 中国語訳（M2M-100 418M / int8） ----------------
@@ -271,6 +325,8 @@ def translate_m2m(text: str, src: str = "ja", tgt: str = "zh",
     # ゴミを字幕に出さない（空の扱いは従来どおり＝訳文行を出さない）
     if not re.search(r"\w", translated):
         return ""
+    if model_tgt == "en":
+        translated = _fix_case(translated)
     return convert_zh_variant(translated, tgt)
 
 
@@ -279,15 +335,21 @@ def translate_zh(text: str, max_new_tokens: int = 96) -> str:
     return translate_m2m(text, "ja", "zh", max_new_tokens)
 
 
+def loaded_precision():
+    """常駐中の英訳モデルの精度（未ロードなら None）"""
+    return _loaded_precision
+
+
 def unload(which: str):
     """使わなくなった翻訳バックエンドを解放してメモリを返す（次回使用時に再ロード）。
 
     翻訳経路の切替（FuguMT⇔M2M）で旧バックエンドが常駐し続けるのを防ぐ。
     which: "fugumt" | "m2m"
     """
-    global _translator, _sp_src, _sp_tgt, _m2m, _sp_m2m
+    global _translator, _sp_src, _sp_tgt, _m2m, _sp_m2m, _loaded_precision
     if which == "fugumt":
         _translator = _sp_src = _sp_tgt = None
+        _loaded_precision = None
     elif which == "m2m":
         _m2m = _sp_m2m = None
 
