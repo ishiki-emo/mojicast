@@ -304,6 +304,9 @@
       case "final":   addFinal(paneFor(msg.speaker), msg.text, msg.id); break;
       case "translation": addTranslation(msg.id, msg.text); break;
       case "partial": setPartial(paneFor(msg.speaker), msg.text); break;
+      case "clear_partial":   // 「確定した字幕だけ表示」に切り替えた合図
+        for (const p of panes.values()) p.partialEl.textContent = "";
+        break;
       case "state":
         // 起動完了時に翻訳の実態が届く（翻訳のみ表示⇄併記の切替に即反映）
         if ("translate" in msg) translateOn = !!msg.translate;

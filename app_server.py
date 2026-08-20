@@ -4,7 +4,7 @@ Caption Studio のHTTP/SSEサーバ
 1ポートで全部を配信する:
   GET  /            overlay.html（OBSブラウザソース用）
   GET  /ui/<name>   GUIページ（cockpit / words）
-  GET  /events      SSE: init / partial / final / level / state / style / clear
+  GET  /events      SSE: init / partial / clear_partial / final / level / state / style / clear
   GET/POST /api/... 設定・単語帳・エフェクト・プリセット・エンジン制御
 
 認識エンジン(engine.CaptionEngine)はこのモジュールが保持し、
@@ -39,6 +39,7 @@ _update_cache_at = 0.0    # time.monotonic() ベースの取得時刻
 
 DEFAULT_CONFIG = {
     "silence_ms": 300, "interval": 0.4, "max_utt": 12.0,
+    "final_only": False,    # 途中経過（薄文字）を出さず確定字幕だけ表示する
     "device": None, "precision": "int8-fp32", "punctuate": True,
     "asr_model": "k2-ja",   # 認識モデル（k2-ja=日本語特化 / sensevoice=多言語）
     "asr_lang": "auto",     # sensevoice時の認識言語（auto/ja/zh/en/ko/yue）
@@ -1269,6 +1270,10 @@ class Handler(BaseHTTPRequestHandler):
                 broadcast({"type": "theme", "theme": cfg.get("theme", "light")})
             if "ui_lang" in body:
                 broadcast({"type": "ui_lang", "ui_lang": cfg.get("ui_lang", "ja")})
+            if body.get("final_only"):
+                # 「確定した字幕だけ表示」に切り替えた瞬間、表示中の薄文字を消す
+                # （次の発話が確定するまで残ってしまうのを防ぐ）
+                broadcast({"type": "clear_partial"})
             # 拡大率は解決済みの実効値を配る（"auto" は自動判定の数値へ）。
             # 開いている窓の中身は即座に拡縮するが、ネイティブ窓自体の
             # ピクセルサイズは起動時に決まるため次回起動から反映される。

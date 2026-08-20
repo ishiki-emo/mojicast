@@ -50,6 +50,22 @@ _MODEL_SIZES_MB = {
 }
 
 
+PARTIAL_MIN_SEC = 0.3      # これより短い発話には途中経過を出さない
+
+
+def _should_emit_partial(cfg, cur_len, last_len, gap):
+    """発話中の途中経過（薄文字）を作るか。
+
+    「確定した字幕だけ表示する」（final_only）がONなら作らない。表示を止める
+    だけでなく末尾デコードごと省けるので、CPU負荷も下がる。それ以外は前回から
+    gap ぶんの新規音声が貯まり、かつ発話が最小長を超えたときだけ作る。
+    """
+    if cfg.get("final_only", False):
+        return False
+    return (cur_len - last_len >= gap
+            and cur_len >= int(PARTIAL_MIN_SEC * SAMPLE_RATE))
+
+
 def _aux_precision(cfg):
     """句読点BERT・英訳モデルの精度は認識モデルの設定に揃える。
 
@@ -795,12 +811,14 @@ class CaptionEngine:
                         last_partial_len = 0
                         partial_gap = interval_samples   # 新しい発話は素早く出す
 
-                    # 発話中の途中経過
+                    # 発話中の途中経過（「確定した字幕だけ表示」がONなら作らない。
+                    # 表示を止めるだけでなく末尾デコードごと省くのでCPUも軽くなる。
+                    # 最長時間での強制確定は下の flush で従来どおり効く）
                     if vad.is_speech_detected():
                         cur = np.array(vad.current_segment.samples,
                                        dtype=np.float32)
-                        if (len(cur) - last_partial_len >= partial_gap
-                                and len(cur) >= int(0.3 * SAMPLE_RATE)):
+                        if _should_emit_partial(cfg, len(cur),
+                                                last_partial_len, partial_gap):
                             last_partial_len = len(cur)
                             # 薄文字は末尾だけデコード（長発話でも1回のコストを一定に。
                             # 確定字幕は従来どおり発話全体をデコードするので精度不変）

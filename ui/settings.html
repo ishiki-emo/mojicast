@@ -146,7 +146,8 @@
         <article class="card"><h2 data-i18n="st.card_split">字幕の区切り</h2><p data-i18n="st.card_split_d">字幕が確定するタイミングを調整します。</p>
           <div class="field"><label><span data-i18n="st.f_silence">話し終わりの区切り</span> <output id="silenceOut"></output></label><input id="silence" type="range" min="100" max="800" step="50"></div>
           <div class="field"><label><span data-i18n="st.f_maxutt">一区切りの最長</span> <output id="maxUttOut"></output></label><input id="maxUtt" type="range" min="5" max="30" step="1"></div>
-          <div class="field"><label><span data-i18n="st.f_interval">途中経過の更新間隔</span> <output id="intervalOut"></output></label><input id="interval" type="range" min="0.2" max="1" step="0.1"></div>
+          <label class="checkrow"><input id="finalOnly" type="checkbox"><span><b data-i18n="st.chk_finalonly">確定した字幕だけ表示する</b><small data-i18n="st.chk_finalonly_d">話し終わるまで表示しません（CPUの負荷も下がります）</small></span></label>
+          <div class="field" id="intervalRow"><label><span data-i18n="st.f_interval">途中経過の更新間隔</span> <output id="intervalOut"></output></label><input id="interval" type="range" min="0.2" max="1" step="0.1"></div>
         </article>
         <article class="card"><h2 data-i18n="st.card_assist">認識の補助</h2><p data-i18n="st.card_assist_d">固有名詞や数字の認識を補助します。</p>
           <label class="checkrow"><input id="useHotwords" type="checkbox"><span><b data-i18n="st.chk_hotwords">登録した単語を認識に使う</b><small data-i18n="st.chk_hotwords_d">字幕スタジオで登録した言葉を優先します</small></span></label>
@@ -369,6 +370,8 @@
       .replace("{p}", pct(effective)).replace("{a}", pct(auto));
   }
   function syncAsrLanguage() { $("asrLangRow").style.display = $("asrModel").value === "sensevoice" ? "" : "none"; }
+  // 確定字幕だけ表示するときは途中経過を作らないので、更新間隔の設定は伏せる
+  function syncFinalOnly() { $("intervalRow").style.display = $("finalOnly").checked ? "none" : ""; }
   function syncTranslationRoute() {
     const sv = cfg.asr_model === "sensevoice";
     let src = sv && cfg.asr_lang && !["auto","ja"].includes(cfg.asr_lang) ? cfg.asr_lang : "ja";
@@ -416,6 +419,7 @@
     bindRange("silence","silenceOut","silence_ms","ms",300); bindRange("maxUtt","maxUttOut","max_utt","秒",12);
     bindRange("interval","intervalOut","interval","秒",.4); bindRange("hotwordsScore","hotwordsOut","hotwords_score","",2);
     $("useHotwords").checked = cfg.use_hotwords !== false; $("numArabic").checked = cfg.num_arabic !== false; $("highPrecision").checked = cfg.precision === "fp32";
+    $("finalOnly").checked = !!cfg.final_only; syncFinalOnly();
     $("translate").checked = !!cfg.translate; $("translateLang").value = cfg.translate_lang || "en";
     $("collab").checked = !!cfg.collab; $("selfName").value = cfg.self_name || ""; $("guestName").value = cfg.guest_name || "";
     if (cfg.collab_supported === false) {   // コラボ未対応OS（mac）: セクションごと無効化
@@ -467,6 +471,7 @@
   $("asrLang").addEventListener("change", e => { cfg.asr_lang=e.target.value; syncTranslationRoute(); save({asr_lang:e.target.value}); });
   $("useHotwords").addEventListener("change", e => save({use_hotwords:e.target.checked}));
   $("numArabic").addEventListener("change", e => save({num_arabic:e.target.checked}));
+  $("finalOnly").addEventListener("change", e => { save({final_only:e.target.checked}); syncFinalOnly(); });
   $("highPrecision").addEventListener("change", e => save({precision:e.target.checked ? "fp32" : "int8-fp32"}));
   $("translate").addEventListener("change", e => save({translate:e.target.checked},false));
   $("translateLang").addEventListener("change", e => { cfg.translate_lang=e.target.value; syncTranslationRoute(); save({translate_lang:e.target.value}); });
