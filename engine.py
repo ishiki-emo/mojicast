@@ -42,11 +42,17 @@ TRANSLATION_QUEUE_RECOVER_ITEMS = 96
 _MODEL_SIZES_MB = {
     "asr": 739,           # ReazonSpeech k2 v2
     "asr_sv": 240,        # SenseVoice small（int8＋語彙）
-    "punct": 364,         # 句読点BERT（ONNX変換済み・単一ファイル）
+    "punct": 364,         # 句読点BERT fp32（高精度モード時）
+    "punct_int8": 109,    # 句読点BERT int8（既定）
     "translate": 124,     # FuguMT（CTranslate2変換済み＋SentencePiece）
     "translate_zh": 470,  # M2M-100 418M（CT2 int8＋SentencePiece）
     "soundfx": 27,        # 音イベント分類（AudioSet zipformer int8＋ラベル）
 }
+
+
+def _punct_precision(cfg):
+    """句読点BERTの精度は認識モデルの設定に揃える（設定の「高精度モード」= 両方fp32）"""
+    return "fp32" if cfg.get("precision", "int8-fp32") == "fp32" else "int8"
 
 
 def _offer_bounded_latest(q, item, recover_to):
@@ -267,8 +273,10 @@ class CaptionEngine:
         # 句読点内蔵モデル（SenseVoice等）ではBERTを使わないためDLも不要
         if cfg.get("punctuate", True) and not caps["punct"]:
             import punct
-            if not punct.cached():
-                total += _MODEL_SIZES_MB["punct"]
+            prec = _punct_precision(cfg)
+            if not punct.cached(prec):
+                total += _MODEL_SIZES_MB[
+                    "punct" if prec == "fp32" else "punct_int8"]
         if cfg.get("sound_fx", False):
             import soundfx
             if not soundfx.cached():
@@ -322,8 +330,12 @@ class CaptionEngine:
             import punct
             punct.unload()
             self._punct = None
-        need_punct = (cfg.get("punctuate", True)
-                      and not model_caps["punct"] and self._punct is None)
+        punct_prec = _punct_precision(cfg)
+        need_punct = cfg.get("punctuate", True) and not model_caps["punct"]
+        if need_punct and self._punct is not None:
+            import punct
+            # 常駐中と同じ精度ならそのまま使う（高精度モードの切替時だけ積み直し）
+            need_punct = punct.loaded_precision() != punct_prec
         # 音イベント検出（笑い・拍手等）はASRと独立した付加機能。
         # OFFに切り替えたら分類器を解放する（約115MB返却）
         if not cfg.get("sound_fx", False):
@@ -377,9 +389,11 @@ class CaptionEngine:
             if need_punct:
                 self.on_state("loading", "句読点モデルをロード中...")
                 try:
-                    from punct import add_punctuation, load_punctuator
-                    load_punctuator()
-                    self._punct = add_punctuation
+                    import punct
+                    if punct.loaded_precision() not in (None, punct_prec):
+                        punct.unload()   # 精度切替: 旧モデルを先に返してピークを抑える
+                    punct.load_punctuator(precision=punct_prec)
+                    self._punct = punct.add_punctuation
                 except Exception:
                     self._punct = None
                     self._load_warn = "句読点の読み込みに失敗"

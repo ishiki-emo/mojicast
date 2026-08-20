@@ -41,8 +41,8 @@ if ($Fresh) {
     New-Item -ItemType Directory -Force $hubDst | Out-Null
     $m = "models--reazon-research--reazonspeech-k2-v2"
     if (-not (Test-Path "$hubDst\$m")) { Copy-Item "$hubSrc\$m" "$hubDst\$m" -Recurse -Force }
-    if (-not (Test-Path "$app\models_conv\punct\punct_bert.onnx")) {
-        if (-not (Test-Path "$root\models_conv\punct\punct_bert.onnx")) {
+    if (-not (Test-Path "$app\models_conv\punct\punct_bert.int8.onnx")) {
+        if (-not (Test-Path "$root\models_conv\punct\punct_bert.int8.onnx")) {
             throw "models_conv がありません。先に tools\convert_models.py を実行してください"
         }
         Copy-Item "$root\models_conv" "$app\models_conv" -Recurse -Force

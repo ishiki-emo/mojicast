@@ -12,6 +12,7 @@ from engine import (
     WINDOW_SIZE,
     CaptionEngine,
     _offer_bounded_latest,
+    _punct_precision,
 )
 
 
@@ -370,6 +371,37 @@ class RecognizePaddingTests(unittest.TestCase):
         # 句読点は内蔵、数字は漢数字で出るので numnorm を通す必要がある
         self.assertTrue(asr_model.MODELS["sensevoice"]["caps"]["punct"])
         self.assertFalse(asr_model.MODELS["sensevoice"]["caps"]["itn"])
+
+
+class PunctPrecisionTests(unittest.TestCase):
+    """句読点BERTの精度は認識モデルの「高精度モード」に揃える。
+
+    int8 は fp32 比で常駐 -236MB・約2倍速だが判定が 89.5% 一致（不一致の7割は
+    文末の「。」の欠落）。fp32 を選ぶ人のために両方を残し、設定で切り替える。
+    """
+
+    def test_high_accuracy_mode_uses_the_fp32_punctuator(self):
+        self.assertEqual(_punct_precision({"precision": "fp32"}), "fp32")
+
+    def test_default_and_fast_asr_use_int8(self):
+        self.assertEqual(_punct_precision({}), "int8")
+        self.assertEqual(_punct_precision({"precision": "int8-fp32"}), "int8")
+        self.assertEqual(_punct_precision({"precision": "int8"}), "int8")
+
+    def test_model_file_maps_precision_and_falls_back_to_int8(self):
+        import punct
+
+        self.assertEqual(punct.model_file("fp32"), "punct_bert.onnx")
+        self.assertEqual(punct.model_file("int8"), "punct_bert.int8.onnx")
+        # 設定ファイルが壊れていても字幕は出し続ける（軽い方へ倒す）
+        self.assertEqual(punct.model_file("bogus"), "punct_bert.int8.onnx")
+
+    def test_download_estimate_follows_the_selected_precision(self):
+        import engine as engine_mod
+
+        self.assertEqual(engine_mod._MODEL_SIZES_MB["punct_int8"], 109)
+        self.assertLess(engine_mod._MODEL_SIZES_MB["punct_int8"],
+                        engine_mod._MODEL_SIZES_MB["punct"])
 
 
 if __name__ == "__main__":
