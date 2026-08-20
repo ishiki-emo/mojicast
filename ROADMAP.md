@@ -244,7 +244,8 @@ Twitterで中国語圏からの要望（2026-07-21）を起点に、ASR・翻訳
 
 - **最大の的だった句読点BERT（単体+391MB）→ int8量子化を実装（2026-08-20）**。
   364MB→109MB・常駐 +390MB→+154MB（**-236MB**）・処理も約2倍速。標準構成は
-  741MB→**約505MB**。変換は `tools/convert_models.py` の `quantize_punct()`
+  741MB→**507MB**、英訳ONでも 1167MB→**925MB** と1GBを切る（2026-08-21 実測）。
+  変換は `tools/convert_models.py` の `quantize_punct()`
   （**per-channel必須**。per-tensorは判定一致50%で使い物にならない）。
   実配信ログ948行で fp32 と 89.5% 一致、不一致の7割は文末「。」の欠落で本文改変は0件
   （実測表は [bench/README.md](bench/README.md)）。fp32 は設定の「高精度モード」に
