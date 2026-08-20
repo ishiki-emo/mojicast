@@ -279,6 +279,26 @@ Twitterで中国語圏からの要望（2026-07-21）を起点に、ASR・翻訳
 - 位置づけ: v1.0判断基準#3「CPU差の吸収」の姉妹課題。低スペック機（N100・8GB機）の
   実用性はCPUだけでなくメモリでも決まる
 
+## 13. NPU活用（構想メモ・寝かせ枠 2026-08-21）
+**規模: 現状は着手不可（sherpa-onnx の対応待ち）**
+
+認識をNPUへ逃がしてCPUを空けられれば、配信中のゲーム・エンコードとの競合が減る。
+v1.0判断基準#3「CPU差の吸収」の将来枠。
+
+- **現状は不可**。認識（k2/SenseVoice）は sherpa-onnx 経由で、受け付ける provider は
+  **cpu / cuda / coreml のみ**（2026-08-21 時点）。`asr_model.py` には `provider=device` を
+  渡す口が既にあるので、sherpa-onnx が NPU EP を持てば渡すだけで動く可能性はある
+- ONNX Runtime 自体は NPU 対応が進んでいる（Intel=OpenVINO EP / Qualcomm=QNN EP /
+  汎用=DirectML EP）。ただし pip の onnxruntime は CPUビルドのため専用ビルドが必要で、
+  配布サイズが膨らむ。NPUへ逃がせるのは句読点BERT（pip ORT直叩き）だけだが、
+  int8化済みで1行5msのため効果はほぼ無い。翻訳のCTranslate2も cpu/cuda のみ
+- **Windows の音声認識APIを使う案は不採用**: Windows AI Foundry(Copilot+ PC) に
+  音声認識は含まれず（Phi Silica・OCR・画像系が中心）、ライブキャプションのエンジンは
+  非公開。`Windows.Media.SpeechRecognition` は旧世代で、日本語精度・句読点・
+  ホットワードのどれも現構成に劣る。Mojicastの強み（日本語特化＋認識誘導）を失う
+- **再検討のトリガー**: sherpa-onnx が NPU EP をサポートしたとき。NPU搭載機の普及も
+  見てから判断する（2026-08時点では先行きが読めない）
+
 ---
 
 ## 済んだもの（参照用）
