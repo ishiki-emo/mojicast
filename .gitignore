@@ -61,3 +61,17 @@ tools/manual/shots/
 assets/branding/*.ico
 assets/branding/*.icns
 tools/manual/videos/
+
+# ---- Discord運営メモ（ローカル管理・公開しない）----
+/Discord開設テンプレート.txt
+
+# ---- assets/ は公開（PUSH）済みのものだけ追跡。未PUSHの素材・動画はローカル管理 ----
+assets/*
+!assets/branding/
+assets/branding/*
+!assets/branding/mojicast-mo-icon-light.png
+
+# ---- tools/ の未PUSHスクリプト（ローカル管理・BOOTH素材生成/撮影用）----
+tools/composite_booth_generated_type.py
+tools/generate_booth_images.py
+tools/manual/shoot_digest.py

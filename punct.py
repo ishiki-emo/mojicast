@@ -11,6 +11,12 @@ vocab.txt から自前で構築する。k2 など句読点を出さないASRの�
 
 旧torch版との差分: 語彙に無い文字（絵文字など）を旧版は出力から落としていたが、
 本版は元の文字をそのまま残す（判定はUNKとして計算するので句読点位置は同等）。
+
+精度は2種類（アプリ設定の「高精度モード」が認識モデルと一緒に切り替える）:
+  int8（既定）  109MB / 常駐+154MB / 1行約5ms
+  fp32（高精度）364MB / 常駐+390MB / 1行約11ms
+int8はfp32と判定が89.5%一致し、不一致の7割は文末の「。」の欠落（本文は変わらない）。
+実測は bench/README.md、変換は tools/convert_models.py の quantize_punct()。
 """
 import os
 import re
@@ -28,8 +34,11 @@ _NUM_PUNC_FIX = re.compile(
 
 _REPO_ID = "ishiki-emo/mojicast-punct-onnx"   # 変換済みモデルの配布リポジトリ
 _SUBDIR = "punct"                              # ローカル models_conv/ 内のフォルダ名
+_FILES = {"int8": "punct_bert.int8.onnx",      # 既定（109MB）
+          "fp32": "punct_bert.onnx"}           # 高精度モード（364MB）
 
 _sess = None
+_loaded_precision = None   # ロード済みモデルの精度（切替時の再ロード判定に使う）
 _vocab = None          # 文字 → トークンID
 _cls_id = _sep_id = _unk_id = None
 
@@ -47,27 +56,38 @@ def _resolve(filename, download=True):
         return hf.hf_hub_download(_REPO_ID, filename)
 
 
-def cached() -> bool:
+def model_file(precision: str = "int8") -> str:
+    """精度名 → モデルファイル名（未知の値は既定のint8へ倒す）"""
+    return _FILES.get(precision, _FILES["int8"])
+
+
+def cached(precision: str = "int8") -> bool:
     """モデルがローカルにあるか（DLはしない。初回DLサイズ見積り用）"""
     try:
         _resolve("vocab.txt", download=False)
-        _resolve("punct_bert.onnx", download=False)
+        _resolve(model_file(precision), download=False)
         return True
     except Exception:
         return False
 
 
+def loaded_precision():
+    """常駐中のモデルの精度（未ロードなら None）"""
+    return _loaded_precision
+
+
 def unload():
     """句読点モデルを解放してメモリを返す（次回使用時に再ロード）。
     句読点内蔵の認識モデル（SenseVoice等）へ切り替えたときにBERTを常駐させないため。"""
-    global _sess
+    global _sess, _loaded_precision
     _sess = None
+    _loaded_precision = None
 
 
-def load_punctuator(num_threads: int = 4):
-    """モデルと語彙をロード（初回のみ実行）"""
-    global _sess, _vocab, _cls_id, _sep_id, _unk_id
-    if _sess is not None:
+def load_punctuator(num_threads: int = 4, precision: str = "int8"):
+    """モデルと語彙をロード（初回、および精度が変わったときのみ実行）"""
+    global _sess, _vocab, _cls_id, _sep_id, _unk_id, _loaded_precision
+    if _sess is not None and _loaded_precision == precision:
         return
     vocab = {}
     with open(_resolve("vocab.txt"), encoding="utf-8") as f:
@@ -88,12 +108,14 @@ def load_punctuator(num_threads: int = 4):
     # 長いワークロードで、スピンはCPU使用率を水増しして配信ソフト等と競合するだけ。
     # スリープ起床の遅延増は数µs〜msで、音声チャンク（数百ms）に対して無視できる。
     so.add_session_config_entry("session.intra_op.allow_spinning", "0")
-    sess = ort.InferenceSession(_resolve("punct_bert.onnx"), so,
+    sess = ort.InferenceSession(_resolve(model_file(precision)), so,
                                 providers=["CPUExecutionProvider"])
     _sess = sess
+    _loaded_precision = precision
     # ロード直後の自己診断: 1文処理して空なら異常として失敗させる
     if not add_punctuation("これはてすとです"):
         _sess = None
+        _loaded_precision = None
         raise RuntimeError("句読点モデルの自己診断に失敗（出力が空）")
 
 

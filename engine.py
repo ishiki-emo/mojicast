@@ -42,11 +42,49 @@ TRANSLATION_QUEUE_RECOVER_ITEMS = 96
 _MODEL_SIZES_MB = {
     "asr": 739,           # ReazonSpeech k2 v2
     "asr_sv": 240,        # SenseVoice small（int8＋語彙）
-    "punct": 364,         # 句読点BERT（ONNX変換済み・単一ファイル）
+    "punct": 364,         # 句読点BERT fp32（高精度モード時）
+    "punct_int8": 109,    # 句読点BERT int8（既定）
     "translate": 124,     # FuguMT（CTranslate2変換済み＋SentencePiece）
     "translate_zh": 470,  # M2M-100 418M（CT2 int8＋SentencePiece）
     "soundfx": 27,        # 音イベント分類（AudioSet zipformer int8＋ラベル）
 }
+
+
+PARTIAL_MIN_SEC = 0.3      # これより短い発話には途中経過を出さない
+
+
+def _should_emit_partial(cfg, cur_len, last_len, gap):
+    """発話中の途中経過（薄文字）を作るか。
+
+    「確定した字幕だけ表示する」（final_only）がONなら作らない。表示を止める
+    だけでなく末尾デコードごと省けるので、CPU負荷も下がる。それ以外は前回から
+    gap ぶんの新規音声が貯まり、かつ発話が最小長を超えたときだけ作る。
+    """
+    if cfg.get("final_only", False):
+        return False
+    return (cur_len - last_len >= gap
+            and cur_len >= int(PARTIAL_MIN_SEC * SAMPLE_RATE))
+
+
+def _translate_signature(plan, aux_precision):
+    """翻訳経路の再ロード判定に使うシグネチャ。
+
+    FuguMT(英訳)は「高精度モード」で精度が変わるため sig に含める。M2M系は
+    変換時点で int8 なので対象外。**翻訳OFF（plan=None）では None を返す**
+    ＝ plan に直接足すと NoneType + tuple で落ちる（v0.9.5で踏んだ）。
+    """
+    if plan is None:
+        return None
+    return plan + ((aux_precision,) if plan[0] == "fugumt" else ())
+
+
+def _aux_precision(cfg):
+    """句読点BERT・英訳モデルの精度は認識モデルの設定に揃える。
+
+    設定の「高精度モード」（precision=fp32）で3つまとめて高精度側へ切り替わる。
+    中国語訳などの M2M-100 は変換時点で int8 量子化済みのため対象外。
+    """
+    return "fp32" if cfg.get("precision", "int8-fp32") == "fp32" else "int8"
 
 
 def _offer_bounded_latest(q, item, recover_to):
@@ -267,8 +305,10 @@ class CaptionEngine:
         # 句読点内蔵モデル（SenseVoice等）ではBERTを使わないためDLも不要
         if cfg.get("punctuate", True) and not caps["punct"]:
             import punct
-            if not punct.cached():
-                total += _MODEL_SIZES_MB["punct"]
+            prec = _aux_precision(cfg)
+            if not punct.cached(prec):
+                total += _MODEL_SIZES_MB[
+                    "punct" if prec == "fp32" else "punct_int8"]
         if cfg.get("sound_fx", False):
             import soundfx
             if not soundfx.cached():
@@ -322,15 +362,22 @@ class CaptionEngine:
             import punct
             punct.unload()
             self._punct = None
-        need_punct = (cfg.get("punctuate", True)
-                      and not model_caps["punct"] and self._punct is None)
+        aux_prec = _aux_precision(cfg)
+        need_punct = cfg.get("punctuate", True) and not model_caps["punct"]
+        if need_punct and self._punct is not None:
+            import punct
+            # 常駐中と同じ精度ならそのまま使う（高精度モードの切替時だけ積み直し）
+            need_punct = punct.loaded_precision() != aux_prec
         # 音イベント検出（笑い・拍手等）はASRと独立した付加機能。
         # OFFに切り替えたら分類器を解放する（約115MB返却）
         if not cfg.get("sound_fx", False):
             self._sfx_tagger = None
         need_sfx = cfg.get("sound_fx", False) and self._sfx_tagger is None
         plan = self._translate_plan(cfg)
-        need_trans = plan is not None and self._translate_sig != plan
+        # FuguMT(英訳)だけは精度が切り替わるので sig に含める。M2M系は変換時点で
+        # int8 のため、高精度モードを切り替えても積み直す必要がない
+        tsig = _translate_signature(plan, aux_prec)
+        need_trans = plan is not None and self._translate_sig != tsig
         if cfg.get("translate", False) and plan is None:
             # 認識言語と翻訳先が同じ（例: 中国語認識＋中国語訳）→ 翻訳は無意味
             self._translate = None
@@ -377,9 +424,11 @@ class CaptionEngine:
             if need_punct:
                 self.on_state("loading", "句読点モデルをロード中...")
                 try:
-                    from punct import add_punctuation, load_punctuator
-                    load_punctuator()
-                    self._punct = add_punctuation
+                    import punct
+                    if punct.loaded_precision() not in (None, aux_prec):
+                        punct.unload()   # 精度切替: 旧モデルを先に返してピークを抑える
+                    punct.load_punctuator(precision=aux_prec)
+                    self._punct = punct.add_punctuation
                 except Exception:
                     self._punct = None
                     self._load_warn = "句読点の読み込みに失敗"
@@ -405,8 +454,12 @@ class CaptionEngine:
                 self.on_state("loading", f"翻訳モデル({label})をロード中...")
                 try:
                     if eng == "fugumt":
-                        from translate import translate as _tr, load_translator
-                        load_translator()
+                        from translate import (translate as _tr,
+                                               load_translator, loaded_precision)
+                        import translate as _tmod
+                        if loaded_precision() not in (None, aux_prec):
+                            _tmod.unload("fugumt")   # 精度切替は先に解放してから
+                        load_translator(precision=aux_prec)
                         self._translate = _tr
                     elif eng == "opencc":
                         from translate import convert_zh_variant
@@ -419,7 +472,7 @@ class CaptionEngine:
                         load_translator_zh()
                         self._translate = (lambda t, _s=src, _t=tgt:
                                            translate_m2m(t, _s, _t))
-                    self._translate_sig = plan
+                    self._translate_sig = tsig
                     # 切替で使わなくなった側の翻訳バックエンドを解放（メモリ返却）
                     from translate import unload as unload_translator
                     if eng != "fugumt":
@@ -770,12 +823,14 @@ class CaptionEngine:
                         last_partial_len = 0
                         partial_gap = interval_samples   # 新しい発話は素早く出す
 
-                    # 発話中の途中経過
+                    # 発話中の途中経過（「確定した字幕だけ表示」がONなら作らない。
+                    # 表示を止めるだけでなく末尾デコードごと省くのでCPUも軽くなる。
+                    # 最長時間での強制確定は下の flush で従来どおり効く）
                     if vad.is_speech_detected():
                         cur = np.array(vad.current_segment.samples,
                                        dtype=np.float32)
-                        if (len(cur) - last_partial_len >= partial_gap
-                                and len(cur) >= int(0.3 * SAMPLE_RATE)):
+                        if _should_emit_partial(cfg, len(cur),
+                                                last_partial_len, partial_gap):
                             last_partial_len = len(cur)
                             # 薄文字は末尾だけデコード（長発話でも1回のコストを一定に。
                             # 確定字幕は従来どおり発話全体をデコードするので精度不変）

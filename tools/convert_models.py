@@ -10,6 +10,7 @@
 
 出力:
     models_conv/punct/punct_bert.onnx        句読点BERT（fp32・単一ファイル）
+    models_conv/punct/punct_bert.int8.onnx   同 int8量子化版（既定・109MB）
     models_conv/punct/vocab.txt              文字語彙（tohoku-nlp BERT char v3）
     models_conv/fugumt-ja-en-ct2/            FuguMT CT2版（fp32）
     models_conv/fugumt-ja-en-ct2/source.spm  SentencePieceモデル（同梱で自己完結）
@@ -70,6 +71,30 @@ def convert_punct():
     print(f"punct: → {out_path} ({os.path.getsize(out_path) / 1e6:.0f}MB)")
 
 
+def quantize_punct():
+    """句読点BERT ONNX(fp32) → int8 動的量子化（364MB → 109MB・常駐RSS -236MB）
+
+    fp32の .onnx さえあれば torch/transformers は要らない（onnxruntime だけで完結）。
+    per-channel は必須: per-tensor だと判定一致率が 50% まで落ちる（実配信ログ948行での
+    実測。per-channel なら 89.5%・不一致の7割は文末の「。」の欠落で本文は変わらない）。
+    """
+    out_dir = os.path.join(OUT, "punct")
+    src = os.path.join(out_dir, "punct_bert.onnx")
+    dst = os.path.join(out_dir, "punct_bert.int8.onnx")
+    if not os.path.exists(src):
+        print("punct-int8: スキップ（fp32モデルが未生成）")
+        return
+    if os.path.exists(dst):
+        print(f"punct-int8: スキップ（既存: {dst}）")
+        return
+    from onnxruntime.quantization import quantize_dynamic, QuantType
+    print("punct: int8 量子化中...")
+    quantize_dynamic(src, dst, weight_type=QuantType.QInt8,
+                     op_types_to_quantize=["MatMul"], per_channel=True,
+                     extra_options={"MatMulConstBOnly": True})
+    print(f"punct-int8: → {dst} ({os.path.getsize(dst) / 1e6:.0f}MB)")
+
+
 def convert_fugumt():
     out_dir = os.path.join(OUT, "fugumt-ja-en-ct2")
     if os.path.exists(os.path.join(out_dir, "model.bin")):
@@ -115,6 +140,7 @@ def convert_m2m100():
 def main():
     os.makedirs(OUT, exist_ok=True)
     convert_punct()
+    quantize_punct()
     convert_fugumt()
     convert_m2m100()
     total = 0

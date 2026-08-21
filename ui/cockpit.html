@@ -1281,6 +1281,10 @@
       else if (m.type === "translation") monTranslation(m.id, m.text);
       else if (m.type === "level") $("meterBar").style.width = (m.value * 100) + "%";
       else if (m.type === "clear") { monitor.innerHTML = ""; partials.clear(); }
+      else if (m.type === "clear_partial") {
+        for (const pd of partials.values()) pd.remove();
+        partials.clear();
+      }
       else if (m.type === "style") { setPreviewStyle(m); refreshPresets(); }
       else if (m.type === "vc") vcToast(m.message, m.ok);
       else if (m.type === "theme") { cfg.theme = m.theme; applyTheme(m.theme); }

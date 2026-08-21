@@ -12,6 +12,9 @@ from engine import (
     WINDOW_SIZE,
     CaptionEngine,
     _offer_bounded_latest,
+    _aux_precision,
+    _should_emit_partial,
+    _translate_signature,
 )
 
 
@@ -370,6 +373,98 @@ class RecognizePaddingTests(unittest.TestCase):
         # 句読点は内蔵、数字は漢数字で出るので numnorm を通す必要がある
         self.assertTrue(asr_model.MODELS["sensevoice"]["caps"]["punct"])
         self.assertFalse(asr_model.MODELS["sensevoice"]["caps"]["itn"])
+
+
+class TranslateSignatureTests(unittest.TestCase):
+    """翻訳経路の再ロード判定。翻訳OFF（plan=None）で落ちないこと。"""
+
+    def test_returns_none_when_translation_is_off(self):
+        # v0.9.5 で踏んだ回帰: plan に直接 tuple を足して
+        # 「unsupported operand type(s) for +: 'NoneType' and 'tuple'」で起動不能に。
+        # 翻訳は既定OFFなので、ほぼ全ユーザーが初回起動で踏む状態だった
+        self.assertIsNone(_translate_signature(None, "int8"))
+
+    def test_includes_precision_for_fugumt(self):
+        # 英訳は高精度モードで精度が変わるので積み直しが要る
+        self.assertEqual(_translate_signature(("fugumt", "ja", "en"), "int8"),
+                         ("fugumt", "ja", "en", "int8"))
+        self.assertEqual(_translate_signature(("fugumt", "ja", "en"), "fp32"),
+                         ("fugumt", "ja", "en", "fp32"))
+
+    def test_excludes_precision_for_other_engines(self):
+        # M2M は変換時点で int8。精度を切り替えても積み直す必要がない
+        self.assertEqual(_translate_signature(("m2m", "ja", "zh"), "fp32"),
+                         ("m2m", "ja", "zh"))
+        self.assertEqual(_translate_signature(("opencc", "zh", "zh_tw"), "fp32"),
+                         ("opencc", "zh", "zh_tw"))
+
+
+class FinalOnlyTests(unittest.TestCase):
+    """「確定した字幕だけ表示する」= 途中経過（薄文字）を作らない設定。
+
+    表示を止めるだけでなく末尾デコードごと省くため、CPU負荷も下がる。
+    最長時間での強制確定（vad.flush）は従来どおり効く必要がある。
+    """
+
+    def test_skips_the_partial_when_final_only(self):
+        self.assertFalse(_should_emit_partial(
+            {"final_only": True}, SAMPLE_RATE, 0, 100))
+
+    def test_emits_the_partial_by_default(self):
+        self.assertTrue(_should_emit_partial({}, SAMPLE_RATE, 0, 100))
+        self.assertTrue(_should_emit_partial(
+            {"final_only": False}, SAMPLE_RATE, 0, 100))
+
+    def test_waits_until_enough_new_audio_arrived(self):
+        # 前回から gap ぶん貯まるまでは出さない（適応スロットリング）
+        self.assertFalse(_should_emit_partial({}, SAMPLE_RATE, SAMPLE_RATE - 10, 100))
+
+    def test_ignores_utterances_shorter_than_the_minimum(self):
+        self.assertFalse(_should_emit_partial({}, int(0.2 * SAMPLE_RATE), 0, 100))
+
+    def test_default_config_keeps_the_partial_on(self):
+        import app_server
+
+        self.assertIs(app_server.DEFAULT_CONFIG["final_only"], False)
+
+
+class AuxPrecisionTests(unittest.TestCase):
+    """句読点BERT・英訳モデルの精度は認識モデルの「高精度モード」に揃える。
+
+    句読点int8は fp32 比で常駐 -236MB・約2倍速（判定は89.5%一致・不一致の7割は
+    文末「。」の欠落）、英訳int8は -170MB・3倍速（訳文は62%一致だが品質は互角）。
+    fp32 を選ぶ人のために両方を残し、1つの設定でまとめて切り替える。
+    """
+
+    def test_high_accuracy_mode_uses_the_fp32_punctuator(self):
+        self.assertEqual(_aux_precision({"precision": "fp32"}), "fp32")
+
+    def test_default_and_fast_asr_use_int8(self):
+        self.assertEqual(_aux_precision({}), "int8")
+        self.assertEqual(_aux_precision({"precision": "int8-fp32"}), "int8")
+        self.assertEqual(_aux_precision({"precision": "int8"}), "int8")
+
+    def test_model_file_maps_precision_and_falls_back_to_int8(self):
+        import punct
+
+        self.assertEqual(punct.model_file("fp32"), "punct_bert.onnx")
+        self.assertEqual(punct.model_file("int8"), "punct_bert.int8.onnx")
+        # 設定ファイルが壊れていても字幕は出し続ける（軽い方へ倒す）
+        self.assertEqual(punct.model_file("bogus"), "punct_bert.int8.onnx")
+
+    def test_translation_backend_maps_precision_to_compute_type(self):
+        import translate
+
+        # CTranslate2 は実行時に精度を選べる（モデルの再変換は不要）
+        self.assertEqual(translate._COMPUTE_TYPE["int8"], "int8_float32")
+        self.assertEqual(translate._COMPUTE_TYPE["fp32"], "float32")
+
+    def test_download_estimate_follows_the_selected_precision(self):
+        import engine as engine_mod
+
+        self.assertEqual(engine_mod._MODEL_SIZES_MB["punct_int8"], 109)
+        self.assertLess(engine_mod._MODEL_SIZES_MB["punct_int8"],
+                        engine_mod._MODEL_SIZES_MB["punct"])
 
 
 if __name__ == "__main__":

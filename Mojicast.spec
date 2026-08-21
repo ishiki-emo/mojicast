@@ -89,6 +89,10 @@ a = Analysis(
     # ビルドを軽く・速くするため未使用の大物を除外
     # torch/transformers は実行時不要（ONNX/CT2移行済み。混入したら失敗させる）
     excludes=["tkinter", "matplotlib", "PyQt5", "PyQt6", "PySide2", "PySide6",
+              # hf_xet は HuggingFace の高速転送用（9MB）。無ければ
+              # is_xet_available() が False になり通常のHTTP DLへ自動で落ちる
+              # （実測 2026-08-21: 109MBのモデルDLが6秒で xet 有効時と変わらず）
+              "hf_xet",
               "pytest", "IPython", "notebook",
               "PIL",   # このspec冒頭のアイコン生成でのみ使用（実行時は不要）
               "torch", "transformers", "tokenizers", "safetensors",
@@ -104,6 +108,15 @@ a = Analysis(
 # collect_all の datas 側や Analysis の依存スキャンでも紛れ込むため、Analysis 後に除く
 a.binaries = [x for x in a.binaries if "cudnn" not in x[0].lower()]
 a.datas = [x for x in a.datas if "cudnn" not in x[0].lower()]
+# ビルド用の残骸も同様に Analysis 後で落とす。上の datas/binaries 段階だけだと
+# 依存スキャン経由で入る分（opencc の .lib 6.1MB 等）が残ってしまう
+_DEV_EXT = (".lib", ".pdb", ".exp", ".h", ".hpp")
+a.binaries = [x for x in a.binaries if not x[0].lower().endswith(_DEV_EXT)]
+a.datas = [x for x in a.datas if not x[0].lower().endswith(_DEV_EXT)]
+# hf_xet は excludes でも指定しているが、ネイティブ拡張は binaries 経由で
+# 紛れ込むことがあるためここでも落とす
+a.binaries = [x for x in a.binaries if "hf_xet" not in x[0].lower()]
+a.datas = [x for x in a.datas if "hf_xet" not in x[0].lower()]
 pyz = PYZ(a.pure)
 
 exe = EXE(

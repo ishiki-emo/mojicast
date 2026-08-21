@@ -41,8 +41,8 @@ if ($Fresh) {
     New-Item -ItemType Directory -Force $hubDst | Out-Null
     $m = "models--reazon-research--reazonspeech-k2-v2"
     if (-not (Test-Path "$hubDst\$m")) { Copy-Item "$hubSrc\$m" "$hubDst\$m" -Recurse -Force }
-    if (-not (Test-Path "$app\models_conv\punct\punct_bert.onnx")) {
-        if (-not (Test-Path "$root\models_conv\punct\punct_bert.onnx")) {
+    if (-not (Test-Path "$app\models_conv\punct\punct_bert.int8.onnx")) {
+        if (-not (Test-Path "$root\models_conv\punct\punct_bert.int8.onnx")) {
             throw "models_conv がありません。先に tools\convert_models.py を実行してください"
         }
         Copy-Item "$root\models_conv" "$app\models_conv" -Recurse -Force
@@ -60,7 +60,26 @@ foreach ($i in 1..30) {
 if ($server) { Note "  [OK] HTTPサーバ応答（凍結import成功）" } else { $fail += "サーバが起動しない" }
 
 if ($server) {
-    # --- 英訳ON・句読点ON（既定）で開始 → running 到達と自己診断 ---
+    # --- まず「翻訳OFF」（＝出荷時の既定構成）で開始できること ---
+    # v0.9.5 で、翻訳OFFのときだけ engine が例外で止まる回帰を出した。
+    # 従来は translate:true しか通しておらず素通りしたため、既定構成を先に検証する。
+    Invoke-RestMethod "http://127.0.0.1:8765/api/config" -Method Post -Body '{"translate":false,"punctuate":true}' -ContentType "application/json" | Out-Null
+    Invoke-RestMethod "http://127.0.0.1:8765/api/engine" -Method Post -Body '{"action":"start"}' -ContentType "application/json" | Out-Null
+    $limit0 = if ($Fresh) { 300 } else { 90 }
+    $state0 = ""; $detail0 = ""
+    foreach ($i in 1..$limit0) {
+        Start-Sleep -Seconds 2
+        if (-not (Get-Process Mojicast -EA SilentlyContinue)) { $fail += "翻訳OFF検証中にプロセスが終了した"; break }
+        try { $s = Invoke-RestMethod "http://127.0.0.1:8765/api/status" -TimeoutSec 5 } catch { continue }
+        $state0 = $s.state; $detail0 = $s.detail
+        if ($state0 -in @("running","error")) { break }
+    }
+    if ($state0 -eq "running") { Note "  [OK] 翻訳OFF（既定構成）で running 到達" }
+    else { $fail += "翻訳OFFで running に到達しない (state=$state0 detail=$detail0)" }
+    try { Invoke-RestMethod "http://127.0.0.1:8765/api/engine" -Method Post -Body '{"action":"stop"}' -ContentType "application/json" -TimeoutSec 10 | Out-Null } catch {}
+    Start-Sleep -Seconds 3
+
+    # --- 英訳ON・句読点ON で開始 → running 到達と自己診断 ---
     Invoke-RestMethod "http://127.0.0.1:8765/api/config" -Method Post -Body '{"translate":true,"punctuate":true}' -ContentType "application/json" | Out-Null
     Invoke-RestMethod "http://127.0.0.1:8765/api/engine" -Method Post -Body '{"action":"start"}' -ContentType "application/json" | Out-Null
     $limit = if ($Fresh) { 300 } else { 90 }   # Fresh はDL時間を見込む

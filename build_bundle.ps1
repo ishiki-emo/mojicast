@@ -55,11 +55,14 @@ if ($NoModels) {
     Copy-Item $src (Join-Path $hubDst $m) -Recurse -Force
 
     $conv = Join-Path $root "models_conv"
-    if (-not (Test-Path (Join-Path $conv "punct\punct_bert.onnx"))) {
+    if (-not (Test-Path (Join-Path $conv "punct\punct_bert.int8.onnx"))) {
         throw "変換済みモデルがありません。先に tools\convert_models.py を実行してください"
     }
     Write-Host "  model : models_conv\ (句読点ONNX + 翻訳CT2) をコピー中..."
     Copy-Item $conv (Join-Path $app "models_conv") -Recurse -Force
+    # 句読点の fp32(364MB) は同梱しない。既定は int8 で、高精度モードを
+    # 選んだ人だけが初回に追加DLする（同梱版のサイズを増やさないため）
+    Remove-Item (Join-Path $app "models_conv\punct\punct_bert.onnx") -Force -EA SilentlyContinue
 }
 
 $size = [math]::Round((Get-ChildItem $app -Recurse -File | Measure-Object Length -Sum).Sum/1GB, 2)
