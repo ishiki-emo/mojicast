@@ -66,6 +66,18 @@ def _should_emit_partial(cfg, cur_len, last_len, gap):
             and cur_len >= int(PARTIAL_MIN_SEC * SAMPLE_RATE))
 
 
+def _translate_signature(plan, aux_precision):
+    """翻訳経路の再ロード判定に使うシグネチャ。
+
+    FuguMT(英訳)は「高精度モード」で精度が変わるため sig に含める。M2M系は
+    変換時点で int8 なので対象外。**翻訳OFF（plan=None）では None を返す**
+    ＝ plan に直接足すと NoneType + tuple で落ちる（v0.9.5で踏んだ）。
+    """
+    if plan is None:
+        return None
+    return plan + ((aux_precision,) if plan[0] == "fugumt" else ())
+
+
 def _aux_precision(cfg):
     """句読点BERT・英訳モデルの精度は認識モデルの設定に揃える。
 
@@ -364,7 +376,7 @@ class CaptionEngine:
         plan = self._translate_plan(cfg)
         # FuguMT(英訳)だけは精度が切り替わるので sig に含める。M2M系は変換時点で
         # int8 のため、高精度モードを切り替えても積み直す必要がない
-        tsig = plan + ((aux_prec,) if plan and plan[0] == "fugumt" else ())
+        tsig = _translate_signature(plan, aux_prec)
         need_trans = plan is not None and self._translate_sig != tsig
         if cfg.get("translate", False) and plan is None:
             # 認識言語と翻訳先が同じ（例: 中国語認識＋中国語訳）→ 翻訳は無意味

@@ -14,6 +14,7 @@ from engine import (
     _offer_bounded_latest,
     _aux_precision,
     _should_emit_partial,
+    _translate_signature,
 )
 
 
@@ -372,6 +373,30 @@ class RecognizePaddingTests(unittest.TestCase):
         # 句読点は内蔵、数字は漢数字で出るので numnorm を通す必要がある
         self.assertTrue(asr_model.MODELS["sensevoice"]["caps"]["punct"])
         self.assertFalse(asr_model.MODELS["sensevoice"]["caps"]["itn"])
+
+
+class TranslateSignatureTests(unittest.TestCase):
+    """翻訳経路の再ロード判定。翻訳OFF（plan=None）で落ちないこと。"""
+
+    def test_returns_none_when_translation_is_off(self):
+        # v0.9.5 で踏んだ回帰: plan に直接 tuple を足して
+        # 「unsupported operand type(s) for +: 'NoneType' and 'tuple'」で起動不能に。
+        # 翻訳は既定OFFなので、ほぼ全ユーザーが初回起動で踏む状態だった
+        self.assertIsNone(_translate_signature(None, "int8"))
+
+    def test_includes_precision_for_fugumt(self):
+        # 英訳は高精度モードで精度が変わるので積み直しが要る
+        self.assertEqual(_translate_signature(("fugumt", "ja", "en"), "int8"),
+                         ("fugumt", "ja", "en", "int8"))
+        self.assertEqual(_translate_signature(("fugumt", "ja", "en"), "fp32"),
+                         ("fugumt", "ja", "en", "fp32"))
+
+    def test_excludes_precision_for_other_engines(self):
+        # M2M は変換時点で int8。精度を切り替えても積み直す必要がない
+        self.assertEqual(_translate_signature(("m2m", "ja", "zh"), "fp32"),
+                         ("m2m", "ja", "zh"))
+        self.assertEqual(_translate_signature(("opencc", "zh", "zh_tw"), "fp32"),
+                         ("opencc", "zh", "zh_tw"))
 
 
 class FinalOnlyTests(unittest.TestCase):
