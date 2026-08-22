@@ -302,7 +302,8 @@ def load_glossary(profile=""):
 
 def save_glossary(entries, profile=""):
     lines = ["# 英訳辞書: 字幕の表記,英訳  （#行はコメント）",
-             "# 例: 癒色えも,ISHIKI Emo  → 英訳時にこの語の訳が固定されます"]
+             "# 例: 癒色えも,ISHIKI Emo  → この語の訳が固定されます",
+             "# 英訳が大文字で始まる語は中国語・韓国語などの訳にも使われます"]
     for e in entries:
         ja = (e.get("ja") or "").strip()
         en = (e.get("en") or "").strip()

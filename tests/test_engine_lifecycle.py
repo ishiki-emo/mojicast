@@ -373,6 +373,40 @@ class TranslationFallbackTests(unittest.TestCase):
         self._run_once(engine, (7, "癒色えもです"))
         self.assertEqual(events, [(7, "癒色えもです", True)])
 
+    def test_glossary_also_applies_to_multilingual_translation(self):
+        """英訳以外にも効かせる。M2M はラテン文字の固有名詞を音写して残すため、
+        置換しないと固有名詞が消えて別の話に化ける（おるか→Oruka→오루카）。"""
+        engine, events, _ = self._engine(lambda text: "ko:" + text)
+        engine._gloss = [("癒色えも", "ISHIKI Emo")]
+        engine._translate_sig = ("m2m", "ja", "ko")
+        self._run_once(engine, (7, "癒色えもです"))
+        self.assertEqual(events, [(7, "ko:ISHIKI Emoです", False)])
+
+    def test_multilingual_translation_skips_common_nouns(self):
+        """多言語訳では固有名詞（英訳が大文字始まり）だけを置換する。
+        「配信→stream」まで英字にすると、正しく訳せていた語が壊れる。"""
+        engine, events, _ = self._engine(lambda text: "zh:" + text)
+        engine._gloss = [("癒色えも", "ISHIKI Emo"), ("配信", "stream")]
+        engine._translate_sig = ("m2m", "ja", "zh")
+        self._run_once(engine, (7, "癒色えもの配信です"))
+        self.assertEqual(events, [(7, "zh:ISHIKI Emoの配信です", False)])
+
+    def test_english_translation_still_uses_the_whole_glossary(self):
+        """英訳は従来どおり。一般語の訳を固定する用途はそのまま残す。"""
+        engine, events, _ = self._engine(lambda text: "en:" + text)
+        engine._gloss = [("配信", "stream")]
+        engine._translate_sig = ("fugumt", "ja", "en")
+        self._run_once(engine, (7, "配信です"))
+        self.assertEqual(events, [(7, "en:streamです", False)])
+
+    def test_glossary_is_skipped_when_the_source_is_not_japanese(self):
+        """辞書は「日本語表記→英訳」。中国語認識の経路では引きようがない。"""
+        engine, events, _ = self._engine(lambda text: "en:" + text)
+        engine._gloss = [("癒色えも", "ISHIKI Emo")]
+        engine._translate_sig = ("m2m", "zh", "en")
+        self._run_once(engine, (7, "癒色えもです"))
+        self.assertEqual(events, [(7, "en:癒色えもです", False)])
+
     def test_consecutive_failures_warn_once_and_clear_on_recovery(self):
         outcomes = ["", "", "", "", "", "", "ok"]
         engine, _, warns = self._engine(lambda _t: outcomes.pop(0))

@@ -669,9 +669,22 @@ class CaptionEngine:
             fid, src = item
             text = src
             # 英訳辞書: 翻訳前に日本語側で英訳語へ置換（固有名詞の訳を固定）。
-            # 適用は日→英（FuguMT）のみ。他方向では英単語を注入してしまうため
-            if self._gloss and (self._translate_sig or ("",))[0] == "fugumt":
+            # ラテン文字は NMT を素通りするか行き先の言語へ音写されるので、英訳
+            # 以外でも効く（実測 2026-08-23: おるか→Oruka→오루카／奥鲁卡。置換
+            # 無しだと固有名詞が消え、空いた穴を埋めて別の話に化けていた）。
+            # 対象は原文が日本語の経路だけ。辞書が「日本語表記→英訳」なので、
+            # 中国語認識（src=zh）では引きようがない（opencc もこれで外れる）。
+            sig = self._translate_sig or ("", "", "")
+            if self._gloss and sig[0] in ("fugumt", "m2m") and sig[1] == "ja":
+                # 英訳では辞書を全部使う。多言語訳では固有名詞だけに絞る
+                # （英訳が大文字で始まるものを固有名詞とみなす）。「配信→stream」
+                # のような一般語まで英字にすると、元は正しく訳せていた語が壊れる
+                # （実測 2026-08-23: zh は「配信→直播」が「流」に化けた。ko は
+                # 逆に「배달＝配達」が「스트림」へ直ったが、副作用の方が大きい）。
+                proper_only = sig[0] != "fugumt"
                 for ja, en_word in self._gloss:
+                    if proper_only and not en_word[:1].isupper():
+                        continue
                     if ja in text:
                         text = text.replace(ja, en_word)
             try:
