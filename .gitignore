@@ -37,6 +37,10 @@ models/
 bench/fugumt_ct2_*/
 bench/*.onnx
 bench/*.data
+# 翻訳モデル比較のためにDL・変換したもの（bench/bench_*.py が自動で取り直す）
+bench/jako_onnx_int8/
+bench/nllb600m_ct2_int8/
+bench/opus_en_ko_ct2_*/
 
 # ---- 文字起こしログ（実行時に生成される個人データ）----
 logs/
@@ -75,3 +79,6 @@ assets/branding/*
 tools/composite_booth_generated_type.py
 tools/generate_booth_images.py
 tools/manual/shoot_digest.py
+
+# ---- 実配信の文字起こし（個人の配信内容。検証用に手元へ置くだけでコミットしない）----
+/2026-*.txt
