@@ -67,6 +67,16 @@
     flex: none; padding: 2px 8px; font-size: 12px;
     background: transparent; border: 1px solid var(--line); color: var(--dim);
   }
+  /* 停止せずに字幕だけ出なくなる異常の通知。更新バーと同じ形で色だけ変える */
+  #warnBar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 16px; font-size: 13px;
+    color: var(--text);
+    background: color-mix(in srgb, var(--warn) 18%, var(--panel));
+    border-bottom: 1px solid color-mix(in srgb, var(--warn) 55%, var(--line));
+  }
+  #warnBar .ub-ico { flex: none; }
+  #warnBar #warnMsg { flex: 1; }
   .led {
     width: 10px; height: 10px; border-radius: 50%;
     background: #555; transition: all .3s;
@@ -398,6 +408,11 @@
             title="閉じる" data-i18n-title="cp.update_dismiss">✕</button>
   </div>
 
+  <div id="warnBar" style="display:none">
+    <span class="ub-ico">⚠</span>
+    <span id="warnMsg"></span>
+  </div>
+
   <main>
     <!-- ========== 左: 設定バー ＋ 字幕モニタ ========== -->
     <div class="col">
@@ -611,6 +626,18 @@
     if (_updateInfo && _updateInfo.latest)
       localStorage.setItem("mojicast_update_dismissed", _updateInfo.latest);
     $("updateBar").style.display = "none";
+  }
+
+  // ---------- 稼働中の警告（英訳の連続失敗・音声の途絶）----------
+  // 「認識中」のまま字幕だけ止まる状態は配信者が気づけないので、種類ごとに
+  // 保持して1本のバーへまとめる。解除は active=false で届く。
+  const warns = new Map();
+  function setWarn(kind, message, active) {
+    if (active && message) warns.set(kind, message);
+    else warns.delete(kind);
+    const msgs = [...warns.values()];
+    $("warnMsg").textContent = msgs.join(" ／ ");
+    $("warnBar").style.display = msgs.length ? "flex" : "none";
   }
 
   // 表示だけで完結し、認識エンジンを再開始しなくても反映される設定。
@@ -1260,8 +1287,10 @@
     while (monitor.children.length > MON_MAX) monitor.removeChild(monitor.firstChild);
     monitor.scrollTop = monitor.scrollHeight;
   }
-  function monTranslation(id, en) {
-    if (!en || id == null) return;
+  function monTranslation(id, en, fallback) {
+    // 原文フォールバックは訳ではないのでモニタに訳として出さない
+    // （字幕側では穴埋めに使うが、ここに出すと訳せた行と区別がつかない）
+    if (!en || id == null || fallback) return;
     const d = monitor.querySelector('[data-fid="' + id + '"]');
     if (!d) return;
     let el = d.querySelector(".en");
@@ -1278,7 +1307,7 @@
       else if (m.type === "init") { if (m.state) setState(m.state.state, m.state.detail); setPreviewStyle(m); }
       else if (m.type === "partial") monPartial(m.text, m.speaker);
       else if (m.type === "final") monFinal(m.text, m.id, m.speaker);
-      else if (m.type === "translation") monTranslation(m.id, m.text);
+      else if (m.type === "translation") monTranslation(m.id, m.text, m.fallback);
       else if (m.type === "level") $("meterBar").style.width = (m.value * 100) + "%";
       else if (m.type === "clear") { monitor.innerHTML = ""; partials.clear(); }
       else if (m.type === "clear_partial") {
@@ -1286,6 +1315,7 @@
         partials.clear();
       }
       else if (m.type === "style") { setPreviewStyle(m); refreshPresets(); }
+      else if (m.type === "warn") setWarn(m.kind, m.message, m.active);
       else if (m.type === "vc") vcToast(m.message, m.ok);
       else if (m.type === "theme") { cfg.theme = m.theme; applyTheme(m.theme); }
       else if (m.type === "ui_scale") applyScale(m.ui_scale);

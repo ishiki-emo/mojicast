@@ -54,7 +54,10 @@
   // final 受信時にどのペインへ出すかをここで覚えておく。fid は単調増加・
   // Map は挿入順なので、上限超過は先頭（最古）から捨てる
   const pendingEn = new Map();
-  const PENDING_MAX = 64;
+  // 翻訳待ちの上限。エンジン側の翻訳キュー上限(128)より大きくしておく。
+  // これより多く待たせると、訳が届く前に待ち行が捨てられ「訳が来ても
+  // 表示先が無い」状態になり、翻訳のみ表示では字幕が出ないまま固定される。
+  const PENDING_MAX = 192;
   const PENDING_HIDE_MS = 12000;  // 翻訳が来ない行の「…」を消すまでの時間
 
   // ---------------- ペイン（話者1人ぶんの描画一式） ----------------
@@ -263,7 +266,10 @@
 
   // 確定行(fid)の下に英訳を差し込む。既に見切れて消えた行なら無視。
   // fid は話者をまたいで一意なので全ペインから探す。
-  function addTranslation(id, en) {
+  // fallback=true は「訳を出せず原文が入っている」印。翻訳のみ表示では
+  // 訳が来ない行は何も表示されず画面が空になるため、原文で穴を埋める。
+  // 併記では日本語が既に出ているので、原文を二重に出さず捨てる。
+  function addTranslation(id, en, fallback) {
     if (!en || id == null) return;
     // 英訳のみモードの行はここで初めて描画する（日本語行のDOMは存在しない）
     const wait = pendingEn.get(id);
@@ -272,6 +278,7 @@
       // ペイン撤去済み・モード切替直後は下の併記経路へ（行が無ければ無視される）
       if (wait.boxEl.isConnected && enOnly(wait)) { addEnLine(wait, en, id); return; }
     }
+    if (fallback) return;   // 併記側は日本語が本文として出ているので不要
     for (const p of panes.values()) {
       if (isLyric(p.box)) {
         // リリックは .line[data-fid] を作らないため、シーンへ直接併記する。
@@ -302,7 +309,7 @@
         break;
       case "sound":   SFX.play(msg.group, msg.score); break;
       case "final":   addFinal(paneFor(msg.speaker), msg.text, msg.id); break;
-      case "translation": addTranslation(msg.id, msg.text); break;
+      case "translation": addTranslation(msg.id, msg.text, msg.fallback); break;
       case "partial": setPartial(paneFor(msg.speaker), msg.text); break;
       case "clear_partial":   // 「確定した字幕だけ表示」に切り替えた合図
         for (const p of panes.values()) p.partialEl.textContent = "";
