@@ -76,6 +76,34 @@ def _fix_case(text: str) -> str:
     text = _SENT_HEAD.sub(lambda m: m.group(1) + m.group(2).upper(), text)
     return _LONE_I.sub("I", text)
 
+
+# 原文に無い罵倒語が湧いた訳を捨てるためのガード。FuguMT は言っていない攻撃的な
+# 語を作ることがあり、字幕が相手を侮辱する文になる（実測 2026-08-23・実配信
+# 4,637行で9行=0.19%。「とばしてるな」→ "You're so stupid."／「龍角さんは」→
+# "the slutty one"／「黙ってやっちゃう」→ "shut up"）。コラボではゲストの発言に
+# 湧くため、放送事故になりうる。
+#
+# 語の選定はすべて同じ実測から。誤爆する語（hell は Hello に、sex は sexy に
+# 当たる）と、原文側に根拠があることが多い語（drunk/drug/dead/kill/die）は
+# 入れない ― 実測ではその全てが正当な訳だった。
+_INSULT_EN = re.compile(
+    r"\b(stupid|idiot|idiots|bastard|bastards|bitch|bitches|slut|slutty|whore|"
+    r"shit|shitty|fuck\w*|cunt|asshole|moron|jerk|retard\w*|dumbass|ass|asses|"
+    r"disgusting|ugly|freak|freaks|shut up|suck|sucks|sucking)\b", re.I)
+
+# 原文側に「実際に言った」根拠がある語。あれば正当な訳とみなして残す
+# （実測で1行。「下手に吸っちゃいそう」→ "suck" は誤訳ではあるが捏造ではない）。
+_INSULT_JA = re.compile(
+    r"馬鹿|ばか|バカ|阿呆|アホ|あほ|間抜|まぬけ|クソ|くそ|糞|畜生|ちくしょう|"
+    r"黙れ|うるさ|うっさ|キモ|きも|ブス|醜|最低|ダサ|うざ|ウザ|むかつ|ムカつ|"
+    r"吸う|吸っ|吸い|変態|エロ|下品|ゲス|クズ|くず")
+
+
+def _fabricated_insult(src: str, en: str) -> bool:
+    """訳文の罵倒語が原文に由来しないか（＝捏造か）"""
+    return bool(_INSULT_EN.search(en)) and not _INSULT_JA.search(src)
+
+
 _REPO_ID = "ishiki-emo/mojicast-fugumt-ja-en-ct2"   # 変換済みモデルの配布リポジトリ
 _SUBDIR = "fugumt-ja-en-ct2"                         # ローカル models_conv/ 内のフォルダ名
 
@@ -172,7 +200,12 @@ def translate(text: str, max_new_tokens: int = 96,
                                       max_decoding_length=max_new_tokens)
     out = [t for t in res[0].hypotheses[0]
            if t not in ("</s>", "<pad>", "<unk>")]
-    return _fix_case(_sp_tgt.decode(out).strip())
+    en = _fix_case(_sp_tgt.decode(out).strip())
+    # 言っていない罵倒語が湧いた行は訳ごと捨てる。呼び出し側（engine.py）は
+    # 空の訳を受けると原文をそのまま字幕に出すので、日本語のまま表示される。
+    # 判定に使う text は _apply_stream_terms 後だが、置換対象は配信用語だけで
+    # 罵倒語とは重ならないため根拠の判定に影響しない。
+    return "" if _fabricated_insult(text, en) else en
 
 
 # ---------------- 中国語訳（M2M-100 418M / int8） ----------------

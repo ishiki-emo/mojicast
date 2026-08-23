@@ -1,7 +1,8 @@
 import unittest
 
 import translate
-from translate import _apply_stream_terms, _decode_m2m, _fix_case
+from translate import (_apply_stream_terms, _decode_m2m, _fabricated_insult,
+                       _fix_case)
 
 
 class FixCaseTests(unittest.TestCase):
@@ -101,6 +102,37 @@ class DecodeM2MTests(unittest.TestCase):
         # 反復抑止の副産物で「。」だけが残ることがある（字幕に出さない）
         self.assertEqual(_decode_m2m(["__ko__", "▁", "。"]), "")
         self.assertEqual(_decode_m2m(["__ko__"]), "")
+
+
+class FabricatedInsultTests(unittest.TestCase):
+    """言っていない罵倒語が湧いた訳は捨てる（原文フォールバックへ）。
+
+    例はすべて実配信ログ（2026-08-23・4,637行）で実際に出た訳。
+    """
+
+    def test_blocks_insults_that_are_not_in_the_source(self):
+        for src, en in [
+            ("とばしてるな。", "You're so stupid."),
+            ("でガチな方の龍角さんは。", "And the slutty one, mr. dragon horn!"),
+            ("なやつですね。すごいすごい。", "That's a bastard. It is amazing!"),
+            ("一人でこう黙ってやっちゃうんですよね。", "You're going to shut up by yourself."),
+            ("てくださったり。", "You're a jerk."),
+            ("じゃなくていいのよ。", "You dont have to be a bitch, right?"),
+        ]:
+            self.assertTrue(_fabricated_insult(src, en), src)
+
+    def test_keeps_insults_the_speaker_actually_said(self):
+        # 原文に根拠がある行は訳を残す（言い方がきついだけで捏造ではない）
+        self.assertFalse(_fabricated_insult("なんか下手に吸っちゃいそうで。",
+                                            "I'm afraid you should suck something bad."))
+        self.assertFalse(_fabricated_insult("バカだなあ。", "You're so stupid."))
+        self.assertFalse(_fabricated_insult("クソゲーだこれ。", "This is a shitty game."))
+
+    def test_leaves_ordinary_translations_alone(self):
+        # 誤爆しやすい語で通常の訳が消えないこと（hell は Hello、ass は pass/class）
+        for en in ["Hello, this stream commented", "Please pass the class.",
+                   "It's a beautiful morning.", "I'm really getting cold."]:
+            self.assertFalse(_fabricated_insult("こんばんは。", en), en)
 
 
 if __name__ == "__main__":
