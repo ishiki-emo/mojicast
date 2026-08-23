@@ -88,3 +88,4 @@ bench/whisper_small_ct2/
 bench/whisper_small_sherpa/
 bench/small100_ct2_int8/
 bench/qwen25_05b_ct2_int8/
+bench/argos/
