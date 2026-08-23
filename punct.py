@@ -37,6 +37,18 @@ _SUBDIR = "punct"                              # ローカル models_conv/ 内�
 _FILES = {"int8": "punct_bert.int8.onnx",      # 既定（109MB）
           "fp32": "punct_bert.onnx"}           # 高精度モード（364MB）
 
+# 自己診断に使う1文（正解は末尾の「。」1個だけ。int8ではそれが欠けることもある）
+_PROBE = "これはてすとです"
+
+
+class SelfTestFailed(RuntimeError):
+    """ロード直後の自己診断に落ちた＝このPCでモデルが正しく動かない。
+
+    int8 は VNNI 非搭載のCPUで積和が飽和し、全文字に句点を打つ壊れ方をする
+    （v0.9.5 で報告）。fp32（設定の「高精度モード」）なら動くので、単なる
+    読み込み失敗と区別できるよう型を分ける。呼び出し側はこれを見て案内を変える。
+    """
+
 _sess = None
 _loaded_precision = None   # ロード済みモデルの精度（切替時の再ロード判定に使う）
 _vocab = None          # 文字 → トークンID
@@ -112,34 +124,34 @@ def load_punctuator(num_threads: int = 4, precision: str = "int8"):
                                 providers=["CPUExecutionProvider"])
     _sess = sess
     _loaded_precision = precision
-    # ロード直後の自己診断: 1文処理して空なら異常として失敗させる
-    if not add_punctuation("これはてすとです"):
+    # ロード直後の自己診断: 出力が空、または句読点が湧きすぎたら異常として失敗させる。
+    # 「空でないこと」しか見ないと壊れたモデルを見逃す（下の _looks_broken を参照）。
+    probe = _punctuate_raw(_PROBE)
+    if not probe or _looks_broken(_PROBE, probe):
         _sess = None
         _loaded_precision = None
-        raise RuntimeError("句読点モデルの自己診断に失敗（出力が空）")
+        raise SelfTestFailed(f"句読点モデルの自己診断に失敗（出力: {probe}）")
 
 
-def add_punctuation(text: str, comma_thresh: float = 0.1,
-                    period_thresh: float = 0.1, max_length: int = 256) -> str:
+def _looks_broken(text: str, result: str) -> bool:
+    """句読点の付きかたが「モデルが壊れている」パターンかを判定する
+
+    推論が崩れて出力が0付近になると sigmoid が 0.5 を返し、しきい値(0.1)を全文字が
+    超えて「あ。い。う。え。」のように全文字へ句点が付く（v0.9.5 で報告）。int8 は
+    VNNI 非搭載CPUで積和が飽和してこの壊れ方をしうる。正常な日本語で句読点が
+    文字数の半分を占めることはないので、それを異常の目印にする。
+    短文（「はい。」等）を巻き込まないよう、3つ以上湧いたときだけ見る。
     """
-    テキストに句読点を復元して返す
+    added = len(result) - len(text)
+    return added >= 3 and added * 2 > len(text)
 
-    Args:
-        text: 句読点なし（または混在）の日本語テキスト
-        comma_thresh: 読点(、)を打つ確率しきい値。上げると、が減る
-        period_thresh: 句点(。)を打つ確率しきい値。上げると。が減る
-        max_length: 一度に処理する文字数（長文は分割）
 
-    Returns:
-        句読点入りテキスト
+def _punctuate_raw(text, comma_thresh=0.1, period_thresh=0.1, max_length=256):
+    """モデルの判定をそのまま反映した句読点付与（ガードを通す前の生の結果）。
+
+    text は句読点を除去済みであること。自己診断はガード後の結果を見ても
+    「壊れて全部に打った」と「1個も打たなかった」を区別できないので、ここを直接呼ぶ。
     """
-    if _sess is None:
-        load_punctuator()
-
-    text = text.replace("、", "").replace("。", "")
-    if not text:
-        return text
-
     out = []
     for i in range(0, len(text), max_length):
         chunk = text[i:i + max_length]
@@ -157,7 +169,34 @@ def add_punctuation(text: str, comma_thresh: float = 0.1,
                 out.append(ch + "、")
             else:
                 out.append(ch)
-    result = _NUM_PUNC_FIX.sub(r"\1", "".join(out))
+    return _NUM_PUNC_FIX.sub(r"\1", "".join(out))
+
+
+def add_punctuation(text: str, comma_thresh: float = 0.1,
+                    period_thresh: float = 0.1, max_length: int = 256) -> str:
+    """
+    テキストに句読点を復元して返す
+
+    Args:
+        text: 句読点なし（または混在）の日本語テキスト
+        comma_thresh: 読点(、)を打つ確率しきい値。上げると、が減る
+        period_thresh: 句点(。)を打つ確率しきい値。上げると。が減る
+        max_length: 一度に処理する文字数（長文は分割）
+
+    Returns:
+        句読点入りテキスト（モデルが壊れていると判るときは原文のまま）
+    """
+    if _sess is None:
+        load_punctuator()
+
+    text = text.replace("、", "").replace("。", "")
+    if not text:
+        return text
+
+    result = _punctuate_raw(text, comma_thresh, period_thresh, max_length)
+    # 実行中に壊れた場合の保険: 句読点が湧きすぎたら打たずに原文を返す
+    if _looks_broken(text, result):
+        return text
     # 万一空になったら原文を返す＝字幕を消さない
     return result if result else text
 
