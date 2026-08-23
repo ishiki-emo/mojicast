@@ -202,7 +202,43 @@ def run_whisper(samples, lang):
     return dict(load_s=load_s, mem=used, infer=infer, hyps=hyps, size=size, cpu=cpu)
 
 
-ENGINES = {"sensevoice": run_sensevoice, "whisper": run_whisper}
+def run_whisper_sherpa(samples, lang):
+    """同じ Whisper small を sherpa-onnx で回す。
+
+    CTranslate2版は特徴抽出とトークナイザに transformers が要るが、こちらは
+    sherpa-onnx が内蔵しているので**追加依存なしで載る**（ASRの経路も既存のまま）。
+    int8 は encoder 112MB + decoder 262MB。
+    """
+    import sherpa_onnx
+
+    d = os.path.join(BENCH, "whisper_small_sherpa")
+    base = mem_mb()
+    t0 = time.perf_counter()
+    rec = sherpa_onnx.OfflineRecognizer.from_whisper(
+        encoder=os.path.join(d, "small-encoder.int8.onnx"),
+        decoder=os.path.join(d, "small-decoder.int8.onnx"),
+        tokens=os.path.join(d, "small-tokens.txt"),
+        language=lang, task="transcribe", num_threads=4)
+    load_s = time.perf_counter() - t0
+    used = mem_mb() - base
+
+    hyps, infer = [], 0.0
+    cpu0 = cpu_sec()
+    for pcm, _ref in samples:
+        t0 = time.perf_counter()
+        st = rec.create_stream()
+        st.accept_waveform(SAMPLE_RATE, pcm)
+        rec.decode_stream(st)
+        hyps.append(st.result.text.strip())
+        infer += time.perf_counter() - t0
+    cpu = cpu_sec() - cpu0
+    size = sum(os.path.getsize(os.path.join(r, f))
+               for r, _, fs in os.walk(d) for f in fs) / 1e6
+    return dict(load_s=load_s, mem=used, infer=infer, hyps=hyps, size=size, cpu=cpu)
+
+
+ENGINES = {"sensevoice": run_sensevoice, "whisper": run_whisper,
+           "whisper_sherpa": run_whisper_sherpa}
 
 
 def main():
@@ -242,7 +278,7 @@ def main():
         res[name] = json.loads(line[len("@@R@@"):])
 
     print("\n" + "=" * 74)
-    print(f"{'':16}{'SenseVoice(現行)':>20}{'Whisper small':>20}")
+    print(f"{'':14}{'SenseVoice(現行)':>18}{'Whisper CT2':>16}{'Whisper sherpa':>17}")
     print("=" * 74)
     rows = [("モデルサイズ", lambda r: f"{r['size']:.0f}MB"),
             ("ロード", lambda r: f"{r['load_s']:.1f}s"),
@@ -253,9 +289,9 @@ def main():
             ("CPU時間", lambda r: f"{r['cpu']:.1f}s"),
             ("コア換算の占有", lambda r: f"{r['cpu'] / audio_s:.3f}コア")]
     for label, fn in rows:
-        cells = "".join(f"{fn(res[e]) if e in res else '-':>20}"
+        cells = "".join(f"{fn(res[e]) if e in res else '-':>17}"
                         for e in ENGINES)
-        print(f"{label:16}{cells}")
+        print(f"{label:14}{cells}")
 
     for e in ENGINES:
         if e not in res:
@@ -266,9 +302,9 @@ def main():
             errs += v * n
             words += n
         res[e]["rate"] = errs / words
-    cells = "".join(f"{res[e]['rate']:.1%}" .rjust(20) if e in res else "-".rjust(20)
+    cells = "".join(f"{res[e]['rate']:.1%}".rjust(17) if e in res else "-".rjust(17)
                     for e in ENGINES)
-    print(f"{'誤り率':16}{cells}")
+    print(f"{'誤り率':14}{cells}")
 
     print("\n  ── 認識結果の例 ──")
     for i in range(min(a.show, len(samples))):

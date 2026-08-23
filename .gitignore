@@ -85,3 +85,4 @@ tools/manual/shoot_digest.py
 # ASR比較のためにDLした音声データセットとモデル（bench/bench_asr_multilingual.py が取り直す）
 bench/fleurs_*/
 bench/whisper_small_ct2/
+bench/whisper_small_sherpa/

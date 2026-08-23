@@ -521,6 +521,27 @@ int8 は float32 の 1.7倍速く CPU も6割。**VNNI 非搭載機（9900K=Coff
 [[punct-int8-vnni-blackout]] と同じ機序で**精度が崩れるリスクは残る**ので、
 入れるなら該当CPUでの確認が要る。
 
+### sherpa-onnx 版は使えない（実測 2026-08-23）
+
+sherpa-onnx にも Whisper がある（`csukuangfj/sherpa-onnx-whisper-small`・int8 は
+encoder 112MB + decoder 262MB = **375MB**）。`OfflineRecognizer.from_whisper` で読めるので
+**transformers 無しで既存のASR経路にそのまま載る**——が、精度が出ない。
+
+| | Whisper CT2 | Whisper sherpa(int8) | sherpa(fp32) |
+| --- | --- | --- | --- |
+| 韓国語 WER | **22.1%** | 49.5% | 49.3% |
+| 中国語 CER | **22.7%** | 37.0% | 34.5% |
+| 1発話 | **約1,100ms** | 1,900〜2,300ms | さらに遅い |
+| サイズ | 486MB | 375MB | 969MB |
+
+同じ Whisper small・同じ言語指定なのに**文字がごっそり脱落する**
+（`가나안에는 큰 숲이` → `바 안에는 큰 이`）。言語指定は効いている（`en` にすると
+英訳が出る）。**fp32 でも int8 と1文字も変わらないので量子化は無関係**で、
+sherpa-onnx 側の Whisper 実装（デコード処理）の問題。969MB 払っても直らない。
+
+→ 多言語対応を進めるなら **CTranslate2 版**。「依存が少ないほう」で決めていたら
+精度が倍悪い側を選んでいた。
+
 ### 実装するときの論点
 
 - **依存**: CTranslate2 の Whisper はトークナイザと特徴抽出に `transformers` を使う。
