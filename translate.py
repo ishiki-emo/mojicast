@@ -276,6 +276,34 @@ def load_translator_zh(num_threads: int = 4):
         raise RuntimeError("中国語訳モデルの自己診断に失敗（出力が空）")
 
 
+def _decode_m2m(hypothesis) -> str:
+    """M2M の出力トークン列を訳文へ。訳す価値のない出力は空文字にする。
+
+    <unk> は「ここは訳せない」というモデル自身の申告。従来はこれを黙って取り除き
+    残りを繋げて出していたため、意味の核だけが抜けた文が字幕に出ていた
+    （「花粉症。もう私は」→「이 아프다. 이제는」＝「が痛い。今は」）。
+    訳を捨てて空を返せば engine.py が原文へフォールバックするので字幕は消えない。
+    言ってないことを足すくらいなら原文のまま出す。
+
+    実測 2026-08-22（実配信ログ1200行・bench/bench_unk_rate.py）: 該当行は
+    ko 11.4% / zh 1.8%。同条件で FuguMT(ja→en) は0%のため、あちらは従来どおり。
+    """
+    if "<unk>" in hypothesis:
+        return ""
+    out = [t for t in hypothesis
+           if not (t.startswith("__") and t.endswith("__"))
+           and t not in ("</s>", "<pad>")]
+    translated = _sp_m2m.decode(out).strip()
+    # トークン単体ではなくサブワードに埋もれて出ることもあり、その場合は上の
+    # 完全一致では拾えない（「정말 기<unk>니다」がそのまま字幕に出ていた）
+    if "<unk>" in translated:
+        return ""
+    # 反復抑止の副産物で、訳せない入力（「うどん」等の単語単発）が「。」や
+    # 記号だけの断片になることがある。文字を1つも含まない出力は空として扱い、
+    # ゴミを字幕に出さない（空の扱いは従来どおり＝訳文行を出さない）
+    return translated if re.search(r"\w", translated) else ""
+
+
 def translate_m2m(text: str, src: str = "ja", tgt: str = "zh",
                   max_new_tokens: int = 96,
                   repetition_penalty: float | None = None) -> str:
@@ -316,14 +344,8 @@ def translate_m2m(text: str, src: str = "ja", tgt: str = "zh",
                                # 再出現を禁止して確実に断ち切る（#7）
                                no_repeat_ngram_size=3,
                                max_decoding_length=max_new_tokens)
-    out = [t for t in res[0].hypotheses[0]
-           if not (t.startswith("__") and t.endswith("__"))
-           and t not in ("</s>", "<pad>", "<unk>")]
-    translated = _sp_m2m.decode(out).replace("<unk>", "").strip()
-    # 反復抑止の副産物で、訳せない入力（「うどん」等の単語単発）が「。」や
-    # 記号だけの断片になることがある。文字を1つも含まない出力は空として扱い、
-    # ゴミを字幕に出さない（空の扱いは従来どおり＝訳文行を出さない）
-    if not re.search(r"\w", translated):
+    translated = _decode_m2m(res[0].hypotheses[0])
+    if not translated:
         return ""
     if model_tgt == "en":
         translated = _fix_case(translated)

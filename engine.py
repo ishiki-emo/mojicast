@@ -9,8 +9,12 @@ transcribe_stream.py の疑似ストリーミング処理を、開始/停止で�
     on_final(text, fid)    確定（単語置換・句読点適用済み）。fid は行の通し番号
     on_level(rms)          マイク入力レベル 0.0-1.0（約100ms間隔）
     on_state(state, detail) loading / ready / running / stopped / error
-    on_translation(fid, en) 確定行の英訳（別スレッドで遅れて届く。fid で行に対応）
+    on_translation(fid, text, fallback) 確定行の訳（別スレッドで遅れて届く。fid で
+                           行に対応）。訳を出せなかった行は fallback=True で原文を
+                           渡す（翻訳のみ表示で画面が空になるのを防ぐ）
     on_sound_event(group, score, speaker) 音イベント検出（笑い・拍手等。soundfx.py）
+    on_warn(kind, message, active) 配信を止めない異常の通知（active=False で解除）。
+                           kind: "translate" / "audio"
 """
 import os
 import time
@@ -37,6 +41,12 @@ AUDIO_QUEUE_MAX_BLOCKS = max(1, int(30 * SAMPLE_RATE / WINDOW_SIZE))
 AUDIO_QUEUE_RECOVER_BLOCKS = AUDIO_QUEUE_MAX_BLOCKS // 2
 TRANSLATION_QUEUE_MAX_ITEMS = 128
 TRANSLATION_QUEUE_RECOVER_ITEMS = 96
+
+# 「動いているのに字幕が出ない」を配信者へ知らせるためのしきい値。
+# 翻訳のみ表示では訳が出ない＝画面が空なので、無言で続けさせない。
+TRANSLATE_FAIL_WARN = 5      # 英訳がこの本数だけ連続で失敗したら警告する
+AUDIO_STALL_SEC = 5.0        # 開いているのに音声が届かない時間の上限（＝入力の無言死）
+AUDIO_STALL_RETRY_SEC = 3.0  # 無言死を検知してからストリームを開き直す間隔
 
 # 初回DLの進捗表示に使う、各モデルのおおよそのDLサイズ（MB）
 _MODEL_SIZES_MB = {
@@ -90,20 +100,22 @@ def _aux_precision(cfg):
 def _offer_bounded_latest(q, item, recover_to):
     """上限までは通常追加し、満杯時だけ古い項目を整理して最新を入れる。
 
-    戻り値は破棄した項目数。リアルタイム処理のproducerをブロックしない。
+    戻り値は破棄した項目のリスト（件数は len で取れる）。リアルタイム処理の
+    producer をブロックしない。捨てた項目を返すのは、翻訳キューの間引きで
+    「訳が永遠に来ない行」が生まれるため。呼び出し側がその行を原文へ
+    フォールバックさせられるようにする。
     """
     try:
         q.put_nowait(item)
-        return 0
+        return []
     except queue.Full:
         pass
 
     target = max(0, min(int(recover_to), q.maxsize - 1))
-    dropped = 0
+    dropped = []
     while q.qsize() > target:
         try:
-            q.get_nowait()
-            dropped += 1
+            dropped.append(q.get_nowait())
         except queue.Empty:
             break
 
@@ -112,7 +124,7 @@ def _offer_bounded_latest(q, item, recover_to):
     except queue.Full:
         # 複数producerが同時に補充した場合は、今回の最新項目を無理に
         # ブロックしてまで入れない。いずれにせよメモリ上限は維持される。
-        dropped += 1
+        dropped.append(item)
     return dropped
 
 
@@ -140,13 +152,14 @@ def _dir_size_mb(path):
 class CaptionEngine:
     def __init__(self, on_partial=None, on_final=None,
                  on_level=None, on_state=None, on_translation=None,
-                 on_sound_event=None):
+                 on_sound_event=None, on_warn=None):
         self.on_partial = on_partial or (lambda t, spk="": None)
         self.on_final = on_final or (lambda t, fid, spk="": None)
         self.on_level = on_level or (lambda v, spk="": None)
         self.on_state = on_state or (lambda s, d="": None)
-        self.on_translation = on_translation or (lambda fid, en: None)
+        self.on_translation = on_translation or (lambda fid, t, fb=False: None)
         self.on_sound_event = on_sound_event or (lambda g, s, spk="": None)
+        self.on_warn = on_warn or (lambda kind, msg="", active=True: None)
         self._rec_lock = threading.Lock()   # 単一Recognizerへの decode を直列化（2話者共有）
         self._fid_lock = threading.Lock()   # fid採番の排他（話者をまたいで一意に）
         self._translate_on = False
@@ -163,6 +176,8 @@ class CaptionEngine:
                           "pad": True}  # 既定=k2
         self._tq = None             # 翻訳ジョブのキュー
         self._tworker = None        # 翻訳ワーカースレッド
+        self._tfail = 0             # 英訳の連続失敗数（警告の発火・解除に使う）
+        self._twarned = False       # 英訳の警告を出している最中か
         self._fid = 0               # 確定行の通し番号（英訳の対応付け用）
         self._logf = None           # 文字起こしログのファイルハンドル（無効時 None）
         self._mask = None           # 禁止ワードの伏せ字化関数（無効時 None）
@@ -180,8 +195,13 @@ class CaptionEngine:
 
     @staticmethod
     def _fresh_perf():
+        # *_dropped と audio_overflow は「追いつけずに捨てた量」。0 以外なら
+        # 字幕が歯抜けになっているので、コックピットから見えるようにする。
         return {"partial_n": 0, "partial_ms": 0.0,
-                "final_n": 0, "final_ms": 0.0, "since": time.time()}
+                "final_n": 0, "final_ms": 0.0,
+                "audio_dropped": 0, "audio_overflow": 0,
+                "translate_dropped": 0, "translate_fail": 0,
+                "since": time.time()}
 
     # ---------------- 文字起こしログ ----------------
 
@@ -546,6 +566,12 @@ class CaptionEngine:
 
     def _finish_session(self, state, detail):
         """セッションの最終状態を確定してGUIへ通知する。"""
+        # 稼働中の警告は停止と同時に意味を失う。残すとコックピットに
+        # 前回の警告が出たままになるので、ここで必ず解除する。
+        if self._twarned:
+            self._twarned = False
+            self.on_warn("translate", "", False)
+        self.on_warn("audio", "", False)
         self._set_lifecycle(state)
         self.on_state(state, detail)
 
@@ -640,20 +666,71 @@ class CaptionEngine:
             item = q.get()
             if item is None:      # 停止サインで終了
                 break
-            fid, text = item
+            fid, src = item
+            text = src
             # 英訳辞書: 翻訳前に日本語側で英訳語へ置換（固有名詞の訳を固定）。
-            # 適用は日→英（FuguMT）のみ。他方向では英単語を注入してしまうため
-            if self._gloss and (self._translate_sig or ("",))[0] == "fugumt":
+            # ラテン文字は NMT を素通りするか行き先の言語へ音写されるので、英訳
+            # 以外でも効く（実測 2026-08-23: おるか→Oruka→오루카／奥鲁卡。置換
+            # 無しだと固有名詞が消え、空いた穴を埋めて別の話に化けていた）。
+            # 対象は原文が日本語の経路だけ。辞書が「日本語表記→英訳」なので、
+            # 中国語認識（src=zh）では引きようがない（opencc もこれで外れる）。
+            sig = self._translate_sig or ("", "", "")
+            if self._gloss and sig[0] in ("fugumt", "m2m") and sig[1] == "ja":
+                # 英訳では辞書を全部使う。多言語訳では固有名詞だけに絞る
+                # （英訳が大文字で始まるものを固有名詞とみなす）。「配信→stream」
+                # のような一般語まで英字にすると、元は正しく訳せていた語が壊れる
+                # （実測 2026-08-23: zh は「配信→直播」が「流」に化けた。ko は
+                # 逆に「배달＝配達」が「스트림」へ直ったが、副作用の方が大きい）。
+                proper_only = sig[0] != "fugumt"
                 for ja, en_word in self._gloss:
+                    if proper_only and not en_word[:1].isupper():
+                        continue
                     if ja in text:
                         text = text.replace(ja, en_word)
             try:
                 en = self._translate(text) if self._translate else ""
             except Exception:
-                en = ""           # 翻訳失敗は無視（字幕本体は出続ける）
+                en = ""
                 self._log_translate_error(text)
-            if en and self._translate_on:
-                self.on_translation(fid, en)
+            if self._translate_on:
+                # 訳が出せなかった行も必ず通知する。翻訳のみ表示には「字幕本体」が
+                # 無いため、ここで黙ると画面が空になる（訳が来ない行は表示されない）。
+                # 原文を fallback として渡し、表示側で日本語へ切り替えさせる。
+                self.on_translation(fid, en or src, not en)
+                self._note_translate_result(bool(en))
+
+    def _queue_translation(self, fid, text):
+        """確定行を翻訳キューへ積む。混雑で押し出された行は原文へ落とす。
+
+        間引かれた行には訳が永遠に来ない。翻訳のみ表示ではそれがそのまま
+        「字幕が消えた」になるため、捨てた行をここで原文として通知する。
+        """
+        for dfid, dtext in _offer_bounded_latest(
+                self._tq, (fid, text), TRANSLATION_QUEUE_RECOVER_ITEMS):
+            self.perf["translate_dropped"] += 1
+            self.on_translation(dfid, dtext, True)
+
+    def _note_translate_result(self, ok):
+        """英訳の連続失敗を数え、しきい値で警告を出す／回復で解除する。
+
+        1行の失敗は元々ありうる（記号だけの断片など）。配信中に問題なのは
+        「ずっと出ていない」状態なので、連続本数で判定する。
+        """
+        if ok:
+            if self._twarned:
+                self._twarned = False
+                self.on_warn("translate", "", False)
+            self._tfail = 0
+            return
+        self._tfail += 1
+        self.perf["translate_fail"] += 1
+        if self._tfail >= TRANSLATE_FAIL_WARN and not self._twarned:
+            self._twarned = True
+            self.on_warn(
+                "translate",
+                f"英訳が{self._tfail}行連続で失敗しています"
+                "（翻訳のみ表示では原文を表示中）。停止→開始で復帰することがあります",
+                True)
 
     def _log_translate_error(self, text):
         """英訳ワーカーで起きた例外を translate_error.log に残す（無言失敗の可視化）"""
@@ -719,6 +796,11 @@ class CaptionEngine:
             audio_q: "queue.Queue[np.ndarray]" = queue.Queue(
                 maxsize=AUDIO_QUEUE_MAX_BLOCKS)
             last_level_t = [0.0]
+            # 「開いているのに音が来ない」を測るための最終受信時刻。
+            # コールバックが止まっても queue.Empty が続くだけで例外にならず、
+            # 状態は running のままになるため、ここを唯一の生存信号にする。
+            last_audio_t = [time.time()]
+            stalled = [False]
             # 音イベント検出（笑い・拍手等）。VADとは独立に同じ音声を見る
             # （笑い声は「発話」と見なされず、VAD経由ではASRに届かないため）。
             # 検出器はソースごと・分類器は全ソース共有（soundfx側で直列化）
@@ -730,14 +812,17 @@ class CaptionEngine:
 
             def handle_mono(mono):
                 mono = np.asarray(mono, dtype=np.float32).reshape(-1)
+                last_audio_t[0] = time.time()
                 # ループバックは可変長で届くため、micと同じ512sample単位へ
                 # 揃えて「約30秒」の上限が入力方式に左右されないようにする。
                 for offset in range(0, len(mono), WINDOW_SIZE):
                     chunk = np.array(
                         mono[offset:offset + WINDOW_SIZE],
                         dtype=np.float32, copy=True)
-                    _offer_bounded_latest(
+                    dropped = _offer_bounded_latest(
                         audio_q, chunk, AUDIO_QUEUE_RECOVER_BLOCKS)
+                    if dropped:   # 認識が追いつかず捨てた音声＝字幕の歯抜け
+                        self.perf["audio_dropped"] += len(dropped)
                 if is_primary:   # レベルメーターは主入力（自分のマイク）だけ流す
                     now = time.time()
                     if len(mono) and now - last_level_t[0] >= 0.1:
@@ -746,6 +831,10 @@ class CaptionEngine:
                         self.on_level(min(1.0, rms * 8), speaker)
 
             def callback(indata, frames, time_info, status):
+                # status を捨てると取りこぼしがどこにも残らない。字幕が
+                # 歯抜けになったとき原因を切り分けられるよう数だけ持つ。
+                if status and getattr(status, "input_overflow", False):
+                    self.perf["audio_overflow"] += 1
                 handle_mono(indata[:, 0].copy())
 
             interval_samples = int(cfg.get("interval", 0.4) * SAMPLE_RATE)
@@ -753,28 +842,71 @@ class CaptionEngine:
 
             # 入力ストリームを開く: ("process", exe名) → プロセスループバック（方式2）
             #                       それ以外 → 通常の入力デバイス
-            if isinstance(device, tuple) and device[0] == "process":
-                from proc_loopback import ProcessLoopbackCapture
-                stream = ProcessLoopbackCapture(device[1], on_audio=handle_mono)
-            else:
+            def open_stream():
+                if isinstance(device, tuple) and device[0] == "process":
+                    from proc_loopback import ProcessLoopbackCapture
+                    return ProcessLoopbackCapture(device[1],
+                                                  on_audio=handle_mono)
                 dev = None if device in ("", "default") else device
-                stream = sd.InputStream(samplerate=SAMPLE_RATE, channels=1,
-                                        dtype="float32", blocksize=WINDOW_SIZE,
-                                        device=dev, callback=callback)
+                return sd.InputStream(samplerate=SAMPLE_RATE, channels=1,
+                                      dtype="float32", blocksize=WINDOW_SIZE,
+                                      device=dev, callback=callback)
+
+            def close_stream(st):
+                if st is None:
+                    return
+                try:
+                    st.__exit__(None, None, None)
+                except Exception:
+                    pass          # 既に死んでいるデバイスの後始末は結果を問わない
+
+            # 初回のオープン失敗は従来どおり致命的（デバイス指定ミス等は
+            # 黙って再試行するより止めて伝えたほうがよい）。開き直しの対象は
+            # 「一度は開けたのに途中で音が来なくなった」ケースだけ。
+            stream = open_stream()
+            stream.__enter__()
 
             buffer = np.empty(0, dtype=np.float32)
             last_partial_len = 0
             partial_gap = interval_samples   # 次の途中経過までに要る新規音声量（適応）
 
-            with stream:
+            try:
                 while not self._stop.is_set():
+                    if stream is None:        # 無言死からの復帰を試みる
+                        try:
+                            stream = open_stream()
+                            stream.__enter__()
+                            last_audio_t[0] = time.time()
+                        except Exception:
+                            close_stream(stream)  # 開けたが開始に失敗した分
+                            stream = None
+                            self._stop.wait(AUDIO_STALL_RETRY_SEC)
+                            continue
                     err = getattr(stream, "error", None)
                     if err:                      # ループバック側の実行時エラー
                         raise RuntimeError(err)
                     try:
                         block = audio_q.get(timeout=0.2)
                     except queue.Empty:
+                        # 入力の無言死: ストリームは開いたままなのにコールバックが
+                        # 来なくなる（デバイスの抜き差し・既定デバイスの切替・
+                        # 排他モードの奪取など）。例外にならないので状態は
+                        # 「認識中」のまま字幕だけが止まる。気づけるように警告し、
+                        # 開き直して自力復帰を試みる。
+                        if time.time() - last_audio_t[0] > AUDIO_STALL_SEC:
+                            if not stalled[0]:
+                                stalled[0] = True
+                                self.on_warn(
+                                    "audio",
+                                    "音声が届いていません（入力デバイスを確認して"
+                                    "ください）。自動で開き直しています", True)
+                            close_stream(stream)
+                            stream = None
+                            self._stop.wait(AUDIO_STALL_RETRY_SEC)
                         continue
+                    if stalled[0]:               # 音が戻った
+                        stalled[0] = False
+                        self.on_warn("audio", "", False)
                     buffer = np.concatenate([buffer, block])
                     while len(buffer) >= WINDOW_SIZE:
                         chunk = buffer[:WINDOW_SIZE]
@@ -814,9 +946,7 @@ class CaptionEngine:
                             self.on_final(text, fid, speaker)
                             self._log_final(text, speaker)
                             if self._translate_on:
-                                _offer_bounded_latest(
-                                    self._tq, (fid, text),
-                                    TRANSLATION_QUEUE_RECOVER_ITEMS)
+                                self._queue_translation(fid, text)
                         else:
                             # 後処理で空になった発話は出さず、薄文字だけ消す
                             self.on_partial("", speaker)
@@ -860,6 +990,8 @@ class CaptionEngine:
                             self.on_partial(p, speaker)
                         if len(cur) >= max_samples:
                             vad.flush()
+            finally:
+                close_stream(stream)
         except Exception as e:
             # このソースで致命的エラー → 全体を止めて _run 側で通知
             self._stream_error = f"実行エラー（{speaker or '入力'}）: {e}"
@@ -907,6 +1039,8 @@ class CaptionEngine:
             self._gloss = self._build_glossary(cfg)   # 英訳辞書（固有名詞の訳を固定）
             self._stream_error = None
             self.perf = self._fresh_perf()   # セッションごとに計測をリセット
+            self._tfail = 0
+            self._twarned = False
 
             if self._stop.is_set():
                 self._stop_translate_worker()

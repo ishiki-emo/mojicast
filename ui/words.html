@@ -50,6 +50,9 @@
   .page { flex: 1; overflow-y: auto; padding: 14px; display: none; }
   .page.show { display: block; }
   .note { color: var(--dim); font-size: 12px; margin-bottom: 10px; line-height: 1.6; }
+  /* 英訳辞書: その行がどの翻訳に効くかを入力しながら見せる */
+  .g-scope { display: block; margin-top: 4px; font-size: 11px; color: var(--dim); }
+  .g-scope.multi { color: var(--accent); }
   table { width: 100%; border-collapse: collapse; }
   th { color: var(--dim); font-size: 11px; letter-spacing: .1em; text-align: left; padding: 4px 6px; }
   td { padding: 3px; vertical-align: middle; }
@@ -193,11 +196,17 @@
   <!-- ========== 英訳辞書 ========== -->
   <div class="page" id="pageGloss">
     <div class="note" data-i18n="wd.gloss_note">
-      <b>日本語→英語（FuguMT）の翻訳時だけ有効です。</b>
-      中国語・韓国語など、ほかの翻訳には適用されません。<br>
-      名前・チャンネル名などの固有名詞の<b>英訳を固定</b>します。
-      「字幕の表記」に画面に出る日本語（例: 星野ひかり）、「英訳」に固定したい訳
-      （例: Hikari Hoshino）を入れると、英訳のその部分が必ずこの表記になります。
+      名前・チャンネル名などの<b>固有名詞が翻訳で消えないようにします</b>。
+      翻訳モデルは知らない名前を訳せず、そこだけ抜け落ちた文を作ってしまいます
+      （「おるか様の誕生日グッズ」→「誕生日の贈り物」のように、名前が消えたまま
+      文だけつながる）。ここに登録しておくと名前が残ります。<br>
+      「字幕の表記」に画面へ出る日本語（例: 星野ひかり）、「英訳」に使いたい
+      英語表記（例: Hikari Hoshino）を入れてください。<br>
+      <b>英訳を大文字で始めると、中国語・韓国語などの翻訳にも使われます</b>
+      （Hikari Hoshino → 히카리 호시노 のように、その言語の読みに置き換わって残ります）。
+      小文字で始めた語（例: 文字起こし → transcription）は英訳だけに使われます。
+      ふつうの言葉まで全言語へ広げると、もともと正しく訳せていた語が
+      かえって不自然になるための区別です。<br>
       変更は<b>次回開始時</b>に反映されます。
     </div>
     <table id="glossTable">
@@ -247,9 +256,24 @@
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td><input class="g-ja" value="${esc(e.ja || "")}" placeholder="星野ひかり"></td>
-      <td><input class="g-en" value="${esc(e.en || "")}" placeholder="Hikari Hoshino"></td>
+      <td><input class="g-en" value="${esc(e.en || "")}" placeholder="Hikari Hoshino">
+          <span class="g-scope"></span></td>
       <td><button class="del" onclick="this.closest('tr').remove()">✕</button></td>`;
     $("glossTable").querySelector("tbody").appendChild(tr);
+    // 大文字始まり＝固有名詞とみなし、中国語・韓国語などの訳にも使う。
+    // 仕様が目に見えないと伝わらないので、入力しながら適用先を出す
+    const en = tr.querySelector(".g-en");
+    const scope = tr.querySelector(".g-scope");
+    const update = () => {
+      const v = en.value.trim();
+      const multi = /^[A-Z]/.test(v);
+      scope.textContent = !v ? ""
+        : multi ? T("wd.gloss_scope_multi", "🌐 すべての翻訳で使われます")
+                : T("wd.gloss_scope_en", "英訳のみ（大文字で始めると全言語に）");
+      scope.className = "g-scope" + (multi ? " multi" : "");
+    };
+    en.addEventListener("input", update);
+    update();
   }
 
   // ---------- エフェクト ----------

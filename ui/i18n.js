@@ -283,7 +283,9 @@
       "wd.banned_note": "把禁播词等每行一个。这里的词在识别中（浅字）·确定字幕·日志·英译中都会打码。打码用下方字符按词的字数重复（例:「ばか」→「○○」）。更改在下次开始时生效。",
       "wd.mask_label": "用于打码的字符：", "wd.mask_hint": "（1个字符。默认「○」）",
       "wd.banned_ph": "每行一个词（例）\n哔\nNG词",
-      "wd.gloss_note": "仅在日语→英语（FuguMT）翻译时有效。中文·韩语等其他翻译不适用。 固定名字·频道名等专有名词的英译。在「字幕表记」填画面上出现的日语（例: 星野ひかり），在「英译」填想固定的译文（例: Hikari Hoshino），则英译的该部分必为此写法。更改在下次开始时生效。",
+      "wd.gloss_note": "防止名字·频道名等专有名词在翻译中消失。翻译模型无法翻译不认识的名字，会把该部分整个丢掉，只把剩下的连成一句话（「おるか様の誕生日グッズ」只剩「生日礼物」，名字不见了）。在此登记即可保留。在「字幕表记」填画面上出现的日语（例: 星野ひかり），在「英译」填想使用的英文写法（例: Hikari Hoshino）。英译以大写字母开头时，中文·韩语等其他翻译中也会使用——名字会以音译形式保留（Hikari Hoshino → 히카리 호시노）。以小写字母开头的词（例: 文字起こし → transcription）仅用于英译：把普通词汇推广到所有语言，反而会让原本正确的译文变得不自然。更改在下次开始时生效。",
+      "wd.gloss_scope_multi": "🌐 用于所有翻译",
+      "wd.gloss_scope_en": "仅英译（以大写开头则适用于所有语言）",
       "wd.col_gloss_ja": "字幕表记（日语）", "wd.col_gloss_en": "英译（想固定的写法）",
       "wd.save": "💾 保存", "wd.saved": "已保存 ✓", "wd.common_all": "共通（所有直播）",
       // 文字スタイル/レイアウト
@@ -607,7 +609,9 @@
       "wd.banned_note": "One banned word per line. These are masked in interim (faint) text, final captions, logs and the English translation. The mask repeats the character below for the word's length (e.g. \"ばか\" → \"○○\"). Changes apply on the next start.",
       "wd.mask_label": "Masking character:", "wd.mask_hint": "(1 character. Default \"○\")",
       "wd.banned_ph": "One word per line (e.g.)\nbeep\nNG word",
-      "wd.gloss_note": "Only for Japanese→English (FuguMT). Not applied to Chinese, Korean, etc. Fix the English of proper nouns like names and channel names. Put the Japanese as shown on screen in \"Caption text\" (e.g. 星野ひかり) and the fixed translation in \"English\" (e.g. Hikari Hoshino); that part of the English will always use this form. Changes apply on the next start.",
+      "wd.gloss_note": "Keeps proper nouns such as names and channel names from disappearing in translation. A translation model cannot render a name it does not know, so it drops that part and joins the rest into a sentence anyway (\"おるか様の誕生日グッズ\" becomes just \"birthday gifts\", with the name gone). Registering the name here keeps it. Put the Japanese as shown on screen in \"Caption text\" (e.g. 星野ひかり) and the English form you want in \"English\" (e.g. Hikari Hoshino). Starting the English with a capital letter also applies it to Chinese, Korean and other targets — the name survives as a transliteration (Hikari Hoshino → 히카리 호시노). Entries starting with a lower-case letter (e.g. 文字起こし → transcription) are used for English only: spreading ordinary words to every language makes translations that were already correct sound wrong. Changes apply on the next start.",
+      "wd.gloss_scope_multi": "🌐 Used for every translation",
+      "wd.gloss_scope_en": "English only (capitalize to cover all languages)",
       "wd.col_gloss_ja": "Caption text (Japanese)", "wd.col_gloss_en": "English (fixed form)",
       "wd.save": "💾 Save", "wd.saved": "Saved ✓", "wd.common_all": "Common (all streams)",
       // Text style / layout

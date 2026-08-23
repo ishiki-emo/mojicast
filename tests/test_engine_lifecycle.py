@@ -8,7 +8,9 @@ from engine import (
     AUDIO_QUEUE_MAX_BLOCKS,
     AUDIO_QUEUE_RECOVER_BLOCKS,
     SAMPLE_RATE,
+    TRANSLATE_FAIL_WARN,
     TRANSLATION_QUEUE_MAX_ITEMS,
+    TRANSLATION_QUEUE_RECOVER_ITEMS,
     WINDOW_SIZE,
     CaptionEngine,
     _offer_bounded_latest,
@@ -255,7 +257,7 @@ class CaptionEngineLifecycleTests(unittest.TestCase):
     def test_bounded_queue_keeps_normal_items_unchanged(self):
         q = queue.Queue(maxsize=4)
         for value in range(4):
-            self.assertEqual(_offer_bounded_latest(q, value, 1), 0)
+            self.assertEqual(_offer_bounded_latest(q, value, 1), [])
         self.assertEqual(list(q.queue), [0, 1, 2, 3])
 
     def test_bounded_queue_discards_oldest_only_after_limit(self):
@@ -263,7 +265,8 @@ class CaptionEngineLifecycleTests(unittest.TestCase):
         for value in range(4):
             q.put_nowait(value)
         dropped = _offer_bounded_latest(q, 4, 1)
-        self.assertEqual(dropped, 3)
+        # 捨てた「中身」を返す（原文フォールバックの材料になるため）
+        self.assertEqual(dropped, [0, 1, 2])
         self.assertEqual(list(q.queue), [3, 4])
 
     def test_production_queue_limits_leave_large_normal_headroom(self):
@@ -279,7 +282,8 @@ class CaptionEngineLifecycleTests(unittest.TestCase):
         translating = threading.Event()
         release = threading.Event()
         self.engine = CaptionEngine(
-            on_translation=lambda fid, text: translated.append((fid, text))
+            on_translation=lambda fid, text, fb=False:
+                translated.append((fid, text, fb))
         )
 
         def slow_translate(text):
@@ -314,6 +318,164 @@ class CaptionEngineLifecycleTests(unittest.TestCase):
         self.assertIsNone(self.engine._tworker)
         self.assertIsNone(self.engine._tq)
         self.assertEqual(translated, [])
+
+
+class TranslationFallbackTests(unittest.TestCase):
+    """訳が出せなかった行の扱い。
+
+    翻訳のみ表示（displayMode="en"）には「字幕本体」が無く、訳が届かない行は
+    画面に何も出ない。稼働中に翻訳が失敗し続けると字幕が全消失したまま
+    「認識中」表示が続くため、原文へのフォールバックと警告を検証する。
+    """
+
+    def _engine(self, translate):
+        events = []
+        warns = []
+        engine = CaptionEngine(
+            on_translation=lambda fid, text, fb=False:
+                events.append((fid, text, fb)),
+            on_warn=lambda kind, msg="", active=True:
+                warns.append((kind, active)),
+        )
+        engine._translate = translate
+        engine._translate_on = True
+        engine._tq = queue.Queue(maxsize=8)
+        return engine, events, warns
+
+    def _run_once(self, engine, item):
+        engine._tq.put_nowait(item)
+        engine._tq.put_nowait(None)
+        engine._translate_loop()
+
+    def test_translate_failure_falls_back_to_source_text(self):
+        def boom(_text):
+            raise RuntimeError("translate crashed")
+
+        engine, events, _ = self._engine(boom)
+        self._run_once(engine, (7, "こわいよ"))
+        self.assertEqual(events, [(7, "こわいよ", True)])
+
+    def test_empty_translation_falls_back_to_source_text(self):
+        engine, events, _ = self._engine(lambda _text: "")
+        self._run_once(engine, (7, "！！！"))
+        self.assertEqual(events, [(7, "！！！", True)])
+
+    def test_successful_translation_is_not_marked_fallback(self):
+        engine, events, _ = self._engine(lambda text: "en:" + text)
+        self._run_once(engine, (7, "にげて"))
+        self.assertEqual(events, [(7, "en:にげて", False)])
+
+    def test_glossary_substitution_is_not_leaked_into_fallback(self):
+        """英訳辞書は翻訳の前処理。失敗時に英単語混じりの原文を出さない。"""
+        engine, events, _ = self._engine(lambda _text: "")
+        engine._gloss = [("癒色えも", "Emo Ishiki")]
+        engine._translate_sig = ("fugumt", "ja", "en")
+        self._run_once(engine, (7, "癒色えもです"))
+        self.assertEqual(events, [(7, "癒色えもです", True)])
+
+    def test_glossary_also_applies_to_multilingual_translation(self):
+        """英訳以外にも効かせる。M2M はラテン文字の固有名詞を音写して残すため、
+        置換しないと固有名詞が消えて別の話に化ける（おるか→Oruka→오루카）。"""
+        engine, events, _ = self._engine(lambda text: "ko:" + text)
+        engine._gloss = [("癒色えも", "ISHIKI Emo")]
+        engine._translate_sig = ("m2m", "ja", "ko")
+        self._run_once(engine, (7, "癒色えもです"))
+        self.assertEqual(events, [(7, "ko:ISHIKI Emoです", False)])
+
+    def test_multilingual_translation_skips_common_nouns(self):
+        """多言語訳では固有名詞（英訳が大文字始まり）だけを置換する。
+        「配信→stream」まで英字にすると、正しく訳せていた語が壊れる。"""
+        engine, events, _ = self._engine(lambda text: "zh:" + text)
+        engine._gloss = [("癒色えも", "ISHIKI Emo"), ("配信", "stream")]
+        engine._translate_sig = ("m2m", "ja", "zh")
+        self._run_once(engine, (7, "癒色えもの配信です"))
+        self.assertEqual(events, [(7, "zh:ISHIKI Emoの配信です", False)])
+
+    def test_english_translation_still_uses_the_whole_glossary(self):
+        """英訳は従来どおり。一般語の訳を固定する用途はそのまま残す。"""
+        engine, events, _ = self._engine(lambda text: "en:" + text)
+        engine._gloss = [("配信", "stream")]
+        engine._translate_sig = ("fugumt", "ja", "en")
+        self._run_once(engine, (7, "配信です"))
+        self.assertEqual(events, [(7, "en:streamです", False)])
+
+    def test_glossary_is_skipped_when_the_source_is_not_japanese(self):
+        """辞書は「日本語表記→英訳」。中国語認識の経路では引きようがない。"""
+        engine, events, _ = self._engine(lambda text: "en:" + text)
+        engine._gloss = [("癒色えも", "ISHIKI Emo")]
+        engine._translate_sig = ("m2m", "zh", "en")
+        self._run_once(engine, (7, "癒色えもです"))
+        self.assertEqual(events, [(7, "en:癒色えもです", False)])
+
+    def test_consecutive_failures_warn_once_and_clear_on_recovery(self):
+        outcomes = ["", "", "", "", "", "", "ok"]
+        engine, _, warns = self._engine(lambda _t: outcomes.pop(0))
+        for fid in range(len(outcomes)):
+            engine._tq.put_nowait((fid, f"line-{fid}"))
+        engine._tq.put_nowait(None)
+        engine._translate_loop()
+
+        self.assertEqual(warns, [("translate", True), ("translate", False)])
+        self.assertEqual(engine.perf["translate_fail"], TRANSLATE_FAIL_WARN + 1)
+        self.assertEqual(engine._tfail, 0)
+
+    def test_single_failure_does_not_warn(self):
+        outcomes = ["", "ok"]
+        engine, _, warns = self._engine(lambda _t: outcomes.pop(0))
+        for fid in range(2):
+            engine._tq.put_nowait((fid, f"line-{fid}"))
+        engine._tq.put_nowait(None)
+        engine._translate_loop()
+        self.assertEqual(warns, [])
+
+    def test_queue_overflow_falls_back_instead_of_dropping_silently(self):
+        """混雑で押し出された行にも原文を出す（訳は永遠に来ないため）。
+
+        本番と同じ上限で確かめる。満杯になると RECOVER まで一気に間引くので、
+        1回のあふれで (MAX - RECOVER) 行ぶんのフォールバックが出る。
+        """
+        engine, events, _ = self._engine(lambda text: text)
+        engine._tq = queue.Queue(maxsize=TRANSLATION_QUEUE_MAX_ITEMS)
+        for fid in range(TRANSLATION_QUEUE_MAX_ITEMS):
+            engine._queue_translation(fid, f"line-{fid}")
+        self.assertEqual(events, [])          # 満杯になるまでは何も捨てない
+
+        engine._queue_translation(TRANSLATION_QUEUE_MAX_ITEMS, "overflowing")
+        n = TRANSLATION_QUEUE_MAX_ITEMS - TRANSLATION_QUEUE_RECOVER_ITEMS
+        self.assertEqual([(fid, text, fb) for fid, text, fb in events],
+                         [(i, f"line-{i}", True) for i in range(n)])
+        self.assertEqual(engine.perf["translate_dropped"], n)
+
+    def test_translation_off_emits_nothing(self):
+        engine, events, _ = self._engine(lambda text: "en:" + text)
+        engine._translate_on = False
+        self._run_once(engine, (7, "にげて"))
+        self.assertEqual(events, [])
+
+
+class CaptionBlackoutInvariantTests(unittest.TestCase):
+    """字幕が無言で消えないための、コンポーネントをまたぐ不変条件。"""
+
+    def test_overlay_pending_limit_exceeds_engine_translation_queue(self):
+        """オーバーレイの翻訳待ち上限は、エンジンの翻訳キュー上限より大きいこと。
+
+        小さいと、訳が届く前に待ち行が捨てられ「訳が来ても表示先が無い」状態に
+        なる。翻訳のみ表示では、そのまま字幕が出ないまま固定される（v0.9.0で
+        PENDING_MAX=64 < キュー128 だった）。
+        """
+        import os
+        import re
+        path = os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                            "overlay.html")
+        with open(path, encoding="utf-8") as f:
+            html = f.read()
+        m = re.search(r"const PENDING_MAX = (\d+);", html)
+        self.assertIsNotNone(m, "overlay.html の PENDING_MAX が見つからない")
+        self.assertGreater(int(m.group(1)), TRANSLATION_QUEUE_MAX_ITEMS)
+
+    def test_translation_recover_target_leaves_room_below_limit(self):
+        self.assertLess(TRANSLATION_QUEUE_RECOVER_ITEMS,
+                        TRANSLATION_QUEUE_MAX_ITEMS)
 
 
 class _RecordingModel:
