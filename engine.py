@@ -449,10 +449,20 @@ class CaptionEngine:
                         punct.unload()   # 精度切替: 旧モデルを先に返してピークを抑える
                     punct.load_punctuator(precision=aux_prec)
                     self._punct = punct.add_punctuation
-                except Exception:
+                except Exception as e:
                     self._punct = None
-                    self._load_warn = "句読点の読み込みに失敗"
-                    self._log_load_error("句読点モデル")
+                    # 自己診断落ち＝このPCで int8 が壊れている。fp32 なら動くので
+                    # 「高精度モード」へ誘導する（原因が分かる警告にしないと、
+                    # ユーザーは何をすればいいか分からないまま句読点を失う）。
+                    # punct を try の中で import しているため except 節では
+                    # 例外クラスを直接参照できず、型名で見分ける
+                    if type(e).__name__ == "SelfTestFailed":
+                        self._load_warn = ("句読点モデルがこのPCでは正しく動きません"
+                                           "（設定の「高精度モード」で回避できます）")
+                        self._log_load_error("句読点モデル（自己診断に失敗）")
+                    else:
+                        self._load_warn = "句読点の読み込みに失敗"
+                        self._log_load_error("句読点モデル")
 
             if need_sfx:
                 self.on_state("loading", "音イベント検出モデルをロード中...")
