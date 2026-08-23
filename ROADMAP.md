@@ -451,6 +451,85 @@ v1.0判断基準#3「CPU差の吸収」の将来枠。
 
 ---
 
+## 16. SenseVoice 非対応言語の音声認識（調査 2026-08-23）
+
+**規模: 中 / きっかけ: インドネシア語で話したいという用途**
+
+翻訳先には id（インドネシア語）があるのに、**認識側が対応していない**。SenseVoice が
+持つのは中・英・日・韓・広東語の5言語だけ。「日本語で話す→インドネシア語字幕」は
+できるが、逆はできない。
+
+### インドネシア語に ReazonSpeech 級は無い
+
+探したが、**大規模な公開コーパスが存在しない**のが根本。ReazonSpeech はTV音声から
+1,253時間を集めたが、インドネシア語は Common Voice / FLEURS のような汎用データセットが
+中心で規模が一桁違う。sherpa-onnx 向けのインドネシア語モデルも検索でゼロ件だった。
+実在するのは **Whisper のファインチューニング版**（cahya/whisper-medium-id 等）。
+
+### faster-whisper（CTranslate2版）なら載せられそう
+
+- **実行基盤がすでにある**。`ctranslate2.models.Whisper` は同梱済みの ctranslate2 4.8.1 に
+  含まれており、翻訳で使っているものをそのまま使える。sherpa-onnx を置き換える必要は無く、
+  日本語=k2-ja / 東アジア=SenseVoice はそのままに、**Whisper を「その他の言語」担当**に足す形
+- **ライセンスは全部クリア**（Systran/faster-whisper-* は MIT、cahya/*-id は Apache-2.0）。
+  [[translate-ja-ko-specialized]] の CC-BY-NC-SA のような壁は無い
+- **サイズが論点**: small **486MB** / medium **1,529MB** / large-v3 3,091MB。
+  small で実用になるか medium が要るかは未測定。モデル非同梱DL方式なら「使う人だけDL」にできる
+- **依存の追加**: CTranslate2 の Whisper はトークナイザに `tokenizers` を要求する。
+  Mojicast.spec は torch/transformers/tokenizers を除外してビルドガードを置いているので、
+  そこを緩める判断が要る（`tokenizers` 単体は数MB。MeCab辞書260MBとは比較にならない軽さ）
+
+### 実測（2026-08-23・FLEURS dev / bench/bench_asr_multilingual.py）
+
+**Systran/faster-whisper-small は「インドネシア語特化」ではなく 100言語対応の汎用モデル**。
+言語トークンを差し替えるだけで日本語も認識でき（手元の配信音声28秒を1.8秒で処理し、
+句読点付きで出た）、メモリ +462MB はそのぶんの重さだった。
+
+| | SenseVoice（現行） | Whisper small |
+| --- | --- | --- |
+| 対応言語 | 5（中英日韓粤） | **100** |
+| モデルサイズ | **240MB** | 486MB |
+| メモリ | **+340MB** | +463MB |
+| 1発話の推論 | **約190ms** | 約1,100ms |
+| **コア換算の占有** | **0.06コア** | **0.39〜0.41コア** |
+| 誤り率 韓国語(WER) | 22.1% | 22.1% |
+| 誤り率 中国語(CER) | **5.0%** | 22.7% |
+
+- **中国語は SenseVoice が4倍強い**（5.0% vs 22.7%）。中国語圏で作られたモデルなので順当。
+  韓国語は互角。**置き換えると中国語利用者が損をする**
+- **CPU占有は SenseVoice の約7倍**。8コア16スレッド機のタスクマネージャで 2〜3% 相当。
+  音イベント検出（0.05コア）の8倍にあたるので、常時ONにする類のものではない
+- インドネシア語の WER は 23.6% だが、誤りの多くは Whisper が数詞を算用数字へ正規化する
+  ことによる表記差（`kelima`→`5`）。字幕としてはむしろ読みやすい
+
+→ **結論: 置き換えではなく併用**。SenseVoice が持つ5言語はそのまま、
+**Whisper は残り95言語の担当**にする。
+
+### CPU世代による差（推定・2026-08-23）
+
+CTranslate2 の int8 は VNNI に依存する。compute_type を振って依存度を測った
+（韓国語12件）:
+
+| compute_type | 推論 | コア占有 | 誤り率 |
+| --- | --- | --- | --- |
+| int8 | 12.9s | 0.33コア | 24.3% |
+| float32 | 22.0s | 0.54コア | 25.2% |
+
+int8 は float32 の 1.7倍速く CPU も6割。**VNNI 非搭載機（9900K=Coffee Lake、Zen3以前）
+では int8 の恩恵が効かず float32 側へ寄る**とみて、0.5〜0.7コア・1発話1.5〜2秒程度と推定。
+悪化幅は大きくない（CTranslate2 は VNNI が無くても AVX2 で動く）。ただし
+[[punct-int8-vnni-blackout]] と同じ機序で**精度が崩れるリスクは残る**ので、
+入れるなら該当CPUでの確認が要る。
+
+### 実装するときの論点
+
+- **依存**: CTranslate2 の Whisper はトークナイザと特徴抽出に `transformers` を使う。
+  Mojicast.spec は torch/transformers/tokenizers を除外してビルドガードを置いているので、
+  `tokenizers` 単体＋メルスペクトログラムの自前実装にするか、除外を緩めるかの判断が要る
+- **配布**: 486MB はモデル非同梱DL方式で「その言語を使う人だけDL」にできる。
+  ライセンスは MIT（Systran/faster-whisper-*）で [[translate-ja-ko-specialized]] のような壁は無い
+- medium(1,529MB) は未測定。small で足りるかを実配信の音声で見てから判断する
+
 ## 済んだもの（参照用）
 
 - v0.5.0（2026-07-22）: **多言語対応** ＝ SenseVoice多言語認識（中英日韓粤・
