@@ -270,6 +270,32 @@ class CaptionEngine:
 
     # ---------------- モデルロード ----------------
 
+    @staticmethod
+    def _load_punct(punct, precision):
+        """句読点モデルをロードする。戻り値は警告文（無ければ空文字）。
+
+        int8 は VNNI 非搭載のCPUで積和が飽和し、全文字に句点を打つ壊れ方をする
+        （v0.9.5 で報告）。開発機では再現せず、利用者からの問い合わせでしか
+        分からない。fp32 なら動くので、自己診断に落ちたらそちらへ自動で切り替える。
+        黙って切り替えるとメモリが増えた理由が分からなくなるため、警告は出す。
+
+        大多数のPCでは int8 のまま（メモリ +147MB / 5.9ms per文）。fp32 は
+        +367MB / 11.7ms per文 なので、既定を fp32 にはせず壊れた環境だけ寄せる。
+        """
+        if punct.loaded_precision() not in (None, precision):
+            punct.unload()   # 精度切替: 旧モデルを先に返してピークを抑える
+        try:
+            punct.load_punctuator(precision=precision)
+            return ""
+        except Exception as e:
+            # 自己診断落ち以外（ファイル不足・DL失敗等）は精度を変えても直らない
+            if type(e).__name__ != "SelfTestFailed" or precision == "fp32":
+                raise
+            punct.unload()
+            punct.load_punctuator(precision="fp32")
+            return ("このPCでは句読点を高精度モードで動かしています"
+                    "（int8では正しく動かないため・メモリ +220MB）")
+
     def _log_load_error(self, name):
         """付加機能（句読点/英訳）のロード失敗時に traceback を logs/ へ残す。
         GUIには短い警告しか出せないため、テスターからの報告調査はこのログで行う。"""
@@ -445,20 +471,18 @@ class CaptionEngine:
                 self.on_state("loading", "句読点モデルをロード中...")
                 try:
                     import punct
-                    if punct.loaded_precision() not in (None, aux_prec):
-                        punct.unload()   # 精度切替: 旧モデルを先に返してピークを抑える
-                    punct.load_punctuator(precision=aux_prec)
+                    warn = self._load_punct(punct, aux_prec)
                     self._punct = punct.add_punctuation
+                    if warn:
+                        self._load_warn = warn
+                        self._log_load_error("句読点モデル（int8が壊れたため fp32 へ）")
                 except Exception as e:
                     self._punct = None
-                    # 自己診断落ち＝このPCで int8 が壊れている。fp32 なら動くので
-                    # 「高精度モード」へ誘導する（原因が分かる警告にしないと、
-                    # ユーザーは何をすればいいか分からないまま句読点を失う）。
+                    # fp32 でも自己診断に落ちた（int8 の飽和とは別の原因）。
                     # punct を try の中で import しているため except 節では
                     # 例外クラスを直接参照できず、型名で見分ける
                     if type(e).__name__ == "SelfTestFailed":
-                        self._load_warn = ("句読点モデルがこのPCでは正しく動きません"
-                                           "（設定の「高精度モード」で回避できます）")
+                        self._load_warn = "句読点モデルがこのPCでは正しく動きません"
                         self._log_load_error("句読点モデル（自己診断に失敗）")
                     else:
                         self._load_warn = "句読点の読み込みに失敗"
