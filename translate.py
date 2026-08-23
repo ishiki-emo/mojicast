@@ -76,6 +76,34 @@ def _fix_case(text: str) -> str:
     text = _SENT_HEAD.sub(lambda m: m.group(1) + m.group(2).upper(), text)
     return _LONE_I.sub("I", text)
 
+
+# 原文に無い罵倒語が湧いた訳を捨てるためのガード。FuguMT は言っていない攻撃的な
+# 語を作ることがあり、字幕が相手を侮辱する文になる（実測 2026-08-23・実配信
+# 4,637行で9行=0.19%。「とばしてるな」→ "You're so stupid."／「龍角さんは」→
+# "the slutty one"／「黙ってやっちゃう」→ "shut up"）。コラボではゲストの発言に
+# 湧くため、放送事故になりうる。
+#
+# 語の選定はすべて同じ実測から。誤爆する語（hell は Hello に、sex は sexy に
+# 当たる）と、原文側に根拠があることが多い語（drunk/drug/dead/kill/die）は
+# 入れない ― 実測ではその全てが正当な訳だった。
+_INSULT_EN = re.compile(
+    r"\b(stupid|idiot|idiots|bastard|bastards|bitch|bitches|slut|slutty|whore|"
+    r"shit|shitty|fuck\w*|cunt|asshole|moron|jerk|retard\w*|dumbass|ass|asses|"
+    r"disgusting|ugly|freak|freaks|shut up|suck|sucks|sucking)\b", re.I)
+
+# 原文側に「実際に言った」根拠がある語。あれば正当な訳とみなして残す
+# （実測で1行。「下手に吸っちゃいそう」→ "suck" は誤訳ではあるが捏造ではない）。
+_INSULT_JA = re.compile(
+    r"馬鹿|ばか|バカ|阿呆|アホ|あほ|間抜|まぬけ|クソ|くそ|糞|畜生|ちくしょう|"
+    r"黙れ|うるさ|うっさ|キモ|きも|ブス|醜|最低|ダサ|うざ|ウザ|むかつ|ムカつ|"
+    r"吸う|吸っ|吸い|変態|エロ|下品|ゲス|クズ|くず")
+
+
+def _fabricated_insult(src: str, en: str) -> bool:
+    """訳文の罵倒語が原文に由来しないか（＝捏造か）"""
+    return bool(_INSULT_EN.search(en)) and not _INSULT_JA.search(src)
+
+
 _REPO_ID = "ishiki-emo/mojicast-fugumt-ja-en-ct2"   # 変換済みモデルの配布リポジトリ
 _SUBDIR = "fugumt-ja-en-ct2"                         # ローカル models_conv/ 内のフォルダ名
 
@@ -172,7 +200,12 @@ def translate(text: str, max_new_tokens: int = 96,
                                       max_decoding_length=max_new_tokens)
     out = [t for t in res[0].hypotheses[0]
            if t not in ("</s>", "<pad>", "<unk>")]
-    return _fix_case(_sp_tgt.decode(out).strip())
+    en = _fix_case(_sp_tgt.decode(out).strip())
+    # 言っていない罵倒語が湧いた行は訳ごと捨てる。呼び出し側（engine.py）は
+    # 空の訳を受けると原文をそのまま字幕に出すので、日本語のまま表示される。
+    # 判定に使う text は _apply_stream_terms 後だが、置換対象は配信用語だけで
+    # 罵倒語とは重ならないため根拠の判定に影響しない。
+    return "" if _fabricated_insult(text, en) else en
 
 
 # ---------------- 中国語訳（M2M-100 418M / int8） ----------------
@@ -276,6 +309,34 @@ def load_translator_zh(num_threads: int = 4):
         raise RuntimeError("中国語訳モデルの自己診断に失敗（出力が空）")
 
 
+def _decode_m2m(hypothesis) -> str:
+    """M2M の出力トークン列を訳文へ。訳す価値のない出力は空文字にする。
+
+    <unk> は「ここは訳せない」というモデル自身の申告。従来はこれを黙って取り除き
+    残りを繋げて出していたため、意味の核だけが抜けた文が字幕に出ていた
+    （「花粉症。もう私は」→「이 아프다. 이제는」＝「が痛い。今は」）。
+    訳を捨てて空を返せば engine.py が原文へフォールバックするので字幕は消えない。
+    言ってないことを足すくらいなら原文のまま出す。
+
+    実測 2026-08-22（実配信ログ1200行・bench/bench_unk_rate.py）: 該当行は
+    ko 11.4% / zh 1.8%。同条件で FuguMT(ja→en) は0%のため、あちらは従来どおり。
+    """
+    if "<unk>" in hypothesis:
+        return ""
+    out = [t for t in hypothesis
+           if not (t.startswith("__") and t.endswith("__"))
+           and t not in ("</s>", "<pad>")]
+    translated = _sp_m2m.decode(out).strip()
+    # トークン単体ではなくサブワードに埋もれて出ることもあり、その場合は上の
+    # 完全一致では拾えない（「정말 기<unk>니다」がそのまま字幕に出ていた）
+    if "<unk>" in translated:
+        return ""
+    # 反復抑止の副産物で、訳せない入力（「うどん」等の単語単発）が「。」や
+    # 記号だけの断片になることがある。文字を1つも含まない出力は空として扱い、
+    # ゴミを字幕に出さない（空の扱いは従来どおり＝訳文行を出さない）
+    return translated if re.search(r"\w", translated) else ""
+
+
 def translate_m2m(text: str, src: str = "ja", tgt: str = "zh",
                   max_new_tokens: int = 96,
                   repetition_penalty: float | None = None) -> str:
@@ -316,14 +377,8 @@ def translate_m2m(text: str, src: str = "ja", tgt: str = "zh",
                                # 再出現を禁止して確実に断ち切る（#7）
                                no_repeat_ngram_size=3,
                                max_decoding_length=max_new_tokens)
-    out = [t for t in res[0].hypotheses[0]
-           if not (t.startswith("__") and t.endswith("__"))
-           and t not in ("</s>", "<pad>", "<unk>")]
-    translated = _sp_m2m.decode(out).replace("<unk>", "").strip()
-    # 反復抑止の副産物で、訳せない入力（「うどん」等の単語単発）が「。」や
-    # 記号だけの断片になることがある。文字を1つも含まない出力は空として扱い、
-    # ゴミを字幕に出さない（空の扱いは従来どおり＝訳文行を出さない）
-    if not re.search(r"\w", translated):
+    translated = _decode_m2m(res[0].hypotheses[0])
+    if not translated:
         return ""
     if model_tgt == "en":
         translated = _fix_case(translated)

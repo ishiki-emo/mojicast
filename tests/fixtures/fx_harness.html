@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>fx.js レンダリング検証用ハーネス</title>
+<style>
+  /* 字幕の実物に近い最低限の土台。fx.js が自前でCSSを注入するので、
+     ここでは行の入れ物だけ用意する */
+  body { margin: 0; background: #000; }
+  #stage { font-family: 'Yu Gothic UI', 'Meiryo', sans-serif;
+           font-size: 32px; font-weight: 900; color: #fff; width: 1280px; }
+  .line { margin: 4px 0; }
+</style>
+<script src="/ui/fx.js"></script>
+</head>
+<body>
+  <div id="stage"></div>
+<script>
+  // overlay.html の appendLine と同じ手順で1行を描く（表示に効く処理だけ）。
+  // テストからは render(text, animIn, effects) を呼ぶ。
+  window.render = function (text, animIn, effects) {
+    const stage = document.getElementById("stage");
+    stage.textContent = "";
+    const style = { outlineWidth: 2, outlineColor: "#000", hotColor: "#ffd400" };
+    const table = FX.buildTable([], effects || [], style);
+    const div = document.createElement("div");
+    div.className = "line";
+    FX.renderWords(div, text, table, style);
+    FX.applyEntrance(div, animIn || "slide");
+    stage.appendChild(div);
+    return div;
+  };
+
+  // 描画結果から「見えている空白」を測る。span に切られた空白の幅が 0 なら
+  // 語が繋がって表示される（Idon'tlooklikeyou 問題）
+  window.spaceWidths = function () {
+    const out = [];
+    document.querySelectorAll("#stage .line span").forEach(el => {
+      if (el.children.length === 0 && el.textContent === " ")
+        out.push(el.getBoundingClientRect().width);
+    });
+    return out;
+  };
+
+  // 中身（テキスト）の実描画幅を測る。.line は block なので要素の箱を測ると
+  // 親の幅になってしまう。Range なら中身だけの幅が取れる
+  // 登場アニメは scale/rotate で見た目を変えるので、途中で測ると幅がぶれる。
+  // 測る前に全アニメを最終状態へ送る（wave など infinite は finish できない
+  // ので個別に握りつぶす）
+  window.settle = function () {
+    for (const a of document.getAnimations()) {
+      try { a.finish(); } catch (e) { /* infinite なアニメは対象外 */ }
+    }
+  };
+
+  function contentWidth(el) {
+    window.settle();
+    const r = document.createRange();
+    r.selectNodeContents(el);
+    return r.getBoundingClientRect().width;
+  }
+
+  window.lineWidth = function () {
+    return contentWidth(document.querySelector("#stage .line"));
+  };
+
+  // 比較用: fx を通さず素のテキストとして描いたときの幅
+  window.plainWidth = function (text) {
+    const stage = document.getElementById("stage");
+    const d = document.createElement("div");
+    d.className = "line";
+    d.textContent = text;
+    stage.appendChild(d);
+    const w = contentWidth(d);
+    d.remove();
+    return w;
+  };
+</script>
+</body>
+</html>

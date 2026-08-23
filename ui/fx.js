@@ -99,7 +99,8 @@
   .fx-heartbeat{ animation: fxheart 1.1s ease-in-out infinite; }
   .fx-float    { animation: fxfloat 3s ease-in-out infinite; }
   .fx-glitch   { animation: fxglitch 2s steps(1) infinite; }
-  .fx-wavechar { display: inline-block; animation: fxwavech 1.2s ease-in-out infinite; }
+  /* white-space:pre が無いと「Super Chat」のような複数語の登録でスペースが潰れる */
+  .fx-wavechar { display: inline-block; white-space: pre; animation: fxwavech 1.2s ease-in-out infinite; }
   @keyframes fxneonin { 0% { opacity:0; filter:brightness(3); }
                         8% { opacity:1; } 12% { opacity:.2; }
                         20% { opacity:1; filter:brightness(2.4); }
@@ -318,6 +319,10 @@
           const s = document.createElement("span");
           s.textContent = ch;
           s.style.display = "inline-block";
+          // 半角スペース1文字だけの inline-block は空白の折り畳みで幅が
+          // 0 に潰れ、英訳が「Idon'tlooklikeyou」と繋がってしまう。
+          // 日本語には半角スペースが無いので翻訳字幕でしか出ない
+          s.style.whiteSpace = "pre";
           frag.appendChild(s);
           units.push(s);
         }

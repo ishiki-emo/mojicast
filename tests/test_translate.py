@@ -1,6 +1,8 @@
 import unittest
 
-from translate import _apply_stream_terms, _fix_case
+import translate
+from translate import (_apply_stream_terms, _decode_m2m, _fabricated_insult,
+                       _fix_case)
 
 
 class FixCaseTests(unittest.TestCase):
@@ -54,6 +56,83 @@ class StreamTermsTests(unittest.TestCase):
     def test_keeps_existing_terms(self):
         self.assertIn("Super Chat", _apply_stream_terms("スパチャありがとう"))
         self.assertIn("clip", _apply_stream_terms("切り抜きを見た"))
+
+
+class _FakeSp:
+    """SentencePiece の decode だけを模す（モデルを読まずに判定を試すため）"""
+
+    def decode(self, tokens):
+        return "".join(tokens).replace("▁", " ").strip()
+
+
+class DecodeM2MTests(unittest.TestCase):
+    """M2M の出力トークン列から訳文を組む後処理。
+
+    <unk> はモデルが「ここは訳せない」と申告した印。取り除いて残りを繋ぐと
+    意味の核が抜けた文になるので、行ごと捨てて原文表示へ落とす。
+    """
+
+    def setUp(self):
+        self._orig = translate._sp_m2m
+        translate._sp_m2m = _FakeSp()
+
+    def tearDown(self):
+        translate._sp_m2m = self._orig
+
+    def test_drops_the_whole_line_when_model_could_not_translate(self):
+        # 「花粉症。もう私は」が「が痛い。今は」になっていた経路
+        self.assertEqual(
+            _decode_m2m(["__ko__", "▁", "<unk>", "이", "▁아프다"]), "")
+
+    def test_drops_it_when_unk_is_buried_in_a_subword(self):
+        # トークン単体で出るとは限らない。「정말 기<unk>니다」が字幕に出ていた
+        self.assertEqual(
+            _decode_m2m(["__ko__", "▁정말", "▁기<unk>니다"]), "")
+
+    def test_keeps_an_ordinary_translation(self):
+        self.assertEqual(
+            _decode_m2m(["__ko__", "▁좋은", "▁아침", "</s>"]),
+            "좋은 아침")
+
+    def test_strips_control_tokens(self):
+        self.assertEqual(
+            _decode_m2m(["__zh__", "▁不知道", "</s>", "<pad>"]), "不知道")
+
+    def test_drops_symbol_only_output(self):
+        # 反復抑止の副産物で「。」だけが残ることがある（字幕に出さない）
+        self.assertEqual(_decode_m2m(["__ko__", "▁", "。"]), "")
+        self.assertEqual(_decode_m2m(["__ko__"]), "")
+
+
+class FabricatedInsultTests(unittest.TestCase):
+    """言っていない罵倒語が湧いた訳は捨てる（原文フォールバックへ）。
+
+    例はすべて実配信ログ（2026-08-23・4,637行）で実際に出た訳。
+    """
+
+    def test_blocks_insults_that_are_not_in_the_source(self):
+        for src, en in [
+            ("とばしてるな。", "You're so stupid."),
+            ("でガチな方の龍角さんは。", "And the slutty one, mr. dragon horn!"),
+            ("なやつですね。すごいすごい。", "That's a bastard. It is amazing!"),
+            ("一人でこう黙ってやっちゃうんですよね。", "You're going to shut up by yourself."),
+            ("てくださったり。", "You're a jerk."),
+            ("じゃなくていいのよ。", "You dont have to be a bitch, right?"),
+        ]:
+            self.assertTrue(_fabricated_insult(src, en), src)
+
+    def test_keeps_insults_the_speaker_actually_said(self):
+        # 原文に根拠がある行は訳を残す（言い方がきついだけで捏造ではない）
+        self.assertFalse(_fabricated_insult("なんか下手に吸っちゃいそうで。",
+                                            "I'm afraid you should suck something bad."))
+        self.assertFalse(_fabricated_insult("バカだなあ。", "You're so stupid."))
+        self.assertFalse(_fabricated_insult("クソゲーだこれ。", "This is a shitty game."))
+
+    def test_leaves_ordinary_translations_alone(self):
+        # 誤爆しやすい語で通常の訳が消えないこと（hell は Hello、ass は pass/class）
+        for en in ["Hello, this stream commented", "Please pass the class.",
+                   "It's a beautiful morning.", "I'm really getting cold."]:
+            self.assertFalse(_fabricated_insult("こんばんは。", en), en)
 
 
 if __name__ == "__main__":

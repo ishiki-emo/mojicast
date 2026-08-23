@@ -4,7 +4,7 @@ Caption Studio のHTTP/SSEサーバ
 1ポートで全部を配信する:
   GET  /            overlay.html（OBSブラウザソース用）
   GET  /ui/<name>   GUIページ（cockpit / words）
-  GET  /events      SSE: init / partial / clear_partial / final / level / state / style / clear
+  GET  /events      SSE: init / partial / clear_partial / final / level / state / style / clear / warn
   GET/POST /api/... 設定・単語帳・エフェクト・プリセット・エンジン制御
 
 認識エンジン(engine.CaptionEngine)はこのモジュールが保持し、
@@ -24,7 +24,7 @@ import platform_compat
 import vrcchat
 import wordstore
 
-APP_VERSION = "0.9.5"
+APP_VERSION = "0.9.6"
 
 # 更新チェック用のマニフェスト（GitHub raw）。リリース時に latest.json を更新する。
 # 中身: {"version": "0.5.1", "url": "<配布ページ>", "notes": "<一行紹介>"}
@@ -893,9 +893,23 @@ def _engine_on_partial(text, spk=""):
     vrcchat.on_partial(text, spk)   # VRChatのタイピング中表示
 
 
-def _engine_on_translation(fid, en):
-    broadcast({"type": "translation", "id": fid, "text": en})
-    vrcchat.on_translation(fid, en)
+def _engine_on_translation(fid, text, fallback=False):
+    # fallback=True は「訳を出せなかったので原文を渡している」印。表示側は
+    # 翻訳のみ表示でもこの行だけ原文へ切り替える（空にすると字幕が消える）。
+    broadcast({"type": "translation", "id": fid, "text": text,
+               "fallback": bool(fallback)})
+    if not fallback:      # VRChatへ原文を訳文として送らない
+        vrcchat.on_translation(fid, text)
+
+
+def _engine_on_warn(kind, message="", active=True):
+    """配信を止めない異常（英訳の連続失敗・音声の途絶）をGUIへ流す。
+
+    停止せずに字幕だけが出なくなる状態は配信者が気づけない。状態表示とは
+    別枠の警告として送り、解除時は active=False で消す。
+    """
+    broadcast({"type": "warn", "kind": kind, "message": message,
+               "active": bool(active)})
 
 
 # ---------------- エンジン連携 ----------------
@@ -912,6 +926,7 @@ def get_engine():
                     {"type": "level", "value": round(v, 3), "speaker": spk}),
                 on_state=_on_state,
                 on_translation=_engine_on_translation,
+                on_warn=_engine_on_warn,
                 on_sound_event=lambda g, s, spk="": broadcast(
                     {"type": "sound", "group": g, "score": round(s, 2),
                      "speaker": spk}),
