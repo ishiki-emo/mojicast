@@ -96,3 +96,75 @@ class HealthyModelTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class _FakePunct:
+    """句読点モジュールの差し替え。broken に入れた精度でだけ自己診断に落ちる"""
+
+    def __init__(self, *broken):
+        self.broken = set(broken)
+        self.loaded = None
+        self.calls = []          # load_punctuator に渡された精度の履歴
+
+    def loaded_precision(self):
+        return self.loaded
+
+    def unload(self):
+        self.loaded = None
+
+    def load_punctuator(self, precision="int8"):
+        self.calls.append(precision)
+        if precision in self.broken:
+            raise punct.SelfTestFailed(f"{precision} は壊れている")
+        self.loaded = precision
+
+    def add_punctuation(self, text):
+        return text
+
+
+class AutoFallbackTests(unittest.TestCase):
+    """int8 が壊れるPCでは fp32 へ自動で切り替える（engine._load_punct）。
+
+    VNNI 非搭載CPUは開発機に無く実地で試せないため、壊れ方を模して経路を固定する。
+    """
+
+    def setUp(self):
+        from engine import CaptionEngine
+        self.load = CaptionEngine._load_punct
+
+    def test_int8_is_kept_when_it_works(self):
+        p = _FakePunct()
+        self.assertEqual(self.load(p, "int8"), "")
+        self.assertEqual(p.calls, ["int8"])      # fp32 を触らない＝メモリを増やさない
+
+    def test_broken_int8_falls_back_to_fp32(self):
+        p = _FakePunct("int8")
+        warn = self.load(p, "int8")
+        self.assertEqual(p.calls, ["int8", "fp32"])
+        self.assertEqual(p.loaded, "fp32")
+        self.assertIn("高精度モード", warn)       # 黙って重くしない
+
+    def test_high_precision_mode_does_not_retry(self):
+        # 利用者が既に fp32 を選んでいる。落ちたら精度を変えても直らない
+        p = _FakePunct("fp32")
+        with self.assertRaises(punct.SelfTestFailed):
+            self.load(p, "fp32")
+        self.assertEqual(p.calls, ["fp32"])
+
+    def test_both_broken_raises(self):
+        p = _FakePunct("int8", "fp32")
+        with self.assertRaises(punct.SelfTestFailed):
+            self.load(p, "int8")
+        self.assertEqual(p.calls, ["int8", "fp32"])
+
+    def test_other_failures_are_not_retried(self):
+        # ファイル不足・DL失敗などは精度を変えても直らないので即座に投げ直す
+        class Missing(_FakePunct):
+            def load_punctuator(self, precision="int8"):
+                self.calls.append(precision)
+                raise FileNotFoundError("vocab.txt がない")
+
+        p = Missing()
+        with self.assertRaises(FileNotFoundError):
+            self.load(p, "int8")
+        self.assertEqual(p.calls, ["int8"])
