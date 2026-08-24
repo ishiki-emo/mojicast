@@ -205,6 +205,36 @@ _fabricated_insult に捨てられていたが、ビームを広げると
 """
 
 
+_M2M_BEAM = {"ko": 4}
+"""M2M-100 のビーム幅（翻訳先ごと・既定は 1＝greedy）。
+
+M2M 側の弱点は英訳と違って「訳が出ない」こと。<unk> を含む訳と文字を含まない断片は
+_decode_m2m が空にして原文へ倒すため、韓国語では実配信の1割が訳文なしだった
+（v0.9.6 実測 10.1%）。原因はモデルではなく探索幅で、広げると解ける。
+
+実測 2026-08-24（実配信ログ1600行・bench/bench_m2m_beam.py）:
+
+    ja→ko  beam=1 148.7ms  訳が出ない 10.4%  反復暴走 24
+           beam=2 163.2ms              3.3%           16
+           beam=4 187.4ms              1.6%            1
+           beam=8 222.6ms              1.1%            2
+    ja→zh  beam=1 130.0ms              2.3%            1
+           beam=4 158.2ms              1.8%            0
+           beam=8 182.8ms              1.8%            1
+
+**韓国語だけ beam=4**。8 は +35ms 払って 0.5pt しか縮まらず反復暴走も減らないので
+選ばない。中国語は元が 2.3% で伸びしろが小さく、数字上の改善も中身は捏造
+（「適切にミュートができるように」→ `今天,你可以得到合适的摩托车`＝適切なオートバイ）
+が目立つため greedy のまま。#17 の「英語ピボットは韓国語限定で効く」と同じ構図で、
+M2M も日→韓だけが弱くそこだけ手当てで伸びる。
+
+ビームは捏造も止める。「二十五すごい。隅田さんの」は greedy だと
+`25 훌륭한 혜택, 김정은`（隅田さんが金正恩に化ける）と訳していたが、beam=4 では
+訳を出さず原文へ倒れる。速度は韓国語のみ +38.7ms/文で、#11「複数翻訳の同時表示」を
+見直すときはこの値を前提にする。
+"""
+
+
 def translate(text: str, max_new_tokens: int = 96,
               repetition_penalty: float = 1.2) -> str:
     """日本語テキストを英訳して返す。空文字は空文字を返す。
@@ -399,7 +429,7 @@ def translate_m2m(text: str, src: str = "ja", tgt: str = "zh",
         tokens = tokens[:510]
     source = [f"__{src}__"] + tokens + ["</s>"]
     res = _m2m.translate_batch([source], target_prefix=[[f"__{model_tgt}__"]],
-                               beam_size=1,
+                               beam_size=_M2M_BEAM.get(model_tgt, 1),
                                repetition_penalty=repetition_penalty,
                                # フレーズ単位の反復暴走（「是的,是的,…」×30等）は
                                # repetition_penalty だけでは残るため、3-gram の
