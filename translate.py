@@ -409,13 +409,18 @@ def translate_m2m(text: str, src: str = "ja", tgt: str = "zh",
     - repetition_penalty 省略時は言語別の既定を使う: greedy だと相槌・
       繰り返し口語で反復暴走するため、韓国語（実測 2026-07-22）に続き
       中国語も 1.2（#7 実測 2026-08-18: 実配信3298文中90件の暴走が、
-      1.2＋no_repeat_ngram=3 で0件。対照12文の劣化なし・速度差なし）
+      1.2＋no_repeat_ngram=3 で0件。対照12文の劣化なし・速度差なし）。
+      インドネシア語は #7 のとき対象から漏れていた（中韓だけ直した）。
+      実測 2026-08-25: 実配信4,766行で暴走38→17件・**新たな暴走0件・訳が
+      消えた行0件**・速度差1.5ms。中国語のように0件にはならないが、残る17件は
+      「お帰りなさい。うんうんうん」→ `ya ya` のように**原文自体が繰り返して
+      いる**行を含むため、これ以上強めると言っている内容を削ることになる
     """
     if not text or not text.strip():
         return ""
     model_tgt = "zh" if tgt in _ZH_VARIANT_CONFIGS else tgt
     if repetition_penalty is None:
-        repetition_penalty = 1.2 if model_tgt in ("ko", "zh") else 1.0
+        repetition_penalty = 1.2 if model_tgt in ("ko", "zh", "id") else 1.0
     if _m2m is None:
         load_translator_zh()
     if src == "ja" and model_tgt == "zh":
