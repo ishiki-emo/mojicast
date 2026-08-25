@@ -24,7 +24,7 @@ import platform_compat
 import vrcchat
 import wordstore
 
-APP_VERSION = "0.9.6"
+APP_VERSION = "0.9.7"
 
 # 更新チェック用のマニフェスト（GitHub raw）。リリース時に latest.json を更新する。
 # 中身: {"version": "0.5.1", "url": "<配布ページ>", "notes": "<一行紹介>"}
