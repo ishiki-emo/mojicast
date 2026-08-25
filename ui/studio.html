@@ -146,6 +146,7 @@
         <button data-detail="style" onclick="openDetail('style')" data-i18n="su.d_style">文字スタイル</button>
         <button data-detail="layout" onclick="openDetail('layout')" data-i18n="su.d_layout">レイアウト</button>
         <button data-detail="words" onclick="openDetail('words')" data-i18n="su.d_words">認識させる言葉</button>
+        <button data-detail="banned-words" onclick="openDetail('banned-words')" data-i18n="su.d_banned">伏せ字にする言葉</button>
         <button onclick="openLyricLab()" data-i18n="su.d_lyric">リリック風字幕 ↗</button>
       </div>
     </div>
@@ -172,12 +173,14 @@
         <article class="card"><span class="card-icon">🎨</span><h3 data-i18n="su.card_design">字幕デザイン</h3><p data-i18n="su.card_design_d">フォント・色・縁取りを選びます。プリセットはそのまま使えます。</p><div class="card-foot"><span id="designCurrent">—</span><button class="btn" onclick="openDetail('style')" data-i18n="su.open">開く</button></div></article>
         <article class="card"><span class="card-icon">⌖</span><h3 data-i18n="su.card_pos">字幕の位置</h3><p data-i18n="su.card_pos_d">立ち絵やゲーム画面を避けて、読みやすい場所へ置きます。</p><div class="card-foot"><span id="layoutCurrent">—</span><button class="btn" onclick="openDetail('layout')" data-i18n="su.open">開く</button></div></article>
         <article class="card"><span class="card-icon">📖</span><h3 data-i18n="su.card_words">認識させる言葉</h3><p data-i18n="su.card_words_d">名前やゲーム用語の読み方を、この単語セットへ登録します。</p><div class="card-foot"><span id="wordsCurrent">—</span><button class="btn" onclick="openDetail('words')" data-i18n="su.open">開く</button></div></article>
+        <article class="card"><span class="card-icon">🚫</span><h3 data-i18n="su.card_banned">伏せ字にする言葉</h3><p data-i18n="su.card_banned_d">出したくない言葉を「○○」に置き換えます。伏せ字を含む行は翻訳されず、日本語のまま出ます。</p><div class="card-foot"><span id="bannedCurrent">—</span><button class="btn" onclick="openDetail('banned-words')" data-i18n="su.open">開く</button></div></article>
         <article class="card"><span class="card-icon">🎬</span><h3><span data-i18n="su.card_lyric">リリック演出ラボ</span> <small style="color:var(--accent)" data-i18n="su.proto">試作</small></h3><p data-i18n="su.card_lyric_d">入場・配置・退場をまとめた12種類の演出を、曲の流れとして比較します。</p><div class="card-foot"><span data-i18n="su.not_saved">設定はまだ保存されません</span><button class="btn" onclick="openLyricLab()" data-i18n="su.try">試す</button></div></article>
       </div>
     </div></section>
 
     <section class="pane detail" id="pStyleDetail"><div class="backbar"><button id="styleBack" onclick="returnFromStyle()">← 字幕の設定</button><b id="styleDetailTitle">字幕デザイン</b><span data-i18n="su.reflected">変更はコックピットにも反映されます</span></div><iframe class="embedded" id="fStyle" title="字幕デザインと位置"></iframe></section>
     <section class="pane detail" id="pWordsDetail"><div class="backbar"><button onclick="switchPillar('captions')" data-i18n="su.back_captions">← 字幕の設定</button><b data-i18n="su.d_words">認識させる言葉</b><span data-i18n="su.per_set">単語セットごとに保存</span></div><iframe class="embedded" id="fWords" title="認識させる言葉"></iframe></section>
+    <section class="pane detail" id="pBanned"><div class="backbar"><button onclick="switchPillar('captions')" data-i18n="su.back_captions">← 字幕の設定</button><b data-i18n="su.d_banned">伏せ字にする言葉</b><span data-i18n="su.per_set">単語セットごとに保存</span></div><iframe class="embedded" id="fBanned" title="伏せ字にする言葉"></iframe></section>
 
     <section class="pane scroll" id="pTranslation"><div class="inner">
       <h1 class="page-title" data-i18n="su.h1_translation">翻訳</h1><p class="lead" data-i18n="su.lead_translation">日本語字幕と一緒に、海外リスナー向けの字幕を表示します。</p>
@@ -311,6 +314,9 @@
     } else if (detail === "words") {
       currentPillar = "captions"; currentDetail = detail; syncNavigation();
       setSrc("fWords", wordUrl("hot"), true); showPane("pWordsDetail");
+    } else if (detail === "banned-words") {
+      currentPillar = "captions"; currentDetail = detail; syncNavigation();
+      setSrc("fBanned", wordUrl("banned"), true); showPane("pBanned");
     } else if (detail === "translation-words") {
       currentPillar = "translation"; currentDetail = detail; syncNavigation();
       setSrc("fGlossary", wordUrl("gloss"), true); showPane("pGlossary");
@@ -324,7 +330,7 @@
   }
   async function changeProfile(value) {
     cfg.word_profile = value; await api("/api/config", { word_profile:value });
-    for (const [id,tab] of [["fWords","hot"],["fEffects","fx"],["fGlossary","gloss"]])
+    for (const [id,tab] of [["fWords","hot"],["fEffects","fx"],["fGlossary","gloss"],["fBanned","banned"]])
       if ($(id).getAttribute("src")) setSrc(id, wordUrl(tab), true);
     await refreshOverview();
   }
@@ -334,12 +340,15 @@
   async function refreshOverview() {
     try {
       cfg = await api("/api/config");
-      const [pd,bd,wd] = await Promise.all([api("/api/presets"),api("/api/boxes"),api("/api/hotwords?profile=" + encodeURIComponent(cfg.word_profile || ""))]);
+      const prof = encodeURIComponent(cfg.word_profile || "");
+      const [pd,bd,wd,nd] = await Promise.all([api("/api/presets"),api("/api/boxes"),
+        api("/api/hotwords?profile=" + prof), api("/api/banned?profile=" + prof)]);
       const preset = (pd.presets || []).find(x => x.id === cfg.preset);
       const box = (bd.boxes || []).find(x => x.id === cfg.box);
       $("designCurrent").textContent = preset ? preset.name : T("su.default","標準");
       $("layoutCurrent").textContent = box ? box.name : T("su.default","標準");
       $("wordsCurrent").textContent = T("su.registered","登録 {n}語").replace("{n}", (wd.entries || []).length);
+      $("bannedCurrent").textContent = T("su.registered","登録 {n}語").replace("{n}", (nd.words || []).length);
       $("captionSummary").textContent = `${$("designCurrent").textContent} ／ ${$("layoutCurrent").textContent} ／ ${$("wordsCurrent").textContent}`;
       $("translationCurrent").textContent = T("su.tr_" + (cfg.translate_lang || "en"), trNames[cfg.translate_lang] || "英語");
       for (const [id,key] of [["effectsSwitch","word_fx"],["translationSwitch","translate"]]) $(id).setAttribute("aria-pressed",String(!!cfg[key]));

@@ -733,6 +733,29 @@ class CaptionEngine:
                 self.on_translation(fid, en or src, not en)
                 self._note_translate_result(bool(en))
 
+    def _emit_final_translation(self, fid, text, masked):
+        """確定行の訳を用意する。伏せ字を含む行は訳さず原文へ倒す。
+
+        翻訳モデルは伏せ字（`○`）を未知の記号として扱い、文脈から適当な語で
+        埋めてしまう。伏せたい語が別の語に化けて、利用者の意図が破られる:
+
+            この○○○が本当にひどいと思う
+              en: Think this is really terrible      ← ○○○ が消える
+              zh: 这个2010年,我觉得真的很糟糕。       ← 「2010年」に化ける
+              ko: 10년이 넘어서서 웃었다.             ← 「10年」に化ける
+
+        訳させない代わりに、**黙ってはいけない**。翻訳のみ表示には「字幕本体」が
+        無いため、通知しないとその行だけ画面が空になる（_translate_loop の同じ
+        注記を参照）。原文＝伏せ字済みの日本語を fallback として渡す。
+
+        _note_translate_result は呼ばない。これは翻訳の失敗ではないので、
+        伏せ字が続いたときに「英訳が連続失敗」の警告を出させない。
+        """
+        if masked:
+            self.on_translation(fid, text, True)
+        else:
+            self._queue_translation(fid, text)
+
     def _queue_translation(self, fid, text):
         """確定行を翻訳キューへ積む。混雑で押し出された行は原文へ落とす。
 
@@ -957,6 +980,7 @@ class CaptionEngine:
                         text = self._recognize(samples)
                         self.perf["final_n"] += 1
                         self.perf["final_ms"] += (time.time() - t0) * 1000
+                        masked = False
                         if text:
                             if self._asr_caps.get("spaces"):
                                 from asr_model import strip_cjk_spaces
@@ -974,13 +998,15 @@ class CaptionEngine:
                                     and not self._asr_caps.get("punct")):
                                 text = self._punct(text)
                             if self._mask is not None:      # 禁止ワードを伏せ字化
-                                text = self._mask(text)
+                                m = self._mask(text)
+                                masked = m != text
+                                text = m
                         if text:
                             fid = self._next_fid()
                             self.on_final(text, fid, speaker)
                             self._log_final(text, speaker)
                             if self._translate_on:
-                                self._queue_translation(fid, text)
+                                self._emit_final_translation(fid, text, masked)
                         else:
                             # 後処理で空になった発話は出さず、薄文字だけ消す
                             self.on_partial("", speaker)

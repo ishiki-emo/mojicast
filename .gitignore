@@ -82,3 +82,10 @@ tools/manual/shoot_digest.py
 
 # ---- 実配信の文字起こし（個人の配信内容。検証用に手元へ置くだけでコミットしない）----
 /2026-*.txt
+# ASR比較のためにDLした音声データセットとモデル（bench/bench_asr_multilingual.py が取り直す）
+bench/fleurs_*/
+bench/whisper_small_ct2/
+bench/whisper_small_sherpa/
+bench/small100_ct2_int8/
+bench/qwen25_05b_ct2_int8/
+bench/argos/

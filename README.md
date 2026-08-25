@@ -91,6 +91,10 @@ _A fully-offline real-time captioning app for live streaming: Japanese speech re
 
 利用するモデル・ライブラリとそのライセンスは [CREDITS.md](CREDITS.md) を参照してください。
 
+翻訳まわりの実測（4言語の速度・失敗の仕方・効いた対策）は
+**[ローカル翻訳の実測レポート](docs/TRANSLATION_REPORT.md)** にまとめています。
+CPUだけでリアルタイム翻訳を作るときの参考にどうぞ。
+
 ## 動作環境
 
 | | 最低 | 推奨 |

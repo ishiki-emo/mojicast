@@ -320,6 +320,51 @@ class CaptionEngineLifecycleTests(unittest.TestCase):
         self.assertEqual(translated, [])
 
 
+class MaskedLineTranslationTests(unittest.TestCase):
+    """伏せ字を含む行は翻訳へ渡さない。
+
+    翻訳モデルは `○` を未知の記号として文脈から適当な語で埋めるため、伏せたい語が
+    別の語に化ける（zh では「2010年」、ko では「10年」など）。訳させないのが対策だが、
+    **黙って落としてはいけない**。翻訳のみ表示には字幕本体が無く、通知しない行は
+    画面に何も出ないため、原文へのフォールバックを検証する。
+    """
+
+    def _engine(self):
+        events = []
+        engine = CaptionEngine(
+            on_translation=lambda fid, text, fb=False:
+                events.append((fid, text, fb)),
+        )
+        engine._translate_on = True
+        engine._tq = queue.Queue(maxsize=8)
+        return engine, events
+
+    def test_masked_line_is_not_queued_and_falls_back_to_source(self):
+        engine, events = self._engine()
+        engine._emit_final_translation(3, "この○○○はひどい", True)
+        self.assertEqual(events, [(3, "この○○○はひどい", True)])
+        self.assertTrue(engine._tq.empty())      # 翻訳モデルへは渡さない
+
+    def test_unmasked_line_goes_to_the_translation_queue(self):
+        engine, events = self._engine()
+        engine._emit_final_translation(4, "ふつうの行です", False)
+        self.assertEqual(events, [])             # 訳は翻訳スレッドから遅れて届く
+        self.assertEqual(engine._tq.get_nowait(), (4, "ふつうの行です"))
+
+    def test_masker_changes_the_text_only_when_a_banned_word_appears(self):
+        """伏せ字が適用されたかは置換の前後を比べて判定する。その前提を固定する。"""
+        import wordstore
+        engine = CaptionEngine()
+        original = wordstore.merged_banned
+        wordstore.merged_banned = lambda profile="": ["ひみつ"]
+        try:
+            mask = engine._build_masker({"mask_char": "○"})
+        finally:
+            wordstore.merged_banned = original
+        self.assertEqual(mask("これはひみつです"), "これは○○○です")  # 変化する
+        self.assertEqual(mask("これはふつうです"), "これはふつうです")  # 変化しない
+
+
 class TranslationFallbackTests(unittest.TestCase):
     """訳が出せなかった行の扱い。
 

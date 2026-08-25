@@ -176,9 +176,68 @@ def load_translator(num_threads: int = 4, precision: str = "int8"):
         raise RuntimeError("翻訳モデルの自己診断に失敗（出力が空）")
 
 
+_BEAM_SIZE = 8
+"""英訳のビーム幅。
+
+greedy(1) だと訳を1本しか辿らないため、反語や主語を取り違えたまま確定する:
+
+    このボス強すぎませんか、もう10回も負けてます。
+      greedy  I'm afraid this boss is too strong, …     ← 言っていない「恐れる」
+      ビーム  Don't you think this boss is too strong, … ← 反語を汲む
+    散歩してたら猫がついてきちゃったんですよ。
+      greedy  when I walked the cat came along           ← 猫を散歩させたとも読める
+      ビーム  The cat followed me on a walk.             ← 主語が正しい
+
+実測 2026-08-24（実配信ログ4,766行・bench/bench_fugumt_beam.py）:
+
+    beam=1  10.4ms/文  捏造した罵倒語 12  反復暴走 1
+    beam=4  14.1ms/文  捏造した罵倒語 11  反復暴走 2
+    beam=8  15.1ms/文  捏造した罵倒語  5  反復暴走 1
+
+**8 で捏造が半分以下に減る**（数文だけ見ると 4 と 8 は同じに見えるが、全行で測ると
+差が出る）。4→8 の追加は +1.0ms/文。beam=2 は探索が中途半端で「強すぎませんか」を
+`This boss isn't too strong`（否定が反転）と訳す例があり選ばない。
+
+「でガチな方の龍角さんは」は greedy だと `the slutty one` と罵倒語を捏造して
+_fabricated_insult に捨てられていたが、ビームを広げると
+`And ryukakusan, who's on the other side` と正しく訳せる。ガードで塞ぐより
+そもそも出さない方がよい。
+"""
+
+
+_M2M_BEAM = {"ko": 4}
+"""M2M-100 のビーム幅（翻訳先ごと・既定は 1＝greedy）。
+
+M2M 側の弱点は英訳と違って「訳が出ない」こと。<unk> を含む訳と文字を含まない断片は
+_decode_m2m が空にして原文へ倒すため、韓国語では実配信の1割が訳文なしだった
+（v0.9.6 実測 10.1%）。原因はモデルではなく探索幅で、広げると解ける。
+
+実測 2026-08-24（実配信ログ1600行・bench/bench_m2m_beam.py）:
+
+    ja→ko  beam=1 148.7ms  訳が出ない 10.4%  反復暴走 24
+           beam=2 163.2ms              3.3%           16
+           beam=4 187.4ms              1.6%            1
+           beam=8 222.6ms              1.1%            2
+    ja→zh  beam=1 130.0ms              2.3%            1
+           beam=4 158.2ms              1.8%            0
+           beam=8 182.8ms              1.8%            1
+
+**韓国語だけ beam=4**。8 は +35ms 払って 0.5pt しか縮まらず反復暴走も減らないので
+選ばない。中国語は元が 2.3% で伸びしろが小さく、数字上の改善も中身は捏造
+（「適切にミュートができるように」→ `今天,你可以得到合适的摩托车`＝適切なオートバイ）
+が目立つため greedy のまま。#17 の「英語ピボットは韓国語限定で効く」と同じ構図で、
+M2M も日→韓だけが弱くそこだけ手当てで伸びる。
+
+ビームは捏造も止める。「二十五すごい。隅田さんの」は greedy だと
+`25 훌륭한 혜택, 김정은`（隅田さんが金正恩に化ける）と訳していたが、beam=4 では
+訳を出さず原文へ倒れる。速度は韓国語のみ +38.7ms/文で、#11「複数翻訳の同時表示」を
+見直すときはこの値を前提にする。
+"""
+
+
 def translate(text: str, max_new_tokens: int = 96,
               repetition_penalty: float = 1.2) -> str:
-    """日本語テキストを英訳して返す（greedy＝最速）。空文字は空文字を返す。
+    """日本語テキストを英訳して返す。空文字は空文字を返す。
 
     repetition_penalty と no_repeat_ngram_size は中国語・韓国語（#7）と同じ
     反復暴走の対策。「だめだだめだ、逃げて逃げて」のような繰り返しの口語で
@@ -194,7 +253,7 @@ def translate(text: str, max_new_tokens: int = 96,
     if len(tokens) > 511:                     # 旧実装の truncation=512 相当
         tokens = tokens[:511]
     tokens.append("</s>")
-    res = _translator.translate_batch([tokens], beam_size=1,
+    res = _translator.translate_batch([tokens], beam_size=_BEAM_SIZE,
                                       repetition_penalty=repetition_penalty,
                                       no_repeat_ngram_size=3,
                                       max_decoding_length=max_new_tokens)
@@ -350,13 +409,18 @@ def translate_m2m(text: str, src: str = "ja", tgt: str = "zh",
     - repetition_penalty 省略時は言語別の既定を使う: greedy だと相槌・
       繰り返し口語で反復暴走するため、韓国語（実測 2026-07-22）に続き
       中国語も 1.2（#7 実測 2026-08-18: 実配信3298文中90件の暴走が、
-      1.2＋no_repeat_ngram=3 で0件。対照12文の劣化なし・速度差なし）
+      1.2＋no_repeat_ngram=3 で0件。対照12文の劣化なし・速度差なし）。
+      インドネシア語は #7 のとき対象から漏れていた（中韓だけ直した）。
+      実測 2026-08-25: 実配信4,766行で暴走38→17件・**新たな暴走0件・訳が
+      消えた行0件**・速度差1.5ms。中国語のように0件にはならないが、残る17件は
+      「お帰りなさい。うんうんうん」→ `ya ya` のように**原文自体が繰り返して
+      いる**行を含むため、これ以上強めると言っている内容を削ることになる
     """
     if not text or not text.strip():
         return ""
     model_tgt = "zh" if tgt in _ZH_VARIANT_CONFIGS else tgt
     if repetition_penalty is None:
-        repetition_penalty = 1.2 if model_tgt in ("ko", "zh") else 1.0
+        repetition_penalty = 1.2 if model_tgt in ("ko", "zh", "id") else 1.0
     if _m2m is None:
         load_translator_zh()
     if src == "ja" and model_tgt == "zh":
@@ -370,7 +434,7 @@ def translate_m2m(text: str, src: str = "ja", tgt: str = "zh",
         tokens = tokens[:510]
     source = [f"__{src}__"] + tokens + ["</s>"]
     res = _m2m.translate_batch([source], target_prefix=[[f"__{model_tgt}__"]],
-                               beam_size=1,
+                               beam_size=_M2M_BEAM.get(model_tgt, 1),
                                repetition_penalty=repetition_penalty,
                                # フレーズ単位の反復暴走（「是的,是的,…」×30等）は
                                # repetition_penalty だけでは残るため、3-gram の
