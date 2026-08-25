@@ -28,12 +28,21 @@ $zip = Join-Path $root "Mojicast-v$Version-win-x64.zip"
 $proc = Get-Process Mojicast -EA SilentlyContinue
 if ($proc) { Write-Host "  Mojicast を停止 (PID $($proc.Id))"; $proc | Stop-Process -Force; Start-Sleep -Seconds 2 }
 
-$hold = Join-Path $root "dist\_models_hold"
-$models = Join-Path $app "models"
+# models\ … 実行/スモークで取得した本番モデル
+# models_conv\ … smoke_test.ps1 がルートからコピーする変換済みモデル。調査で試した
+#   候補モデルも入っていて数十GBに育つことがある（19GBで Compress-Archive が
+#   "Stream was too long" で落ちた）。どちらも消さずに退避して戻す（再取得を避ける）
+$holds = @()
 try {
-    if (Test-Path $models) {
-        Move-Item $models $hold -Force
-        Write-Host "  models\ を一時退避（Zipには含めない）"
+    foreach ($name in @("models", "models_conv")) {
+        $src = Join-Path $app $name
+        if (Test-Path $src) {
+            $dst = Join-Path $root "dist\_hold_$name"
+            if (Test-Path $dst) { Remove-Item $dst -Recurse -Force }
+            Move-Item $src $dst -Force
+            $holds += ,@($dst, $src)
+            Write-Host "  $name\ を一時退避（Zipには含めない）"
+        }
     }
     foreach ($x in @("data", "logs", "__pycache__")) {
         $p = Join-Path $app $x
@@ -46,8 +55,13 @@ try {
     Compress-Archive -Path $app -DestinationPath $zip -CompressionLevel Optimal
 }
 finally {
-    # 例外で落ちても models\ は必ず戻す（再DLさせない）
-    if (Test-Path $hold) { Move-Item $hold $models -Force; Write-Host "  models\ を戻しました" }
+    # 例外で落ちても必ず戻す（再取得・再変換をさせない）
+    foreach ($h in $holds) {
+        if (Test-Path $h[0]) {
+            Move-Item $h[0] $h[1] -Force
+            Write-Host "  $(Split-Path $h[1] -Leaf)\ を戻しました"
+        }
+    }
 }
 
 # --- 検証: 実行時生成物が紛れていないか ---
@@ -56,7 +70,8 @@ $archive = [System.IO.Compression.ZipFile]::OpenRead($zip)
 try {
     $names = $archive.Entries | ForEach-Object { $_.FullName }
     $bad = $names | Where-Object {
-        $_ -like "Mojicast/models/*" -or $_ -like "Mojicast/data/*" -or
+        $_ -like "Mojicast/models/*" -or $_ -like "Mojicast/models_conv/*" -or
+        $_ -like "Mojicast/data/*" -or
         $_ -like "Mojicast/logs/*" -or $_ -like "*__pycache__*" -or $_ -like "*.log"
     }
 } finally { $archive.Dispose() }
