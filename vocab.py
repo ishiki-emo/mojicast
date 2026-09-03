@@ -70,6 +70,9 @@ def build_replacer(entries):
     - 読み欄の「／」区切り複数形にそれぞれ対応
     - SenseVoice等が単語の途中に句読点を挟むケース（「意識、エモ」）にも
       当たるよう、文字間に句読点・空白を許す寛容マッチも行う
+    - 数千語（ゲームの技名一括登録など）でも認識1回あたり1ms未満で済むよう、
+      パターンを先頭文字ごとに分けて本文を1文字ずつ走査する。全パターンを
+      1本の正規表現に束ねる方式は2500語で1回100msかかり実用にならない（実測）
     """
     pairs = []
     for surface, reading, _ in entries:
@@ -83,20 +86,38 @@ def build_replacer(entries):
     # 壊れるのを防ぐ（例: 本文の「意識エモい系」を読み「意識エモ」が食う）。
     for surface, _reading, _ in entries:
         pairs.append((surface, surface))
-    # 全パターンを1本の正規表現に束ねて「1パスで同時置換」する。
-    # 逐次replaceだと、置換結果（表記）の中に別エントリの読みが含まれるとき
-    # 連鎖して壊れる（例: →意識エモい系 の中の「意識エモ」が再置換される）。
-    # 長い読みを先に並べ、同じ開始位置では最長のパターンが勝つようにする。
+    # 「1パスで同時置換」する。逐次replaceだと、置換結果（表記）の中に別エントリの
+    # 読みが含まれるとき連鎖して壊れる（例: →意識エモい系 の中の「意識エモ」が
+    # 再置換される）。長い読みを先に並べ、同じ開始位置では最長のパターンが勝つ。
     pairs.sort(key=lambda x: len(x[0]), reverse=True)
-    parts = []
-    surfaces = []
-    for i, (r, surface) in enumerate(pairs):
-        parts.append(f"(?P<g{i}>"
-                     + "[、。，．・\\s]*".join(map(re.escape, r)) + ")")
-        surfaces.append(surface)
-    rx = re.compile("|".join(parts))
+    sep = "[、。，．・\\s]*"
+    buckets = {}
+    for r, surface in pairs:
+        if r:
+            buckets.setdefault(r[0], []).append((r, surface))
+    table = {}
+    for first, lst in buckets.items():
+        parts = []
+        surfaces = []
+        for i, (r, surface) in enumerate(lst):
+            parts.append(f"(?P<g{i}>" + sep.join(map(re.escape, r)) + ")")
+            surfaces.append(surface)
+        table[first] = (re.compile("|".join(parts)), surfaces)
 
     def replace(text: str) -> str:
-        return rx.sub(lambda m: surfaces[int(m.lastgroup[1:])], text)
+        out = []
+        i = 0
+        n = len(text)
+        while i < n:
+            hit = table.get(text[i])
+            if hit is not None:
+                m = hit[0].match(text, i)
+                if m:
+                    out.append(hit[1][int(m.lastgroup[1:])])
+                    i = m.end()
+                    continue
+            out.append(text[i])
+            i += 1
+        return "".join(out)
 
     return replace

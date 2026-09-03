@@ -83,6 +83,15 @@
   .pbar input { width: 160px; }
   .pbHint { margin-left: auto; font-size: 11px; }
   .pbErr { color: var(--err); font-size: 12px; }
+  /* 一括取り込み / 書き出し（認識させる単語タブ） */
+  .tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; font-size: 12px; color: var(--dim); }
+  .tools .btn { padding: 6px 12px; font-size: 12px; }
+  .tools input { width: 220px; }
+  .tools .cnt { font-weight: 700; color: var(--text); }
+  .impBox { background: var(--panel2); border: 1px solid var(--accent); border-radius: 8px; padding: 10px 14px; margin-bottom: 10px; font-size: 13px; }
+  .impBox label { display: block; margin: 4px 0; cursor: pointer; }
+  .impBox input[type=radio], .impBox input[type=checkbox] { width: auto; margin-right: 6px; }
+  .impBox .btn { margin-top: 6px; margin-right: 6px; }
   #guardBar { background: rgba(255,184,77,.08); border-bottom: 1px solid var(--warn, #ffb84d); color: var(--text); }
   .btn {
     background: var(--panel2); color: var(--text); border: 1px solid var(--line);
@@ -152,11 +161,34 @@
       認識モデルを切り替えると間違われ方も変わるので、モデルごとの形を並べておくと安心。<br>
       「出やすさ」は強さの調整（空欄=標準、目安1.5〜4.0）。変更は<b>次回開始時</b>に反映されます。
     </div>
+    <div class="tools">
+      <button class="btn" onclick="$('wordFile').click()" data-i18n="wd.import">📥 ファイルから取り込む（CSV / JSON）</button>
+      <input type="file" id="wordFile" accept=".csv,.txt,.json,.mojipack" hidden
+             onchange="previewWordImport(this.files[0])">
+      <button class="btn" onclick="exportWords()" data-i18n="wd.export">📤 CSVで書き出す</button>
+      <button class="btn" id="expOpenBtn" hidden onclick="openExportDir()" data-i18n="wd.open_export">📂 書き出し先を開く</button>
+      <input id="hotFilter" placeholder="絞り込み（表記・読み）" data-i18n-ph="wd.filter_ph" oninput="filterHot()">
+      <span class="cnt" id="hotCount"></span>
+      <span id="ioMsg"></span>
+    </div>
+    <div class="note" data-i18n="wd.imp_hint">
+      CSV の列は「<b>表記,読み,出やすさ,英訳</b>」（読み以降は省略可）。Excel で保存した Shift_JIS のファイルもそのまま読めます。
+      ゲームの技名など大量の登録向け。英訳の列があれば「英訳を固定する単語」にも同時に入ります。
+    </div>
+    <div class="impBox" id="impBox" hidden>
+      <div id="impStats" style="font-weight:700;margin-bottom:4px"></div>
+      <div id="impSkipped" class="note"></div>
+      <label><input type="radio" name="impMode" value="add" checked><span data-i18n="wd.imp_add">追加のみ（同じ表記があれば今のを残す）</span></label>
+      <label><input type="radio" name="impMode" value="overwrite"><span data-i18n="wd.imp_over">同じ表記は上書き</span></label>
+      <label id="impGlossLbl"><input type="checkbox" id="impGloss" checked><span data-i18n="wd.imp_gloss">英訳の列も「英訳を固定する単語」へ入れる</span></label>
+      <button class="btn save" onclick="doWordImport()" data-i18n="wd.imp_do">取り込む</button>
+      <button class="btn" onclick="cancelWordImport()" data-i18n="wd.cancel">キャンセル</button>
+    </div>
     <table id="hotTable">
       <thead><tr><th style="width:30%" data-i18n="wd.col_surface">表記（画面に出したい形）</th><th style="width:40%" data-i18n="wd.col_reading">読み／実際に出る形（誤変換もOK）</th><th style="width:15%" data-i18n="wd.col_score">出やすさ</th><th></th></tr></thead>
       <tbody></tbody>
     </table>
-    <button class="btn" style="margin-top:10px" onclick="addHotRow()" data-i18n="wd.add_row">＋ 行を追加</button>
+    <button class="btn" style="margin-top:10px" onclick="addHotRow();filterHot()" data-i18n="wd.add_row">＋ 行を追加</button>
   </div>
 
   <!-- ========== エフェクト単語 ========== -->
@@ -251,6 +283,129 @@
       <td><input class="h-score" value="${esc(e.score || "")}" placeholder="2.0"></td>
       <td><button class="del" onclick="this.closest('tr').remove()">✕</button></td>`;
     $("hotTable").querySelector("tbody").appendChild(tr);
+  }
+
+  // 絞り込み（表記・読み）と件数表示。数千語を入れると表では探せないため
+  function filterHot() {
+    const q = $("hotFilter").value.trim().toLowerCase();
+    let shown = 0, total = 0;
+    for (const tr of $("hotTable").querySelectorAll("tbody tr")) {
+      const s = tr.querySelector(".h-surface").value.trim(), r = tr.querySelector(".h-reading").value;
+      const hit = !q || (s + " " + r).toLowerCase().includes(q);
+      tr.hidden = !hit;
+      if (s) { total++; if (hit) shown++; }   // 表記が空の行（追加直後の空行）は数えない
+    }
+    $("hotCount").textContent = (q ? `${shown} / ${total}` : `${total}`) + T("wd.count_unit", "語");
+  }
+
+  // ---------- 一括取り込み / 書き出し（CSV / JSON） ----------
+  // 取り込みはサーバ側で「保存済みの単語セット」へ合成する（wordimport.py）。
+  // そのため未保存の編集は先に保存し、確定後は表を読み直す。
+  let pendingImport = null;   // プレビュー済みファイルの base64（確定時に同じ内容を送る）
+  function ioMsg(text, ok) {
+    const el = $("ioMsg");
+    el.textContent = text;
+    el.style.color = ok ? "var(--ok)" : "var(--err)";
+  }
+  function fmt(key, ja, vars) {
+    let s = T(key, ja);
+    for (const k in vars) s = s.replace("{" + k + "}", vars[k]);
+    return s;
+  }
+  function toB64(buf) {
+    // 文字コード判別はサーバで行う（Excel の Shift_JIS 対応）ので生バイトを送る
+    const b = new Uint8Array(buf);
+    let s = "";
+    for (let i = 0; i < b.length; i += 0x8000)
+      s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000));
+    return btoa(s);
+  }
+  function skippedText(r) {
+    const n = r.skipped_total || 0;
+    if (!n) return "";
+    const jaReason = { empty: "表記が空", too_long: "長すぎる", comma: "「,」を含む",
+                       json: "JSONとして読めない", too_many: "上限超過" };
+    const items = (r.skipped || []).slice(0, 10).map(x =>
+      (x.line ? "#" + x.line + " " : "") + T("wd.imp_reason_" + x.reason, jaReason[x.reason] || x.reason)
+      + (x.text ? "「" + x.text + "」" : ""));
+    return fmt("wd.imp_skipped", "弾いた行 {n}件: ", { n }) + items.join(" / ") + (n > 10 ? " …" : "");
+  }
+  async function readyForIo() {
+    if (loadedProfile !== curProfile) {
+      ioMsg(T("wd.imp_need_load", "この単語セットを読み込んでから操作してください"), false);
+      return false;
+    }
+    return !dirty || await saveAll();
+  }
+  async function previewWordImport(file) {
+    if (!file) return;
+    $("wordFile").value = "";
+    cancelWordImport();
+    if (file.size > 3 * 1024 * 1024) {
+      ioMsg(T("wd.imp_too_big", "ファイルが大きすぎます（3MBまで）"), false);
+      return;
+    }
+    if (!(await readyForIo())) return;
+    const b64 = toB64(await file.arrayBuffer());
+    let r;
+    try {
+      r = await fetchJson("/api/words/import", { method: "POST",
+        body: JSON.stringify({ profile: curProfile, content_b64: b64, mode: "preview" }) });
+    } catch {
+      ioMsg(T("wd.imp_fail", "ファイルを読み込めませんでした"), false);
+      return;
+    }
+    const s = r.stats || {};
+    if (!s.total) {
+      ioMsg(T("wd.imp_none", "取り込める単語がありません") + " " + skippedText(r), false);
+      return;
+    }
+    pendingImport = b64;
+    $("impStats").textContent = fmt("wd.imp_stats",
+      "{total}語（新規 {new} / 既にある {exists}）・英訳あり {with_en}・ファイル内の重複 {dup}・読みなしの漢字語 {no_reading}",
+      { total: s.total, new: s.new, exists: s.exists, with_en: s.with_en,
+        dup: s.dup_in_file, no_reading: s.no_reading });
+    $("impSkipped").textContent = skippedText(r);
+    $("impGlossLbl").hidden = !s.with_en;
+    $("impBox").hidden = false;
+    ioMsg("", true);
+  }
+  async function doWordImport() {
+    if (!pendingImport) return;
+    const mode = document.querySelector('input[name="impMode"]:checked').value;
+    let r;
+    try {
+      r = await fetchJson("/api/words/import", { method: "POST",
+        body: JSON.stringify({ profile: curProfile, content_b64: pendingImport, mode,
+                               glossary: $("impGloss").checked }) });
+    } catch {
+      ioMsg(T("wd.imp_fail", "ファイルを読み込めませんでした"), false);
+      return;
+    }
+    cancelWordImport();
+    await reloadData();
+    ioMsg(fmt("wd.imp_done", "取り込みました（認識 {hot} / 英訳 {gl}）。次回開始時に反映されます",
+              { hot: r.hotwords, gl: r.glossary }), true);
+  }
+  function cancelWordImport() {
+    pendingImport = null;
+    $("impBox").hidden = true;
+  }
+  async function exportWords() {
+    if (!(await readyForIo())) return;
+    let r;
+    try {
+      r = await fetchJson("/api/words/export", { method: "POST",
+        body: JSON.stringify({ profile: curProfile }) });
+    } catch {
+      ioMsg(T("wd.imp_fail", "書き出せませんでした"), false);
+      return;
+    }
+    ioMsg(fmt("wd.exp_done", "書き出しました: {file}", { file: r.file }), true);
+    $("expOpenBtn").hidden = false;
+  }
+  function openExportDir() {
+    fetch("/api/mojipack/open", { method: "POST", body: "{}" });
   }
 
   // ---------- 英訳辞書 ----------
@@ -453,6 +608,7 @@
       clearTables();
       for (const e of hot.entries || []) addHotRow(e);
       if (!(hot.entries || []).length) addHotRow();
+      filterHot();
       for (const e of fx.effects || []) addFxRow(e);
       if (!(fx.effects || []).length) addFxRow();
       $("bannedText").value = (banned.words || []).join("\n");
@@ -548,7 +704,10 @@
   for (const page of document.querySelectorAll(".page")) {
     page.addEventListener("input", () => { dirty = true; });
     page.addEventListener("click", (e) => {
-      if (e.target.classList.contains("del")) dirty = true;
+      if (e.target.classList.contains("del")) {
+        dirty = true;
+        if (page.id === "pageHot") filterHot();   // 行削除で件数を更新
+      }
     });
   }
 

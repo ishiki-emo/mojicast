@@ -13,6 +13,7 @@ Caption Studio のHTTP/SSEサーバ
 import os
 import sys
 import json
+import base64
 import queue
 import random
 import threading
@@ -1297,6 +1298,10 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"ok": True, "config": cfg})
         elif path == "/api/profiles":
             self._post_profiles(body)
+        elif path == "/api/words/import":
+            self._post_words_import(body)
+        elif path == "/api/words/export":
+            self._post_words_export(body)
         elif path == "/api/hotwords":
             p = self._profile_arg(body.get("profile"))
             if p is None:
@@ -1495,6 +1500,71 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"ok": True})
         else:
             self._send_body(404, b"not found", "text/plain")
+
+    def _post_words_import(self, body):
+        """単語の一括取り込み（CSV / JSON）。
+        {profile, content_b64, mode: preview|add|overwrite, glossary: bool}
+
+        preview は集計だけ返す（取り込む前に件数・重複・弾いた行を見せる）。
+        本文は base64 の生バイトで受ける（Excel の Shift_JIS をサーバ側で判別するため）。
+        取り込みは保存済みデータへの合成なので、UI 側は未保存の編集を先に保存してから呼ぶ。
+        """
+        import wordimport
+        p = self._profile_arg(body.get("profile"))
+        if p is None:
+            return
+        raw = body.get("content_b64")
+        try:
+            data = (base64.b64decode(raw, validate=True)
+                    if isinstance(raw, str) else b"")
+        except ValueError:
+            data = b""
+        if not data:
+            self._json({"ok": False, "error": "ファイルが空です"}, 400)
+            return
+        entries, skipped = wordimport.parse_words(wordimport.decode_bytes(data))
+        hot = wordstore.load_hotwords(p)
+        gloss = wordstore.load_glossary(p)
+        stats, uniq = wordimport.plan_import(entries, hot, gloss)
+        mode = body.get("mode", "preview")
+        if mode == "preview":
+            self._json({"ok": True, "stats": stats,
+                        "skipped": skipped[:50], "skipped_total": len(skipped),
+                        "sample": uniq[:20]})
+            return
+        if mode not in ("add", "overwrite"):
+            self._json({"ok": False, "error": "unknown mode"}, 400)
+            return
+        if not uniq:
+            self._json({"ok": False, "error": "取り込める単語がありません"}, 400)
+            return
+        new_hot, new_gl, counts = wordimport.apply_import(
+            uniq, hot, gloss, mode, with_glossary=bool(body.get("glossary", True)))
+        wordstore.save_hotwords(new_hot, p)
+        if counts["glossary"]:
+            wordstore.save_glossary(new_gl, p)
+        ev = {"type": "style"}
+        ev.update(resolve_style(load_config()))
+        broadcast(ev)
+        self._json({"ok": True, **counts, "stats": stats})
+
+    def _post_words_export(self, body):
+        """認識辞書＋英訳辞書を取り込みと同じ列構成の CSV で data/export/ へ書き出す
+        （Excel で開けるよう BOM 付き UTF-8・CRLF）"""
+        import wordimport
+        p = self._profile_arg(body.get("profile"))
+        if p is None:
+            return
+        text = wordimport.to_csv(wordstore.load_hotwords(p),
+                                 wordstore.load_glossary(p))
+        d = wordstore.data_path(EXPORT_DIR_NAME)
+        os.makedirs(d, exist_ok=True)
+        from datetime import datetime
+        fname = (f"words_{p or 'common'}_"
+                 + datetime.now().strftime("%Y%m%d_%H%M%S") + ".csv")
+        with open(os.path.join(d, fname), "w", encoding="utf-8", newline="") as f:
+            f.write(text)
+        self._json({"ok": True, "file": fname, "path": os.path.join(d, fname)})
 
     def _post_profiles(self, body):
         """プロファイルの作成・削除（{action, name}）"""
