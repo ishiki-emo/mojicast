@@ -425,6 +425,15 @@ Twitterで中国語圏からの要望（2026-07-21）を起点に、ASR・翻訳
   collab_source=device 経路で対応
 - Intel Mac非対応の理由: 2020年販売終了・macOS側もサポート終息へ・
   推論ライブラリの脱Intel mac進行・universal2ビルドの手間に見合わない
+- **不具合修正（2026-09-04）: 埋め込み設定画面の保存ボタンが消える**（Mac 利用者報告
+  「1語ずつ登録する画面に保存ボタンがない」）。WebKit は zoom を掛けた親の iframe 内で
+  100vh / clientHeight / height:100% が「iframe の高さ × 親の倍率」になる（innerHeight
+  だけが正しい）。倍率>1 で本文が iframe より背が高くなりフッターが画面外、<1 では下に
+  余白。Chromium（WebView2）では起きないため開発機で再現しない。theme-sync.js の
+  `fixEmbeddedViewport` が clientHeight/innerHeight の比を `--ui-zoom` に立てて補正
+  （Chromium は比1で無害・エンジン判別なし）。Playwright の webkit エンジンで再現→修正
+  確認（`tests/test_embed_zoom.py`）。**Mac のレイアウト報告は、まず
+  `playwright install webkit` で再現を試す**
 
 ## 11. 複数翻訳の同時表示（構想メモ・寝かせ枠 2026-08-14）
 **規模: 中（エンジン側に手が入る・Issue #2より大きめ）**
