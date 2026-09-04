@@ -27,7 +27,9 @@ import wordstore
 MEASURE = """() => {
   const btn = document.getElementById('saveAllBtn');
   return { innerH: window.innerHeight,
+           innerW: window.innerWidth,
            bodyH: Math.round(document.body.getBoundingClientRect().height),
+           bodyW: Math.round(document.body.getBoundingClientRect().width),
            btnBottom: Math.round(btn.getBoundingClientRect().bottom) };
 }"""
 
@@ -77,6 +79,10 @@ class EmbeddedFooterTests(unittest.TestCase):
                              f"{label}: 保存ボタンが画面外 {m}")
         self.assertAlmostEqual(m["bodyH"], m["innerH"], delta=2,
                                msg=f"{label}: 本文の高さが画面と合っていない {m}")
+        # 幅も高さと同じ機序で乱れる（WebKit では width:100% が iframe の幅×親の倍率に
+        # なり、倍率<1 で右側に塗り残しの白帯、>1 で右端が見切れる）
+        self.assertAlmostEqual(m["bodyW"], m["innerW"], delta=2,
+                               msg=f"{label}: 本文の幅が画面と合っていない {m}")
 
     def _run_engine(self, name):
         with sync_playwright() as p:

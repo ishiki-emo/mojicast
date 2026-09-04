@@ -67,9 +67,19 @@
     const inner = window.innerHeight;
     if (!(inner > 0)) return;
     const ratio = measureVh() / inner;
-    if (ratio > 0 && Math.abs(ratio - 1) > 0.01)
-      document.documentElement.style.setProperty("--ui-zoom", ratio.toFixed(4));
-    else document.documentElement.style.removeProperty("--ui-zoom");
+    // 幅も同じ機序で乱れる（100vw / clientWidth / width:100% が「iframe の幅 × 親の倍率」に
+    // なり、innerWidth だけが正しい）。倍率<1 では本文が実際の幅より狭くなり、右側に
+    // iframe 素の白帯が出る（ダークテーマで顕著）。倍率>1 では右端が見切れる。
+    // --ui-zoom は単体表示時に URL の ?s= からも立つが、幅は単体表示では補正不要
+    // （width:auto が正しく広がる）ため、埋め込み実測時だけの別変数 --ui-zoom-w にする。
+    const style = document.documentElement.style;
+    if (ratio > 0 && Math.abs(ratio - 1) > 0.01) {
+      style.setProperty("--ui-zoom", ratio.toFixed(4));
+      style.setProperty("--ui-zoom-w", ratio.toFixed(4));
+    } else {
+      style.removeProperty("--ui-zoom");
+      style.removeProperty("--ui-zoom-w");
+    }
   }
   // 倍率変更やリサイズの直後はレイアウトが追いついていないことがあるので、
   // その場・次フレーム・少し後の3回計測する（冪等なので重複しても害はない）

@@ -29,6 +29,9 @@
     --accent: #0499bd; --accent2: #d4247a; --ok: #12a05f; --warn: #b5761a; --err: #d94141;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
+  /* 幅の補正は WebKit の埋め込み時のみ（高さと同じ機序で width:100% が縮む）。
+     --ui-zoom-w は theme-sync.js の fixEmbeddedViewport が実測して立てる */
+  html { width: calc(100% / var(--ui-zoom-w, 1)); }
   body {
     background: var(--bg); color: var(--text);
     font-family: 'Yu Gothic UI', 'Meiryo', sans-serif; font-size: 15px;
