@@ -46,8 +46,11 @@
   .brand i { color:var(--accent); font-style:normal; }
   #pageDesc { color:var(--dim); font-size:13px; }
   .top .close { margin-left:auto; }
-  .layout { height:calc(100% - 66px); display:grid; grid-template-columns:220px 1fr; }
-  .nav { min-height:0; padding:15px 12px; border-right:1px solid var(--line); background:var(--panel); }
+  /* 行は minmax(0,1fr) で親の高さに固定（studio.html と同じ理由: 暗黙の auto 行は
+     ナビが利用可能高さを超えると行ごと膨らみ、下端が窓の外へはみ出す） */
+  .layout { height:calc(100% - 66px); display:grid; grid-template-columns:220px 1fr;
+    grid-template-rows:minmax(0,1fr); }
+  .nav { min-height:0; overflow-y:auto; padding:15px 12px; border-right:1px solid var(--line); background:var(--panel); }
   .nav-caption { margin:5px 10px 8px; color:var(--dim); font-size:11px; font-weight:800; letter-spacing:.14em; }
   .nav button { width:100%; display:grid; grid-template-columns:28px 1fr; gap:2px 9px;
     margin-bottom:6px; padding:11px 12px; border:1px solid transparent; border-radius:10px;

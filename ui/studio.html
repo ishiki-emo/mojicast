@@ -52,8 +52,12 @@
     font-weight:750; cursor:pointer; }
   .btn:hover { color:var(--accent); border-color:var(--accent); }
   .btn.primary { color:#061117; border-color:var(--accent); background:var(--accent); }
-  .layout { height:calc(100% - 68px); display:grid; grid-template-columns:220px 1fr; }
-  .nav { padding:16px 12px; border-right:1px solid var(--line); background:var(--panel); }
+  /* 行は minmax(0,1fr) で親の高さに固定する。暗黙の auto 行だと、低い窓や大きい
+     UIサイズでナビの自然な高さが利用可能高さを超えたとき行ごと膨らみ、pane 下端の
+     保存フッターが窓の外へ押し出される（グリッド仕様の挙動・全エンジン共通） */
+  .layout { height:calc(100% - 68px); display:grid; grid-template-columns:220px 1fr;
+    grid-template-rows:minmax(0,1fr); }
+  .nav { min-height:0; overflow-y:auto; padding:16px 12px; border-right:1px solid var(--line); background:var(--panel); }
   .nav-caption { padding:0 10px 8px; color:var(--dim); font-size:10px; letter-spacing:.12em; }
   .nav button { width:100%; display:grid; grid-template-columns:28px 1fr; gap:9px; align-items:center;
     margin-bottom:6px; padding:11px 12px; border:1px solid transparent; border-radius:10px;
