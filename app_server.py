@@ -1102,6 +1102,8 @@ class Handler(BaseHTTPRequestHandler):
             cfg["version"] = APP_VERSION   # 表示用（保存はされない: POSTでは既知キーのみ更新）
             # OS能力（表示用）。UIはこれでコラボ欄をグレーアウトする
             cfg["collab_supported"] = platform_compat.collab_supported()
+            # 同じくVRChat欄の表示可否（macはクライアントが無いので欄ごと隠す）
+            cfg["vrchat_supported"] = platform_compat.vrchat_supported()
             # 表示・適用用。resolved=実際に効いている倍率、auto=「自動」を選んだ場合の倍率
             cfg["ui_scale_resolved"] = resolve_ui_scale(cfg)
             cfg["ui_scale_auto"] = platform_compat.ui_scale()

@@ -76,6 +76,13 @@ class CollabGuardTests(unittest.TestCase):
         self.assertEqual(cfg.get("collab_supported"),
                          platform_compat.collab_supported())
 
+    def test_config_reports_vrchat_supported(self):
+        # mac は VRChat クライアントが無いため UI が欄ごと隠す（表示のみ・送信実装は共通）
+        status, cfg = self.request("GET", "/api/config")
+        self.assertEqual(status, 200)
+        self.assertEqual(cfg.get("vrchat_supported"),
+                         platform_compat.vrchat_supported())
+
     def test_collab_write_rejected_on_unsupported_os(self):
         # 実環境の data/config.json を書き換えないよう保存だけ止める
         with mock.patch.object(app_server, "save_config"):

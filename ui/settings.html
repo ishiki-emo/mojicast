@@ -440,6 +440,8 @@
     loadVcCmds();   // カスタムコマンド（非同期・失敗しても他の設定表示は継続）
     $("obsUrl").value = location.origin + "/"; $("port").value = cfg.port || 8765;
     $("vrchatOn").checked = !!cfg.vrchat; $("vrchatSource").value = cfg.vrchat_source || "ja"; $("vrchatPort").value = cfg.vrchat_port || 9000;
+    if (cfg.vrchat_supported === false)   // VRChat 未対応OS（mac）: 欄ごと出さない
+      document.querySelector('.nav button[data-section="vrchat"]').style.display = "none";
     $("punctuate").checked = cfg.punctuate !== false; $("saveLog").checked = cfg.save_log !== false; $("theme").value = cfg.theme || "light";
     $("uiLang").value = cfg.ui_lang || "ja";
     // 選択肢にない倍率（旧版・手書きconfig）は「自動」に見せる。保存し直すまで実効値はそのまま
@@ -449,6 +451,7 @@
     if (cfg.version) $("aboutVer").textContent = "Mojicast v" + cfg.version;
     let sec = qs.get("section") || "hearing";
     if (sec === "collab" && cfg.collab_supported === false) sec = "hearing";   // 未対応OSでは直リンクも逃がす
+    if (sec === "vrchat" && cfg.vrchat_supported === false) sec = "hearing";
     syncTranslationRoute(); switchSection(sec);
   }
 

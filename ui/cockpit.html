@@ -784,6 +784,10 @@
     $("wordFx").checked = !!cfg.word_fx;
     $("translateOn").checked = !!cfg.translate;
     $("vrchatOn").checked = !!cfg.vrchat;
+    // VRChat は mac にクライアントが無く送信先が存在しないため、欄ごと出さない
+    // （コラボのグレーアウトと違い将来対応の予定も無い）
+    $("vrchatOn").closest(".feature-row").style.display =
+      cfg.vrchat_supported === false ? "none" : "";
   }
   $("wordFx").addEventListener("change", e => { cfg.word_fx = e.target.checked; saveCfg("word_fx"); });
   $("translateOn").addEventListener("change", e => { cfg.translate = e.target.checked; saveCfg("translate"); });
