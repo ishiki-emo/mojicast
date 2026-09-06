@@ -23,6 +23,16 @@ def collab_supported() -> bool:
     return IS_WIN
 
 
+def vrchat_supported() -> bool:
+    """VRChat 送信の UI を出す OS か。
+
+    VRChat には macOS クライアントが無く、ローカルへの OSC 送信先が
+    存在しないため Mac では欄ごと非表示にする（コラボと違い将来対応の
+    予定も無いので、グレーアウトではなく出さない）。送信実装（vrcchat.py）
+    自体は OS 非依存なので、config を手書きすれば動作は変わらない。"""
+    return not IS_MAC
+
+
 def ui_scale() -> float:
     """起動モニタの論理px幅からGUI窓の拡大率を自動で決める（overlayには効かせない）。
 
