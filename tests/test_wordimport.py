@@ -165,6 +165,81 @@ class ExportTests(unittest.TestCase):
         self.assertEqual(entries[2], {"surface": "英訳だけ", "reading": "", "score": "", "en": "Only"})
 
 
+class GlossaryImportTests(unittest.TestCase):
+    def test_parse_csv_glossary(self):
+        text = "日本語,英訳\n星野ひかり,Hikari Hoshino\n癒色えも,ISHIKI Emo\n"
+        entries, skipped = w.parse_glossary(text)
+        self.assertEqual(len(entries), 2)
+        self.assertEqual(entries[0], {"ja": "星野ひかり", "en": "Hikari Hoshino"})
+        self.assertEqual(entries[1], {"ja": "癒色えも", "en": "ISHIKI Emo"})
+        self.assertEqual(skipped, [])
+
+    def test_parse_csv_glossary_without_header(self):
+        text = "星野ひかり,Hikari Hoshino\n癒色えも,ISHIKI Emo\n"
+        entries, _ = w.parse_glossary(text)
+        self.assertEqual(len(entries), 2)
+        self.assertEqual(entries[0]["ja"], "星野ひかり")
+
+    def test_parse_json_glossary(self):
+        text = '{"glossary":[{"ja":"星野ひかり","en":"Hikari Hoshino"}]}'
+        entries, _ = w.parse_glossary(text)
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0], {"ja": "星野ひかり", "en": "Hikari Hoshino"})
+
+    def test_parse_glossary_skips_empty(self):
+        text = "星野ひかり,\n,Hikari Hoshino\n"
+        entries, skipped = w.parse_glossary(text)
+        self.assertEqual(entries, [])
+        self.assertEqual(len(skipped), 2)
+        self.assertTrue(all(s["reason"] == "empty" for s in skipped))
+
+    def test_plan_import_glossary(self):
+        existing = [{"ja": "星野ひかり", "en": "Hikari Hoshino"}]
+        entries = [{"ja": "星野ひかり", "en": "Hoshino Hikari"},
+                   {"ja": "癒色えも", "en": "ISHIKI Emo"},
+                   {"ja": "癒色えも", "en": "Emo"}]
+        stats, uniq = w.plan_import_glossary(entries, existing)
+        self.assertEqual(stats["total"], 2)
+        self.assertEqual(stats["dup_in_file"], 1)
+        self.assertEqual(stats["exists"], 1)
+        self.assertEqual(stats["new"], 1)
+
+    def test_apply_import_glossary_add(self):
+        existing = [{"ja": "星野ひかり", "en": "Hikari Hoshino"}]
+        entries = [{"ja": "星野ひかり", "en": "Hoshino Hikari"},
+                   {"ja": "癒色えも", "en": "ISHIKI Emo"}]
+        gl, counts = w.apply_import_glossary(entries, existing, "add")
+        self.assertEqual(counts["glossary"], 1)
+        self.assertEqual(len(gl), 2)
+        self.assertEqual(gl[0]["en"], "Hikari Hoshino")  # existing kept
+        self.assertEqual(gl[1]["en"], "ISHIKI Emo")
+
+    def test_apply_import_glossary_overwrite(self):
+        existing = [{"ja": "星野ひかり", "en": "Hikari Hoshino"}]
+        entries = [{"ja": "星野ひかり", "en": "Hoshino Hikari"}]
+        gl, counts = w.apply_import_glossary(entries, existing, "overwrite")
+        self.assertEqual(counts["glossary"], 1)
+        self.assertEqual(len(gl), 1)
+        self.assertEqual(gl[0]["en"], "Hoshino Hikari")  # overwritten
+
+    def test_to_csv_glossary_only(self):
+        gloss = [{"ja": "星野ひかり", "en": "Hikari Hoshino"},
+                 {"ja": "癒色えも", "en": "ISHIKI Emo"}]
+        text = w.to_csv_glossary_only(gloss)
+        self.assertTrue(text.startswith("\ufeff日本語,英訳\r\n"))
+        self.assertIn("星野ひかり,Hikari Hoshino\r\n", text)
+        self.assertIn("癒色えも,ISHIKI Emo\r\n", text)
+
+    def test_glossary_roundtrip(self):
+        gloss = [{"ja": "星野ひかり", "en": "Hikari Hoshino"},
+                 {"ja": "癒色えも", "en": "ISHIKI Emo"}]
+        text = w.to_csv_glossary_only(gloss)
+        entries, skipped = w.parse_glossary(text)
+        self.assertEqual(skipped, [])
+        self.assertEqual(len(entries), 2)
+        self.assertEqual(entries[0], {"ja": "星野ひかり", "en": "Hikari Hoshino"})
+
+
 class ServerImportTests(unittest.TestCase):
     """/api/words/import と /api/words/export を、data/ を一時フォルダへ向けて通す"""
 
@@ -213,6 +288,10 @@ class ServerImportTests(unittest.TestCase):
 
     def test_preview_then_add_shift_jis(self):
         ws = self.wordstore
+        # Clear any existing data first
+        ws.save_hotwords([])
+        ws.save_glossary([])
+        # Now set up test data
         ws.save_hotwords([{"surface": "波動拳", "reading": "はどうけん", "score": "2.5"}])
         content = self.b64(CSV.encode("cp932")).decode("ascii")
         status, r = self.post("/api/words/import",
@@ -247,6 +326,65 @@ class ServerImportTests(unittest.TestCase):
         status, r = self.post("/api/words/import",
                               {"profile": "", "content_b64": "YQ==", "mode": "bogus"})
         self.assertEqual(status, 400)
+
+    def test_glossary_import_export(self):
+        ws = self.wordstore
+        # 初期状態: 英訳辞書のみに登録
+        ws.save_glossary([{"ja": "星野ひかり", "en": "Hikari Hoshino"}])
+        # CSV 取り込み
+        csv_text = "日本語,英訳\n癒色えも,ISHIKI Emo\n文字起こし,transcription\n"
+        content = self.b64(csv_text.encode("utf-8")).decode("ascii")
+        # プレビュー
+        status, r = self.post("/api/glossary/import",
+                              {"profile": "", "content_b64": content, "mode": "preview"})
+        self.assertEqual(status, 200)
+        self.assertEqual(r["stats"]["total"], 2)
+        self.assertEqual(r["stats"]["new"], 2)
+        # 取り込み（add）
+        status, r = self.post("/api/glossary/import",
+                              {"profile": "", "content_b64": content, "mode": "add"})
+        self.assertEqual(status, 200)
+        self.assertEqual(r["glossary"], 2)
+        gl = ws.load_glossary()
+        self.assertEqual(len(gl), 3)
+        self.assertEqual({g["ja"] for g in gl},
+                        {"星野ひかり", "癒色えも", "文字起こし"})
+        # 書き出し
+        status, r = self.post("/api/glossary/export", {"profile": ""})
+        self.assertEqual(status, 200)
+        with open(r["path"], encoding="utf-8-sig", newline="") as f:
+            text = f.read()
+        self.assertTrue(text.startswith("日本語,英訳\r\n"))
+        self.assertIn("癒色えも,ISHIKI Emo\r\n", text)
+
+    def test_glossary_import_does_not_add_to_hotwords(self):
+        """英訳辞書への取り込みは認識辞書を汚染しない"""
+        ws = self.wordstore
+        ws.save_hotwords([])
+        ws.save_glossary([])
+        csv_text = "日本語,英訳\n癒色えも,ISHIKI Emo\n"
+        content = self.b64(csv_text.encode("utf-8")).decode("ascii")
+        status, r = self.post("/api/glossary/import",
+                              {"profile": "", "content_b64": content, "mode": "add"})
+        self.assertEqual(status, 200)
+        self.assertEqual(r["glossary"], 1)
+        # 認識辞書は空のまま
+        self.assertEqual(ws.load_hotwords(), [])
+        # 英訳辞書には入っている
+        self.assertEqual(len(ws.load_glossary()), 1)
+        self.assertEqual(ws.load_glossary()[0]["ja"], "癒色えも")
+
+    def test_words_export_includes_glossary_only_entries(self):
+        """認識辞書の書き出しは英訳だけの語も落とさない（既存動作の保持）"""
+        ws = self.wordstore
+        ws.save_hotwords([{"surface": "昇龍拳", "reading": "しょうりゅうけん", "score": ""}])
+        ws.save_glossary([{"ja": "昇龍拳", "en": "Shoryuken"},
+                         {"ja": "英訳だけ", "en": "Translation Only"}])
+        status, r = self.post("/api/words/export", {"profile": ""})
+        self.assertEqual(status, 200)
+        with open(r["path"], encoding="utf-8-sig", newline="") as f:
+            text = f.read()
+        self.assertIn("英訳だけ,,,Translation Only\r\n", text)
 
 
 if __name__ == "__main__":

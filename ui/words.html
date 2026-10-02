@@ -246,6 +246,26 @@
       <b>히카리 호시노</b> のように読みへ置き換わって残ります。小文字で始めた語
       （例: 文字起こし → transcription）は英訳だけ。変更は<b>次回開始時</b>に反映されます。
     </div>
+    <div class="tools">
+      <button class="btn" onclick="$('glossFile').click()" data-i18n="wd.gloss_import">📥 ファイルから取り込む（CSV / JSON）</button>
+      <input type="file" id="glossFile" accept=".csv,.txt,.json,.mojipack" hidden
+             onchange="previewGlossImport(this.files[0])">
+      <button class="btn" onclick="exportGlossary()" data-i18n="wd.gloss_export">📤 CSVで書き出す</button>
+      <button class="btn" id="glossExpOpenBtn" hidden onclick="openExportDir()" data-i18n="wd.open_export">📂 書き出し先を開く</button>
+      <span id="glossIoMsg"></span>
+    </div>
+    <div class="note" data-i18n="wd.gloss_imp_hint">
+      CSV の列は「<b>日本語,英訳</b>」。Excel で保存した Shift_JIS のファイルもそのまま読めます。
+      JSON は `{"glossary":[{"ja","en"}]}`。
+    </div>
+    <div class="impBox" id="glossImpBox" hidden>
+      <div id="glossImpStats" style="font-weight:700;margin-bottom:4px"></div>
+      <div id="glossImpSkipped" class="note"></div>
+      <label><input type="radio" name="glossImpMode" value="add" checked><span data-i18n="wd.imp_add">追加のみ（同じ表記があれば今のを残す）</span></label>
+      <label><input type="radio" name="glossImpMode" value="overwrite"><span data-i18n="wd.imp_over">同じ表記は上書き</span></label>
+      <button class="btn save" onclick="doGlossImport()" data-i18n="wd.imp_do">取り込む</button>
+      <button class="btn" onclick="cancelGlossImport()" data-i18n="wd.cancel">キャンセル</button>
+    </div>
     <table id="glossTable">
       <thead><tr><th style="width:42%" data-i18n="wd.col_gloss_ja">字幕の表記（日本語）</th><th style="width:48%" data-i18n="wd.col_gloss_en">英訳（固定したい表記）</th><th></th></tr></thead>
       <tbody></tbody>
@@ -712,6 +732,78 @@
         if (page.id === "pageHot") filterHot();   // 行削除で件数を更新
       }
     });
+  }
+
+  // ---------- 英訳辞書の一括取り込み / 書き出し（CSV / JSON） ----------
+  let pendingGlossImport = null;
+  function glossIoMsg(text, ok) {
+    const el = $("glossIoMsg");
+    el.textContent = text;
+    el.style.color = ok ? "var(--ok)" : "var(--err)";
+  }
+  async function previewGlossImport(file) {
+    if (!file) return;
+    $("glossFile").value = "";
+    cancelGlossImport();
+    if (file.size > 3 * 1024 * 1024) {
+      glossIoMsg(T("wd.imp_too_big", "ファイルが大きすぎます（3MBまで）"), false);
+      return;
+    }
+    if (!(await readyForIo())) return;
+    const b64 = toB64(await file.arrayBuffer());
+    let r;
+    try {
+      r = await fetchJson("/api/glossary/import", { method: "POST",
+        body: JSON.stringify({ profile: curProfile, content_b64: b64, mode: "preview" }) });
+    } catch {
+      glossIoMsg(T("wd.imp_fail", "ファイルを読み込めませんでした"), false);
+      return;
+    }
+    const s = r.stats || {};
+    if (!s.total) {
+      glossIoMsg(T("wd.imp_none", "取り込める単語がありません") + " " + skippedText(r), false);
+      return;
+    }
+    pendingGlossImport = b64;
+    $("glossImpStats").textContent = fmt("wd.gloss_imp_stats",
+      "{total}語（新規 {new} / 既にある {exists}）・ファイル内の重複 {dup}",
+      { total: s.total, new: s.new, exists: s.exists, dup: s.dup_in_file });
+    $("glossImpSkipped").textContent = skippedText(r);
+    $("glossImpBox").hidden = false;
+    glossIoMsg("", true);
+  }
+  async function doGlossImport() {
+    if (!pendingGlossImport) return;
+    const mode = document.querySelector('input[name="glossImpMode"]:checked').value;
+    let r;
+    try {
+      r = await fetchJson("/api/glossary/import", { method: "POST",
+        body: JSON.stringify({ profile: curProfile, content_b64: pendingGlossImport, mode }) });
+    } catch {
+      glossIoMsg(T("wd.imp_fail", "ファイルを読み込めませんでした"), false);
+      return;
+    }
+    cancelGlossImport();
+    await reloadData();
+    glossIoMsg(fmt("wd.gloss_imp_done", "取り込みました（英訳 {gl}）。次回開始時に反映されます",
+              { gl: r.glossary }), true);
+  }
+  function cancelGlossImport() {
+    pendingGlossImport = null;
+    $("glossImpBox").hidden = true;
+  }
+  async function exportGlossary() {
+    if (!(await readyForIo())) return;
+    let r;
+    try {
+      r = await fetchJson("/api/glossary/export", { method: "POST",
+        body: JSON.stringify({ profile: curProfile }) });
+    } catch {
+      glossIoMsg(T("wd.imp_fail", "書き出せませんでした"), false);
+      return;
+    }
+    glossIoMsg(fmt("wd.exp_done", "書き出しました: {file}", { file: r.file }), true);
+    $("glossExpOpenBtn").hidden = false;
   }
 
   const initialTab = new URLSearchParams(location.search).get("tab");
