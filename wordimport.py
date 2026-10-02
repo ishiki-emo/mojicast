@@ -35,8 +35,9 @@ _HEADER_ALIASES = {
     "ひらがな": "reading", "読み方": "reading",
     "score": "score", "出やすさ": "score", "スコア": "score", "strength": "score",
     "en": "en", "英訳": "en", "english": "en", "英語": "en", "英名": "en",
+    "type": "type", "種別": "type", "タイプ": "type", "kind": "type",
 }
-_DEFAULT_COLUMNS = ("surface", "reading", "score", "en")
+_DEFAULT_COLUMNS = ("surface", "reading", "score", "en", "type")
 
 
 def decode_bytes(data: bytes) -> str:
@@ -135,7 +136,8 @@ def _parse_json(text: str):
 def parse_words(text: str):
     """ファイル本文 → (整形済みエントリ, 弾いた行)
 
-    エントリ: {surface, reading, score, en}（score は数値として妥当なもの以外は空）
+    エントリ: {surface, reading, score, en, type}（score は数値として妥当なもの以外は空）
+              type は「英訳のみ」などのマーカー（v0.9.9〜の再取り込み時の汚染防止用）
     弾いた行: {line, reason, text}  reason は empty / too_long / comma / json / too_many
     """
     stripped = text.lstrip("\ufeff \t\r\n")
@@ -153,6 +155,7 @@ def parse_words(text: str):
         reading = _clean(it.get("reading"))
         score = _clean(it.get("score"))
         en = _clean(it.get("en"))
+        entry_type = _clean(it.get("type", ""))
         line = it.get("_line", 0)
         if not surface:
             skipped.append({"line": line, "reason": "empty", "text": reading or en})
@@ -171,7 +174,7 @@ def parse_words(text: str):
             except ValueError:
                 score = ""
         entries.append({"surface": surface, "reading": reading,
-                        "score": score, "en": en})
+                        "score": score, "en": en, "type": entry_type})
     if len(raw) > MAX_ENTRIES:
         skipped.append({"line": MAX_ENTRIES + 1, "reason": "too_many",
                         "text": str(len(raw) - MAX_ENTRIES)})
@@ -295,6 +298,9 @@ def apply_import(entries, existing_hot, existing_gloss, mode="add",
     mode: "add"       … 同じ表記が既にあれば触らない（既存優先）
           "overwrite" … 同じ表記があればその行を置き換える（位置は維持）
     with_glossary: 英訳欄を英訳辞書にも反映するか
+    
+    v0.9.9〜: 種別「英訳のみ」のエントリは認識辞書に追加せず、英訳辞書のみに入れる
+    （再取り込み時の汚染防止）。種別列が無い古い形式は従来通り両方に入れる。
     """
     hot = [dict(h) for h in existing_hot]
     gl = [dict(g) for g in existing_gloss]
@@ -303,15 +309,22 @@ def apply_import(entries, existing_hot, existing_gloss, mode="add",
     n_hot = n_gl = 0
     for e in entries:
         s = e["surface"]
-        row = {"surface": s, "reading": e["reading"] or s, "score": e["score"]}
-        if s in hot_idx:
-            if mode == "overwrite":
-                hot[hot_idx[s]] = row
+        entry_type = e.get("type", "")
+        is_gloss_only = entry_type == "英訳のみ"
+        
+        # 認識辞書への追加（英訳のみエントリは除外）
+        if not is_gloss_only:
+            row = {"surface": s, "reading": e["reading"] or s, "score": e["score"]}
+            if s in hot_idx:
+                if mode == "overwrite":
+                    hot[hot_idx[s]] = row
+                    n_hot += 1
+            else:
+                hot_idx[s] = len(hot)
+                hot.append(row)
                 n_hot += 1
-        else:
-            hot_idx[s] = len(hot)
-            hot.append(row)
-            n_hot += 1
+        
+        # 英訳辞書への追加
         if with_glossary and e["en"]:
             grow = {"ja": s, "en": e["en"]}
             if s in gl_idx:
@@ -326,12 +339,16 @@ def apply_import(entries, existing_hot, existing_gloss, mode="add",
 
 
 def to_csv(hot, gloss) -> str:
-    """認識辞書＋英訳辞書 → 取り込みと同じ列構成の CSV 本文（Excel 用に BOM 付き）"""
+    """認識辞書＋英訳辞書 → 取り込みと同じ列構成の CSV 本文（Excel 用に BOM 付き）
+    
+    5列目「種別」で英訳のみのエントリを区別し、再取り込み時に認識辞書を汚染しないようにする。
+    v0.9.8以前との互換性: 種別列が無い/空のファイルは従来通り全行を両方の辞書に入れる。
+    """
     en_by = {g.get("ja"): g.get("en", "") for g in gloss}
     buf = io.StringIO()
     buf.write("\ufeff")
     w = csv.writer(buf, lineterminator="\r\n")
-    w.writerow(["表記", "読み", "出やすさ", "英訳"])
+    w.writerow(["表記", "読み", "出やすさ", "英訳", "種別"])
     seen = set()
     for h in hot:
         s = h.get("surface", "")
@@ -339,10 +356,10 @@ def to_csv(hot, gloss) -> str:
             continue
         seen.add(s)
         r = h.get("reading", "")
-        w.writerow([s, "" if r == s else r, h.get("score", ""), en_by.get(s, "")])
+        w.writerow([s, "" if r == s else r, h.get("score", ""), en_by.get(s, ""), ""])
     for g in gloss:               # 英訳だけ登録されている語も落とさない
         if g.get("ja") and g["ja"] not in seen:
-            w.writerow([g["ja"], "", "", g.get("en", "")])
+            w.writerow([g["ja"], "", "", g.get("en", ""), "英訳のみ"])
     return buf.getvalue()
 
 
