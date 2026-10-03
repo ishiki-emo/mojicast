@@ -38,6 +38,7 @@ _HEADER_ALIASES = {
     "type": "type", "種別": "type", "タイプ": "type", "kind": "type",
 }
 _DEFAULT_COLUMNS = ("surface", "reading", "score", "en", "type")
+GLOSS_ONLY = "英訳のみ"   # 種別列: 英訳辞書にだけ登録されている語（書き出し→再取り込みの汚染防止）
 
 
 def decode_bytes(data: bytes) -> str:
@@ -275,16 +276,19 @@ def plan_import(entries, existing_hot, existing_gloss):
         uniq.append(e)
     hot_names = {h.get("surface") for h in existing_hot}
     gl_names = {g.get("ja") for g in existing_gloss}
-    exists = sum(1 for e in uniq if e["surface"] in hot_names)
+    # 種別「英訳のみ」は認識辞書に入らないので、新規・既存・読みなしの集計から外す
+    to_hot = [e for e in uniq if e.get("type") != GLOSS_ONLY]
+    exists = sum(1 for e in to_hot if e["surface"] in hot_names)
     with_en = sum(1 for e in uniq if e["en"])
     en_exists = sum(1 for e in uniq if e["en"] and e["surface"] in gl_names)
-    no_reading = sum(1 for e in uniq
+    no_reading = sum(1 for e in to_hot
                      if not e["reading"] and re.search(r"[\u4e00-\u9fff]", e["surface"]))
     return {
         "total": len(uniq),
         "dup_in_file": dup_in_file,
         "exists": exists,             # 認識辞書に同じ表記がある件数
-        "new": len(uniq) - exists,
+        "new": len(to_hot) - exists,
+        "gloss_only": len(uniq) - len(to_hot),  # 英訳辞書にだけ入る件数
         "with_en": with_en,           # 英訳欄がある件数
         "en_exists": en_exists,       # 英訳辞書に同じ表記がある件数
         "no_reading": no_reading,     # 漢字を含むのに読みが無い（認識誘導が効かない）
@@ -310,7 +314,7 @@ def apply_import(entries, existing_hot, existing_gloss, mode="add",
     for e in entries:
         s = e["surface"]
         entry_type = e.get("type", "")
-        is_gloss_only = entry_type == "英訳のみ"
+        is_gloss_only = entry_type == GLOSS_ONLY
         
         # 認識辞書への追加（英訳のみエントリは除外）
         if not is_gloss_only:
@@ -359,7 +363,7 @@ def to_csv(hot, gloss) -> str:
         w.writerow([s, "" if r == s else r, h.get("score", ""), en_by.get(s, ""), ""])
     for g in gloss:               # 英訳だけ登録されている語も落とさない
         if g.get("ja") and g["ja"] not in seen:
-            w.writerow([g["ja"], "", "", g.get("en", ""), "英訳のみ"])
+            w.writerow([g["ja"], "", "", g.get("en", ""), GLOSS_ONLY])
     return buf.getvalue()
 
 

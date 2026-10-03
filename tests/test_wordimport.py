@@ -115,6 +115,16 @@ class PlanApplyTests(unittest.TestCase):
         stats, _ = w.plan_import(entries, [], [])
         self.assertEqual(stats["no_reading"], 1)
 
+    def test_plan_excludes_gloss_only_from_hot_counts(self):
+        # 書き出し→再取り込みのプレビューで、英訳のみの語を認識辞書の新規に数えない
+        text = w.to_csv(self.hot, self.gloss + [{"ja": "英訳だけ", "en": "Only"}])
+        entries, _ = w.parse_words(w.decode_bytes(text.encode("utf-8")))
+        stats, _ = w.plan_import(entries, [], [])
+        self.assertEqual(stats["total"], 2)
+        self.assertEqual(stats["new"], 1)
+        self.assertEqual(stats["gloss_only"], 1)
+        self.assertEqual(stats["no_reading"], 0)   # 波動拳は読みあり・英訳だけは対象外
+
     def test_apply_add_keeps_existing(self):
         _, uniq = w.plan_import(self.entries, self.hot, self.gloss)
         hot, gl, n = w.apply_import(uniq, self.hot, self.gloss, "add")

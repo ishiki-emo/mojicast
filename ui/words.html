@@ -387,7 +387,9 @@
     $("impStats").textContent = fmt("wd.imp_stats",
       "{total}語（新規 {new} / 既にある {exists}）・英訳あり {with_en}・ファイル内の重複 {dup}・読みなしの漢字語 {no_reading}",
       { total: s.total, new: s.new, exists: s.exists, with_en: s.with_en,
-        dup: s.dup_in_file, no_reading: s.no_reading });
+        dup: s.dup_in_file, no_reading: s.no_reading })
+      + (s.gloss_only ? fmt("wd.imp_gloss_only", "・英訳のみ {n}（認識辞書には入りません）",
+                            { n: s.gloss_only }) : "");
     $("impSkipped").textContent = skippedText(r);
     $("impGlossLbl").hidden = !s.with_en;
     $("impBox").hidden = false;
