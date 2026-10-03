@@ -223,7 +223,7 @@ class GlossaryImportTests(unittest.TestCase):
         entries, skipped = w.parse_glossary(text)
         self.assertEqual(entries, [])
         self.assertEqual(len(skipped), 2)
-        self.assertTrue(all(s["reason"] == "empty" for s in skipped))
+        self.assertEqual([s["reason"] for s in skipped], ["empty_en", "empty"])
 
     def test_plan_import_glossary(self):
         existing = [{"ja": "星野ひかり", "en": "Hikari Hoshino"}]

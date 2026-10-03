@@ -256,7 +256,7 @@
     </div>
     <div class="note" data-i18n="wd.gloss_imp_hint">
       CSV の列は「<b>日本語,英訳</b>」。Excel で保存した Shift_JIS のファイルもそのまま読めます。
-      JSON は `{"glossary":[{"ja","en"}]}`。
+      JSON は {"glossary":[{"ja","en"}]}。
     </div>
     <div class="impBox" id="glossImpBox" hidden>
       <div id="glossImpStats" style="font-weight:700;margin-bottom:4px"></div>
@@ -346,7 +346,7 @@
   function skippedText(r) {
     const n = r.skipped_total || 0;
     if (!n) return "";
-    const jaReason = { empty: "表記が空", too_long: "長すぎる", comma: "「,」を含む",
+    const jaReason = { empty: "表記が空", empty_en: "英訳が空", too_long: "長すぎる", comma: "「,」を含む",
                        json: "JSONとして読めない", too_many: "上限超過" };
     const items = (r.skipped || []).slice(0, 10).map(x =>
       (x.line ? "#" + x.line + " " : "") + T("wd.imp_reason_" + x.reason, jaReason[x.reason] || x.reason)

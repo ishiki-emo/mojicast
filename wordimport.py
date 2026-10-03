@@ -186,7 +186,7 @@ def parse_glossary(text: str):
     """英訳辞書専用ファイル本文 → (整形済みエントリ, 弾いた行)
 
     エントリ: {ja, en}
-    弾いた行: {line, reason, text}  reason は empty / too_long / comma / json / too_many
+    弾いた行: {line, reason, text}  reason は empty / empty_en / too_long / comma / json / too_many
     """
     stripped = text.lstrip("\ufeff \t\r\n")
     if stripped[:1] in ("{", "["):
@@ -243,7 +243,9 @@ def parse_glossary(text: str):
         en = _clean(it.get("en"))
         line = it.get("_line", 0)
         if not ja or not en:
-            skipped.append({"line": line, "reason": "empty", "text": ja or en})
+            # 日本語側が空なら empty、英訳だけ空なら empty_en（UI で「英訳が空」と出す）
+            skipped.append({"line": line, "reason": "empty" if not ja else "empty_en",
+                            "text": ja or en})
             continue
         if len(ja) > MAX_LEN or len(en) > MAX_LEN:
             skipped.append({"line": line, "reason": "too_long", "text": ja})
