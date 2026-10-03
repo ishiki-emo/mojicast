@@ -13,6 +13,22 @@ k2 の確定テキスト（句読点適用済み）をそのまま渡す想定�
 import os
 import re
 
+# CTranslate2 は Intel OpenMP（libiomp5md）で並列化しており、既定では計算後も
+# スレッドが 200ms 空回りして次の仕事を待つ（KMP_BLOCKTIME=200）。字幕は1文訳したら
+# 次の発話まで間が空くので、その空回りがまるごと CPU 負荷になっていた。
+# 実測 2026-10-03（9800X3D・4スレッド・1文ごとに1秒空ける）:
+#
+#              既定(200ms)          1ms
+#   en        22ms / CPU  688ms   22ms / CPU  94ms   （CPU -86%）
+#   zh       134ms / CPU 1118ms  158ms / CPU 618ms   （CPU -45%）
+#   ko       222ms / CPU 1483ms  219ms / CPU 891ms   （CPU -40%）
+#
+# 0 にすると1文の中のデコード1歩ごとにスレッドが寝起きして遅くなる（en 22→71ms）。
+# 1ms なら1文の中では待機が続き、文と文の間だけ眠る。ctranslate2 を import する
+# より前に設定する必要がある（ランタイムの初期化時に読まれる）。利用者が環境変数で
+# 指定していればそちらを優先する。
+os.environ.setdefault("KMP_BLOCKTIME", "1")
+
 import huggingface_hub as hf
 
 from apppaths import BASE
