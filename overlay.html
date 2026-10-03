@@ -168,11 +168,13 @@
   // ---------------- 字幕の描画 ----------------
 
   // 1行を確定表示するフルパイプライン（エフェクト・入場・自動消去込み）
-  function appendLine(p, text, id) {
+  function appendLine(p, text, id, style = p.style) {
     const div = document.createElement("div");
     div.className = "line";
     if (id != null) div.dataset.fid = id;   // 英訳を後から結び付けるための目印
-    FX.renderWords(div, text, p.table, p.style);
+    // 本文の書式はペインに当ててあり行は継承する。言語別フォントの行だけ上書き
+    if (style !== p.style) div.style.fontFamily = style.font;
+    FX.renderWords(div, text, p.table, style);
     FX.applyEntrance(div, p.style.animIn || "slide");
 
     // 追加＋パーシャルのクリアをまとめてスムーズスクロール
@@ -217,16 +219,20 @@
     appendLine(p, text, id);
   }
 
-  // 英訳のみモード: 翻訳到着時に英訳を本文としてフル装飾で表示する
-  function addEnLine(p, en, id) {
+  // 英訳のみモード: 翻訳到着時に英訳を本文としてフル装飾で表示する。
+  // 本文は本文のスタイルで出すが、その言語に専用フォントがあればそれだけ使う
+  // （中国語・韓国語は欧文フォントだと字形が無く、代替フォントに化けるため）
+  function addEnLine(p, en, id, lang = "") {
     clearTimeout(p._enWait);
+    const font = FX.trStyle(p.style, lang).enFont;
+    const style = font && font !== p.style.enFont ? Object.assign({}, p.style, { font }) : p.style;
     if (isLyric(p.box)) {
       p.partialEl.textContent = "";
       // fid を渡しておく＝2言語目以降の訳をこのシーンへ併記できるように
-      FX.lyricSpawn(p.boxEl, en, { style: p.style, table: p.table, box: p.box, fid: id });
+      FX.lyricSpawn(p.boxEl, en, { style, table: p.table, box: p.box, fid: id });
       return;
     }
-    appendLine(p, en, id);
+    appendLine(p, en, id, style);
   }
 
   function setPartial(p, text) {
@@ -274,27 +280,27 @@
   // 翻訳先が複数なら言語ごとに届く。order は設定画面で選んだ並び（0 が主言語）で、
   // 届いた順ではなくこの順に縦へ積む。翻訳のみ表示では主言語が本文になり、
   // 2言語目以降はその下に付く（エンジンは主言語を必ず先に送ってくる）。
-  function addTranslation(id, en, fallback, order = 0) {
+  function addTranslation(id, en, fallback, order = 0, lang = "") {
     if (!en || id == null) return;
     // 英訳のみモードの行はここで初めて描画する（日本語行のDOMは存在しない）
     const wait = order === 0 ? pendingEn.get(id) : null;
     if (wait) {
       pendingEn.delete(id);
       // ペイン撤去済み・モード切替直後は下の併記経路へ（行が無ければ無視される）
-      if (wait.boxEl.isConnected && enOnly(wait)) { addEnLine(wait, en, id); return; }
+      if (wait.boxEl.isConnected && enOnly(wait)) { addEnLine(wait, en, id, lang); return; }
     }
     if (fallback) return;   // 併記側は日本語が本文として出ているので不要
     for (const p of panes.values()) {
       if (isLyric(p.box)) {
         // リリックは .line[data-fid] を作らないため、シーンへ直接併記する。
         // シーンが既に消えていれば false → 見切れた行と同じ扱いで捨てる
-        if (FX.lyricTranslate(p.boxEl, id, en, p.style, order)) return;
+        if (FX.lyricTranslate(p.boxEl, id, en, p.style, order, lang)) return;
         continue;
       }
       const line = p.finalsEl.querySelector('.line[data-fid="' + id + '"]');
       if (!line) continue;
       const el = orderedSlot(line, "en", order);
-      styleEn(el, p.style);
+      styleEn(el, FX.trStyle(p.style, lang));   // 言語ごとの見た目（無ければ共通）
       el.textContent = en;
       return;
     }
@@ -322,7 +328,7 @@
         break;
       case "sound":   SFX.play(msg.group, msg.score); break;
       case "final":   addFinal(paneFor(msg.speaker), msg.text, msg.id); break;
-      case "translation": addTranslation(msg.id, msg.text, msg.fallback, msg.order || 0); break;
+      case "translation": addTranslation(msg.id, msg.text, msg.fallback, msg.order || 0, msg.lang || ""); break;
       case "partial": setPartial(paneFor(msg.speaker), msg.text); break;
       case "clear_partial":   // 「確定した字幕だけ表示」に切り替えた合図
         for (const p of panes.values()) p.partialEl.textContent = "";
