@@ -24,10 +24,14 @@ import re
 #   ko       222ms / CPU 1483ms  219ms / CPU 891ms   （CPU -40%）
 #
 # 0 にすると1文の中のデコード1歩ごとにスレッドが寝起きして遅くなる（en 22→71ms）。
-# 1ms なら1文の中では待機が続き、文と文の間だけ眠る。ctranslate2 を import する
-# より前に設定する必要がある（ランタイムの初期化時に読まれる）。利用者が環境変数で
-# 指定していればそちらを優先する。
-os.environ.setdefault("KMP_BLOCKTIME", "1")
+# 数 ms なら1文の中では待機が続き、文と文の間（最低でも数百ms）だけ眠る。
+# 5ms にしたのは遅いCPUへの余裕: 1コアが遅いと1歩の間の待ちが伸び、1ms だと
+# 1文の中でも寝起きが起きうる（開発機では測れない）。CPU 削減は 1ms とほぼ同じ
+# （en 94→103ms / zh 618→615ms / ko 891→896ms）。
+# ctranslate2 を import するより前に設定する必要がある（ランタイムの初期化時に
+# 読まれる）。利用者が環境変数で指定していればそちらを優先する
+# （遅くなる環境では KMP_BLOCKTIME=200 で従来の動作に戻せる）。
+os.environ.setdefault("KMP_BLOCKTIME", "5")
 
 import huggingface_hub as hf
 
