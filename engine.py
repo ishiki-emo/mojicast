@@ -9,9 +9,10 @@ transcribe_stream.py の疑似ストリーミング処理を、開始/停止で�
     on_final(text, fid)    確定（単語置換・句読点適用済み）。fid は行の通し番号
     on_level(rms)          マイク入力レベル 0.0-1.0（約100ms間隔）
     on_state(state, detail) loading / ready / running / stopped / error
-    on_translation(fid, text, fallback) 確定行の訳（別スレッドで遅れて届く。fid で
-                           行に対応）。訳を出せなかった行は fallback=True で原文を
-                           渡す（翻訳のみ表示で画面が空になるのを防ぐ）
+    on_translation(fid, text, fallback, lang=, order=) 確定行の訳（別スレッドで遅れて
+                           届く。fid で行に対応）。訳を出せなかった行は fallback=True で
+                           原文を渡す（翻訳のみ表示で画面が空になるのを防ぐ）。翻訳先が
+                           複数なら言語ごとに届く。order は表示順（0 が主言語）
     on_sound_event(group, score, speaker) 音イベント検出（笑い・拍手等。soundfx.py）
     on_warn(kind, message, active) 配信を止めない異常の通知（active=False で解除）。
                            kind: "translate" / "audio"
@@ -88,6 +89,52 @@ def _translate_signature(plan, aux_precision):
     return plan + ((aux_precision,) if plan[0] == "fugumt" else ())
 
 
+TRANSLATE_LANGS = ("en", "zh", "zh_tw", "zh_hk", "id", "ja", "ko")
+MAX_TRANSLATE_TARGETS = 3   # 同時に出す翻訳先の上限（画面の段数とCPU負荷の兼ね合い）
+
+_TRANS_LABEL = {"en": "英訳", "zh": "中国語（簡体字）訳",
+                "zh_tw": "中国語（台湾繁体字）訳", "zh_hk": "中国語（香港繁体字）訳",
+                "ja": "日本語訳", "ko": "韓国語訳", "id": "インドネシア語訳"}
+
+
+def translate_targets(cfg):
+    """翻訳先の一覧（表示順・先頭が主言語）。
+
+    複数指定の translate_langs を優先し、無ければ従来の単一 translate_lang を使う
+    （v0.9.x までの設定はそのまま1言語として動く）。未知の値・重複は捨て、
+    上限 MAX_TRANSLATE_TARGETS 個まで。
+    """
+    langs = cfg.get("translate_langs")
+    if not isinstance(langs, list) or not langs:
+        langs = [cfg.get("translate_lang", "en")]
+    out = []
+    for lang in langs:
+        if lang in TRANSLATE_LANGS and lang not in out:
+            out.append(lang)
+    return out[:MAX_TRANSLATE_TARGETS] or ["en"]
+
+
+def _route_cost(route):
+    """翻訳の実行順を決める重さの目安（OpenCC ≪ FuguMT ≪ M2M、M2M の韓国語はビーム4で最重）"""
+    eng = route["sig"][0]
+    if eng == "opencc":
+        return 0
+    if eng == "fugumt":
+        return 1
+    return 3 if route["lang"] == "ko" else 2
+
+
+def _exec_order(routes):
+    """1行ぶんの翻訳を回す順番。主言語（order=0）を必ず先頭にし、残りは軽い順。
+
+    翻訳のみ表示では主言語の訳が字幕の本文になり、他の言語はその行の下に付く。
+    主言語が先に届けば、後続の言語は必ず付け先の行を見つけられる。
+    """
+    head = [r for r in routes if r["order"] == 0]
+    rest = sorted((r for r in routes if r["order"] != 0), key=_route_cost)
+    return head + rest
+
+
 def _aux_precision(cfg):
     """句読点BERT・英訳モデルの精度は認識モデルの設定に揃える。
 
@@ -157,7 +204,8 @@ class CaptionEngine:
         self.on_final = on_final or (lambda t, fid, spk="": None)
         self.on_level = on_level or (lambda v, spk="": None)
         self.on_state = on_state or (lambda s, d="": None)
-        self.on_translation = on_translation or (lambda fid, t, fb=False: None)
+        self.on_translation = on_translation or (
+            lambda fid, t, fb=False, lang="", order=0: None)
         self.on_sound_event = on_sound_event or (lambda g, s, spk="": None)
         self.on_warn = on_warn or (lambda kind, msg="", active=True: None)
         self._rec_lock = threading.Lock()   # 単一Recognizerへの decode を直列化（2話者共有）
@@ -169,8 +217,12 @@ class CaptionEngine:
         self._replacer = None
         self._punct = None
         self._sfx_tagger = None     # 音イベント分類器（sound_fx 無効時 None）
-        self._translate = None      # 翻訳関数（無効時 None。ロード済みなら再利用）
-        self._translate_sig = None  # ロード済み翻訳経路 (engine, src, tgt)
+        # 翻訳先ごとの経路 [{lang, order, sig, fn, share, base, post}]（表示順）。
+        # _translate / _translate_sig は主言語（先頭）の経路を指す従来の名前
+        self._routes = []
+        self._routes_sig = None     # ロード済み経路一式（再ロード判定）
+        self._translate = None      # 主言語の翻訳関数（無効時 None。ロード済みなら再利用）
+        self._translate_sig = None  # 主言語の翻訳経路 (engine, src, tgt)
         self._asr_caps = {"hotwords": True, "punct": False, "itn": False,
                           "spaces": False, "multilang": False,
                           "pad": True}  # 既定=k2
@@ -311,15 +363,32 @@ class CaptionEngine:
         except OSError:
             pass                    # ログが書けなくても本体は続行
 
-    def _translate_plan(self, cfg):
-        """cfg から翻訳経路を決める → ("fugumt"|"m2m", 原文言語, 翻訳先) / 不要なら None
+    def _translate_plans(self, cfg):
+        """翻訳先ごとの経路 → [(表示順, 翻訳先, plan)]。原文=翻訳先の言語は除く。
+
+        表示順は translate_targets の並び（0 が主言語）。除いた言語があっても
+        順番は詰めない＝設定画面で選んだ並びと字幕の段の対応を崩さない。
+        """
+        if not cfg.get("translate", False):
+            return []
+        out = []
+        for order, tgt in enumerate(translate_targets(cfg)):
+            plan = self._translate_plan(cfg, tgt)
+            if plan is not None:
+                out.append((order, tgt, plan))
+        return out
+
+    def _translate_plan(self, cfg, tgt=None):
+        """cfg から翻訳経路を決める → ("fugumt"|"m2m"|"opencc", 原文言語, 翻訳先) / 不要なら None
 
         原文言語は通常 ja。SenseVoiceで認識言語を明示している場合はそれに合わせる
         （例: 中国語認識＋英訳 → M2Mの zh→en）。原文=翻訳先のときは None（翻訳不要）。
+        tgt 省略時は主言語（translate_targets の先頭）。
         """
         if not cfg.get("translate", False):
             return None
-        tgt = cfg.get("translate_lang", "en")
+        if tgt is None:
+            tgt = translate_targets(cfg)[0]
         src = "ja"
         if cfg.get("asr_model", "k2-ja") == "sensevoice":
             al = cfg.get("asr_lang", "auto")
@@ -335,6 +404,65 @@ class CaptionEngine:
             return ("opencc", src, tgt)
         eng = "fugumt" if (src, tgt) == ("ja", "en") else "m2m"
         return (eng, src, tgt)
+
+    def _load_route(self, order, tgt, plan, aux_prec):
+        """1言語ぶんの翻訳経路をロードして route dict を返す（失敗は例外）。
+
+        中国語の簡体字・台湾・香港は M2M の簡体字訳が共通の素材で、地域表記は
+        OpenCC の後処理だけの違い。share/base/post に分けておき、同じ行で複数の
+        表記を出すときは M2M を1回だけ回す（_translate_loop のメモ）。
+        """
+        eng, src, tgt = plan
+        route = {"lang": tgt, "order": order, "sig": plan,
+                 "share": None, "base": None, "post": None}
+        if eng == "fugumt":
+            from translate import (translate as _tr,
+                                   load_translator, loaded_precision)
+            import translate as _tmod
+            if loaded_precision() not in (None, aux_prec):
+                _tmod.unload("fugumt")   # 精度切替は先に解放してから
+            load_translator(precision=aux_prec)
+            route["fn"] = _tr
+        elif eng == "opencc":
+            from translate import convert_zh_variant
+            # 初回変換をここで行い、依存ファイル不足を字幕開始前に検出する。
+            convert_zh_variant("测试", tgt)
+            route["fn"] = lambda t, _t=tgt: convert_zh_variant(t, _t)
+        else:
+            from translate import (translate_m2m, load_translator_zh,
+                                   convert_zh_variant)
+            load_translator_zh()
+            route["fn"] = lambda t, _s=src, _t=tgt: translate_m2m(t, _s, _t)
+            if tgt in ("zh", "zh_tw", "zh_hk"):
+                if tgt != "zh":
+                    convert_zh_variant("测试", tgt)   # OpenCC の依存不足を先に検出
+                route["share"] = ("m2m", src, "zh")
+                route["base"] = lambda t, _s=src: translate_m2m(t, _s, "zh")
+                route["post"] = lambda z, _t=tgt: convert_zh_variant(z, _t)
+        return route
+
+    def _set_routes(self, routes, sig):
+        """経路一式を差し替える。主言語の経路は従来名 _translate / _translate_sig にも置く"""
+        self._routes = routes
+        self._routes_sig = sig
+        head = routes[0] if routes else None
+        self._translate = head["fn"] if head else None
+        self._translate_sig = head["sig"] if head else None
+
+    def translate_routes(self):
+        """有効な翻訳先 [(言語, 表示順)]（表示順で並ぶ・先頭が主言語）"""
+        return [(r["lang"], r["order"]) for r in self._active_routes()]
+
+    def _active_routes(self):
+        """翻訳ワーカーが回す経路。_routes が無く _translate だけ置かれている
+        （単一経路を直接差し込むテスト・旧来の呼び出し）場合はそれを1本として扱う"""
+        if self._routes:
+            return self._routes
+        if self._translate is None:
+            return []
+        sig = self._translate_sig or ("", "", "")
+        return [{"lang": sig[2], "order": 0, "sig": sig, "fn": self._translate,
+                 "share": None, "base": None, "post": None}]
 
     def _expected_download_mb(self, cfg):
         """この設定で未キャッシュのモデルの合計DLサイズ(MB)と、DLが要るかを返す"""
@@ -359,13 +487,12 @@ class CaptionEngine:
             import soundfx
             if not soundfx.cached():
                 total += _MODEL_SIZES_MB["soundfx"]
-        plan = self._translate_plan(cfg)
-        if plan:
+        engines = {plan[0] for _, _, plan in self._translate_plans(cfg)}
+        if engines:
             import translate
-            if plan[0] == "m2m":
-                if not translate.cached_zh():
-                    total += _MODEL_SIZES_MB["translate_zh"]
-            elif plan[0] == "fugumt" and not translate.cached():
+            if "m2m" in engines and not translate.cached_zh():
+                total += _MODEL_SIZES_MB["translate_zh"]
+            if "fugumt" in engines and not translate.cached():
                 total += _MODEL_SIZES_MB["translate"]
         return total, total > 0
 
@@ -419,16 +546,20 @@ class CaptionEngine:
         if not cfg.get("sound_fx", False):
             self._sfx_tagger = None
         need_sfx = cfg.get("sound_fx", False) and self._sfx_tagger is None
-        plan = self._translate_plan(cfg)
+        plans = self._translate_plans(cfg)
         # FuguMT(英訳)だけは精度が切り替わるので sig に含める。M2M系は変換時点で
         # int8 のため、高精度モードを切り替えても積み直す必要がない
-        tsig = _translate_signature(plan, aux_prec)
-        need_trans = plan is not None and self._translate_sig != tsig
-        if cfg.get("translate", False) and plan is None:
-            # 認識言語と翻訳先が同じ（例: 中国語認識＋中国語訳）→ 翻訳は無意味
-            self._translate = None
-            self._translate_sig = None
-            self._load_warn = "認識言語と翻訳先が同じため、翻訳はスキップされます"
+        rsig = tuple((order, tgt, _translate_signature(plan, aux_prec))
+                     for order, tgt, plan in plans)
+        need_trans = bool(plans) and self._routes_sig != rsig
+        if cfg.get("translate", False):
+            n_targets = len(translate_targets(cfg))
+            if not plans:
+                # 認識言語と翻訳先が同じ（例: 中国語認識＋中国語訳）→ 翻訳は無意味
+                self._set_routes([], None)
+                self._load_warn = "認識言語と翻訳先が同じため、翻訳はスキップされます"
+            elif len(plans) < n_targets:
+                self._load_warn = "認識言語と同じ翻訳先は省いて翻訳します"
         if not (reload_asr or need_punct or need_trans or need_sfx):
             return  # ロード対象なし（設定のON/OFFは次の _run で即反映）
 
@@ -499,45 +630,33 @@ class CaptionEngine:
                     self._log_load_error("音イベント検出モデル")
 
             if need_trans:
-                eng, src, tgt = plan
-                label = {"en": "英訳", "zh": "中国語（簡体字）訳",
-                         "zh_tw": "中国語（台湾繁体字）訳",
-                         "zh_hk": "中国語（香港繁体字）訳",
-                         "ja": "日本語訳", "ko": "韓国語訳",
-                         "id": "インドネシア語訳"}.get(tgt, f"{tgt}訳")
-                self.on_state("loading", f"翻訳モデル({label})をロード中...")
-                try:
-                    if eng == "fugumt":
-                        from translate import (translate as _tr,
-                                               load_translator, loaded_precision)
-                        import translate as _tmod
-                        if loaded_precision() not in (None, aux_prec):
-                            _tmod.unload("fugumt")   # 精度切替は先に解放してから
-                        load_translator(precision=aux_prec)
-                        self._translate = _tr
-                    elif eng == "opencc":
-                        from translate import convert_zh_variant
-                        # 初回変換をここで行い、依存ファイル不足を字幕開始前に検出する。
-                        convert_zh_variant("测试", tgt)
-                        self._translate = (lambda t, _t=tgt:
-                                           convert_zh_variant(t, _t))
-                    else:
-                        from translate import translate_m2m, load_translator_zh
-                        load_translator_zh()
-                        self._translate = (lambda t, _s=src, _t=tgt:
-                                           translate_m2m(t, _s, _t))
-                    self._translate_sig = tsig
-                    # 切替で使わなくなった側の翻訳バックエンドを解放（メモリ返却）
-                    from translate import unload as unload_translator
-                    if eng != "fugumt":
-                        unload_translator("fugumt")
-                    if eng != "m2m":
-                        unload_translator("m2m")
-                except Exception:
-                    self._translate = None
-                    self._translate_sig = None
-                    self._load_warn = f"{label}の読み込みに失敗（翻訳なしで続行）"
-                    self._log_load_error(f"翻訳モデル({label})")
+                routes, failed = [], []
+                for order, tgt, plan in plans:
+                    label = _TRANS_LABEL.get(tgt, f"{tgt}訳")
+                    self.on_state("loading", f"翻訳モデル({label})をロード中...")
+                    try:
+                        routes.append(self._load_route(order, tgt, plan, aux_prec))
+                    except Exception:
+                        failed.append(label)
+                        self._log_load_error(f"翻訳モデル({label})")
+                # 主言語が読めなかったら、残った先頭を主言語に繰り上げる
+                # （翻訳のみ表示で本文になる言語が無いと字幕が空になるため）
+                if routes and routes[0]["order"] != 0:
+                    routes[0]["order"] = 0
+                self._set_routes(routes, rsig if not failed else None)
+                if failed:
+                    self._load_warn = ("・".join(failed)
+                                       + "の読み込みに失敗（"
+                                       + ("翻訳なしで続行" if not routes
+                                          else "その言語を省いて続行") + "）")
+                # 切替で使わなくなった側の翻訳バックエンドを解放（メモリ返却）。
+                # 複数言語では FuguMT と M2M を同時に使うことがあるので、どの経路も
+                # 使っていない側だけを解放する
+                from translate import unload as unload_translator
+                used = {r["sig"][0] for r in routes}
+                for eng in ("fugumt", "m2m"):
+                    if eng not in used:
+                        unload_translator(eng)
         finally:
             stop_evt.set()
             if mon is not None:
@@ -693,45 +812,74 @@ class CaptionEngine:
         thread.join(timeout=max(0, timeout))
         return not thread.is_alive()
 
+    def _apply_glossary(self, text, sig):
+        """英訳辞書: 翻訳前に日本語側で英訳語へ置換（固有名詞の訳を固定）。
+
+        ラテン文字は NMT を素通りするか行き先の言語へ音写されるので、英訳
+        以外でも効く（実測 2026-08-23: おるか→Oruka→오루카／奥鲁卡。置換
+        無しだと固有名詞が消え、空いた穴を埋めて別の話に化けていた）。
+        対象は原文が日本語の経路だけ。辞書が「日本語表記→英訳」なので、
+        中国語認識（src=zh）では引きようがない（opencc もこれで外れる）。
+        """
+        if not (self._gloss and sig[0] in ("fugumt", "m2m") and sig[1] == "ja"):
+            return text
+        # 英訳では辞書を全部使う。多言語訳では固有名詞だけに絞る
+        # （英訳が大文字で始まるものを固有名詞とみなす）。「配信→stream」
+        # のような一般語まで英字にすると、元は正しく訳せていた語が壊れる
+        # （実測 2026-08-23: zh は「配信→直播」が「流」に化けた。ko は
+        # 逆に「배달＝配達」が「스트림」へ直ったが、副作用の方が大きい）。
+        proper_only = sig[0] != "fugumt"
+        for ja, en_word in self._gloss:
+            if proper_only and not en_word[:1].isupper():
+                continue
+            if ja in text:
+                text = text.replace(ja, en_word)
+        return text
+
     def _translate_loop(self):
-        """確定行を順に英訳する（認識ループとは別スレッド）"""
+        """確定行を翻訳先ごとに訳す（認識ループとは別スレッド）。
+
+        1行ぶんの全言語を順に回し、訳せた言語から1つずつ通知する（遅い言語を
+        待たずに速い言語を先に出す）。順番は _exec_order（主言語が先頭）。
+        """
         q = self._tq
         while True:
             item = q.get()
             if item is None:      # 停止サインで終了
                 break
             fid, src = item
-            text = src
-            # 英訳辞書: 翻訳前に日本語側で英訳語へ置換（固有名詞の訳を固定）。
-            # ラテン文字は NMT を素通りするか行き先の言語へ音写されるので、英訳
-            # 以外でも効く（実測 2026-08-23: おるか→Oruka→오루카／奥鲁卡。置換
-            # 無しだと固有名詞が消え、空いた穴を埋めて別の話に化けていた）。
-            # 対象は原文が日本語の経路だけ。辞書が「日本語表記→英訳」なので、
-            # 中国語認識（src=zh）では引きようがない（opencc もこれで外れる）。
-            sig = self._translate_sig or ("", "", "")
-            if self._gloss and sig[0] in ("fugumt", "m2m") and sig[1] == "ja":
-                # 英訳では辞書を全部使う。多言語訳では固有名詞だけに絞る
-                # （英訳が大文字で始まるものを固有名詞とみなす）。「配信→stream」
-                # のような一般語まで英字にすると、元は正しく訳せていた語が壊れる
-                # （実測 2026-08-23: zh は「配信→直播」が「流」に化けた。ko は
-                # 逆に「배달＝配達」が「스트림」へ直ったが、副作用の方が大きい）。
-                proper_only = sig[0] != "fugumt"
-                for ja, en_word in self._gloss:
-                    if proper_only and not en_word[:1].isupper():
-                        continue
-                    if ja in text:
-                        text = text.replace(ja, en_word)
-            try:
-                en = self._translate(text) if self._translate else ""
-            except Exception:
-                en = ""
-                self._log_translate_error(text)
-            if self._translate_on:
+            memo = {}             # 中国語の表記違いで M2M の訳を共有する
+            all_ok = True
+            for r in _exec_order(self._active_routes()):
+                text = self._apply_glossary(src, r["sig"] or ("", "", ""))
+                try:
+                    if r.get("share"):
+                        key = (r["share"], text)
+                        if key not in memo:
+                            memo[key] = r["base"](text)
+                        out = r["post"](memo[key]) if memo[key] else ""
+                    else:
+                        out = r["fn"](text)
+                except Exception:
+                    out = ""
+                    self._log_translate_error(text)
+                if not self._translate_on:
+                    break
                 # 訳が出せなかった行も必ず通知する。翻訳のみ表示には「字幕本体」が
                 # 無いため、ここで黙ると画面が空になる（訳が来ない行は表示されない）。
                 # 原文を fallback として渡し、表示側で日本語へ切り替えさせる。
-                self.on_translation(fid, en or src, not en)
-                self._note_translate_result(bool(en))
+                self.on_translation(fid, out or src, not out,
+                                    lang=r["lang"], order=r["order"])
+                all_ok = all_ok and bool(out)
+            if self._translate_on:
+                self._note_translate_result(all_ok)
+
+    def _emit_fallback(self, fid, text):
+        """訳さない／訳せなくなった行を、全翻訳先へ原文（fallback）として通知する。
+        経路がまだ無くても1回は通知する（翻訳のみ表示で行が消えないように）"""
+        routes = self._active_routes() or [{"lang": "", "order": 0}]
+        for r in routes:
+            self.on_translation(fid, text, True, lang=r["lang"], order=r["order"])
 
     def _emit_final_translation(self, fid, text, masked):
         """確定行の訳を用意する。伏せ字を含む行は訳さず原文へ倒す。
@@ -752,7 +900,7 @@ class CaptionEngine:
         伏せ字が続いたときに「英訳が連続失敗」の警告を出させない。
         """
         if masked:
-            self.on_translation(fid, text, True)
+            self._emit_fallback(fid, text)
         else:
             self._queue_translation(fid, text)
 
@@ -765,7 +913,7 @@ class CaptionEngine:
         for dfid, dtext in _offer_bounded_latest(
                 self._tq, (fid, text), TRANSLATION_QUEUE_RECOVER_ITEMS):
             self.perf["translate_dropped"] += 1
-            self.on_translation(dfid, dtext, True)
+            self._emit_fallback(dfid, dtext)
 
     def _note_translate_result(self, ok):
         """英訳の連続失敗を数え、しきい値で警告を出す／回復で解除する。

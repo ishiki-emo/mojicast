@@ -178,6 +178,9 @@
             <option value="ja" data-i18n="st.tl_ja">日本語</option>
             <option value="ko" data-i18n="st.tl_ko">韓国語（試験的）</option>
           </select></div>
+          <div class="field"><label for="translateLang2" data-i18n="st.f_translang2">2つ目の翻訳先（同時に表示）</label><select id="translateLang2" class="tl-extra"></select></div>
+          <div class="field"><label for="translateLang3" data-i18n="st.f_translang3">3つ目の翻訳先（同時に表示）</label><select id="translateLang3" class="tl-extra"></select></div>
+          <div class="note" data-i18n="st.note_multi_trans">翻訳先を増やすと、言語ごとに翻訳の時間がかかります（中国語・韓国語は1文あたり約0.1〜0.2秒）。字幕には選んだ順に縦に並び、「翻訳のみ」表示では1つ目が本文になります。</div>
           <div class="route" id="translationRoute"></div>
           <div class="note" data-i18n="st.note_trans">翻訳モデルは、認識言語と翻訳先に合わせて自動で選ばれます。台湾・香港向けは地域ごとの漢字と語彙に整えます。</div>
         </article>
@@ -375,22 +378,55 @@
   function syncAsrLanguage() { $("asrLangRow").style.display = $("asrModel").value === "sensevoice" ? "" : "none"; }
   // 確定字幕だけ表示するときは途中経過を作らないので、更新間隔の設定は伏せる
   function syncFinalOnly() { $("intervalRow").style.display = $("finalOnly").checked ? "none" : ""; }
+  // 翻訳先（表示順）。translate_langs（複数）が無い旧設定は translate_lang の1言語
+  function currentTranslateLangs() {
+    const l = Array.isArray(cfg.translate_langs) && cfg.translate_langs.length
+      ? cfg.translate_langs : [cfg.translate_lang || "en"];
+    return [...new Set(l)].slice(0, 3);
+  }
+  // 1つ目の選択肢を複製して2つ目・3つ目を作る（先頭に「なし」）
+  function buildExtraLangSelects() {
+    for (const id of ["translateLang2", "translateLang3"]) {
+      const sel = $(id);
+      sel.innerHTML = "";
+      const none = document.createElement("option");
+      none.value = ""; none.textContent = T("st.tl_none", "なし"); none.dataset.i18n = "st.tl_none";
+      sel.appendChild(none);
+      for (const c of $("translateLang").children) sel.appendChild(c.cloneNode(true));
+    }
+  }
+  function setTranslateLangs() {
+    const langs = currentTranslateLangs();
+    $("translateLang").value = langs[0];
+    $("translateLang2").value = langs[1] || "";
+    $("translateLang3").value = langs[2] || "";
+    // 前の段が「なし」なら次の段は選べない（並びに穴を空けない）
+    $("translateLang3").disabled = !langs[1];
+  }
+  function readTranslateLangs() {
+    const v = ["translateLang", "translateLang2", "translateLang3"].map(id => $(id).value).filter(Boolean);
+    return [...new Set(v)];
+  }
   function syncTranslationRoute() {
     const sv = cfg.asr_model === "sensevoice";
     let src = sv && cfg.asr_lang && !["auto","ja"].includes(cfg.asr_lang) ? cfg.asr_lang : "ja";
     if (src === "yue") src = "zh";
-    const tgt = cfg.translate_lang || "en";
     const names = {ja:"日本語",zh:"中国語",en:"英語",ko:"韓国語",id:"インドネシア語",
       zh_tw:"中国語（台湾繁体字）",zh_hk:"中国語（香港繁体字）"};
-    const regional = ["zh_tw", "zh_hk"].includes(tgt);
-    if (src === tgt) {
-      $("translationRoute").textContent = "認識言語と翻訳先が同じため、翻訳はスキップされます";
-    } else if (src === "zh" && regional) {
-      $("translationRoute").textContent = `使用処理: OpenCC（中国語 → ${names[tgt]}）`;
-    } else {
+    const routeText = tgt => {
+      const regional = ["zh_tw", "zh_hk"].includes(tgt);
+      if (src === tgt) return `${names[tgt] || tgt}: 認識言語と同じため、翻訳はスキップされます`;
+      if (src === "zh" && regional) return `使用処理: OpenCC（中国語 → ${names[tgt]}）`;
       let model = src === "ja" && tgt === "en" ? "FuguMT" : "M2M-100";
       if (regional) model += " ＋ OpenCC";
-      $("translationRoute").textContent = `使用モデル: ${model}（${names[src] || src} → ${names[tgt] || tgt}）`;
+      return `使用モデル: ${model}（${names[src] || src} → ${names[tgt] || tgt}）`;
+    };
+    const el = $("translationRoute");
+    el.textContent = "";
+    for (const tgt of currentTranslateLangs()) {
+      const row = document.createElement("div");
+      row.textContent = routeText(tgt);
+      el.appendChild(row);
     }
   }
   async function loadApps() {
@@ -423,7 +459,7 @@
     bindRange("interval","intervalOut","interval","秒",.4); bindRange("hotwordsScore","hotwordsOut","hotwords_score","",2);
     $("useHotwords").checked = cfg.use_hotwords !== false; $("numArabic").checked = cfg.num_arabic !== false; $("highPrecision").checked = cfg.precision === "fp32";
     $("finalOnly").checked = !!cfg.final_only; syncFinalOnly();
-    $("translate").checked = !!cfg.translate; $("translateLang").value = cfg.translate_lang || "en";
+    $("translate").checked = !!cfg.translate; buildExtraLangSelects(); setTranslateLangs();
     $("collab").checked = !!cfg.collab; $("selfName").value = cfg.self_name || ""; $("guestName").value = cfg.guest_name || "";
     if (cfg.collab_supported === false) {   // コラボ未対応OS（mac）: セクションごと無効化
       $("collab").checked = false;
@@ -480,7 +516,17 @@
   $("finalOnly").addEventListener("change", e => { save({final_only:e.target.checked}); syncFinalOnly(); });
   $("highPrecision").addEventListener("change", e => save({precision:e.target.checked ? "fp32" : "int8-fp32"}));
   $("translate").addEventListener("change", e => save({translate:e.target.checked},false));
-  $("translateLang").addEventListener("change", e => { cfg.translate_lang=e.target.value; syncTranslationRoute(); save({translate_lang:e.target.value}); });
+  ["translateLang", "translateLang2", "translateLang3"].forEach((id, i) =>
+    $(id).addEventListener("change", e => {
+      // 別の段で選択中の言語を選んだら、その段と入れ替える（消えないように）
+      const prev = currentTranslateLangs().slice(), v = e.target.value, j = prev.indexOf(v);
+      const langs = j >= 0 && j !== i && prev[i]
+        ? (() => { [prev[i], prev[j]] = [prev[j], prev[i]]; return prev; })()
+        : readTranslateLangs();
+      cfg.translate_langs = langs; cfg.translate_lang = langs[0];
+      setTranslateLangs(); syncTranslationRoute();
+      save({translate_langs: langs, translate_lang: langs[0]});
+    }));
   $("collab").addEventListener("change", e => save({collab:e.target.checked}));
   $("vcEnabled").addEventListener("change", e => save({vc_enabled:e.target.checked}));
   $("vcWake").addEventListener("input", e => { clearTimeout(vcTimer); vcTimer = setTimeout(() => save({vc_wake:e.target.value.split(/[、,，]/).map(s => s.trim()).filter(Boolean)}), 400); });
