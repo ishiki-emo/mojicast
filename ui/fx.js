@@ -956,8 +956,9 @@
 
   /** リリックシーンへ訳文を併記する。fid のシーンが生きていれば下部帯に出して
       true、既に消えていれば false（呼び出し側は通常表示の「見切れた行は無視」と
-      同じ扱いで捨てる）。訳文はシーンの子なので、寿命・退場も本文と一緒。 */
-  FX.lyricTranslate = function (container, fid, en, style) {
+      同じ扱いで捨てる）。訳文はシーンの子なので、寿命・退場も本文と一緒。
+      翻訳先が複数なら order（0 が主言語）の順に下部帯の中へ縦に積む。 */
+  FX.lyricTranslate = function (container, fid, en, style, order = 0) {
     const state = container._lyr;
     if (!state || !en) return false;
     const scene = state.scenes.find(s => s.dataset.fid === String(fid));
@@ -983,7 +984,15 @@
         shadow: style.shadow,
       });
     }
-    el.textContent = en;
+    let row = el.querySelector(':scope > div[data-order="' + order + '"]');
+    if (!row) {
+      row = document.createElement("div");
+      row.dataset.order = order;
+      const after = [...el.querySelectorAll(":scope > div[data-order]")]
+        .find(c => Number(c.dataset.order) > order);
+      el.insertBefore(row, after || null);
+    }
+    row.textContent = en;
     return true;
   };
 

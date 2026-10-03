@@ -17,6 +17,7 @@ from engine import (
     _aux_precision,
     _should_emit_partial,
     _translate_signature,
+    translate_targets,
 )
 
 
@@ -282,7 +283,7 @@ class CaptionEngineLifecycleTests(unittest.TestCase):
         translating = threading.Event()
         release = threading.Event()
         self.engine = CaptionEngine(
-            on_translation=lambda fid, text, fb=False:
+            on_translation=lambda fid, text, fb=False, **_:
                 translated.append((fid, text, fb))
         )
 
@@ -332,7 +333,7 @@ class MaskedLineTranslationTests(unittest.TestCase):
     def _engine(self):
         events = []
         engine = CaptionEngine(
-            on_translation=lambda fid, text, fb=False:
+            on_translation=lambda fid, text, fb=False, **_:
                 events.append((fid, text, fb)),
         )
         engine._translate_on = True
@@ -377,7 +378,7 @@ class TranslationFallbackTests(unittest.TestCase):
         events = []
         warns = []
         engine = CaptionEngine(
-            on_translation=lambda fid, text, fb=False:
+            on_translation=lambda fid, text, fb=False, **_:
                 events.append((fid, text, fb)),
             on_warn=lambda kind, msg="", active=True:
                 warns.append((kind, active)),
@@ -672,6 +673,102 @@ class AuxPrecisionTests(unittest.TestCase):
         self.assertEqual(engine_mod._MODEL_SIZES_MB["punct_int8"], 109)
         self.assertLess(engine_mod._MODEL_SIZES_MB["punct_int8"],
                         engine_mod._MODEL_SIZES_MB["punct"])
+
+
+class MultiTranslationTests(unittest.TestCase):
+    """翻訳先を複数にしたとき（#11 複数翻訳の同時表示）の経路と通知の順番"""
+
+    def test_targets_fall_back_to_the_single_legacy_key(self):
+        self.assertEqual(translate_targets({"translate_lang": "ko"}), ["ko"])
+        self.assertEqual(translate_targets({}), ["en"])
+        self.assertEqual(translate_targets({"translate_langs": [], "translate_lang": "zh"}), ["zh"])
+
+    def test_targets_drop_unknown_and_duplicates_and_cap_at_three(self):
+        self.assertEqual(
+            translate_targets({"translate_langs": ["en", "xx", "en", "zh", "ko", "id"]}),
+            ["en", "zh", "ko"])
+        self.assertEqual(translate_targets({"translate_langs": ["xx"]}), ["en"])
+
+    def test_plans_skip_the_source_language_but_keep_display_order(self):
+        engine = CaptionEngine()
+        cfg = {"translate": True, "asr_model": "sensevoice", "asr_lang": "zh",
+               "translate_langs": ["zh", "ja", "zh_tw"]}
+        self.assertEqual(engine._translate_plans(cfg), [
+            (1, "ja", ("m2m", "zh", "ja")),
+            (2, "zh_tw", ("opencc", "zh", "zh_tw")),
+        ])
+
+    def test_plans_for_japanese_input_mix_fugumt_and_m2m(self):
+        engine = CaptionEngine()
+        cfg = {"translate": True, "translate_langs": ["en", "zh", "ko"]}
+        self.assertEqual([p for _, _, p in engine._translate_plans(cfg)], [
+            ("fugumt", "ja", "en"), ("m2m", "ja", "zh"), ("m2m", "ja", "ko")])
+
+    def _engine_with_routes(self, routes):
+        events = []
+        engine = CaptionEngine(
+            on_translation=lambda fid, text, fb=False, lang="", order=0:
+                events.append((lang, order, text, fb)))
+        engine._set_routes(routes, None)
+        engine._translate_on = True
+        engine._tq = queue.Queue(maxsize=8)
+        return engine, events
+
+    @staticmethod
+    def _route(lang, order, eng, fn, **kw):
+        r = {"lang": lang, "order": order, "sig": (eng, "ja", lang), "fn": fn,
+             "share": None, "base": None, "post": None}
+        r.update(kw)
+        return r
+
+    def test_primary_is_sent_first_then_lighter_languages(self):
+        routes = [self._route("ko", 0, "m2m", lambda t: "ko:" + t),
+                  self._route("zh", 1, "m2m", lambda t: "zh:" + t),
+                  self._route("en", 2, "fugumt", lambda t: "en:" + t)]
+        engine, events = self._engine_with_routes(routes)
+        engine._tq.put_nowait((1, "こんにちは"))
+        engine._tq.put_nowait(None)
+        engine._translate_loop()
+        self.assertEqual(events, [("ko", 0, "ko:こんにちは", False),
+                                  ("en", 2, "en:こんにちは", False),
+                                  ("zh", 1, "zh:こんにちは", False)])
+
+    def test_chinese_variants_share_one_m2m_translation(self):
+        calls = []
+        def base(t):
+            calls.append(t)
+            return "简体"
+        share = ("m2m", "ja", "zh")
+        routes = [self._route("zh", 0, "m2m", None, share=share, base=base,
+                              post=lambda z: z),
+                  self._route("zh_tw", 1, "m2m", None, share=share, base=base,
+                              post=lambda z: z + "(tw)")]
+        engine, events = self._engine_with_routes(routes)
+        engine._tq.put_nowait((1, "テスト"))
+        engine._tq.put_nowait(None)
+        engine._translate_loop()
+        self.assertEqual(calls, ["テスト"])           # M2M は1回だけ
+        self.assertEqual(events, [("zh", 0, "简体", False),
+                                  ("zh_tw", 1, "简体(tw)", False)])
+
+    def test_one_failed_language_falls_back_without_hiding_the_others(self):
+        routes = [self._route("en", 0, "fugumt", lambda t: "en:" + t),
+                  self._route("ko", 1, "m2m", lambda t: "")]
+        engine, events = self._engine_with_routes(routes)
+        engine._tq.put_nowait((1, "くしゃみ"))
+        engine._tq.put_nowait(None)
+        engine._translate_loop()
+        self.assertEqual(events, [("en", 0, "en:くしゃみ", False),
+                                  ("ko", 1, "くしゃみ", True)])
+
+    def test_masked_line_falls_back_for_every_language(self):
+        routes = [self._route("en", 0, "fugumt", lambda t: "en:" + t),
+                  self._route("zh", 1, "m2m", lambda t: "zh:" + t)]
+        engine, events = self._engine_with_routes(routes)
+        engine._emit_final_translation(3, "この○○○はひどい", True)
+        self.assertEqual(events, [("en", 0, "この○○○はひどい", True),
+                                  ("zh", 1, "この○○○はひどい", True)])
+        self.assertTrue(engine._tq.empty())
 
 
 if __name__ == "__main__":

@@ -46,7 +46,8 @@ DEFAULT_CONFIG = {
     "asr_lang": "auto",     # sensevoice時の認識言語（auto/ja/zh/en/ko/yue）
     "setup_suggested": False,  # 初回の「おすすめ設定」提案を表示済みか
     "use_hotwords": True, "hotwords_score": 2.0, "translate": False,
-    "translate_lang": "en",  # 翻訳先（en/zh/zh_tw/zh_hk/id/ja/ko）
+    "translate_lang": "en",  # 翻訳先（en/zh/zh_tw/zh_hk/id/ja/ko）。複数時は先頭＝主言語
+    "translate_langs": [],   # 複数の翻訳先（表示順・最大3）。空なら translate_lang の1言語
     "save_log": True, "mask_char": "○", "num_arabic": True,
     "word_fx": True,        # 単語エフェクトの表示（OFFでも認識誘導・置換は有効）
     "preset": "standard", "box": "none", "port": 8765,
@@ -830,7 +831,8 @@ def _try_voice_command(text, spk=""):
     elif cmd["action"] in ("translate_on", "translate_off", "translate_lang"):
         with _config_lock:
             cfg = load_config()
-            prev = (cfg.get("translate"), cfg.get("translate_lang"))
+            prev = (cfg.get("translate"), cfg.get("translate_lang"),
+                    list(cfg.get("translate_langs") or []))
             if cmd["action"] == "translate_off":
                 cfg["translate"] = False
                 msg = "翻訳をオフにしました"
@@ -838,10 +840,19 @@ def _try_voice_command(text, spk=""):
                 cfg["translate"] = True
                 if cmd["action"] == "translate_lang":
                     cfg["translate_lang"] = cmd["lang"]
+                    # 複数言語のときは、言われた言語を主言語（先頭）へ繰り上げる。
+                    # 他の言語は残す（「韓国語に」で英語・中国語が消えると困る）
+                    langs = list(cfg.get("translate_langs") or [])
+                    if langs:
+                        langs = [cmd["lang"]] + [x for x in langs if x != cmd["lang"]]
+                        from engine import translate_targets
+                        cfg["translate_langs"] = translate_targets(
+                            {"translate_langs": langs})
                     msg = f"翻訳を{cmd['label']}に切り替えました"
                 else:
                     msg = "翻訳をオンにしました"
-            changed = prev != (cfg.get("translate"), cfg.get("translate_lang"))
+            changed = prev != (cfg.get("translate"), cfg.get("translate_lang"),
+                               list(cfg.get("translate_langs") or []))
             if changed:
                 save_config(cfg)
         if not changed:
@@ -894,12 +905,16 @@ def _engine_on_partial(text, spk=""):
     vrcchat.on_partial(text, spk)   # VRChatのタイピング中表示
 
 
-def _engine_on_translation(fid, text, fallback=False):
+def _engine_on_translation(fid, text, fallback=False, lang="", order=0):
     # fallback=True は「訳を出せなかったので原文を渡している」印。表示側は
     # 翻訳のみ表示でもこの行だけ原文へ切り替える（空にすると字幕が消える）。
+    # 翻訳先が複数なら言語ごとに届く。order は表示順（0 が主言語＝翻訳のみ
+    # 表示で本文になる言語）。
     broadcast({"type": "translation", "id": fid, "text": text,
-               "fallback": bool(fallback)})
-    if not fallback:      # VRChatへ原文を訳文として送らない
+               "fallback": bool(fallback), "lang": lang, "order": order})
+    # VRChat のチャットボックスは1枠（144文字）なので主言語だけ送る。
+    # 原文を訳文として送らない
+    if not fallback and order == 0:
         vrcchat.on_translation(fid, text)
 
 
@@ -1259,6 +1274,19 @@ class Handler(BaseHTTPRequestHandler):
                 body["vc_enabled"] = bool(body.get("vc_enabled"))
             if "vrchat" in body:
                 body["vrchat"] = bool(body.get("vrchat"))
+            if "translate_langs" in body:
+                # 表示順の翻訳先リスト。未知値・重複を捨て上限で切る。主言語は
+                # 従来の単一キー translate_lang にも写す（旧UI・音声コマンド互換）
+                from engine import translate_targets
+                raw = body.get("translate_langs")
+                body["translate_langs"] = (
+                    translate_targets({"translate_langs": raw})
+                    if isinstance(raw, list) and raw else [])
+                if body["translate_langs"]:
+                    body["translate_lang"] = body["translate_langs"][0]
+            elif "translate_lang" in body:
+                # 旧UI（単一選択）からの保存は1言語に戻す
+                body["translate_langs"] = []
             if "vrchat_source" in body and body["vrchat_source"] not in ("ja", "tr"):
                 body["vrchat_source"] = "ja"
             if "vrchat_port" in body:
