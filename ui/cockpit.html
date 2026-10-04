@@ -1318,8 +1318,9 @@
       div.textContent = text;
     }
   }
-  function styleEnLine(el) {
-    const st = previewStyle || {};
+  function styleEnLine(el, lang = "") {
+    // 言語ごとの訳文の見た目（字幕スタジオ）があれば、overlay と同じく反映する
+    const st = window.FX ? FX.trStyle(previewStyle || {}, lang) : (previewStyle || {});
     el.style.fontSize = (st.enScale ?? 0.6) + "em";
     el.style.opacity = st.enOpacity ?? 0.82;
     el.style.color = st.enColor || "";
@@ -1430,16 +1431,25 @@
     while (monitor.children.length > MON_MAX) monitor.removeChild(monitor.firstChild);
     monitor.scrollTop = monitor.scrollHeight;
   }
-  function monTranslation(id, en, fallback) {
+  function monTranslation(id, en, fallback, order = 0, lang = "") {
     // 原文フォールバックは訳ではないのでモニタに訳として出さない
     // （字幕側では穴埋めに使うが、ここに出すと訳せた行と区別がつかない）
     if (!en || id == null || fallback) return;
     const d = monitor.querySelector('[data-fid="' + id + '"]');
     if (!d) return;
-    let el = d.querySelector(".en");
-    if (!el) { el = document.createElement("div"); el.className = "en"; d.appendChild(el); }
+    // 翻訳先が複数なら言語ごとに届く。1つの欄を上書きすると最後に届いた言語
+    // （遅い韓国語など）しか残らないので、overlay と同じく設定順の欄に積む
+    let el = d.querySelector(':scope > .en[data-order="' + order + '"]');
+    if (!el) {
+      el = document.createElement("div");
+      el.className = "en";
+      el.dataset.order = order;
+      const after = [...d.querySelectorAll(":scope > .en")]
+        .find(c => Number(c.dataset.order) > order);
+      d.insertBefore(el, after || null);
+    }
     el.textContent = en;
-    styleEnLine(el);
+    styleEnLine(el, lang);
   }
 
   function connect() {
@@ -1450,7 +1460,7 @@
       else if (m.type === "init") { if (m.state) setState(m.state.state, m.state.detail); setPreviewStyle(m); }
       else if (m.type === "partial") monPartial(m.text, m.speaker);
       else if (m.type === "final") monFinal(m.text, m.id, m.speaker);
-      else if (m.type === "translation") monTranslation(m.id, m.text, m.fallback);
+      else if (m.type === "translation") monTranslation(m.id, m.text, m.fallback, m.order || 0, m.lang || "");
       else if (m.type === "level") $("meterBar").style.width = (m.value * 100) + "%";
       else if (m.type === "clear") { monitor.innerHTML = ""; partials.clear(); }
       else if (m.type === "clear_partial") {
