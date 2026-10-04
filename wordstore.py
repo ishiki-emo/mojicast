@@ -30,6 +30,9 @@ DATA_FILES = ("config.json", "presets.json", "boxes.json",
               "scenes.json") + WORD_FILES
 
 _ready = False
+# この起動で data/ を初めて作ったか（＝新規インストール）。旧フォルダからの
+# 引き継ぎ案内（migrate.py・コックピット）を出すかの判定に使う
+fresh_install = False
 
 
 def ensure_data():
@@ -37,9 +40,12 @@ def ensure_data():
 
     冪等（何度呼んでも安全）。サーバ起動・設定読み込みの前に必ず通す。
     """
-    global _ready
+    global _ready, fresh_install
     if _ready:
         return
+    # 既定データも旧配置のデータも無い＝この環境で初めての起動
+    fresh_install = not any(
+        os.path.exists(os.path.join(d, "presets.json")) for d in (DATA, BASE))
     os.makedirs(PROFILES_DIR, exist_ok=True)
 
     # --- 旧レイアウトからの自動移行（既存ユーザー対策）---
