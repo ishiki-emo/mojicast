@@ -21,6 +21,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs, unquote
 
 from apppaths import BASE, DATA_BASE
+import migrate
 import platform_compat
 import vrcchat
 import wordstore
@@ -77,6 +78,9 @@ DEFAULT_CONFIG = {
     # （ONで初回27MB DL＋CPU約5%。低スペック機に黙って足さない）
     "sound_fx": False,
     "sound_fx_rules": {},   # グループ名 → 演出ルール（soundfx_settings.html が編集）
+    # 以前の Mojicast（別フォルダの Zip 版）からの引き継ぎ案内（migrate.py）。
+    # "" = 対象外 / "pending" = 初回起動で案内中 / "done" = 引き継いだ / "dismissed" = 断った
+    "migrate_offer": "",
 }
 
 _clients = []
@@ -351,6 +355,30 @@ def _valid_vc_command(c):
     if t == "translate_lang":
         return a.get("lang") in _VC_TRANS_LANGS
     return True    # translate_on / translate_off / clear は追加項目なし
+
+
+_migrate_job = migrate.Job()   # 以前の Mojicast からの引き継ぎ（1回ぶんの進捗）
+
+
+def _after_migrate():
+    """引き継ぎで data/ を差し替えた後の始末（migrate.Job の裏スレッドから呼ばれる）。
+
+    引き継いだ設定は旧版のものなので、新しい版で増えた既定スタイルを足し直し、
+    案内は二度と出さない。開いている画面へは新しい見た目・言語を配る。
+    """
+    wordstore._ready = False
+    wordstore.ensure_data()        # 旧版に無かったファイルを既定から補う
+    _seed_style_defaults()
+    with _config_lock:
+        cfg = load_config()
+        cfg["migrate_offer"] = "done"
+        save_config(cfg)
+    vrcchat.configure(cfg)
+    ev = {"type": "style"}
+    ev.update(resolve_style(cfg))
+    broadcast(ev)
+    broadcast({"type": "theme", "theme": cfg.get("theme", "light")})
+    broadcast({"type": "ui_lang", "ui_lang": cfg.get("ui_lang", "ja")})
 
 
 def _seed_style_defaults():
@@ -1197,6 +1225,15 @@ class Handler(BaseHTTPRequestHandler):
             with _engine_state_lock:
                 state = dict(_engine_state)
             self._json(state)
+        elif path == "/api/migrate":
+            # 以前の Mojicast からの引き継ぎ: 案内を出すか・候補フォルダ・進捗。
+            # 進捗のポーリング（job=1）では候補探し（フォルダ走査）を省く
+            cfg = load_config()
+            offer = cfg.get("migrate_offer") == "pending"
+            out = {"offer": offer, "job": _migrate_job.snapshot()}
+            if offer and query.get("job") != "1":
+                out["candidates"] = migrate.find_candidates(DATA_BASE)
+            self._json(out)
         elif path == "/api/perf":
             # リモート切り分け用: デコード回数・平均所要時間（今セッション累計）
             p = getattr(_engine, "perf", None) if _engine else None
@@ -1417,6 +1454,8 @@ class Handler(BaseHTTPRequestHandler):
             except OSError:
                 pass                     # 既に無ければそれで良い
             self._json({"ok": True})
+        elif path == "/api/migrate":
+            self._post_migrate(body)
         elif path == "/api/presets":
             presets = body.get("presets", [])
             if not (isinstance(presets, list) and presets
@@ -1600,6 +1639,35 @@ class Handler(BaseHTTPRequestHandler):
             f.write(text)
         self._json({"ok": True, "file": fname, "path": os.path.join(d, fname)})
 
+    def _post_migrate(self, body):
+        """以前の Mojicast から引き継ぐ。{action: inspect|start|dismiss, path, models}"""
+        action = body.get("action")
+        if action == "dismiss":
+            with _config_lock:
+                cfg = load_config()
+                cfg["migrate_offer"] = "dismissed"
+                save_config(cfg)
+            self._json({"ok": True})
+            return
+        if action not in ("inspect", "start"):
+            self._json({"ok": False, "error": "unknown action"}, 400)
+            return
+        info = migrate.inspect(body.get("path"), DATA_BASE)
+        if action == "inspect" or not info["ok"]:
+            self._json(info, 200 if info["ok"] else 400)
+            return
+        with _engine_state_lock:
+            running = _engine_state.get("state") in ("running", "loading")
+        if running:
+            # 字幕の稼働中に設定フォルダを差し替えると、エンジンが途中の状態を読む
+            self._json({"ok": False, "error": "engine_running"}, 409)
+            return
+        started = _migrate_job.start(
+            info["path"], bool(body.get("models")), wordstore.DATA,
+            os.path.join(DATA_BASE, "models"), _after_migrate)
+        self._json({"ok": started, **({} if started else {"error": "busy"})},
+                   200 if started else 409)
+
     def _post_glossary_import(self, body):
         """英訳辞書の一括取り込み（CSV / JSON）。
         {profile, content_b64, mode: preview|add|overwrite}
@@ -1754,6 +1822,13 @@ class _QuietHTTPServer(ThreadingHTTPServer):
 def start(port: int = 8765):
     wordstore.ensure_data()   # data/ 作成・旧配置からの移行・既定データの複製
     _seed_style_defaults()    # 後から増えた既定スタイルを既存環境へ一度だけ追加
+    if wordstore.fresh_install and sys.platform == "win32":
+        # 新しい場所への初めてのインストール（インストーラ版など）。以前の Zip 版の
+        # 設定を引き継ぐか、コックピットで一度だけ聞く。Mac は保存先が固定なので対象外
+        with _config_lock:
+            cfg = load_config()
+            cfg["migrate_offer"] = "pending"
+            save_config(cfg)
     vrcchat.configure(load_config())   # VRChat転送の設定スナップショット
     server = _QuietHTTPServer(("127.0.0.1", port), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()

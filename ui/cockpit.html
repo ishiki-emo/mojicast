@@ -67,6 +67,22 @@
     flex: none; padding: 2px 8px; font-size: 12px;
     background: transparent; border: 1px solid var(--line); color: var(--dim);
   }
+  /* 以前の Mojicast からの引き継ぎ案内（初回起動のみ）。更新バーと同じ形 */
+  #migrateBar {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px;
+    padding: 8px 16px; font-size: 13px; color: var(--text);
+    background: color-mix(in srgb, var(--accent) 14%, var(--panel));
+    border-bottom: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+  }
+  #migrateBar .ub-ico { flex: none; }
+  #migrateBar #migrateMsg { flex: 1 1 260px; overflow-wrap: anywhere; }
+  #migrateBar .mg-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  #migrateBar button { padding: 3px 10px; font-size: 12px; }
+  #migrateBar label { display: flex; align-items: center; gap: 4px; font-size: 12px; }
+  #migrateBar .ub-x {
+    flex: none; padding: 2px 8px; font-size: 12px;
+    background: transparent; border: 1px solid var(--line); color: var(--dim);
+  }
   /* 停止せずに字幕だけ出なくなる異常の通知。更新バーと同じ形で色だけ変える */
   #warnBar {
     display: flex; align-items: center; gap: 10px;
@@ -408,6 +424,14 @@
             title="閉じる" data-i18n-title="cp.update_dismiss">✕</button>
   </div>
 
+  <div id="migrateBar" style="display:none">
+    <span class="ub-ico">📦</span>
+    <span id="migrateMsg"></span>
+    <span class="mg-actions" id="migrateActions"></span>
+    <button class="ub-x" id="migrateClose" onclick="dismissMigrate()"
+            title="使っていない（今後表示しない）" data-i18n-title="cp.mig_dismiss_title">✕</button>
+  </div>
+
   <div id="warnBar" style="display:none">
     <span class="ub-ico">⚠</span>
     <span id="warnMsg"></span>
@@ -626,6 +650,120 @@
     if (_updateInfo && _updateInfo.latest)
       localStorage.setItem("mojicast_update_dismissed", _updateInfo.latest);
     $("updateBar").style.display = "none";
+  }
+
+  // ---------- 以前の Mojicast からの引き継ぎ（初回起動のみ・migrate.py） ----------
+  // インストーラ版は新しいフォルダに入るので、Zip 版で使っていた設定・単語・
+  // 字幕デザイン・AIモデルが見えない。旧フォルダを選んでもらってコピーする。
+  let _migTimer = null;
+  function migButton(label, onclick, primary) {
+    const b = document.createElement("button");
+    b.textContent = label;
+    if (primary) b.className = "primary";
+    b.onclick = onclick;
+    return b;
+  }
+  function migShow(msg, buttons, closable = true) {
+    $("migrateMsg").textContent = msg;
+    const box = $("migrateActions");
+    box.textContent = "";
+    for (const b of buttons) box.appendChild(b);
+    $("migrateClose").style.display = closable ? "" : "none";
+    $("migrateBar").style.display = "flex";
+  }
+  const MIG_ERR = {
+    not_found: ["cp.mig_err_not_found", "フォルダが見つかりません"],
+    no_data: ["cp.mig_err_no_data", "このフォルダには Mojicast の設定（data）がありません。Mojicast.exe があるフォルダを選んでください"],
+    same_folder: ["cp.mig_err_same", "今使っている Mojicast と同じフォルダです"],
+    engine_running: ["cp.mig_err_running", "字幕を停止してから引き継いでください"],
+    busy: ["cp.mig_err_busy", "引き継ぎ中です"],
+  };
+  const migErr = (code) => MIG_ERR[code] ? T(...MIG_ERR[code]) : (code || "");
+  async function checkMigrate() {
+    let d;
+    try { d = await api("/api/migrate"); } catch (e) { return; }
+    if (d.job && d.job.running) { migProgress(); return; }
+    if (!d.offer) return;
+    migOffer(d.candidates || []);
+  }
+  function migOffer(candidates) {
+    const btns = candidates.map(path => migButton(
+      T("cp.mig_from", "📁 {p} から引き継ぐ").replace("{p}", path), () => migInspect(path), true));
+    btns.push(migButton(T("cp.mig_pick", "別のフォルダを選ぶ…"), migPick));
+    btns.push(migButton(T("cp.mig_no", "使っていない"), dismissMigrate));
+    migShow(candidates.length
+      ? T("cp.mig_found", "以前の Mojicast が見つかりました。設定・単語・字幕デザインを引き継げます。")
+      : T("cp.mig_ask", "以前の Mojicast（Zip 版）を使っていましたか？そのフォルダを選ぶと、設定・単語・字幕デザインを引き継げます。"),
+      btns);
+  }
+  async function migPick() {
+    let path = "";
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.pick_folder) {
+      const r = await window.pywebview.api.pick_folder("");
+      path = (r && r.path) || "";
+    }
+    if (path) migInspect(path);
+  }
+  async function migInspect(path) {
+    let r;
+    try { r = await api("/api/migrate", { action: "inspect", path }); }
+    catch (e) { r = { ok: false, error: "not_found" }; }
+    if (!r.ok) {
+      migShow(migErr(r.error), [migButton(T("cp.mig_pick", "別のフォルダを選ぶ…"), migPick),
+                                migButton(T("cp.mig_back", "戻る"), () => checkMigrate())]);
+      return;
+    }
+    const btns = [];
+    let modelsBox = null;
+    if (r.models_mb > 0) {
+      const label = document.createElement("label");
+      modelsBox = document.createElement("input");
+      modelsBox.type = "checkbox"; modelsBox.checked = true;
+      label.appendChild(modelsBox);
+      label.appendChild(document.createTextNode(
+        T("cp.mig_models", "AIモデルもコピーする（約{s}・再ダウンロード不要）")
+          .replace("{s}", r.models_mb >= 1024 ? (r.models_mb / 1024).toFixed(1) + "GB" : r.models_mb + "MB")));
+      btns.push(label);
+    }
+    btns.push(migButton(T("cp.mig_do", "引き継ぐ"), () => migStart(r.path, modelsBox ? modelsBox.checked : false), true));
+    btns.push(migButton(T("cp.mig_back", "戻る"), () => checkMigrate()));
+    migShow(T("cp.mig_confirm", "「{p}」から引き継ぎます。いまの設定は置き換わります（引き継ぎ元のフォルダは変更しません）。")
+      .replace("{p}", r.path), btns);
+  }
+  async function migStart(path, models) {
+    let r;
+    try { r = await api("/api/migrate", { action: "start", path, models }); }
+    catch (e) { r = { ok: false }; }
+    if (!r.ok) {
+      migShow(migErr(r.error) || T("cp.mig_fail", "引き継げませんでした"),
+              [migButton(T("cp.mig_back", "戻る"), () => checkMigrate())]);
+      return;
+    }
+    migProgress();
+  }
+  async function migProgress() {
+    clearTimeout(_migTimer);
+    let d;
+    try { d = await api("/api/migrate?job=1"); } catch (e) { _migTimer = setTimeout(migProgress, 1000); return; }
+    const j = d.job || {};
+    if (j.running) {
+      migShow(j.phase === "models"
+        ? T("cp.mig_copy_models", "AIモデルをコピー中… {c} / {t} MB").replace("{c}", j.copied_mb).replace("{t}", j.total_mb)
+        : T("cp.mig_copy_data", "設定・単語をコピー中…"), [], false);
+      _migTimer = setTimeout(migProgress, 500);
+      return;
+    }
+    if (j.done) {
+      migShow(T("cp.mig_done", "引き継ぎました。画面を読み込み直します…"), [], false);
+      setTimeout(() => location.reload(), 1500);
+      return;
+    }
+    migShow(T("cp.mig_fail", "引き継げませんでした") + (j.error ? "：" + j.error : ""),
+            [migButton(T("cp.mig_back", "戻る"), () => checkMigrate())]);
+  }
+  async function dismissMigrate() {
+    $("migrateBar").style.display = "none";
+    try { await api("/api/migrate", { action: "dismiss" }); } catch (e) {}
   }
 
   // ---------- 稼働中の警告（英訳の連続失敗・音声の途絶）----------
@@ -855,6 +993,7 @@
     if (window.MojicastI18n) window.MojicastI18n.applyLang(cfg.ui_lang || "ja");   // 表示言語
     if (cfg.version) $("verTag").textContent = "v" + cfg.version;
     checkUpdate();   // 更新のお知らせ（非同期・失敗は無視）
+    checkMigrate();  // 以前の Mojicast からの引き継ぎ案内（初回起動のみ）
     if (cfg.num_arabic === undefined) cfg.num_arabic = true;   // 既定ON（チップ表示用）
     if (cfg.save_log === undefined) cfg.save_log = true;
     syncModelCard();

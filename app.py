@@ -252,6 +252,20 @@ class JsApi:
         webbrowser.open(url, new=2)   # new=2: 可能なら新規ウィンドウ/タブ
         return {"ok": True}
 
+    def pick_folder(self, start=""):
+        """フォルダ選択ダイアログ（以前の Mojicast からの引き継ぎで旧フォルダを選ぶ）。
+
+        選ばれたパス、キャンセルなら空文字を返す。
+        """
+        try:
+            win = webview.windows[0]   # コックピット（親窓）に紐づける
+            kw = {"directory": start} if isinstance(start, str) and os.path.isdir(start) else {}
+            res = win.create_file_dialog(webview.FOLDER_DIALOG, **kw)
+        except Exception:
+            return {"ok": False, "path": ""}
+        path = res[0] if isinstance(res, (list, tuple)) and res else (res or "")
+        return {"ok": bool(path), "path": path}
+
     def open_collab(self):
         """後方互換: コラボ音声はアプリ設定へ集約"""
         self.open_settings("section=collab")
