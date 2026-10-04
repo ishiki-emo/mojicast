@@ -1,4 +1,4 @@
-﻿# Mojicast インストーラ（setup.exe）の作成
+﻿# Mojicast インストーラ（setup.exe）と配布用 ZIP の作成
 #
 # dist\Mojicast\ を Inno Setup で setup.exe にまとめる。Zip 版（make_release_zip.ps1）と
 # 並べて配布する想定（Zip はポータブル版として残す）。
@@ -39,5 +39,22 @@ if ($LASTEXITCODE -ne 0) { throw "ISCC が失敗しました（終了コード $
 
 $out = Join-Path $root "Mojicast-v$Version-win-x64-setup.exe"
 $mb = [math]::Round((Get-Item $out).Length / 1MB, 1)
+
+# BOOTH 等の配布用に setup.exe と説明書きを ZIP にまとめる（exe 単体を受け付けない
+# 配布先があるため）。ファイル名は英数字に揃える（展開ソフトによっては日本語名が化ける）。
+# Compress-Archive は Windows PowerShell 5.1 で区切り文字の扱いが古いので .NET で作る
+$zip = Join-Path $root "Mojicast-v$Version-win-x64-setup.zip"
+Remove-Item $zip -Force -EA SilentlyContinue
+Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
+$archive = [System.IO.Compression.ZipFile]::Open($zip, "Create")
+try {
+    foreach ($f in @($out, (Join-Path $root "installer\README.txt"))) {
+        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+            $archive, $f, (Split-Path $f -Leaf), "Optimal") | Out-Null
+    }
+} finally { $archive.Dispose() }
+$zmb = [math]::Round((Get-Item $zip).Length / 1MB, 1)
+
 Write-Host ""
 Write-Host "完成: $(Split-Path $out -Leaf)  ($mb MB)"
+Write-Host "      $(Split-Path $zip -Leaf)  ($zmb MB・setup.exe＋README.txt)"
