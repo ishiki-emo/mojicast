@@ -29,6 +29,7 @@ _A fully-offline real-time captioning app for live streaming: Japanese speech re
 | 「ありがとう」でキラキラを飛ばしたい | [エフェクトガイド](docs/EFFECT_GUIDE.md) |
 | 名前・ゲーム名が誤認識される | 認識させる単語 — [マニュアル 6章](docs/MANUAL.md#6-スタジオ字幕の見た目と言葉) |
 | 英語・中国語などの字幕も併記したい | [マニュアル 7章](docs/MANUAL.md#7-翻訳の併記) |
+| 英語＋中国語のように2〜3言語を同時に出したい | [マニュアル 7章](docs/MANUAL.md#複数の言語を同時に表示v099) |
 | 日本語を出さず訳文だけの字幕にしたい | 表示モード「翻訳のみ」— [マニュアル 7章](docs/MANUAL.md#7-翻訳の併記) |
 | VRChatのチャットボックスに字幕を出したい | VRChat連携 — [マニュアル 4章](docs/MANUAL.md#4-アプリ設定声の聞き取り翻訳コラボ接続) |
 | 日本語以外の言語で配信したい | 多言語モデル — [マニュアル 4章](docs/MANUAL.md#4-アプリ設定声の聞き取り翻訳コラボ接続) |
@@ -50,6 +51,7 @@ _A fully-offline real-time captioning app for live streaming: Japanese speech re
 - 🌐 **翻訳の併記** — 英訳（FuguMT）／中国語（簡体字・台湾繁体字・香港繁体字）・インドネシア語・
   日本語・韓国語〔試験的〕（M2M-100 ＋ OpenCC）を切替可能。認識言語×翻訳先から使用モデルを自動選択
   （中国語認識＋英訳=中→英 など）。配信用語の組み込み辞書つき（配信→stream / 直播 等）。
+  **最大3言語を同時に表示**でき（例: 英語＋中国語＋韓国語）、訳文の見た目は言語ごとにも変えられる。
   翻訳字幕は本文と独立して見た目を調整可能。**表示モード「翻訳のみ」**で日本語なしの
   訳文だけの字幕にもできる。※軽量ローカルモデルのため訳質は「それなり」
   （固有名詞は英訳固定語で補正・[伸ばす余地](docs/TECH_GUIDE.md#精度と伸ばす余地)あり）
@@ -65,7 +67,7 @@ _A fully-offline real-time captioning app for live streaming: Japanese speech re
 - 🎛 **配信者向けUI** — コックピット（字幕の見た目・配信プレビュー）／スタジオ／アプリ設定の3画面。
   ライト基調（ヘッダーの 🌙/☀ でダーク切替可・字幕の色には非干渉）
 - 🔌 **完全オフライン** — 音声もテキストも外部送信なし
-- 🖥 **Windows でダブルクリック起動**（配布版は Python 不要・Zip 約90MB）
+- 🖥 **Windows でダブルクリック起動**（配布版は Python 不要。インストーラ版 約55MB／Zip 版 約82MB）
 
 ## 仕組み
 
@@ -112,9 +114,13 @@ OBS併用時はGPUエンコード（NVENC / AMF）推奨。開発には Python 3
 
 ## 使い方（配布版）
 
-1. [リリース](../../releases)の Zip をローカルに解凍
-2. `Mojicast.exe` をダブルクリック
+1. [リリース](../../releases)の `Mojicast-v*-setup.exe` を実行してインストール（管理者権限不要）
+   - インストールしたくない場合は Zip 版（`Mojicast-v*-win-x64.zip`）をローカルに解凍して `Mojicast.exe` を起動
+2. スタートメニューの「Mojicast」で起動
 3. マイクを選んで ▶開始 / OBS のブラウザソースに `http://localhost:8765`
+
+以前の Zip 版を使っていた場合は、インストール先に今の Mojicast フォルダを選ぶか、
+初回起動時の「以前の Mojicast から引き継ぐ」案内で設定・単語・モデルを引き継げます。
 
 初回の ▶開始 時に AI モデル（約1.2GB）を自動ダウンロードします。以降はオフラインで動作します。
 詳しい操作は同梱の `マニュアル.html` を参照。
@@ -149,6 +155,8 @@ pyinstaller --noconfirm Mojicast.spec
 .\build_bundle.ps1 -NoModels    # 軽量版（モデル無し・初回DL・約0.22GB / Zip 約91MB）
 .\build_bundle.ps1              # 同梱版（モデル込み・完全オフライン・約1.7GB）
 .\smoke_test.ps1 -Fresh         # リリース前検証（新規ユーザーのDL経路を再現）
+.\make_release_zip.ps1          # Zip 版（ポータブル）
+.\make_installer.ps1            # インストーラ版 setup.exe ＋ 配布用 ZIP（Inno Setup 6 が必要）
 ```
 
 詳細は [STUDIO_README.md](STUDIO_README.md)。
