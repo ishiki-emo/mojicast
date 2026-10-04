@@ -592,7 +592,15 @@
     if (!r.ok) { $("newProfErr").textContent = r.error || "作成できません"; return; }
     $("newProfBar").hidden = true;
     await loadProfiles(curProfile);
+    notifyProfilesChanged();
     onProfileSelect(name);               // 未保存編集があれば確認を挟んで切替
+  }
+
+  // スタジオに埋め込まれているとき、外側の「編集する単語セット」の一覧も作り直させる。
+  // スタジオは開いた時に一度しか一覧を読まないので、知らせないと削除した名前が残る
+  function notifyProfilesChanged() {
+    if (window.parent !== window)
+      window.parent.postMessage({ mojiProfilesChanged: true }, location.origin);
   }
 
   function askDeleteProfile() {
@@ -605,6 +613,7 @@
       body: JSON.stringify({ action: "delete", name: curProfile }) });
     dirty = false;                       // 消した対象の編集は破棄
     await loadProfiles("");
+    notifyProfilesChanged();
     await switchTo("");
   }
 
