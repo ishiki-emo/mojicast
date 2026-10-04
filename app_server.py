@@ -21,11 +21,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs, unquote
 
 from apppaths import BASE, DATA_BASE
+import migrate
 import platform_compat
 import vrcchat
 import wordstore
 
-APP_VERSION = "0.9.8"
+APP_VERSION = "0.9.9"
 
 # 更新チェック用のマニフェスト（GitHub raw）。リリース時に latest.json を更新する。
 # 中身: {"version": "0.5.1", "url": "<配布ページ>", "notes": "<一行紹介>"}
@@ -46,7 +47,8 @@ DEFAULT_CONFIG = {
     "asr_lang": "auto",     # sensevoice時の認識言語（auto/ja/zh/en/ko/yue）
     "setup_suggested": False,  # 初回の「おすすめ設定」提案を表示済みか
     "use_hotwords": True, "hotwords_score": 2.0, "translate": False,
-    "translate_lang": "en",  # 翻訳先（en/zh/zh_tw/zh_hk/id/ja/ko）
+    "translate_lang": "en",  # 翻訳先（en/zh/zh_tw/zh_hk/id/ja/ko）。複数時は先頭＝主言語
+    "translate_langs": [],   # 複数の翻訳先（表示順・最大3）。空なら translate_lang の1言語
     "save_log": True, "mask_char": "○", "num_arabic": True,
     "word_fx": True,        # 単語エフェクトの表示（OFFでも認識誘導・置換は有効）
     "preset": "standard", "box": "none", "port": 8765,
@@ -76,6 +78,9 @@ DEFAULT_CONFIG = {
     # （ONで初回27MB DL＋CPU約5%。低スペック機に黙って足さない）
     "sound_fx": False,
     "sound_fx_rules": {},   # グループ名 → 演出ルール（soundfx_settings.html が編集）
+    # 以前の Mojicast（別フォルダの Zip 版）からの引き継ぎ案内（migrate.py）。
+    # "" = 対象外 / "pending" = 初回起動で案内中 / "done" = 引き継いだ / "dismissed" = 断った
+    "migrate_offer": "",
 }
 
 _clients = []
@@ -350,6 +355,30 @@ def _valid_vc_command(c):
     if t == "translate_lang":
         return a.get("lang") in _VC_TRANS_LANGS
     return True    # translate_on / translate_off / clear は追加項目なし
+
+
+_migrate_job = migrate.Job()   # 以前の Mojicast からの引き継ぎ（1回ぶんの進捗）
+
+
+def _after_migrate():
+    """引き継ぎで data/ を差し替えた後の始末（migrate.Job の裏スレッドから呼ばれる）。
+
+    引き継いだ設定は旧版のものなので、新しい版で増えた既定スタイルを足し直し、
+    案内は二度と出さない。開いている画面へは新しい見た目・言語を配る。
+    """
+    wordstore._ready = False
+    wordstore.ensure_data()        # 旧版に無かったファイルを既定から補う
+    _seed_style_defaults()
+    with _config_lock:
+        cfg = load_config()
+        cfg["migrate_offer"] = "done"
+        save_config(cfg)
+    vrcchat.configure(cfg)
+    ev = {"type": "style"}
+    ev.update(resolve_style(cfg))
+    broadcast(ev)
+    broadcast({"type": "theme", "theme": cfg.get("theme", "light")})
+    broadcast({"type": "ui_lang", "ui_lang": cfg.get("ui_lang", "ja")})
 
 
 def _seed_style_defaults():
@@ -830,7 +859,8 @@ def _try_voice_command(text, spk=""):
     elif cmd["action"] in ("translate_on", "translate_off", "translate_lang"):
         with _config_lock:
             cfg = load_config()
-            prev = (cfg.get("translate"), cfg.get("translate_lang"))
+            prev = (cfg.get("translate"), cfg.get("translate_lang"),
+                    list(cfg.get("translate_langs") or []))
             if cmd["action"] == "translate_off":
                 cfg["translate"] = False
                 msg = "翻訳をオフにしました"
@@ -838,10 +868,19 @@ def _try_voice_command(text, spk=""):
                 cfg["translate"] = True
                 if cmd["action"] == "translate_lang":
                     cfg["translate_lang"] = cmd["lang"]
+                    # 複数言語のときは、言われた言語を主言語（先頭）へ繰り上げる。
+                    # 他の言語は残す（「韓国語に」で英語・中国語が消えると困る）
+                    langs = list(cfg.get("translate_langs") or [])
+                    if langs:
+                        langs = [cmd["lang"]] + [x for x in langs if x != cmd["lang"]]
+                        from engine import translate_targets
+                        cfg["translate_langs"] = translate_targets(
+                            {"translate_langs": langs})
                     msg = f"翻訳を{cmd['label']}に切り替えました"
                 else:
                     msg = "翻訳をオンにしました"
-            changed = prev != (cfg.get("translate"), cfg.get("translate_lang"))
+            changed = prev != (cfg.get("translate"), cfg.get("translate_lang"),
+                               list(cfg.get("translate_langs") or []))
             if changed:
                 save_config(cfg)
         if not changed:
@@ -894,12 +933,16 @@ def _engine_on_partial(text, spk=""):
     vrcchat.on_partial(text, spk)   # VRChatのタイピング中表示
 
 
-def _engine_on_translation(fid, text, fallback=False):
+def _engine_on_translation(fid, text, fallback=False, lang="", order=0):
     # fallback=True は「訳を出せなかったので原文を渡している」印。表示側は
     # 翻訳のみ表示でもこの行だけ原文へ切り替える（空にすると字幕が消える）。
+    # 翻訳先が複数なら言語ごとに届く。order は表示順（0 が主言語＝翻訳のみ
+    # 表示で本文になる言語）。
     broadcast({"type": "translation", "id": fid, "text": text,
-               "fallback": bool(fallback)})
-    if not fallback:      # VRChatへ原文を訳文として送らない
+               "fallback": bool(fallback), "lang": lang, "order": order})
+    # VRChat のチャットボックスは1枠（144文字）なので主言語だけ送る。
+    # 原文を訳文として送らない
+    if not fallback and order == 0:
         vrcchat.on_translation(fid, text)
 
 
@@ -1182,6 +1225,15 @@ class Handler(BaseHTTPRequestHandler):
             with _engine_state_lock:
                 state = dict(_engine_state)
             self._json(state)
+        elif path == "/api/migrate":
+            # 以前の Mojicast からの引き継ぎ: 案内を出すか・候補フォルダ・進捗。
+            # 進捗のポーリング（job=1）では候補探し（フォルダ走査）を省く
+            cfg = load_config()
+            offer = cfg.get("migrate_offer") == "pending"
+            out = {"offer": offer, "job": _migrate_job.snapshot()}
+            if offer and query.get("job") != "1":
+                out["candidates"] = migrate.find_candidates(DATA_BASE)
+            self._json(out)
         elif path == "/api/perf":
             # リモート切り分け用: デコード回数・平均所要時間（今セッション累計）
             p = getattr(_engine, "perf", None) if _engine else None
@@ -1259,6 +1311,19 @@ class Handler(BaseHTTPRequestHandler):
                 body["vc_enabled"] = bool(body.get("vc_enabled"))
             if "vrchat" in body:
                 body["vrchat"] = bool(body.get("vrchat"))
+            if "translate_langs" in body:
+                # 表示順の翻訳先リスト。未知値・重複を捨て上限で切る。主言語は
+                # 従来の単一キー translate_lang にも写す（旧UI・音声コマンド互換）
+                from engine import translate_targets
+                raw = body.get("translate_langs")
+                body["translate_langs"] = (
+                    translate_targets({"translate_langs": raw})
+                    if isinstance(raw, list) and raw else [])
+                if body["translate_langs"]:
+                    body["translate_lang"] = body["translate_langs"][0]
+            elif "translate_lang" in body:
+                # 旧UI（単一選択）からの保存は1言語に戻す
+                body["translate_langs"] = []
             if "vrchat_source" in body and body["vrchat_source"] not in ("ja", "tr"):
                 body["vrchat_source"] = "ja"
             if "vrchat_port" in body:
@@ -1304,6 +1369,10 @@ class Handler(BaseHTTPRequestHandler):
             self._post_words_import(body)
         elif path == "/api/words/export":
             self._post_words_export(body)
+        elif path == "/api/glossary/import":
+            self._post_glossary_import(body)
+        elif path == "/api/glossary/export":
+            self._post_glossary_export(body)
         elif path == "/api/hotwords":
             p = self._profile_arg(body.get("profile"))
             if p is None:
@@ -1385,6 +1454,8 @@ class Handler(BaseHTTPRequestHandler):
             except OSError:
                 pass                     # 既に無ければそれで良い
             self._json({"ok": True})
+        elif path == "/api/migrate":
+            self._post_migrate(body)
         elif path == "/api/presets":
             presets = body.get("presets", [])
             if not (isinstance(presets, list) and presets
@@ -1568,6 +1639,95 @@ class Handler(BaseHTTPRequestHandler):
             f.write(text)
         self._json({"ok": True, "file": fname, "path": os.path.join(d, fname)})
 
+    def _post_migrate(self, body):
+        """以前の Mojicast から引き継ぐ。{action: inspect|start|dismiss, path, models}"""
+        action = body.get("action")
+        if action == "dismiss":
+            with _config_lock:
+                cfg = load_config()
+                cfg["migrate_offer"] = "dismissed"
+                save_config(cfg)
+            self._json({"ok": True})
+            return
+        if action not in ("inspect", "start"):
+            self._json({"ok": False, "error": "unknown action"}, 400)
+            return
+        info = migrate.inspect(body.get("path"), DATA_BASE)
+        if action == "inspect" or not info["ok"]:
+            self._json(info, 200 if info["ok"] else 400)
+            return
+        with _engine_state_lock:
+            running = _engine_state.get("state") in ("running", "loading")
+        if running:
+            # 字幕の稼働中に設定フォルダを差し替えると、エンジンが途中の状態を読む
+            self._json({"ok": False, "error": "engine_running"}, 409)
+            return
+        started = _migrate_job.start(
+            info["path"], bool(body.get("models")), wordstore.DATA,
+            os.path.join(DATA_BASE, "models"), _after_migrate)
+        self._json({"ok": started, **({} if started else {"error": "busy"})},
+                   200 if started else 409)
+
+    def _post_glossary_import(self, body):
+        """英訳辞書の一括取り込み（CSV / JSON）。
+        {profile, content_b64, mode: preview|add|overwrite}
+
+        preview は集計だけ返す（取り込む前に件数・重複・弾いた行を見せる）。
+        本文は base64 の生バイトで受ける（Excel の Shift_JIS をサーバ側で判別するため）。
+        取り込みは保存済みデータへの合成なので、UI 側は未保存の編集を先に保存してから呼ぶ。
+        """
+        import wordimport
+        p = self._profile_arg(body.get("profile"))
+        if p is None:
+            return
+        raw = body.get("content_b64")
+        try:
+            data = (base64.b64decode(raw, validate=True)
+                    if isinstance(raw, str) else b"")
+        except ValueError:
+            data = b""
+        if not data:
+            self._json({"ok": False, "error": "ファイルが空です"}, 400)
+            return
+        entries, skipped = wordimport.parse_glossary(wordimport.decode_bytes(data))
+        gloss = wordstore.load_glossary(p)
+        stats, uniq = wordimport.plan_import_glossary(entries, gloss)
+        mode = body.get("mode", "preview")
+        if mode == "preview":
+            self._json({"ok": True, "stats": stats,
+                        "skipped": skipped[:50], "skipped_total": len(skipped),
+                        "sample": uniq[:20]})
+            return
+        if mode not in ("add", "overwrite"):
+            self._json({"ok": False, "error": "unknown mode"}, 400)
+            return
+        if not uniq:
+            self._json({"ok": False, "error": "取り込める単語がありません"}, 400)
+            return
+        new_gl, counts = wordimport.apply_import_glossary(uniq, gloss, mode)
+        wordstore.save_glossary(new_gl, p)
+        ev = {"type": "style"}
+        ev.update(resolve_style(load_config()))
+        broadcast(ev)
+        self._json({"ok": True, **counts, "stats": stats})
+
+    def _post_glossary_export(self, body):
+        """英訳辞書を CSV で data/export/ へ書き出す
+        （Excel で開けるよう BOM 付き UTF-8・CRLF）"""
+        import wordimport
+        p = self._profile_arg(body.get("profile"))
+        if p is None:
+            return
+        text = wordimport.to_csv_glossary_only(wordstore.load_glossary(p))
+        d = wordstore.data_path(EXPORT_DIR_NAME)
+        os.makedirs(d, exist_ok=True)
+        from datetime import datetime
+        fname = (f"glossary_{p or 'common'}_"
+                 + datetime.now().strftime("%Y%m%d_%H%M%S") + ".csv")
+        with open(os.path.join(d, fname), "w", encoding="utf-8", newline="") as f:
+            f.write(text)
+        self._json({"ok": True, "file": fname, "path": os.path.join(d, fname)})
+
     def _post_profiles(self, body):
         """プロファイルの作成・削除（{action, name}）"""
         action = body.get("action")
@@ -1662,6 +1822,13 @@ class _QuietHTTPServer(ThreadingHTTPServer):
 def start(port: int = 8765):
     wordstore.ensure_data()   # data/ 作成・旧配置からの移行・既定データの複製
     _seed_style_defaults()    # 後から増えた既定スタイルを既存環境へ一度だけ追加
+    if wordstore.fresh_install and sys.platform == "win32":
+        # 新しい場所への初めてのインストール（インストーラ版など）。以前の Zip 版の
+        # 設定を引き継ぐか、コックピットで一度だけ聞く。Mac は保存先が固定なので対象外
+        with _config_lock:
+            cfg = load_config()
+            cfg["migrate_offer"] = "pending"
+            save_config(cfg)
     vrcchat.configure(load_config())   # VRChat転送の設定スナップショット
     server = _QuietHTTPServer(("127.0.0.1", port), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()

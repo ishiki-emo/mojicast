@@ -954,10 +954,21 @@
     return pattern.id;
   };
 
+  /** 訳文の見た目（en* 系のキー）を翻訳先の言語ごとに上書きした style を返す。
+      プリセットの trStyles[lang] にある項目だけが差し替わり、無い項目は共通（en*）の
+      まま。中国語・韓国語は欧文フォントだと字形が出ないので、フォントを言語ごとに
+      持てることが一番効く。lang が空・上書き無しなら style をそのまま返す。 */
+  FX.trStyle = function (style, lang) {
+    const o = lang && style && style.trStyles && style.trStyles[lang];
+    return o ? Object.assign({}, style, o) : style;
+  };
+
   /** リリックシーンへ訳文を併記する。fid のシーンが生きていれば下部帯に出して
       true、既に消えていれば false（呼び出し側は通常表示の「見切れた行は無視」と
-      同じ扱いで捨てる）。訳文はシーンの子なので、寿命・退場も本文と一緒。 */
-  FX.lyricTranslate = function (container, fid, en, style) {
+      同じ扱いで捨てる）。訳文はシーンの子なので、寿命・退場も本文と一緒。
+      翻訳先が複数なら order（0 が主言語）の順に下部帯の中へ縦に積む。
+      見た目は言語ごと（FX.trStyle）なので、帯ではなく言語の行に当てる。 */
+  FX.lyricTranslate = function (container, fid, en, style, order = 0, lang = "") {
     const state = container._lyr;
     if (!state || !en) return false;
     const scene = state.scenes.find(s => s.dataset.fid === String(fid));
@@ -968,22 +979,31 @@
       el.className = "lyr-unit lyr-en";
       scene.appendChild(el);
     }
+    let row = el.querySelector(':scope > div[data-order="' + order + '"]');
+    if (!row) {
+      row = document.createElement("div");
+      row.dataset.order = order;
+      const after = [...el.querySelectorAll(":scope > div[data-order]")]
+        .find(c => Number(c.dataset.order) > order);
+      el.insertBefore(row, after || null);
+    }
     // 併記（.en）と同じ設定体系: 本文サイズ × enScale、色・フォント・縁取りの上書き
-    const size = Math.max(12, Math.round((style.size || 42) * (style.enScale ?? 0.6)));
-    FX.applyLineStyle(el, style, size);
-    el.style.opacity = style.enOpacity ?? 0.82;
-    if (style.enColor) el.style.color = style.enColor;
-    if (style.enFont) el.style.fontFamily = style.enFont;
-    if (style.enDeco) {
-      el.style.textShadow = FX.buildTextShadow({
-        outlineWidth: style.enOutlineWidth ?? 2,
-        outlineColor: style.enOutlineColor || "#000000",
-        glow: (style.enGlowSize > 0 ? (style.enGlowColor || "#00e5ff") : ""),
-        glowSize: style.enGlowSize || 0,
-        shadow: style.shadow,
+    const s = FX.trStyle(style, lang);
+    const size = Math.max(12, Math.round((s.size || 42) * (s.enScale ?? 0.6)));
+    FX.applyLineStyle(row, s, size);
+    row.style.opacity = s.enOpacity ?? 0.82;
+    if (s.enColor) row.style.color = s.enColor;
+    if (s.enFont) row.style.fontFamily = s.enFont;
+    if (s.enDeco) {
+      row.style.textShadow = FX.buildTextShadow({
+        outlineWidth: s.enOutlineWidth ?? 2,
+        outlineColor: s.enOutlineColor || "#000000",
+        glow: (s.enGlowSize > 0 ? (s.enGlowColor || "#00e5ff") : ""),
+        glowSize: s.enGlowSize || 0,
+        shadow: s.shadow,
       });
     }
-    el.textContent = en;
+    row.textContent = en;
     return true;
   };
 
