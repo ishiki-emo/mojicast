@@ -100,6 +100,9 @@ Source: "{#SourceDir}\*"; DestDir: "{app}"; \
 [Icons]
 Name: "{autoprograms}\Mojicast"; Filename: "{app}\Mojicast.exe"
 Name: "{autoprograms}\Mojicast マニュアル"; Filename: "{app}\マニュアル.html"
+; インストール先は AppData（エクスプローラーで普段は見えない）なので、設定・ログ・
+; モデルの場所へ一発で行ける入口を置く（問い合わせ時の案内用）
+Name: "{autoprograms}\Mojicast のフォルダを開く"; Filename: "{app}"
 Name: "{autodesktop}\Mojicast"; Filename: "{app}\Mojicast.exe"; Tasks: desktopicon
 
 [Run]
