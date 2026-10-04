@@ -332,6 +332,14 @@
     $("profileScope").innerHTML = `<option value="">${esc(T("su.common_only","共通のみ"))}</option>` + profiles.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join("");
     $("profileScope").value = profiles.includes(cfg.word_profile) ? cfg.word_profile : "";
   }
+  // 埋め込みの単語エディタで単語セットを作成・削除したら一覧を読み直す（使用中を消すと
+  // サーバ側で「共通のみ」に戻るので設定も取り直す）。送り主は同じオリジンの iframe だけ
+  window.addEventListener("message", async (e) => {
+    if (e.origin !== location.origin || !(e.data && e.data.mojiProfilesChanged)) return;
+    cfg = await api("/api/config");
+    await loadProfiles();
+    await refreshOverview();
+  });
   async function changeProfile(value) {
     cfg.word_profile = value; await api("/api/config", { word_profile:value });
     for (const [id,tab] of [["fWords","hot"],["fEffects","fx"],["fGlossary","gloss"],["fBanned","banned"]])
