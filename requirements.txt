@@ -12,7 +12,9 @@ huggingface_hub==1.22.0
 # sherpa-onnx: 1.13.4 の macOS arm64 wheel は k2(zipformer) の認識結果が崩壊する
 # リグレッションあり（fp32/int8とも。1.13.3 は正常。2026-07-24 実機で特定）。
 # バージョンを上げるときは mac で k2 の認識文が出ることを確認してから。
-sherpa-onnx==1.13.4; sys_platform == "win32"
+# Windows 1.13.4→1.13.8（2026-10-08）: k2 は118発話で認識文が完全一致・SenseVoice は27%高速化
+# （bench/bench_sherpa_version.py で比較）。mac は実機確認まで 1.13.3 据え置き。
+sherpa-onnx==1.13.8; sys_platform == "win32"
 sherpa-onnx==1.13.3; sys_platform == "darwin"
 onnxruntime==1.27.0
 ctranslate2==4.8.1
