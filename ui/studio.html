@@ -332,18 +332,29 @@
     $("profileScope").innerHTML = `<option value="">${esc(T("su.common_only","共通のみ"))}</option>` + profiles.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join("");
     $("profileScope").value = profiles.includes(cfg.word_profile) ? cfg.word_profile : "";
   }
-  // 埋め込みの単語エディタで単語セットを作成・削除したら一覧を読み直す（使用中を消すと
-  // サーバ側で「共通のみ」に戻るので設定も取り直す）。送り主は同じオリジンの iframe だけ
-  window.addEventListener("message", async (e) => {
-    if (e.origin !== location.origin || !(e.data && e.data.mojiProfilesChanged)) return;
-    cfg = await api("/api/config");
-    await loadProfiles();
-    await refreshOverview();
+  // 埋め込みの単語エディタからの知らせ。送り主は同じオリジンの iframe だけ
+  //  - mojiProfilesChanged: 単語セットを作成・削除した → 一覧を読み直す（使用中を消すと
+  //    サーバ側で「共通のみ」に戻るので設定も取り直す）
+  //  - mojiProfileSelected: 内側で単語セットを切り替えた → 外側の選択（＝使用中）も合わせる
+  // 作成直後は両方が続けて届くので、順番どおりに1つずつ処理する
+  let profileMsgQueue = Promise.resolve();
+  window.addEventListener("message", (e) => {
+    const d = e.data;
+    if (e.origin !== location.origin || !d) return;
+    const selected = typeof d.mojiProfileSelected === "string";
+    if (!selected && !d.mojiProfilesChanged) return;
+    profileMsgQueue = profileMsgQueue.then(async () => {
+      if (selected) await changeProfile(d.mojiProfileSelected, e.source);
+      cfg = await api("/api/config");
+      await loadProfiles();
+      await refreshOverview();
+    }).catch(() => {});
   });
-  async function changeProfile(value) {
+  // except: 切り替えを知らせてきた iframe。自分で読み直し済みなので開き直さない
+  async function changeProfile(value, except) {
     cfg.word_profile = value; await api("/api/config", { word_profile:value });
     for (const [id,tab] of [["fWords","hot"],["fEffects","fx"],["fGlossary","gloss"],["fBanned","banned"]])
-      if ($(id).getAttribute("src")) setSrc(id, wordUrl(tab), true);
+      if ($(id).getAttribute("src") && $(id).contentWindow !== except) setSrc(id, wordUrl(tab), true);
     await refreshOverview();
   }
   const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");
