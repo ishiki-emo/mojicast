@@ -86,6 +86,7 @@
   .pbar input { width: 160px; }
   .pbHint { margin-left: auto; font-size: 11px; }
   .pbErr { color: var(--err); font-size: 12px; }
+  .pbWarn { color: var(--warn, #ffb84d); font-size: 12px; font-weight: 700; }
   /* 一括取り込み / 書き出し（認識させる単語タブ） */
   .tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; font-size: 12px; color: var(--dim); }
   .tools .btn { padding: 6px 12px; font-size: 12px; }
@@ -126,6 +127,7 @@
       <button class="btn" onclick="doDeleteProfile()" data-i18n="wd.yes">はい</button>
       <button class="btn" onclick="$('delConfirm').hidden = true" data-i18n="wd.no">いいえ</button>
     </span>
+    <span class="pbWarn" id="inactiveHint" hidden data-i18n="wd.inactive_hint">⚠ この単語セットは今は使われていません（使う単語セットはコックピットの「単語セット」で選びます）</span>
     <span class="pbHint" data-i18n="wd.pbar_hint">単語セットは「共通」に<b>加算</b>して使われます（同じ単語は単語セット優先）</span>
     <span class="pbErr" id="loadErr"></span>
     <button class="btn" id="retryLoad" hidden onclick="retryData()" data-i18n="wd.reload">再読み込み</button>
@@ -521,6 +523,8 @@
   let profileNames = [];    // 既存プロファイル名（コピー元の選択肢用）
   let loadedProfile = null; // 現在テーブルに表示できているスコープ
   let reloadGeneration = 0; // 遅れて返った旧スコープの応答を無視する番号
+  let activeProfile = "";   // 認識に使われている単語セット（"" = 共通のみ）
+  const embedded = window.parent !== window;
   const wordQuery = new URLSearchParams(location.search);
 
   async function fetchJson(url, options = {}) {
@@ -537,6 +541,7 @@
     const sel = $("profileSel");
     const names = d.profiles || [];
     profileNames = names;
+    activeProfile = d.active || "";
     sel.innerHTML = `<option value="">${esc(T("wd.common_all","共通（すべての配信）"))}</option>` +
       names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join("");
     if (select !== undefined && (select === "" || names.includes(select)))
@@ -544,6 +549,13 @@
     else if (!names.includes(curProfile)) curProfile = "";
     sel.value = curProfile;
     $("btnDelProf").disabled = !curProfile;
+    updateInactiveHint();
+  }
+
+  // 編集中のセットが認識に使われていなければ知らせる（保存しても効かない・
+  // 開き直すと使用中のセットが表示されて「消えた」ように見えるため）
+  function updateInactiveHint() {
+    $("inactiveHint").hidden = curProfile === activeProfile;
   }
 
   function onProfileSelect(v) {
@@ -564,6 +576,14 @@
     $("btnDelProf").disabled = !v;
     $("delConfirm").hidden = true;
     $("guardBar").hidden = true;
+    // スタジオ埋め込みでは外側の「編集する単語セット」と同じ値を保つ。外側は使用中の
+    // セットも兼ねていて、次に開くときはそちらの値で開くので、内側だけ切り替えると
+    // 保存した単語が開き直したときに見えず、認識にも使われない
+    if (embedded) {
+      window.parent.postMessage({ mojiProfileSelected: v }, location.origin);
+      activeProfile = v;
+    }
+    updateInactiveHint();
     await reloadData();
   }
 
