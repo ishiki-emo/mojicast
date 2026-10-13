@@ -7,6 +7,8 @@ _A fully-offline real-time captioning app for live streaming: Japanese speech re
 日本語の話し声をリアルタイムに字幕化し、OBS のブラウザソースに重ねられます。音声はネットに送られず、
 モデルの推論も含めてすべてお使いの PC の中だけで動きます。
 
+🌐 **製品ページ: [ishiki-emo.com/mojicast](https://ishiki-emo.com/mojicast/)** — できること・はじめかた・いま Mojicast で配信中のチャンネル
+
 [![1対1コラボ字幕のデモ — クリックでデモ動画へ](docs/images/hero_video.jpg)](https://youtu.be/GObqilowmkU)
 
 <p align="center">▶ <b><a href="https://youtu.be/GObqilowmkU">30秒デモ動画を見る（YouTube）</a></b> — 2人の字幕・翻訳・エフェクトが動く様子<br>
