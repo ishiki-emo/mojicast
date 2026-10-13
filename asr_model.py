@@ -17,6 +17,15 @@ import huggingface_hub as hf
 _REPO_ID = "reazon-research/reazonspeech-k2-v2"
 _EPOCHS = 99  # v2(ja) のモデルファイル名に埋まっているepoch番号
 
+# k2 は1スレッドが既定（2026-10-08 実測・9800X3D・20分/118発話）。CPU負荷の9割は
+# 発話中の途中経過デコードで、4スレッドは1スレッド比で3割速いだけなのにCPUを5倍使う
+# （発話中 1.1コア→0.22コア。onnxruntime のスレッドが待機中も空回りするため）。
+# 途中経過1回は 60ms→85ms で 0.4秒間隔に十分収まり、認識文はほぼ不変（118行中1行が表記揺れ）。
+# Pコア/Eコア混在CPU（Intel 12世代〜）では遅いコアを待つ空回りが増えるので特に効く見込み。
+# SenseVoice（非自己回帰）は1スレッドだと2.7倍遅くなるため4のまま。
+K2_THREADS = 1
+SENSEVOICE_THREADS = 4
+
 
 def _resolve_files(precision: str = "fp32"):
     """モデルファイル群のローカルパスを解決（キャッシュ優先、無ければDL）"""
@@ -38,7 +47,7 @@ def _resolve_files(precision: str = "fp32"):
 
 
 def load_model(device: str = "cpu", hotwords_file: str = "",
-               hotwords_score: float = 2.0, num_threads: int = 4,
+               hotwords_score: float = 2.0, num_threads: int = K2_THREADS,
                precision: str = "fp32"):
     """
     ホットワード対応の k2 認識器をロードする
@@ -48,7 +57,7 @@ def load_model(device: str = "cpu", hotwords_file: str = "",
         hotwords_file: 登録単語ファイル（空文字なら通常のgreedy_search）
         hotwords_score: 登録単語を出やすくする強さ。大きいほど強制的。
                         （目安 1.5〜4.0。強すぎると誤爆が増える）
-        num_threads: CPUスレッド数（1→4で約1.7倍速。16コアなら4前後が最適）
+        num_threads: CPUスレッド数（既定1。増やすと少し速いがCPU消費が大きく増える: K2_THREADS 参照）
         precision: "fp32"（既定・最高精度） / "int8-fp32"（高速・精度ほぼ同） /
                    "int8"（最速・精度わずかに低下）
 
@@ -134,7 +143,7 @@ def cached(model_id="k2-ja") -> bool:
         return False
 
 
-def load_sensevoice(language="auto", num_threads: int = 4):
+def load_sensevoice(language="auto", num_threads: int = SENSEVOICE_THREADS):
     """SenseVoice をロードする。language: auto/ja/zh/en/ko/yue（auto=自動判定）"""
     import os
     d = _resolve_sensevoice()
@@ -149,8 +158,10 @@ def load_sensevoice(language="auto", num_threads: int = 4):
 
 
 def load_by_config(model_id="k2-ja", hotwords_file="", hotwords_score=2.0,
-                   num_threads=4, precision="int8-fp32", language="auto"):
+                   num_threads=None, precision="int8-fp32", language="auto"):
     """レジストリ経由でロードし (recognizer, capabilities) を返す。
+
+    num_threads=None ならモデルごとの既定（K2_THREADS / SENSEVOICE_THREADS）。
 
     未知IDは k2-ja に落とす（古い設定ファイルや将来IDへの防御）。
     """
@@ -158,9 +169,10 @@ def load_by_config(model_id="k2-ja", hotwords_file="", hotwords_score=2.0,
         model_id = "k2-ja"
     caps = MODELS[model_id]["caps"]
     if model_id == "sensevoice":
-        return load_sensevoice(language, num_threads), caps
+        return load_sensevoice(language, num_threads or SENSEVOICE_THREADS), caps
     return load_model(device="cpu", hotwords_file=hotwords_file,
-                      hotwords_score=hotwords_score, num_threads=num_threads,
+                      hotwords_score=hotwords_score,
+                      num_threads=num_threads or K2_THREADS,
                       precision=precision), caps
 
 
