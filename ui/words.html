@@ -50,6 +50,8 @@
   nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
   :root.single nav { display: none; }
   :root.embed .pbar { padding-left: 18px; padding-right: 18px; }
+  /* スタジオ埋め込み時: 編集する単語セットはスタジオ上部の1か所で選ぶ（二重に並べない） */
+  :root.embed .pb-select, :root.embed #inactiveHint { display: none !important; }
   .page { flex: 1; overflow-y: auto; padding: 14px; display: none; }
   .page.show { display: block; }
   .note { color: var(--dim); font-size: 12px; margin-bottom: 10px; line-height: 1.6; }
@@ -118,10 +120,10 @@
 <body>
   <!-- ========== プロファイルバー ========== -->
   <div class="pbar">
-    <span data-i18n="wd.profile_label">編集する単語セット:</span>
-    <select id="profileSel" onchange="onProfileSelect(this.value)"></select>
+    <span class="pb-select" data-i18n="wd.profile_label">編集する単語セット:</span>
+    <select class="pb-select" id="profileSel" onchange="onProfileSelect(this.value)"></select>
     <button class="btn" onclick="showNewProfile()" data-i18n="wd.profile_new">＋ 新しい単語セット</button>
-    <button class="btn" id="btnDelProf" onclick="askDeleteProfile()" data-i18n="wd.profile_delete">🗑 削除</button>
+    <button class="btn" id="btnDelProf" onclick="askDeleteProfile()" data-i18n="wd.profile_delete">🗑 この単語セットを削除</button>
     <span id="delConfirm" hidden>
       <span data-i18n="wd.del_confirm">本当に削除？</span>
       <button class="btn" onclick="doDeleteProfile()" data-i18n="wd.yes">はい</button>
@@ -151,9 +153,9 @@
 
   <nav>
     <button id="tabHot" class="active" onclick="showTab('hot')" data-i18n="wd.tab_hotwords">🎤 認識させる単語</button>
-    <button id="tabFx" onclick="showTab('fx')" data-i18n="wd.tab_effects">✨ 強調する単語</button>
+    <button id="tabFx" onclick="showTab('fx')" data-i18n="wd.tab_effects">✨ ワード演出の単語</button>
     <button id="tabBanned" onclick="showTab('banned')" data-i18n="wd.tab_banned">🚫 伏せ字にする単語</button>
-    <button id="tabGloss" onclick="showTab('gloss')" data-i18n="wd.tab_gloss">🌐 英訳を固定する単語</button>
+    <button id="tabGloss" onclick="showTab('gloss')" data-i18n="wd.tab_gloss">🌐 訳を固定する単語</button>
   </nav>
 
   <!-- ========== ホットワード ========== -->
@@ -178,14 +180,14 @@
     </div>
     <div class="note" data-i18n="wd.imp_hint">
       CSV の列は「<b>表記,読み,出やすさ,英訳</b>」（読み以降は省略可）。Excel で保存した Shift_JIS のファイルもそのまま読めます。
-      ゲームの技名など大量の登録向け。英訳の列があれば「英訳を固定する単語」にも同時に入ります。
+      ゲームの技名など大量の登録向け。英訳の列があれば「訳を固定する単語」にも同時に入ります。
     </div>
     <div class="impBox" id="impBox" hidden>
       <div id="impStats" style="font-weight:700;margin-bottom:4px"></div>
       <div id="impSkipped" class="note"></div>
       <label><input type="radio" name="impMode" value="add" checked><span data-i18n="wd.imp_add">追加のみ（同じ表記があれば今のを残す）</span></label>
       <label><input type="radio" name="impMode" value="overwrite"><span data-i18n="wd.imp_over">同じ表記は上書き</span></label>
-      <label id="impGlossLbl"><input type="checkbox" id="impGloss" checked><span data-i18n="wd.imp_gloss">英訳の列も「英訳を固定する単語」へ入れる</span></label>
+      <label id="impGlossLbl"><input type="checkbox" id="impGloss" checked><span data-i18n="wd.imp_gloss">英訳の列も「訳を固定する単語」へ入れる</span></label>
       <button class="btn save" onclick="doWordImport()" data-i18n="wd.imp_do">取り込む</button>
       <button class="btn" onclick="cancelWordImport()" data-i18n="wd.cancel">キャンセル</button>
     </div>
@@ -576,13 +578,9 @@
     $("btnDelProf").disabled = !v;
     $("delConfirm").hidden = true;
     $("guardBar").hidden = true;
-    // スタジオ埋め込みでは外側の「編集する単語セット」と同じ値を保つ。外側は使用中の
-    // セットも兼ねていて、次に開くときはそちらの値で開くので、内側だけ切り替えると
-    // 保存した単語が開き直したときに見えず、認識にも使われない
-    if (embedded) {
-      window.parent.postMessage({ mojiProfileSelected: v }, location.origin);
-      activeProfile = v;
-    }
+    // スタジオ埋め込みでは外側の「編集する単語セット」と同じ値を保つ（作成・削除で
+    // 内側から切り替わったとき）。配信で使うセットは外側が別に持ち、ここでは変えない
+    if (embedded) window.parent.postMessage({ mojiProfileSelected: v }, location.origin);
     updateInactiveHint();
     await reloadData();
   }
@@ -735,13 +733,18 @@
       en: tr.querySelector(".g-en").value.trim(),
     })).filter(e => e.ja && e.en);
 
+    // スタジオでは単語の種類ごとに別のiframe（single=1）で開く。各iframeは4種類すべてを
+    // 読み込んでいるので、全部を保存すると、別の画面で保存した内容を手元の古い写しで
+    // 上書きしてしまう。single のときは表示中の種類だけを保存する
+    const posts = {
+      hot: () => fetchJson("/api/hotwords", { method:"POST", body:JSON.stringify({ entries, profile }) }),
+      fx: () => fetchJson("/api/effects", { method:"POST", body:JSON.stringify({ effects, profile }) }),
+      banned: () => fetchJson("/api/banned", { method:"POST", body:JSON.stringify({ words, mask_char, profile }) }),
+      gloss: () => fetchJson("/api/glossary", { method:"POST", body:JSON.stringify({ entries:gloss, profile }) }),
+    };
+    const kinds = singleTab ? [singleTab] : Object.keys(posts);
     try {
-      await Promise.all([
-        fetchJson("/api/hotwords", { method:"POST", body:JSON.stringify({ entries, profile }) }),
-        fetchJson("/api/effects", { method:"POST", body:JSON.stringify({ effects, profile }) }),
-        fetchJson("/api/banned", { method:"POST", body:JSON.stringify({ words, mask_char, profile }) }),
-        fetchJson("/api/glossary", { method:"POST", body:JSON.stringify({ entries:gloss, profile }) })
-      ]);
+      await Promise.all(kinds.map(k => posts[k]()));
       dirty = false;
       $("loadErr").textContent = "";
       const s = $("saved");
@@ -753,6 +756,10 @@
       return false;
     }
   }
+
+  // スタジオ（親窓）が閉じる・単語セットを切り替える前に未保存を確かめるための窓口
+  window.mojiIsDirty = () => dirty;
+  window.mojiSave = () => saveAll();
 
   // 未保存の編集を検知（入力・行削除）
   for (const page of document.querySelectorAll(".page")) {
@@ -839,6 +846,9 @@
 
   const initialTab = new URLSearchParams(location.search).get("tab");
   if (["hot", "fx", "banned", "gloss"].includes(initialTab)) showTab(initialTab);
+  // single=1（スタジオ埋め込み）は1種類だけを扱う。保存もその種類だけ（saveAll 参照）
+  const singleTab = wordQuery.get("single") === "1" &&
+    ["hot", "fx", "banned", "gloss"].includes(initialTab) ? initialTab : "";
   loadAll().catch(() => {
     $("loadErr").textContent = "設定を読み込めませんでした。再度開き直してください。";
     $("retryLoad").hidden = false;

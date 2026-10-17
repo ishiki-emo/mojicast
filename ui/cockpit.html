@@ -275,10 +275,11 @@
   .group-cta { width: 100%; margin-top: 12px; border-color: var(--accent);
     color: var(--accent); font-weight: 800; }
   .feature-list { display: flex; flex-direction: column; }
-  .feature-row { display: grid; grid-template-columns: 32px 1fr auto auto; align-items: center;
-    gap: 9px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  /* 機能が6つに増えたので行を詰め、下の「OBSに表示」が窓の高さに収まるようにする */
+  .feature-row { display: grid; grid-template-columns: 28px 1fr auto auto; align-items: center;
+    gap: 9px; padding: 6px 0; border-bottom: 1px solid var(--line); }
   .feature-row:last-child { border-bottom: 0; }
-  .feature-icon { width: 30px; height: 30px; display: grid; place-items: center;
+  .feature-icon { width: 26px; height: 26px; font-size: 13px; display: grid; place-items: center;
     border-radius: 8px; background: var(--panel2); }
   .feature-copy b { display: block; font-size: 12.5px; }
   .feature-copy span { color: var(--dim); font-size: 10.5px; }
@@ -306,9 +307,13 @@
   .quick-today .today-label span { display: none; }
   .quick-today .selrow { margin-top: 0; }
   /* シーン＝「セット」であることが分かるようアクセント色で薄く色分け */
-  .quick-today #sceneItem { border-color: rgba(255,45,149,.45);
-    background: rgba(255,45,149,.05); }
-  #sceneItem .today-label b { color: #ff2d95; }
+  .quick-today #sceneItem { border-color: color-mix(in srgb, var(--accent2) 45%, transparent);
+    background: color-mix(in srgb, var(--accent2) 5%, transparent); }
+  #sceneItem .today-label b { color: var(--accent2); }
+  #sceneItem button:disabled { opacity: .35; cursor: default; }
+  /* 旧UIへの切替。▶開始/■停止 の押し間違いを避けるため少し離す */
+  #uiVariantBtn { padding: 6px 11px; font-size: 12px; color: var(--dim); }
+  #themeBtn { margin-right: 10px; }
   #sceneItem button { flex: none; padding: 4px 8px; font-size: 12px; }
   .quick-today .selrow select { height: 31px; border: 0; padding: 0; background: transparent;
     font-size: 14px; font-weight: 800; }
@@ -476,7 +481,7 @@
         </span>
       </div>
       <div class="mon-wrap">
-        <button class="clr-in" onclick="clearCaptions()" data-i18n="cp.clear">表示クリア</button>
+        <button class="clr-in" onclick="clearCaptions()" title="OBSに映っている字幕も消えます" data-i18n-title="cp.clear_t" data-i18n="cp.clear">配信の字幕を消す</button>
         <div id="monitor"></div>
         <div id="previewStage" aria-hidden="true">
           <span class="preview-badge" data-i18n="cp.preview_badge">OBS表示イメージ・1920×1080</span>
@@ -490,7 +495,7 @@
           <ol>
             <li><span class="g-n">1</span><div><b data-i18n="cp.guide_s1_t">マイクを選ぶ</b><span data-i18n="cp.guide_s1_d">上の設定バー</span></div></li>
             <li><span class="g-n">2</span><div><b data-i18n="cp.guide_s2_t">「▶ 開始」を押す</b><span data-i18n="cp.guide_s2_d">右上のボタン。字幕がここに出ます</span></div></li>
-            <li><span class="g-n">3</span><div><b data-i18n="cp.guide_s3_t">表示用のURLをOBSに貼る</b><span data-i18n="cp.guide_s3_d">右の「OBSに字幕を出す」からコピー</span></div></li>
+            <li><span class="g-n">3</span><div><b data-i18n="cp.guide_s3_t">表示用のURLをOBSに貼る</b><span data-i18n="cp.guide_s3_d">右の「OBSに表示」からコピー</span></div></li>
           </ol>
           <button class="g-close" onclick="dismissGuide()" data-i18n="cp.guide_close">閉じる</button>
         </div>
@@ -528,7 +533,6 @@
     <!-- ========== 右: 字幕に足す機能とOBS ========== -->
     <div class="col col-right">
       <div class="group">
-        <div class="section-kicker">ADD TO CAPTIONS</div>
         <div class="ghead">
           <span class="gicon" style="background:rgba(255,45,149,.12)">✦</span>
           <div>
@@ -546,8 +550,20 @@
           <div class="feature-row">
             <span class="feature-icon">🌐</span>
             <span class="feature-copy"><b id="transFeatureLabel">英訳</b><span data-i18n="cp.trans_d">翻訳字幕を一緒に表示</span></span>
-            <button class="feature-edit" onclick="openStudio('pillar=translation')" data-i18n="cp.configure">設定</button>
+            <button class="feature-edit" onclick="openSettings('translation')" title="翻訳先の言語（見た目・固定訳は字幕スタジオ）" data-i18n-title="cp.trans_cfg_t" data-i18n="cp.configure">設定</button>
             <input type="checkbox" id="translateOn">
+          </div>
+          <div class="feature-row">
+            <span class="feature-icon">🎉</span>
+            <span class="feature-copy"><b data-i18n="cp.soundfx">リアクション演出</b><span data-i18n="cp.soundfx_d">笑い声・拍手で画像を出す</span></span>
+            <button class="feature-edit" onclick="openStudio('pillar=soundfx')" data-i18n="cp.configure">設定</button>
+            <input type="checkbox" id="soundFxOn">
+          </div>
+          <div class="feature-row">
+            <span class="feature-icon">🗣</span>
+            <span class="feature-copy"><b data-i18n="cp.voicecmd">ボイスコマンド</b><span data-i18n="cp.voicecmd_d">呼びかけた発話は字幕に出ません</span></span>
+            <button class="feature-edit" onclick="openSettings('voice')" data-i18n="cp.configure">設定</button>
+            <input type="checkbox" id="vcOn">
           </div>
           <div class="feature-row">
             <span class="feature-icon">🥽</span>
@@ -844,13 +860,15 @@
     zh: { lead: "💡 推荐设置", apply: "应用此设置", skip: "保持现状",
           multi: l => `识别模型=多语言（${l}）`, light: "识别模型=多语言（轻量）",
           maxutt: "单段最长=8秒",
-          note: "之后可随时在「AIモデル」面板中更改",
+          uilang: "界面语言=中文",
+          note: "之后可随时在「应用设置」中更改",
           langName: { zh: "中文", en: "英语" } },
     en: { lead: "💡 Recommended setup", apply: "Apply", skip: "Keep current",
           multi: l => `Recognition model = Multilingual (${l})`,
           light: "Recognition model = Multilingual (lightweight)",
           maxutt: "Max segment length = 8s",
-          note: "You can change these anytime in the AI Model panel",
+          uilang: "Interface language = English",
+          note: "You can change these anytime in App Settings",
           langName: { zh: "Chinese", en: "English" } },
   };
 
@@ -861,6 +879,11 @@
     const patch = {};
     const items = [];
     if (env.os_lang === "zh" || env.os_lang === "en") {
+      // 画面の言語も合わせて提案する（提案バーだけ外国語で本体は日本語、を避ける）
+      if ((cfg.ui_lang || "ja") === "ja") {
+        patch.ui_lang = env.os_lang;
+        items.push(T.uilang);
+      }
       if (cfg.asr_model !== "sensevoice") {   // OS言語に合わせた多言語認識を提案
         patch.asr_model = "sensevoice";
         patch.asr_lang = env.os_lang;
@@ -921,7 +944,10 @@
     zh_hk: "香港繁体字訳", id: "インドネシア語訳", ja: "日本語訳", ko: "韓国語訳" };
   function syncModelCard() {
     const lang = cfg.translate_lang || "en";
-    $("transFeatureLabel").textContent = T("trg." + lang, TR_NAMES[lang] || "英訳");
+    const name = T("trg." + lang, TR_NAMES[lang] || "英訳");
+    // 翻訳先が複数なら「英訳 ＋2」のように数も出す（1つ目しか訳されないと誤解させない）
+    const more = Array.isArray(cfg.translate_langs) ? new Set(cfg.translate_langs).size - 1 : 0;
+    $("transFeatureLabel").textContent = more > 0 ? `${name} ＋${more}` : name;
   }
 
   // コックピットに残す配信中の機能トグル
@@ -929,6 +955,8 @@
     $("wordFx").checked = !!cfg.word_fx;
     $("translateOn").checked = !!cfg.translate;
     $("vrchatOn").checked = !!cfg.vrchat;
+    $("soundFxOn").checked = !!cfg.sound_fx;
+    $("vcOn").checked = !!cfg.vc_enabled;
     // VRChat は mac にクライアントが無く送信先が存在しないため、欄ごと出さない
     // （コラボのグレーアウトと違い将来対応の予定も無い）
     $("vrchatOn").closest(".feature-row").style.display =
@@ -936,6 +964,12 @@
   }
   $("wordFx").addEventListener("change", e => { cfg.word_fx = e.target.checked; saveCfg("word_fx"); });
   $("translateOn").addEventListener("change", e => { cfg.translate = e.target.checked; saveCfg("translate"); });
+  $("soundFxOn").addEventListener("change", e => { cfg.sound_fx = e.target.checked; saveCfg("sound_fx"); });
+  $("vcOn").addEventListener("change", e => {
+    cfg.vc_enabled = e.target.checked; saveCfg("vc_enabled");
+    // 呼びかけの名前が未登録だと何も起きないので、そのまま設定を開く
+    if (cfg.vc_enabled && !(cfg.vc_wake || []).length) openSettings("voice");
+  });
   $("vrchatOn").addEventListener("change", e => { cfg.vrchat = e.target.checked; saveCfg("vrchat"); });
 
   $("device").addEventListener("change", e => {
@@ -1048,6 +1082,7 @@
         base.name + T("cp.scene_dirty", "（調整中）"))}</option>` : "");
     sel.value = cur ? cur.id : (base ? "__dirty__" : "");
     $("sceneOw").hidden = !base;
+    $("sceneDel").disabled = !(cur || base);   // 未選択のときは消す対象が無い
     $("sceneSave").textContent = base ? T("cp.scene_new", "新規") : "＋";
   }
 
@@ -1140,7 +1175,7 @@
     "device", "silence_ms", "interval", "max_utt", "hotwords_score",
     "use_hotwords", "word_profile", "collab", "collab_source",
     "collab_process", "collab_device", "self_name", "guest_name",
-    "vc_enabled", "vc_wake"];
+    "vc_enabled", "vc_wake", "sound_fx"];
 
   async function refreshPresets() {   // スタイル/単語/コラボ/モデル窓での保存を反映
     const prev = cfg;
@@ -1374,7 +1409,7 @@
     $("modePreview").classList.toggle("active", preview);
     $("modeLog").setAttribute("aria-pressed", String(!preview));
     $("modePreview").setAttribute("aria-pressed", String(preview));
-    $("monitorTitle").textContent = preview ? "配信プレビュー" : "字幕ログ";
+    $("monitorTitle").textContent = preview ? T("cp.mode_preview", "配信プレビュー") : T("cp.monitor_title", "字幕ログ");
     if (preview) {
       const guide = $("guide"); if (guide) guide.style.display = "none";
       requestAnimationFrame(sizePreviewCanvas);
@@ -1476,6 +1511,11 @@
       }
       else if (m.type === "style") { setPreviewStyle(m); refreshPresets(); }
       else if (m.type === "warn") setWarn(m.kind, m.message, m.active);
+      // 認識辞書・伏せ字・固定訳は開始時に読む。使用中のセット（か共通）なら再起動を促す
+      else if (m.type === "words_saved") {
+        if (running && (!m.profile || m.profile === (cfg.word_profile || "")))
+          $("restartHint").style.display = "";
+      }
       else if (m.type === "vc") vcToast(m.message, m.ok);
       else if (m.type === "theme") { cfg.theme = m.theme; applyTheme(m.theme); }
       else if (m.type === "ui_variant") location.reload();   // 新UI／旧UIの切替

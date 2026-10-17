@@ -151,7 +151,7 @@
 </head>
 <body>
   <nav>
-    <button id="tabStyle" class="active" onclick="showTab('style')" data-i18n="sy.tab_style">🎨 文字スタイル</button>
+    <button id="tabStyle" class="active" onclick="showTab('style')" data-i18n="sy.tab_style">🎨 デザイン</button>
     <button id="tabBox" onclick="showTab('box')" data-i18n="sy.tab_box">📐 レイアウト</button>
   </nav>
 
@@ -177,8 +177,8 @@
         <button class="btn small" id="managePresetBtn" onclick="managePreset()">初期状態に戻す</button>
       </div>
       <div class="form locked" id="form">
-        <div class="fsec" data-i18n="sy.sec_preset">📛 プリセット</div>
-        <div class="fr"><label data-i18n="sy.preset_name">プリセット名</label><input type="text" id="f_name"></div>
+        <div class="fsec" data-i18n="sy.sec_preset">📛 名前</div>
+        <div class="fr"><label data-i18n="sy.preset_name">デザイン名</label><input type="text" id="f_name"></div>
         <div class="fr"><label data-i18n="sy.desc">説明</label><input type="text" id="f_desc"></div>
 
         <div class="fsec" data-i18n="sy.sec_body">✏️ 本文（メイン字幕）</div>
@@ -243,14 +243,14 @@
   <!-- ================= ボックス ================= -->
   <div class="page" id="pageBox">
     <section class="panel">
-      <h2 data-i18n="sy.choose_position">字幕の位置を選ぶ</h2>
+      <h2 data-i18n="sy.choose_position">レイアウトを選ぶ</h2>
       <button class="btn new-item" onclick="newBoxFromFree()" title="フリー（枠なし）を元に作成" data-i18n="sy.new_layout" data-i18n-title="sy.new_from_free">＋ 新しいレイアウト</button>
       <div id="blist"></div>
     </section>
     <section class="panel editor" id="boxEditor">
       <h2><span data-i18n="sy.preview">プレビュー</span> — <span id="editBoxName"></span></h2>
       <div class="editor-actions">
-        <div class="copy"><b id="boxActionTitle">この位置を使いますか？</b><span id="boxActionDesc">画面下のボタンで現在の字幕に切り替えられます</span></div>
+        <div class="copy"><b id="boxActionTitle">このレイアウトを使いますか？</b><span id="boxActionDesc">画面下のボタンで現在の字幕に切り替えられます</span></div>
         <button class="btn" onclick="duplicateBox()" data-i18n="sy.duplicate">これを元に新規作成</button>
         <button class="btn save" id="customizeBoxBtn" onclick="beginBoxEdit()">カスタマイズ</button>
       </div>
@@ -260,7 +260,7 @@
         <button class="btn small" id="manageBoxBtn" onclick="manageBox()">初期状態に戻す</button>
       </div>
       <div class="form locked" id="bform">
-        <div class="fr"><label data-i18n="sy.box_name">ボックス名</label><input type="text" id="b_name"></div>
+        <div class="fr"><label data-i18n="sy.box_name">レイアウト名</label><input type="text" id="b_name"></div>
         <div class="fr"><label data-i18n="sy.desc">説明</label><input type="text" id="b_desc"></div>
         <div class="fr advanced-only"><label data-i18n="sy.display_mode">表示のしかた</label>
           <select id="b_mode">
@@ -410,6 +410,12 @@
     renderList(); loadForm();
     renderBoxList(); loadBoxForm();
     bindAll();
+    // スタジオの「リリック風字幕を配信で使う」から: 表示のしかたの項目まで開いて見せる
+    if (styleQuery.get("focus") === "lyric") {
+      showTab("box"); beginBoxEdit();
+      if (!$("boxEditor").classList.contains("advanced-open")) toggleBoxAdvanced();
+      $("b_mode").focus(); $("b_mode").scrollIntoView({ block: "nearest" });
+    }
   }
 
   function showTab(t) {
@@ -642,6 +648,7 @@
   }
 
   function addPresetFrom(source, name) {
+    styleDirty = true;
     if (!source) return;
     const p = JSON.parse(JSON.stringify(source));
     p.id = uniqueId("custom-", presets);
@@ -669,6 +676,7 @@
     const original = defaultPresets.find(p => p.id === presets[cur].id);
     if (!original || !confirm(T("sy.confirm_reset","「{name}」を初期状態に戻しますか？").replace("{name}", presets[cur].name))) return;
     presets[cur] = JSON.parse(JSON.stringify(original));
+    styleDirty = true;
     renderList(); loadForm(); beginPresetEdit();
     $("styleActionDesc").textContent = T("sy.reset_done","初期状態に戻しました。下の「保存」で確定します");
   }
@@ -677,6 +685,7 @@
     if (presets.length <= 1) { alert(T("sy.cant_delete_last","最後の1つは削除できません")); return; }
     if (!confirm(T("sy.confirm_delete","「{name}」を削除しますか？").replace("{name}", presets[cur].name))) return;
     presets.splice(cur, 1);
+    styleDirty = true;
     cur = Math.max(0, cur - 1);
     closePresetEdit(); renderList(); loadForm();
   }
@@ -749,7 +758,7 @@
     updateModeRows();
     stageApply(); stageClear(); stageAdd(); stageAdd();
     $("customizeBoxBtn").textContent = T("sy.customize","カスタマイズ");
-    $("boxActionTitle").textContent = b.id === activeBoxId ? T("sy.using_box","この位置を使用中です") : T("sy.use_box_q","この位置を使いますか？");
+    $("boxActionTitle").textContent = b.id === activeBoxId ? T("sy.using_box","このレイアウトを使用中です") : T("sy.use_box_q","このレイアウトを使いますか？");
     $("boxActionDesc").textContent = b.id === activeBoxId
       ? T("sy.selected_now","今の字幕に選ばれています") : T("sy.switch_hint","画面下のボタンで現在の字幕に切り替えられます");
     updateFooterActions();
@@ -845,7 +854,7 @@
     const b = boxes[curBox];
     const p = stageStyle();
     const table = FX.buildTable(hotwords, effects, p);
-    $("stageStyleName").textContent = p.name ? `スタイル: ${p.name}` : "";
+    $("stageStyleName").textContent = p.name ? T("sy.stage_design","デザイン: ") + p.name : "";
     if ((b.mode || "flow") === "lyric") {
       // 実寸座標系なので fontScale=1（本番と同一の散らばり・サイズ）
       FX.lyricSpawn($("stageBox"), STAGE_LINES[stageN++ % STAGE_LINES.length],
@@ -872,6 +881,7 @@
   }
 
   function addBoxFrom(source, name) {
+    styleDirty = true;
     if (!source) return;
     const b = JSON.parse(JSON.stringify(source));
     b.id = uniqueId("box-", boxes);
@@ -899,6 +909,7 @@
     const original = defaultBoxes.find(b => b.id === boxes[curBox].id);
     if (!original || !confirm(T("sy.confirm_reset","「{name}」を初期状態に戻しますか？").replace("{name}", boxes[curBox].name))) return;
     boxes[curBox] = JSON.parse(JSON.stringify(original));
+    styleDirty = true;
     renderBoxList(); loadBoxForm(); beginBoxEdit();
     $("boxActionDesc").textContent = "初期状態に戻しました。下の「保存」で確定します";
   }
@@ -927,6 +938,7 @@
     if (boxes.length <= 1) { alert(T("sy.cant_delete_last","最後の1つは削除できません")); return; }
     if (!confirm(T("sy.confirm_delete","「{name}」を削除しますか？").replace("{name}", boxes[curBox].name))) return;
     boxes.splice(curBox, 1);
+    styleDirty = true;
     curBox = Math.max(0, curBox - 1);
     closeBoxEdit(); renderBoxList(); loadBoxForm();
   }
@@ -981,7 +993,7 @@
     for (const el of document.querySelectorAll("#bform input, #bform select")) {
       el.addEventListener("input", () => {
         if (bouts[el.id]) $(bouts[el.id][0]).textContent = bouts[el.id][1](el.value);
-        collectBox();
+        collectBox(); styleDirty = true;
         $("editBoxName").textContent = boxes[curBox].name;
         renderBoxList();
         if (el.id === "b_mode") { updateModeRows(); stageClear(); stageAdd(); }
@@ -993,6 +1005,7 @@
   }
 
   function onEdit() {
+    styleDirty = true;
     collect();
     $("editName").textContent = presets[cur].name;
     renderList();
@@ -1015,7 +1028,13 @@
       postJson("/api/presets", { presets }),
       postJson("/api/boxes", { boxes })
     ]);
+    styleDirty = false;
   }
+
+  // 未保存の編集（デザイン・レイアウト）。スタジオ（親窓）が閉じる前に確かめる窓口
+  let styleDirty = false;
+  window.mojiIsDirty = () => styleDirty;
+  window.mojiSave = async () => { try { await persistAll(); return true; } catch (e) { return false; } };
 
   function savedMessage(text, error=false) {
     const s = $("saved");
@@ -1063,8 +1082,8 @@
     const bar = $("expBar");
     bar.hidden = !bar.hidden;
     if (!bar.hidden) {
-      $("expCurPreset").textContent = T("sy.exp_cur_style","表示中のスタイル「{name}」").replace("{name}", presets[cur].name);
-      $("expCurBox").textContent = T("sy.exp_cur_box","表示中のボックス「{name}」").replace("{name}", boxes[curBox].name);
+      $("expCurPreset").textContent = T("sy.exp_cur_style","表示中のデザイン「{name}」").replace("{name}", presets[cur].name);
+      $("expCurBox").textContent = T("sy.exp_cur_box","表示中のレイアウト「{name}」").replace("{name}", boxes[curBox].name);
       const usedPreset = presets.find(p => p.id === activePresetId) || presets[cur];
       const usedBox = boxes.find(b => b.id === activeBoxId) || boxes[curBox];
       $("expActivePair").textContent = T("sy.exp_active_pair","使用中の組み合わせ「{p} ＋ {b}」").replace("{p}", usedPreset.name).replace("{b}", usedBox.name);
@@ -1109,7 +1128,7 @@
       [fetch("/api/presets"), fetch("/api/boxes")].map(p => p.then(x => x.json())));
     presets = pj.presets || []; boxes = bj.boxes || [];
     renderList(); loadForm(); renderBoxList(); loadBoxForm();
-    ioMsg(`インポートしました（スタイル ${r.presets} 件 / ボックス ${r.boxes} 件）`, true);
+    ioMsg(T("sy.imported","インポートしました（デザイン {p} 件 / レイアウト {b} 件）").replace("{p}", r.presets).replace("{b}", r.boxes), true);
   }
 
   // API応答を待つ前に入口どおりのタブを表示する。取得が遅い／失敗した場合も、

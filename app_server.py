@@ -249,6 +249,12 @@ def save_window_geometry(key, geom):
         save_config(cfg)
 
 
+def _notify_words_saved(profile):
+    """認識辞書・伏せ字・固定訳の保存を知らせる。これらは認識エンジンの開始時に読むので、
+    動作中ならコックピットが「再起動で反映」を出す（ワード演出は表示側で即反映のため対象外）"""
+    broadcast({"type": "words_saved", "profile": profile})
+
+
 def _ui_file(name):
     """GUIファイルの実体パス。旧UIを選んでいて ui/legacy/ に同名があればそちらを返す
     （無いもの＝共有の fx.js / theme-sync.js などは新旧共通の ui/ から配る）"""
@@ -1396,6 +1402,7 @@ class Handler(BaseHTTPRequestHandler):
             if p is None:
                 return
             wordstore.save_hotwords(body.get("entries", []), p)
+            _notify_words_saved(p)
             ev = {"type": "style"}
             ev.update(resolve_style(load_config()))
             broadcast(ev)
@@ -1405,6 +1412,7 @@ class Handler(BaseHTTPRequestHandler):
             if p is None:
                 return
             wordstore.save_banned(body.get("words", []), p)
+            _notify_words_saved(p)
             if "mask_char" in body:      # 伏せ字文字は全体設定（プロファイル外）
                 with _config_lock:
                     cfg = load_config()
@@ -1416,6 +1424,7 @@ class Handler(BaseHTTPRequestHandler):
             if p is None:
                 return
             wordstore.save_glossary(body.get("entries", []), p)
+            _notify_words_saved(p)
             self._json({"ok": True})
         elif path == "/api/effects":
             p = self._profile_arg(body.get("profile"))
@@ -1634,6 +1643,7 @@ class Handler(BaseHTTPRequestHandler):
         wordstore.save_hotwords(new_hot, p)
         if counts["glossary"]:
             wordstore.save_glossary(new_gl, p)
+        _notify_words_saved(p)
         ev = {"type": "style"}
         ev.update(resolve_style(load_config()))
         broadcast(ev)
@@ -1724,6 +1734,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         new_gl, counts = wordimport.apply_import_glossary(uniq, gloss, mode)
         wordstore.save_glossary(new_gl, p)
+        _notify_words_saved(p)
         ev = {"type": "style"}
         ev.update(resolve_style(load_config()))
         broadcast(ev)

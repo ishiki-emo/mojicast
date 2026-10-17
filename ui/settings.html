@@ -125,11 +125,11 @@
     <div class="nav-caption" data-i18n="st.nav_caption">アプリ設定</div>
     <button data-section="hearing" onclick="switchSection('hearing')"><span class="icon">🎙</span><strong data-i18n="st.nav_hearing">声の聞き取り</strong><small data-i18n="st.nav_hearing_d">マイク・認識・区切り</small></button>
     <button data-section="translation" onclick="switchSection('translation')"><span class="icon">🌐</span><strong data-i18n="st.nav_translation">翻訳</strong><small data-i18n="st.nav_translation_d">翻訳先・使用モデル</small></button>
-    <button data-section="collab" onclick="switchSection('collab')"><span class="icon">🎧</span><strong data-i18n="st.nav_collab">コラボ音声</strong><small data-i18n="st.nav_collab_d">通話アプリ・表示名</small></button>
+    <button data-section="collab" onclick="switchSection('collab')"><span class="icon">🎧</span><strong data-i18n="st.nav_collab">1対1コラボ</strong><small data-i18n="st.nav_collab_d">通話アプリ・表示名</small></button>
     <button data-section="voice" onclick="switchSection('voice')"><span class="icon">🎤</span><strong data-i18n="st.nav_voice">ボイスコマンド</strong><small data-i18n="st.nav_voice_d">声でレイアウト切替</small></button>
     <button data-section="obs" onclick="switchSection('obs')"><span class="icon">🎬</span><strong data-i18n="st.nav_obs">OBS接続</strong><small data-i18n="st.nav_obs_d">表示URL・ポート</small></button>
     <button data-section="vrchat" onclick="switchSection('vrchat')"><span class="icon">🥽</span><strong data-i18n="st.nav_vrchat">VRChat連携</strong><small data-i18n="st.nav_vrchat_d">チャットボックス送信</small></button>
-    <button data-section="other" onclick="switchSection('other')"><span class="icon">⚙</span><strong data-i18n="st.nav_other">その他</strong><small data-i18n="st.nav_other_d">ログ・表示処理</small></button>
+    <button data-section="other" onclick="switchSection('other')"><span class="icon">⚙</span><strong data-i18n="st.nav_other">画面とログ</strong><small data-i18n="st.nav_other_d">表示言語・テーマ・字幕ログ</small></button>
     <button data-section="about" onclick="switchSection('about')"><span class="icon">ℹ️</span><strong data-i18n="st.nav_about">情報・連絡先</strong><small data-i18n="st.nav_about_d">バージョン・作者</small></button>
   </nav>
 
@@ -153,9 +153,10 @@
           <div class="field" id="intervalRow"><label><span data-i18n="st.f_interval">途中経過の更新間隔</span> <output id="intervalOut"></output></label><input id="interval" type="range" min="0.2" max="1" step="0.1"></div>
         </article>
         <article class="card"><h2 data-i18n="st.card_assist">認識の補助</h2><p data-i18n="st.card_assist_d">固有名詞や数字の認識を補助します。</p>
-          <label class="checkrow"><input id="useHotwords" type="checkbox"><span><b data-i18n="st.chk_hotwords">登録した単語を認識に使う</b><small data-i18n="st.chk_hotwords_d">字幕スタジオで登録した言葉を優先します</small></span></label>
+          <label class="checkrow"><input id="useHotwords" type="checkbox"><span><b data-i18n="st.chk_hotwords">登録した単語を認識に使う</b><small data-i18n="st.chk_hotwords_d">字幕スタジオの「認識させる単語」を優先します</small></span></label>
           <div class="field"><label><span data-i18n="st.f_hotscore">登録単語の出やすさ</span> <output id="hotwordsOut"></output></label><input id="hotwordsScore" type="range" min="1" max="4" step="0.5"></div>
           <label class="checkrow"><input id="numArabic" type="checkbox"><span><b data-i18n="st.chk_numarabic">漢数字を数字にする</b><small data-i18n="st.chk_numarabic_d">「三」を「3」のように表示します</small></span></label>
+          <label class="checkrow"><input id="punctuate" type="checkbox"><span><b data-i18n="st.chk_punct">句読点を付ける</b><small data-i18n="st.chk_punct_d">認識した文に「、」「。」を付けます</small></span></label>
           <label class="checkrow"><input id="highPrecision" type="checkbox"><span><b data-i18n="st.chk_highprec">高精度モード</b><small data-i18n="st.chk_highprec_d">認識と句読点に大きいモデルを使います（メモリ約+650MB）</small></span></label>
         </article>
       </div>
@@ -188,7 +189,7 @@
     </section>
 
     <section class="pane" id="pCollab">
-      <h1 data-i18n="st.h1_collab">コラボ音声</h1><p class="lead" data-i18n="st.lead_collab">Discordなど、相手の声が鳴るアプリを選びます。</p>
+      <h1 data-i18n="st.h1_collab">1対1コラボ</h1><p class="lead" data-i18n="st.lead_collab">Discordなど、相手の声が鳴るアプリを選びます。</p>
       <div class="warnbar restart-warn" data-i18n="restart_warn">⚠ 変更は、コックピットで「■ 停止 → ▶ 開始」すると反映されます。</div>
       <div class="grid">
         <article class="card wide"><h2 data-i18n="st.card_collab">1対1コラボ字幕</h2><p data-i18n="st.card_collab_d">自分と相手の声を分けて字幕にします。</p>
@@ -259,10 +260,9 @@
     </section>
 
     <section class="pane" id="pOther">
-      <h1 data-i18n="st.h1_other">その他</h1><p class="lead" data-i18n="st.lead_other">字幕処理とアプリ画面の設定です。</p>
+      <h1 data-i18n="st.h1_other">画面とログ</h1><p class="lead" data-i18n="st.lead_other">表示言語・テーマ・文字の大きさと、字幕ログの保存を設定します。</p>
       <div class="grid">
-        <article class="card"><h2 data-i18n="st.card_capproc">字幕処理</h2><p data-i18n="st.card_capproc_d">認識後の文章を整えます。</p>
-          <label class="checkrow"><input id="punctuate" type="checkbox"><span><b data-i18n="st.chk_punct">句読点を付ける</b></span></label>
+        <article class="card"><h2 data-i18n="st.card_capproc">字幕ログ</h2><p data-i18n="st.card_capproc_d">話した内容を配信後に見返せるよう保存します。</p>
           <label class="checkrow"><input id="saveLog" type="checkbox"><span><b data-i18n="st.chk_savelog">字幕ログを保存する</b><small data-i18n="st.chk_savelog_d">あとから配信内容を確認できます</small></span></label>
           <div class="actions"><button id="openLogs" data-i18n="st.btn_openlogs">字幕ログの保存フォルダを開く</button></div>
         </article>
@@ -312,7 +312,7 @@
   const $ = id => document.getElementById(id);
   const qs = new URLSearchParams(location.search);
   const panes = { hearing:"pHearing", translation:"pTranslation", collab:"pCollab", voice:"pVoice", obs:"pObs", vrchat:"pVrchat", other:"pOther", about:"pAbout" };
-  const descsJa = { hearing:"マイク・認識・区切りを設定", translation:"翻訳先とモデルを設定", collab:"通話相手の音声を設定", voice:"声でレイアウトを切り替え", obs:"OBSとの接続を設定", vrchat:"VRChatのチャットボックスへ送信", other:"ログと画面表示を設定", about:"バージョンと連絡先" };
+  const descsJa = { hearing:"マイク・認識・区切りを設定", translation:"翻訳先とモデルを設定", collab:"通話相手の音声を設定", voice:"声でレイアウトを切り替え", obs:"OBSとの接続を設定", vrchat:"VRChatのチャットボックスへ送信", other:"表示言語・テーマ・字幕ログを設定", about:"バージョンと連絡先" };
   const T = (key, jaDefault) => window.MojicastI18n ? window.MojicastI18n.t(key, jaDefault) : jaDefault;
   let cfg = {}, running = false, savedTimer, nameTimer, vcTimer, curSection = "hearing";
 
