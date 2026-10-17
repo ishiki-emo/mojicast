@@ -100,6 +100,11 @@
           applyLang(message.ui_lang);
         if ((message.type === "ui_scale" || message.type === "init") && message.ui_scale)
           applyScale(message.ui_scale);
+        // 新UI／旧UIの切替。同じURLのまま読み直すとサーバが選んだ版を返す
+        // （埋め込みiframeは親窓ごと読み直されるのでここには来ない）
+        if (message.type === "ui_variant") location.reload();
+        // 各ページが同じ接続で他の知らせ（入力レベル等）も受け取れるよう流す（SSE を増やさない）
+        window.dispatchEvent(new CustomEvent("mojicast-sse", { detail: message }));
       } catch (e) {}
     };
     events.onerror = () => {

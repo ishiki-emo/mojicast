@@ -275,10 +275,11 @@
   .group-cta { width: 100%; margin-top: 12px; border-color: var(--accent);
     color: var(--accent); font-weight: 800; }
   .feature-list { display: flex; flex-direction: column; }
-  .feature-row { display: grid; grid-template-columns: 32px 1fr auto auto; align-items: center;
-    gap: 9px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  /* 機能が6つに増えたので行を詰め、下の「OBSに表示」が窓の高さに収まるようにする */
+  .feature-row { display: grid; grid-template-columns: 28px 1fr auto auto; align-items: center;
+    gap: 9px; padding: 6px 0; border-bottom: 1px solid var(--line); }
   .feature-row:last-child { border-bottom: 0; }
-  .feature-icon { width: 30px; height: 30px; display: grid; place-items: center;
+  .feature-icon { width: 26px; height: 26px; font-size: 13px; display: grid; place-items: center;
     border-radius: 8px; background: var(--panel2); }
   .feature-copy b { display: block; font-size: 12.5px; }
   .feature-copy span { color: var(--dim); font-size: 10.5px; }
@@ -291,6 +292,23 @@
   .feature-edit { border: 0; background: transparent; color: var(--accent); padding: 4px;
     font-size: 12px; font-weight: 800; }
   .feature-row.unsupported { opacity: .55; }
+  /* 「表示を選ぶ」: 使わない機能を一覧から外す（オンの間は外さない。消すと切れなくなるため） */
+  .feature-row.pref-hidden { display: none; }
+  .feature-row .vis { display: none; padding: 4px 10px; font-size: 11.5px; font-weight: 700;
+    border-radius: 7px; white-space: nowrap; }
+  .feature-list.picking .feature-row { display: grid; }
+  .feature-list.picking .feature-row .feature-edit,
+  .feature-list.picking .feature-row input[type=checkbox] { display: none; }
+  .feature-list.picking .feature-row .vis { display: inline-block; }
+  .feature-list.picking .feature-row.pref-off .feature-copy,
+  .feature-list.picking .feature-row.pref-off .feature-icon { opacity: .4; }
+  .feature-row .vis { color: var(--dim); background: transparent; }
+  .feature-row .vis.on { color: #061117; background: var(--accent); border-color: var(--accent); }
+  .feature-list.picking #collabSummary { display: none !important; }
+  /* mac で使えない VRChat は選ぶ画面でも出さない */
+  .feature-list .feature-row.unavailable { display: none !important; }
+  .feature-empty { padding: 8px 0 2px; }
+  #collabSummary.pref-hidden { display: none !important; }
   .feature-row.unsupported .feature-edit { color: var(--dim); cursor: default; }
   .quick-today { flex: none; padding: 11px 12px; overflow: visible; }
   .quick-today .today-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
@@ -306,9 +324,13 @@
   .quick-today .today-label span { display: none; }
   .quick-today .selrow { margin-top: 0; }
   /* シーン＝「セット」であることが分かるようアクセント色で薄く色分け */
-  .quick-today #sceneItem { border-color: rgba(255,45,149,.45);
-    background: rgba(255,45,149,.05); }
-  #sceneItem .today-label b { color: #ff2d95; }
+  .quick-today #sceneItem { border-color: color-mix(in srgb, var(--accent2) 45%, transparent);
+    background: color-mix(in srgb, var(--accent2) 5%, transparent); }
+  #sceneItem .today-label b { color: var(--accent2); }
+  #sceneItem button:disabled { opacity: .35; cursor: default; }
+  /* 旧UIへの切替。▶開始/■停止 の押し間違いを避けるため少し離す */
+  #uiVariantBtn { padding: 6px 11px; font-size: 12px; color: var(--dim); }
+  #themeBtn { margin-right: 10px; }
   #sceneItem button { flex: none; padding: 4px 8px; font-size: 12px; }
   .quick-today .selrow select { height: 31px; border: 0; padding: 0; background: transparent;
     font-size: 14px; font-weight: 800; }
@@ -411,6 +433,7 @@
     <div class="led" id="led"></div>
     <div id="stateText" data-i18n="cp.state_stopped">停止中</div>
     <div class="spacer"></div>
+    <button id="uiVariantBtn" onclick="switchUiVariant('legacy')" title="以前の画面に戻す（いつでも新UIに戻せます）" data-i18n-title="cp.ui_legacy_t" data-i18n="cp.ui_legacy">旧UI</button>
     <button id="themeBtn" onclick="toggleTheme()" title="ライト/ダーク切替" data-i18n-title="cp.theme_toggle">🌙</button>
     <button id="btnEngine" onclick="toggleEngine()" data-i18n="cp.start">▶ 開始</button>
   </header>
@@ -463,8 +486,8 @@
         <h2 id="monitorTitle" style="margin:0;border:0;padding:0" data-i18n="cp.monitor_title">字幕ログ</h2>
         <span class="rec" id="rec">● REC</span>
         <div class="mode-switch" role="group" aria-label="字幕モニタの表示方法">
-          <button id="modeLog" class="active" aria-pressed="true" onclick="setMonitorMode('log')" data-i18n="cp.mode_log">簡易ログ</button>
-          <button id="modePreview" aria-pressed="false" onclick="setMonitorMode('preview')" data-i18n="cp.mode_preview">配信プレビュー</button>
+          <button id="modeLog" aria-pressed="false" onclick="setMonitorMode('log')" data-i18n="cp.mode_log">簡易ログ</button>
+          <button id="modePreview" class="active" aria-pressed="true" onclick="setMonitorMode('preview')" data-i18n="cp.mode_preview">配信プレビュー</button>
         </div>
       </div>
       <div id="suggestBar" style="display:none">
@@ -475,7 +498,7 @@
         </span>
       </div>
       <div class="mon-wrap">
-        <button class="clr-in" onclick="clearCaptions()" data-i18n="cp.clear">表示クリア</button>
+        <button class="clr-in" onclick="clearCaptions()" title="OBSに映っている字幕も消えます" data-i18n-title="cp.clear_t" data-i18n="cp.clear">配信の字幕を消す</button>
         <div id="monitor"></div>
         <div id="previewStage" aria-hidden="true">
           <span class="preview-badge" data-i18n="cp.preview_badge">OBS表示イメージ・1920×1080</span>
@@ -489,7 +512,7 @@
           <ol>
             <li><span class="g-n">1</span><div><b data-i18n="cp.guide_s1_t">マイクを選ぶ</b><span data-i18n="cp.guide_s1_d">上の設定バー</span></div></li>
             <li><span class="g-n">2</span><div><b data-i18n="cp.guide_s2_t">「▶ 開始」を押す</b><span data-i18n="cp.guide_s2_d">右上のボタン。字幕がここに出ます</span></div></li>
-            <li><span class="g-n">3</span><div><b data-i18n="cp.guide_s3_t">表示用のURLをOBSに貼る</b><span data-i18n="cp.guide_s3_d">右の「OBSに字幕を出す」からコピー</span></div></li>
+            <li><span class="g-n">3</span><div><b data-i18n="cp.guide_s3_t">表示用のURLをOBSに貼る</b><span data-i18n="cp.guide_s3_d">右の「OBSに表示」からコピー</span></div></li>
           </ol>
           <button class="g-close" onclick="dismissGuide()" data-i18n="cp.guide_close">閉じる</button>
         </div>
@@ -527,15 +550,15 @@
     <!-- ========== 右: 字幕に足す機能とOBS ========== -->
     <div class="col col-right">
       <div class="group">
-        <div class="section-kicker">ADD TO CAPTIONS</div>
         <div class="ghead">
           <span class="gicon" style="background:rgba(255,45,149,.12)">✦</span>
           <div>
             <div class="gtitle" data-i18n="cp.add_title">字幕に追加する</div>
             <div class="gdesc" data-i18n="cp.add_sub">必要なものだけオン</div>
           </div>
+          <button class="gedit" id="pickFeatures" onclick="togglePickFeatures()" title="この一覧に出す機能を選びます" data-i18n-title="cp.pick_t" data-i18n="cp.pick">表示を選ぶ</button>
         </div>
-        <div class="feature-list">
+        <div class="feature-list" id="featureList">
           <div class="feature-row">
             <span class="feature-icon">💥</span>
             <span class="feature-copy"><b data-i18n="cp.fx">ワード演出</b><span data-i18n="cp.fx_d">好きな言葉を派手にする</span></span>
@@ -545,8 +568,20 @@
           <div class="feature-row">
             <span class="feature-icon">🌐</span>
             <span class="feature-copy"><b id="transFeatureLabel">英訳</b><span data-i18n="cp.trans_d">翻訳字幕を一緒に表示</span></span>
-            <button class="feature-edit" onclick="openStudio('pillar=translation')" data-i18n="cp.configure">設定</button>
+            <button class="feature-edit" onclick="openSettings('translation')" title="翻訳先の言語（見た目・固定訳は字幕スタジオ）" data-i18n-title="cp.trans_cfg_t" data-i18n="cp.configure">設定</button>
             <input type="checkbox" id="translateOn">
+          </div>
+          <div class="feature-row">
+            <span class="feature-icon">🎉</span>
+            <span class="feature-copy"><b data-i18n="cp.soundfx">リアクション演出</b><span data-i18n="cp.soundfx_d">笑い声・拍手で画像を出す</span></span>
+            <button class="feature-edit" onclick="openStudio('pillar=soundfx')" data-i18n="cp.configure">設定</button>
+            <input type="checkbox" id="soundFxOn">
+          </div>
+          <div class="feature-row">
+            <span class="feature-icon">🗣</span>
+            <span class="feature-copy"><b data-i18n="cp.voicecmd">ボイスコマンド</b><span data-i18n="cp.voicecmd_d">呼びかけた発話は字幕に出ません</span></span>
+            <button class="feature-edit" onclick="openSettings('voice')" data-i18n="cp.configure">設定</button>
+            <input type="checkbox" id="vcOn">
           </div>
           <div class="feature-row">
             <span class="feature-icon">🥽</span>
@@ -561,6 +596,7 @@
             <input type="checkbox" id="collabOn">
           </div>
           <div class="hint" id="collabSummary" style="display:none"></div>
+          <div class="hint feature-empty" id="featureEmpty" hidden data-i18n="cp.pick_empty">表示中の機能はありません（「表示を選ぶ」から戻せます）</div>
         </div>
       </div>
 
@@ -635,8 +671,8 @@
       const d = await api("/api/update-check");
       _updateInfo = d;
       if (!d || !d.update_available) return;
-      // 同じ新バージョンを「閉じる」した後は再表示しない
-      if (localStorage.getItem("mojicast_update_dismissed") === d.latest) return;
+      // 同じ新バージョンを「閉じる」した後は再表示しない（記憶は config。localStorage は起動ごとに消える）
+      if (cfg.update_dismissed === d.latest) return;
       const msg = T("cp.update_msg", "新しいバージョン {v} があります")
         .replace("{v}", "v" + d.latest);
       $("updateMsg").textContent = d.notes ? `${msg}｜${d.notes}` : msg;
@@ -647,8 +683,10 @@
     } catch (e) { /* オフライン等は無視 */ }
   }
   function dismissUpdate() {
-    if (_updateInfo && _updateInfo.latest)
-      localStorage.setItem("mojicast_update_dismissed", _updateInfo.latest);
+    if (_updateInfo && _updateInfo.latest) {
+      cfg.update_dismissed = _updateInfo.latest;
+      api("/api/config", { update_dismissed: _updateInfo.latest });
+    }
     $("updateBar").style.display = "none";
   }
 
@@ -820,6 +858,12 @@
     if (s === 1) document.documentElement.style.removeProperty("--ui-zoom");
     else document.documentElement.style.setProperty("--ui-zoom", s);
   }
+  // 新UI／旧UIの切替。保存するとSSEで全GUI窓が読み直され、選んだ版の画面になる
+  async function switchUiVariant(variant) {
+    $("uiVariantBtn").disabled = true;
+    try { await api("/api/config", { ui_variant: variant }); }
+    finally { $("uiVariantBtn").disabled = false; }
+  }
   function toggleTheme() {
     cfg.theme = cfg.theme === "light" ? "dark" : "light";
     applyTheme(cfg.theme);
@@ -837,13 +881,15 @@
     zh: { lead: "💡 推荐设置", apply: "应用此设置", skip: "保持现状",
           multi: l => `识别模型=多语言（${l}）`, light: "识别模型=多语言（轻量）",
           maxutt: "单段最长=8秒",
-          note: "之后可随时在「AIモデル」面板中更改",
+          uilang: "界面语言=中文",
+          note: "之后可随时在「应用设置」中更改",
           langName: { zh: "中文", en: "英语" } },
     en: { lead: "💡 Recommended setup", apply: "Apply", skip: "Keep current",
           multi: l => `Recognition model = Multilingual (${l})`,
           light: "Recognition model = Multilingual (lightweight)",
           maxutt: "Max segment length = 8s",
-          note: "You can change these anytime in the AI Model panel",
+          uilang: "Interface language = English",
+          note: "You can change these anytime in App Settings",
           langName: { zh: "Chinese", en: "English" } },
   };
 
@@ -854,6 +900,11 @@
     const patch = {};
     const items = [];
     if (env.os_lang === "zh" || env.os_lang === "en") {
+      // 画面の言語も合わせて提案する（提案バーだけ外国語で本体は日本語、を避ける）
+      if ((cfg.ui_lang || "ja") === "ja") {
+        patch.ui_lang = env.os_lang;
+        items.push(T.uilang);
+      }
       if (cfg.asr_model !== "sensevoice") {   // OS言語に合わせた多言語認識を提案
         patch.asr_model = "sensevoice";
         patch.asr_lang = env.os_lang;
@@ -911,10 +962,14 @@
   // i18n: 訳語を引く（ja既定を同梱・i18n.js未読込でも安全）
   const T = (key, jaDefault) => window.MojicastI18n ? window.MojicastI18n.t(key, jaDefault) : jaDefault;
   const TR_NAMES = { en: "英訳", zh: "中国語訳", zh_tw: "台湾繁体字訳",
-    zh_hk: "香港繁体字訳", id: "インドネシア語訳", ja: "日本語訳", ko: "韓国語訳" };
+    zh_hk: "香港繁体字訳", id: "インドネシア語訳", pt: "ポルトガル語訳", es: "スペイン語訳",
+    ja: "日本語訳", ko: "韓国語訳" };
   function syncModelCard() {
     const lang = cfg.translate_lang || "en";
-    $("transFeatureLabel").textContent = T("trg." + lang, TR_NAMES[lang] || "英訳");
+    const name = T("trg." + lang, TR_NAMES[lang] || lang + "訳");
+    // 翻訳先が複数なら「英訳 ＋2」のように数も出す（1つ目しか訳されないと誤解させない）
+    const more = Array.isArray(cfg.translate_langs) ? new Set(cfg.translate_langs).size - 1 : 0;
+    $("transFeatureLabel").textContent = more > 0 ? `${name} ＋${more}` : name;
   }
 
   // コックピットに残す配信中の機能トグル
@@ -922,14 +977,73 @@
     $("wordFx").checked = !!cfg.word_fx;
     $("translateOn").checked = !!cfg.translate;
     $("vrchatOn").checked = !!cfg.vrchat;
+    $("soundFxOn").checked = !!cfg.sound_fx;
+    $("vcOn").checked = !!cfg.vc_enabled;
     // VRChat は mac にクライアントが無く送信先が存在しないため、欄ごと出さない
     // （コラボのグレーアウトと違い将来対応の予定も無い）
-    $("vrchatOn").closest(".feature-row").style.display =
-      cfg.vrchat_supported === false ? "none" : "";
+    $("vrchatOn").closest(".feature-row").classList.toggle("unavailable", cfg.vrchat_supported === false);
+    applyFeatureVisibility();
+  }
+
+  // ---------- 「字幕に追加する」に出す機能を選ぶ ----------
+  // config.cockpit_hidden_features に外した機能の名前を持つ（起動し直しても残す）。
+  // 外していてもオンの間は出す（ほかの窓・ボイスコマンドでオンになったときに切れなくなるため）
+  const FEATURE_ROWS = { word_fx: "wordFx", translate: "translateOn", sound_fx: "soundFxOn",
+    voice: "vcOn", vrchat: "vrchatOn", collab: "collabOn" };
+  let pickingFeatures = false;
+  function hiddenFeatures() {
+    return Array.isArray(cfg.cockpit_hidden_features) ? cfg.cockpit_hidden_features : [];
+  }
+  function applyFeatureVisibility() {
+    const hidden = new Set(hiddenFeatures());
+    let shown = 0;
+    for (const [key, id] of Object.entries(FEATURE_ROWS)) {
+      const row = $(id).closest(".feature-row");
+      row.dataset.feature = key;
+      const off = hidden.has(key);
+      row.classList.toggle("pref-off", off);
+      row.classList.toggle("pref-hidden", off && !$(id).checked);
+      let vis = row.querySelector(".vis");
+      if (!vis) {
+        vis = document.createElement("button");
+        vis.className = "vis";
+        vis.onclick = () => toggleFeatureShown(key);
+        row.appendChild(vis);
+      }
+      vis.classList.toggle("on", !off);
+      vis.textContent = off ? T("cp.pick_hidden", "非表示") : T("cp.pick_shown", "表示");
+      if (!row.classList.contains("pref-hidden") && !row.classList.contains("unavailable")) shown++;
+    }
+    // コラボ欄を外したら、その下の1行サマリも一緒に隠す
+    const collabRow = $("collabOn").closest(".feature-row");
+    $("collabSummary").classList.toggle("pref-hidden", collabRow.classList.contains("pref-hidden"));
+    $("featureEmpty").hidden = pickingFeatures || shown > 0;
+  }
+  function toggleFeatureShown(key) {
+    const hidden = new Set(hiddenFeatures());
+    if (hidden.has(key)) hidden.delete(key); else hidden.add(key);
+    cfg.cockpit_hidden_features = [...hidden];
+    api("/api/config", { cockpit_hidden_features: cfg.cockpit_hidden_features });   // 表示だけ（再起動不要）
+    applyFeatureVisibility();
+  }
+  function togglePickFeatures() {
+    pickingFeatures = !pickingFeatures;
+    $("featureList").classList.toggle("picking", pickingFeatures);
+    $("pickFeatures").textContent = pickingFeatures ? T("cp.pick_done", "完了") : T("cp.pick", "表示を選ぶ");
+    applyFeatureVisibility();
   }
   $("wordFx").addEventListener("change", e => { cfg.word_fx = e.target.checked; saveCfg("word_fx"); });
   $("translateOn").addEventListener("change", e => { cfg.translate = e.target.checked; saveCfg("translate"); });
+  $("soundFxOn").addEventListener("change", e => { cfg.sound_fx = e.target.checked; saveCfg("sound_fx"); });
+  $("vcOn").addEventListener("change", e => {
+    cfg.vc_enabled = e.target.checked; saveCfg("vc_enabled");
+    // 呼びかけの名前が未登録だと何も起きないので、そのまま設定を開く
+    if (cfg.vc_enabled && !(cfg.vc_wake || []).length) openSettings("voice");
+  });
   $("vrchatOn").addEventListener("change", e => { cfg.vrchat = e.target.checked; saveCfg("vrchat"); });
+  // 外した機能をオフにしたら、その場で一覧から消す
+  for (const id of ["wordFx", "translateOn", "soundFxOn", "vcOn", "vrchatOn", "collabOn"])
+    $(id).addEventListener("change", () => applyFeatureVisibility());
 
   $("device").addEventListener("change", e => {
     cfg.device = e.target.value === "default" ? null : +e.target.value; saveCfg("device");
@@ -957,6 +1071,7 @@
       return;
     }
     $("collabOn").checked = !!cfg.collab;
+    applyFeatureVisibility();
     if (!cfg.collab) { s.style.display = "none"; return; }
     // 仮想ケーブル表示はUI非公開の保険設定（config直編集）のときだけ
     const src = (cfg.collab_source || "process") === "process"
@@ -998,6 +1113,8 @@
     if (cfg.save_log === undefined) cfg.save_log = true;
     syncModelCard();
     syncMovedToggles();  // 高精度/漢数字/単語エフェクト（各カード・詳細へ移動）を反映
+    showGuideIfNew(!cfg.setup_suggested);
+    setMonitorMode(cfg.monitor_mode || "preview", false);   // 前回の表示方法で開く
     if (!cfg.setup_suggested) initSuggest();   // 初回のみ: 環境に合わせた提案
     $("obsUrl").value = location.origin + "/";
     const dv = await api("/api/devices");
@@ -1041,6 +1158,7 @@
         base.name + T("cp.scene_dirty", "（調整中）"))}</option>` : "");
     sel.value = cur ? cur.id : (base ? "__dirty__" : "");
     $("sceneOw").hidden = !base;
+    $("sceneDel").disabled = !(cur || base);   // 未選択のときは消す対象が無い
     $("sceneSave").textContent = base ? T("cp.scene_new", "新規") : "＋";
   }
 
@@ -1133,7 +1251,7 @@
     "device", "silence_ms", "interval", "max_utt", "hotwords_score",
     "use_hotwords", "word_profile", "collab", "collab_source",
     "collab_process", "collab_device", "self_name", "guest_name",
-    "vc_enabled", "vc_wake"];
+    "vc_enabled", "vc_wake", "sound_fx"];
 
   async function refreshPresets() {   // スタイル/単語/コラボ/モデル窓での保存を反映
     const prev = cfg;
@@ -1284,18 +1402,24 @@
   function openStyle(query) { openStudio(query || ""); }
 
   // ---------- はじめの3ステップ（初回のみ） ----------
+  // 一度閉じた（字幕が出た）ことは config に残す。localStorage は起動ごとに消えるため
   function dismissGuide() {
     const g = $("guide");
     if (g) g.style.display = "none";
-    try { localStorage.setItem("mojicast-onboarded", "1"); } catch (e) {}
+    if (!cfg.guide_dismissed) {
+      cfg.guide_dismissed = true;
+      api("/api/config", { guide_dismissed: true });
+    }
   }
-  (function initGuide() {
-    try {
-      if (localStorage.getItem("mojicast-onboarded") === "1") {
-        const g = $("guide"); if (g) g.style.display = "none";
-      }
-    } catch (e) {}
-  })();
+  // 設定を読むまでは出さない（毎回ちらっと見えるのを防ぐ）。loadAll で判断する
+  (function initGuide() { const g = $("guide"); if (g) g.style.display = "none"; })();
+  function showGuideIfNew(firstLaunch) {
+    const g = $("guide");
+    if (!g) return;
+    // 案内を閉じた記録が無くても、2回目以降の起動（初回の提案を済ませた）なら出さない
+    // （この記録を持つ前の版から更新した人に、今さら出さないため）
+    g.style.display = !cfg.guide_dismissed && firstLaunch ? "flex" : "none";
+  }
 
   // ---------- 静的スタイルプレビュー ----------
   // 本番の文字スタイル（フォント/色/縁取り/グロー/単語ハイライト）を各行へ適用。
@@ -1357,8 +1481,9 @@
     canvas.style.top = Math.max(0, (stage.clientHeight - height) / 2) + "px";
     canvas.style.transform = `scale(${scale})`;
   }
-  function setMonitorMode(mode) {
-    monitorMode = mode === "preview" ? "preview" : "log";
+  // save=false は起動時の復元（保存済みの値を当てるだけ）
+  function setMonitorMode(mode, save = true) {
+    monitorMode = mode === "log" ? "log" : "preview";
     const preview = monitorMode === "preview";
     monitor.style.display = preview ? "none" : "flex";
     $("previewStage").classList.toggle("active", preview);
@@ -1367,20 +1492,17 @@
     $("modePreview").classList.toggle("active", preview);
     $("modeLog").setAttribute("aria-pressed", String(!preview));
     $("modePreview").setAttribute("aria-pressed", String(preview));
-    $("monitorTitle").textContent = preview ? "配信プレビュー" : "字幕ログ";
-    if (preview) {
-      const guide = $("guide"); if (guide) guide.style.display = "none";
-      requestAnimationFrame(sizePreviewCanvas);
-    } else {
-      try {
-        const guide = $("guide");
-        if (guide) guide.style.display = localStorage.getItem("mojicast-onboarded") === "1" ? "none" : "flex";
-      } catch (e) {}
-    }
+    $("monitorTitle").textContent = preview ? T("cp.mode_preview", "配信プレビュー") : T("cp.monitor_title", "字幕ログ");
+    if (preview) requestAnimationFrame(sizePreviewCanvas);
+    // 起動ごとに消える localStorage は読み込み直後のちらつき防止だけに使い、記憶は config に持つ
     try { localStorage.setItem("mojicast-monitor-mode", monitorMode); } catch (e) {}
+    if (save && cfg.monitor_mode !== monitorMode) {
+      cfg.monitor_mode = monitorMode;
+      api("/api/config", { monitor_mode: monitorMode });   // 表示だけの設定（再起動不要）
+    }
   }
-  try { monitorMode = localStorage.getItem("mojicast-monitor-mode") || "log"; } catch (e) {}
-  setMonitorMode(monitorMode);
+  try { monitorMode = localStorage.getItem("mojicast-monitor-mode") || "preview"; } catch (e) {}
+  setMonitorMode(monitorMode, false);
   if (window.ResizeObserver) new ResizeObserver(sizePreviewCanvas).observe($("previewStage"));
   else window.addEventListener("resize", sizePreviewCanvas);
 
@@ -1469,10 +1591,16 @@
       }
       else if (m.type === "style") { setPreviewStyle(m); refreshPresets(); }
       else if (m.type === "warn") setWarn(m.kind, m.message, m.active);
+      // 認識辞書・伏せ字・固定訳は開始時に読む。使用中のセット（か共通）なら再起動を促す
+      else if (m.type === "words_saved") {
+        if (running && (!m.profile || m.profile === (cfg.word_profile || "")))
+          $("restartHint").style.display = "";
+      }
       else if (m.type === "vc") vcToast(m.message, m.ok);
       else if (m.type === "theme") { cfg.theme = m.theme; applyTheme(m.theme); }
+      else if (m.type === "ui_variant") location.reload();   // 新UI／旧UIの切替
       else if (m.type === "ui_scale") applyScale(m.ui_scale);
-      else if (m.type === "ui_lang") { cfg.ui_lang = m.ui_lang; if (window.MojicastI18n) { window.MojicastI18n.applyLang(m.ui_lang); setState(lastState); syncModelCard(); } }
+      else if (m.type === "ui_lang") { cfg.ui_lang = m.ui_lang; if (window.MojicastI18n) { window.MojicastI18n.applyLang(m.ui_lang); setState(lastState); syncModelCard(); setMonitorMode(monitorMode, false); } }
     };
     es.onerror = () => { es.close(); setTimeout(connect, 1000); };
   }

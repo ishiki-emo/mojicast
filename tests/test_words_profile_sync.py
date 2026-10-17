@@ -57,11 +57,13 @@ class WordsProfileSyncTests(unittest.TestCase):
 
     def tearDown(self):
         self.page.close()
+        if getattr(self, "ctx", None):
+            self.ctx.close()
+            self.ctx = None
         self.tmp.cleanup()
 
     def _config(self):
-        with open(os.path.join(self.tmp.name, "config.json"), encoding="utf-8") as f:
-            return json.load(f)
+        return app_server.load_config()
 
     def _open_studio_words(self):
         page = self.page
@@ -81,14 +83,18 @@ class WordsProfileSyncTests(unittest.TestCase):
         self.page.wait_for_function(
             "v => document.getElementById('profileScope').value === v", arg=value)
 
-    def test_create_in_embedded_editor_becomes_active_and_survives_reopen(self):
+    # 新UI: 「編集する単語セット」と「配信で使う単語セット」は別。次の配信の準備で
+    # 編集しただけで、配信中の認識辞書が切り替わらないこと（明示ボタンでだけ切り替わる）
+
+    def test_create_in_embedded_editor_becomes_edit_target_and_survives_reopen(self):
         frame = self._open_studio_words()
         frame.click("text=＋ 新しい単語セット")
         frame.fill("#newProfName", "ゲーム")
         frame.click("#newProfBar >> text=作成")
         frame.wait_for_function("() => document.getElementById('profileSel').value === 'ゲーム'")
         self._wait_outer("ゲーム")
-        self.assertEqual(self._config().get("word_profile"), "ゲーム")
+        self.assertEqual(self._config().get("word_profile"), "")   # 配信のセットは変えない
+        self.page.wait_for_selector("#scopeNote", state="visible")
 
         frame.wait_for_function("() => !document.getElementById('saveAllBtn').disabled")
         frame.fill("#hotTable tbody tr:first-child .h-surface", "癒色えも")
@@ -97,23 +103,78 @@ class WordsProfileSyncTests(unittest.TestCase):
         frame.wait_for_function("() => document.getElementById('saved').style.opacity === '1'")
         self.assertEqual([e["surface"] for e in wordstore.load_hotwords("ゲーム")], ["癒色えも"])
 
-        # 開き直しても保存した単語が見える
+        # アプリを起動し直しても（＝localStorage が空の新しい文脈でも）前回編集していた
+        # セットで開き、保存した単語が見える
+        self.page.close()
+        self.ctx = self.browser.new_context(viewport={"width": 1120, "height": 840})
+        self.page = self.ctx.new_page()
         frame = self._open_studio_words()
-        self.assertEqual(frame.eval_on_selector("#profileSel", "e => e.value"), "ゲーム")
+        self._wait_outer("ゲーム")
         self.assertEqual(frame.eval_on_selector(
             "#hotTable tbody tr:first-child .h-surface", "e => e.value"), "癒色えも")
-        self.assertTrue(frame.eval_on_selector("#inactiveHint", "e => e.hidden"))
 
-    def test_switch_in_embedded_editor_updates_outer_selector(self):
+    def test_outer_selector_changes_edit_target_only_until_use_is_pressed(self):
+        wordstore.create_profile("雑談")
+        self._open_studio_words()
+        self._wait_outer("")
+        self.page.select_option("#profileScope", "雑談")
+        self._wait_outer("雑談")
+        self.page.wait_for_function(
+            "() => document.getElementById('fWords').src.includes('profile=%E9%9B%91%E8%AB%87')")
+        self.assertEqual(self._config().get("word_profile"), "")
+        self.page.click("#scopeNote >> text=配信でこのセットを使う")
+        self.page.wait_for_selector("#scopeNote", state="hidden")
+        self.assertEqual(self._config().get("word_profile"), "雑談")
+
+    def test_unsaved_words_are_guarded_before_switching_set(self):
         wordstore.create_profile("雑談")
         frame = self._open_studio_words()
-        self._wait_outer("")
-        frame.select_option("#profileSel", "雑談")
+        frame.fill("#hotTable tbody tr:first-child .h-surface", "未保存の語")
+        self.page.select_option("#profileScope", "雑談")
+        self.page.wait_for_selector("#unsavedBar", state="visible")
+        self._wait_outer("")                     # 確認中は切り替わらない
+        self.page.click("#unsavedBar >> text=戻る")
+        self.page.wait_for_selector("#unsavedBar", state="hidden")
+        self.assertEqual(frame.eval_on_selector(
+            "#hotTable tbody tr:first-child .h-surface", "e => e.value"), "未保存の語")
+        # 保存して続ける → 共通に保存されてから切り替わる
+        self.page.select_option("#profileScope", "雑談")
+        self.page.click("#unsavedBar >> text=保存して続ける")
         self._wait_outer("雑談")
-        self.assertEqual(self._config().get("word_profile"), "雑談")
-        frame.select_option("#profileSel", "")
-        self._wait_outer("")
-        self.assertEqual(self._config().get("word_profile"), "")
+        self.assertEqual([e["surface"] for e in wordstore.load_hotwords("")], ["未保存の語"])
+
+    def test_saving_one_pane_does_not_overwrite_another_kind(self):
+        # ワード演出の画面を先に開いておき（このiframeは切り替えても読み直されず、
+        # 認識単語の古い写しも持ち続ける）、認識させる単語の画面で保存したあと、
+        # ワード演出を保存しても認識単語が消えないこと
+        page = self.page
+        page.goto(f"http://127.0.0.1:{self.port}/ui/studio?pillar=effects")
+        page.wait_for_selector("#fEffects[src]")
+        fx = None
+        for _ in range(50):
+            fx = page.frame(url=lambda u: "/ui/words" in u and "tab=fx" in u)
+            if fx is not None:
+                break
+            page.wait_for_timeout(100)
+        fx.wait_for_function("() => !document.getElementById('saveAllBtn').disabled")
+        page.evaluate("openDetail('words')")
+        page.wait_for_selector("#fWords[src]")
+        words = None
+        for _ in range(50):
+            words = page.frame(url=lambda u: "/ui/words" in u and "tab=hot" in u)
+            if words is not None:
+                break
+            page.wait_for_timeout(100)
+        words.wait_for_function("() => !document.getElementById('saveAllBtn').disabled")
+        words.fill("#hotTable tbody tr:first-child .h-surface", "癒色えも")
+        words.click("#saveAllBtn")
+        words.wait_for_function("() => document.getElementById('saved').style.opacity === '1'")
+        page.evaluate("switchPillar('effects')")
+        fx.fill("#fxTable tbody tr:first-child .f-word", "ナイス")
+        fx.click("#saveAllBtn")
+        fx.wait_for_function("() => document.getElementById('saved').style.opacity === '1'")
+        self.assertEqual([e["surface"] for e in wordstore.load_hotwords("")], ["癒色えも"])
+        self.assertEqual([e["word"] for e in wordstore.load_effects("")], ["ナイス"])
 
     def test_standalone_editor_warns_when_editing_unused_set(self):
         wordstore.create_profile("雑談")

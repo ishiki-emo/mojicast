@@ -50,6 +50,8 @@
   nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
   :root.single nav { display: none; }
   :root.embed .pbar { padding-left: 18px; padding-right: 18px; }
+  /* スタジオ埋め込み時: 編集する単語セットはスタジオ上部の1か所で選ぶ（二重に並べない） */
+  :root.embed .pb-select, :root.embed #inactiveHint { display: none !important; }
   .page { flex: 1; overflow-y: auto; padding: 14px; display: none; }
   .page.show { display: block; }
   .note { color: var(--dim); font-size: 12px; margin-bottom: 10px; line-height: 1.6; }
@@ -103,6 +105,11 @@
   }
   .btn:hover { border-color: var(--accent); color: var(--accent); }
   .btn.save { border-color: var(--ok); color: var(--ok); }
+  /* 保存ボタン式の画面: 未保存のあいだだけ目印を出し、保存ボタンを強める
+     （配信に映る見た目・単語は、いじっている途中で本番へ出ないよう保存ボタン式のまま） */
+  .unsaved-mark { color: var(--warn, #ffb84d); font-size: 12px; font-weight: 800; }
+  .unsaved-mark[hidden] { display: none; }
+  .btn.need-save { color: #061117; background: var(--ok); border-color: var(--ok); }
   #saved { color: var(--ok); font-size: 12px; opacity: 0; transition: opacity .3s; }
   /* プレビュー */
   .prevCell { text-align: center; }
@@ -118,10 +125,10 @@
 <body>
   <!-- ========== プロファイルバー ========== -->
   <div class="pbar">
-    <span data-i18n="wd.profile_label">編集する単語セット:</span>
-    <select id="profileSel" onchange="onProfileSelect(this.value)"></select>
+    <span class="pb-select" data-i18n="wd.profile_label">編集する単語セット:</span>
+    <select class="pb-select" id="profileSel" onchange="onProfileSelect(this.value)"></select>
     <button class="btn" onclick="showNewProfile()" data-i18n="wd.profile_new">＋ 新しい単語セット</button>
-    <button class="btn" id="btnDelProf" onclick="askDeleteProfile()" data-i18n="wd.profile_delete">🗑 削除</button>
+    <button class="btn" id="btnDelProf" onclick="askDeleteProfile()" data-i18n="wd.profile_delete">🗑 この単語セットを削除</button>
     <span id="delConfirm" hidden>
       <span data-i18n="wd.del_confirm">本当に削除？</span>
       <button class="btn" onclick="doDeleteProfile()" data-i18n="wd.yes">はい</button>
@@ -151,9 +158,9 @@
 
   <nav>
     <button id="tabHot" class="active" onclick="showTab('hot')" data-i18n="wd.tab_hotwords">🎤 認識させる単語</button>
-    <button id="tabFx" onclick="showTab('fx')" data-i18n="wd.tab_effects">✨ 強調する単語</button>
+    <button id="tabFx" onclick="showTab('fx')" data-i18n="wd.tab_effects">✨ ワード演出の単語</button>
     <button id="tabBanned" onclick="showTab('banned')" data-i18n="wd.tab_banned">🚫 伏せ字にする単語</button>
-    <button id="tabGloss" onclick="showTab('gloss')" data-i18n="wd.tab_gloss">🌐 英訳を固定する単語</button>
+    <button id="tabGloss" onclick="showTab('gloss')" data-i18n="wd.tab_gloss">🌐 訳を固定する単語</button>
   </nav>
 
   <!-- ========== ホットワード ========== -->
@@ -178,14 +185,14 @@
     </div>
     <div class="note" data-i18n="wd.imp_hint">
       CSV の列は「<b>表記,読み,出やすさ,英訳</b>」（読み以降は省略可）。Excel で保存した Shift_JIS のファイルもそのまま読めます。
-      ゲームの技名など大量の登録向け。英訳の列があれば「英訳を固定する単語」にも同時に入ります。
+      ゲームの技名など大量の登録向け。英訳の列があれば「訳を固定する単語」にも同時に入ります。
     </div>
     <div class="impBox" id="impBox" hidden>
       <div id="impStats" style="font-weight:700;margin-bottom:4px"></div>
       <div id="impSkipped" class="note"></div>
       <label><input type="radio" name="impMode" value="add" checked><span data-i18n="wd.imp_add">追加のみ（同じ表記があれば今のを残す）</span></label>
       <label><input type="radio" name="impMode" value="overwrite"><span data-i18n="wd.imp_over">同じ表記は上書き</span></label>
-      <label id="impGlossLbl"><input type="checkbox" id="impGloss" checked><span data-i18n="wd.imp_gloss">英訳の列も「英訳を固定する単語」へ入れる</span></label>
+      <label id="impGlossLbl"><input type="checkbox" id="impGloss" checked><span data-i18n="wd.imp_gloss">英訳の列も「訳を固定する単語」へ入れる</span></label>
       <button class="btn save" onclick="doWordImport()" data-i18n="wd.imp_do">取り込む</button>
       <button class="btn" onclick="cancelWordImport()" data-i18n="wd.cancel">キャンセル</button>
     </div>
@@ -201,7 +208,7 @@
     <div class="note" data-i18n="wd.fx_note">
       画面に出たときに<b>派手に装飾する単語</b>（認識とは別管理）。
       「認識させる単語」に入れていなくても、ここの単語は標準で強調されます。
-      色・フォント・サイズ・アニメ・<b>飛ぶ絵文字</b>を個別指定でき、変更は<b>即反映</b>。
+      色・フォント・サイズ・アニメ・<b>飛ぶ絵文字</b>を個別指定でき、<b>保存するとすぐ反映</b>されます（▶開始し直す必要はありません）。
       プレビューはクリックで再生🎬
     </div>
     <table id="fxTable">
@@ -277,6 +284,7 @@
 
   <footer>
     <button class="btn save" id="saveAllBtn" onclick="saveAll()" disabled data-i18n="wd.save">💾 保存</button>
+    <span class="unsaved-mark" id="unsavedMark" hidden data-i18n="wd.unsaved_mark">● 未保存の変更があります</span>
     <span id="saved" data-i18n="wd.saved">保存しました ✓</span>
   </footer>
 
@@ -284,11 +292,8 @@
   const $ = (id) => document.getElementById(id);
   const T = (key, jaDefault) => window.MojicastI18n ? window.MojicastI18n.t(key, jaDefault) : jaDefault;
   const SCALES = [["1", "標準"], ["1.15", "少し大きく"], ["1.3", "大きく"], ["1.5", "特大"]];
+  const SCALE_KEYS = { "1": "m", "1.15": "l", "1.3": "xl", "1.5": "xxl" };
 
-  function opt(list, sel) {
-    return list.map(([v, l]) =>
-      `<option value="${v}" ${v === sel ? "selected" : ""}>${l}</option>`).join("");
-  }
   function esc(s) { return String(s).replace(/"/g, "&quot;").replace(/</g, "&lt;"); }
 
   function showTab(t) {
@@ -465,25 +470,25 @@
 
   function addFxRow(e = {}) {
     const tr = document.createElement("tr");
-    const rec = FX.FONTS.map(f =>
-      `<option value="${f.css.replace(/"/g, "&quot;")}" ${f.css === e.font ? "selected" : ""}>${f.label}</option>`).join("");
+    // 選択肢は表示言語で出す（data-i18n 付き。言語を切り替えると i18n.js がその場で書き換える）
+    const rec = FX.FONTS.map(f => FX.fontOptionHtml(f, f.css === e.font)).join("");
     const sys = sysFonts.map(n => {
       const v = `'${n}'`;
-      return `<option value="${v}" ${v === e.font ? "selected" : ""}>${n}</option>`;
+      return `<option value="${esc(v)}" ${v === e.font ? "selected" : ""}>${esc(n)}</option>`;
     }).join("");
-    const fontOpts = '<option value="">プリセット準拠</option>' +
-      `<optgroup label="おすすめ">${rec}</optgroup>` +
-      `<optgroup label="システムフォント (${sysFonts.length})">${sys}</optgroup>`;
+    const fontOpts = FX.textOptionHtml("", "wd.font_preset", "プリセット準拠", !e.font) +
+      `<optgroup ${FX.groupAttrs("fx.fonts_rec", "おすすめ")}>${rec}</optgroup>` +
+      `<optgroup ${FX.groupAttrs("fx.fonts_sys", "システムフォント")}>${sys}</optgroup>`;
     const scaleOpts = SCALES.map(([v, l]) =>
-      `<option value="${v}" ${+v === +(e.scale || 1) ? "selected" : ""}>${l}</option>`).join("");
+      FX.textOptionHtml(v, "wd.scale_" + SCALE_KEYS[v], l, +v === +(e.scale || 1))).join("");
     tr.innerHTML = `
-      <td><input class="f-word" value="${esc(e.word || "")}" placeholder="単語"></td>
+      <td><input class="f-word" value="${esc(e.word || "")}" placeholder="${esc(T("wd.word_ph", "単語"))}"></td>
       <td><input type="color" class="f-color" value="${e.color || "#ffd400"}"></td>
       <td><select class="f-font">${fontOpts}</select></td>
       <td><select class="f-scale">${scaleOpts}</select></td>
-      <td><select class="f-anim">${opt(FX.WORD_ANIMS, e.anim || "pop")}</select></td>
-      <td><select class="f-particle">${opt(FX.PARTICLES, e.particle || "none")}</select></td>
-      <td class="prevCell"><span class="prev"></span><span class="hintClick">クリックで再生</span></td>
+      <td><select class="f-anim">${FX.optionsHtml("an", FX.WORD_ANIMS, e.anim || "pop")}</select></td>
+      <td><select class="f-particle">${FX.optionsHtml("pt", FX.PARTICLES, e.particle || "none")}</select></td>
+      <td class="prevCell"><span class="prev"></span><span class="hintClick" data-i18n="wd.click_play" data-i18n-src="クリックで再生">${esc(T("wd.click_play", "クリックで再生"))}</span></td>
       <td><button class="del" onclick="this.closest('tr').remove()">✕</button></td>`;
     $("fxTable").querySelector("tbody").appendChild(tr);
     const update = () => updatePreview(tr, true);
@@ -518,7 +523,12 @@
 
   // ---------- プロファイル ----------
   let curProfile = "";      // 編集中のスコープ（"" = 共通）
-  let dirty = false;        // 未保存の編集があるか
+  let dirty = false;        // 未保存の編集があるか（変えるときは setDirty を通す）
+  function setDirty(v) {
+    dirty = !!v;
+    $("unsavedMark").hidden = !dirty;
+    $("saveAllBtn").classList.toggle("need-save", dirty);
+  }
   let pendingSwitch = null; // 切替待ちのプロファイル名
   let profileNames = [];    // 既存プロファイル名（コピー元の選択肢用）
   let loadedProfile = null; // 現在テーブルに表示できているスコープ
@@ -576,13 +586,9 @@
     $("btnDelProf").disabled = !v;
     $("delConfirm").hidden = true;
     $("guardBar").hidden = true;
-    // スタジオ埋め込みでは外側の「編集する単語セット」と同じ値を保つ。外側は使用中の
-    // セットも兼ねていて、次に開くときはそちらの値で開くので、内側だけ切り替えると
-    // 保存した単語が開き直したときに見えず、認識にも使われない
-    if (embedded) {
-      window.parent.postMessage({ mojiProfileSelected: v }, location.origin);
-      activeProfile = v;
-    }
+    // スタジオ埋め込みでは外側の「編集する単語セット」と同じ値を保つ（作成・削除で
+    // 内側から切り替わったとき）。配信で使うセットは外側が別に持ち、ここでは変えない
+    if (embedded) window.parent.postMessage({ mojiProfileSelected: v }, location.origin);
     updateInactiveHint();
     await reloadData();
   }
@@ -631,7 +637,7 @@
     await fetch("/api/profiles", {
       method: "POST",
       body: JSON.stringify({ action: "delete", name: curProfile }) });
-    dirty = false;                       // 消した対象の編集は破棄
+    setDirty(false);                       // 消した対象の編集は破棄
     await loadProfiles("");
     notifyProfilesChanged();
     await switchTo("");
@@ -671,7 +677,7 @@
       if (!(gloss.entries || []).length) addGlossRow();
 
       loadedProfile = profile;
-      dirty = false;
+      setDirty(false);
       $("loadErr").textContent = "";
       $("saveAllBtn").disabled = false;
       return true;
@@ -735,14 +741,19 @@
       en: tr.querySelector(".g-en").value.trim(),
     })).filter(e => e.ja && e.en);
 
+    // スタジオでは単語の種類ごとに別のiframe（single=1）で開く。各iframeは4種類すべてを
+    // 読み込んでいるので、全部を保存すると、別の画面で保存した内容を手元の古い写しで
+    // 上書きしてしまう。single のときは表示中の種類だけを保存する
+    const posts = {
+      hot: () => fetchJson("/api/hotwords", { method:"POST", body:JSON.stringify({ entries, profile }) }),
+      fx: () => fetchJson("/api/effects", { method:"POST", body:JSON.stringify({ effects, profile }) }),
+      banned: () => fetchJson("/api/banned", { method:"POST", body:JSON.stringify({ words, mask_char, profile }) }),
+      gloss: () => fetchJson("/api/glossary", { method:"POST", body:JSON.stringify({ entries:gloss, profile }) }),
+    };
+    const kinds = singleTab ? [singleTab] : Object.keys(posts);
     try {
-      await Promise.all([
-        fetchJson("/api/hotwords", { method:"POST", body:JSON.stringify({ entries, profile }) }),
-        fetchJson("/api/effects", { method:"POST", body:JSON.stringify({ effects, profile }) }),
-        fetchJson("/api/banned", { method:"POST", body:JSON.stringify({ words, mask_char, profile }) }),
-        fetchJson("/api/glossary", { method:"POST", body:JSON.stringify({ entries:gloss, profile }) })
-      ]);
-      dirty = false;
+      await Promise.all(kinds.map(k => posts[k]()));
+      setDirty(false);
       $("loadErr").textContent = "";
       const s = $("saved");
       s.style.opacity = 1;
@@ -754,12 +765,16 @@
     }
   }
 
+  // スタジオ（親窓）が閉じる・単語セットを切り替える前に未保存を確かめるための窓口
+  window.mojiIsDirty = () => dirty;
+  window.mojiSave = () => saveAll();
+
   // 未保存の編集を検知（入力・行削除）
   for (const page of document.querySelectorAll(".page")) {
-    page.addEventListener("input", () => { dirty = true; });
+    page.addEventListener("input", () => { setDirty(true); });
     page.addEventListener("click", (e) => {
       if (e.target.classList.contains("del")) {
-        dirty = true;
+        setDirty(true);
         if (page.id === "pageHot") filterHot();   // 行削除で件数を更新
       }
     });
@@ -839,6 +854,9 @@
 
   const initialTab = new URLSearchParams(location.search).get("tab");
   if (["hot", "fx", "banned", "gloss"].includes(initialTab)) showTab(initialTab);
+  // single=1（スタジオ埋め込み）は1種類だけを扱う。保存もその種類だけ（saveAll 参照）
+  const singleTab = wordQuery.get("single") === "1" &&
+    ["hot", "fx", "banned", "gloss"].includes(initialTab) ? initialTab : "";
   loadAll().catch(() => {
     $("loadErr").textContent = "設定を読み込めませんでした。再度開き直してください。";
     $("retryLoad").hidden = false;

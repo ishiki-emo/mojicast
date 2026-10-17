@@ -47,6 +47,8 @@
   let translateOn = false; // 翻訳ON/OFF（styleイベントに同梱）。英訳のみ表示の成立条件
 
   const isLyric = (box) => (box.mode || "flow") === "lyric";
+  // 吹き出し: 最新の発話1つを漫画の吹き出しで出す（描画は fx.js の FX.bubble*）
+  const isBubble = (box) => box.mode === "bubble";
   // 英訳のみ表示（displayMode="en"）。翻訳OFF時は偽＝併記（日本語）へ自動フォールバック
   const enOnly = (p) => translateOn && p.style.displayMode === "en";
 
@@ -87,12 +89,15 @@
   const panes = new Map();       // 話者名 → ペイン（"" = ソロ/既定）
   panes.set("", makePane());
 
-  // 未知の話者は既定ペインへ。コラボ中（既定は非表示）は先頭話者のペインへ
+  // 未知の話者は既定ペインへ。コラボ中（既定は非表示）は先頭話者（自分）のペインへ。
+  // 話者名の無い発話もコラボ中は自分のペインへ: コラボONでも相手の音声（アプリ・機器）が
+  // 未選択だとエンジンは話者名なしの1本で動くが、表示側は話者ペインに切り替わって既定ペインを
+  // 隠しているため、既定ペインへ出すと自分の字幕が見えなくなる
   function paneFor(spk) {
     spk = spk || "";
-    if (panes.has(spk)) return panes.get(spk);
-    if (speakerNames.length) return panes.get(speakerNames[0]);
-    return panes.get("");
+    if (speakerNames.length && (spk === "" || !panes.has(spk)))
+      return panes.get(speakerNames[0]);
+    return panes.get(spk) || panes.get("");
   }
 
   function applyPane(p) {
@@ -105,6 +110,7 @@
       p.finalsEl.textContent = "";
       p.partialEl.textContent = "";
       FX.lyricClear(p.boxEl);
+      FX.bubbleClear(p.boxEl);
       clearTimeout(p._enWait);
       // 切替前の行あての翻訳が後から届いても、英訳のみ経路で再表示させない
       for (const [id, wp] of pendingEn)
@@ -125,8 +131,14 @@
     FX.applyBox(p.boxEl, p.scroller, p.box, p.clipEl);
     // リリックモードでは認識途中は既定で非表示（設定でON可）
     p.partialEl.style.display =
-      (isLyric(p.box) && !p.box.lyricPartial) ? "none" : "";
+      ((isLyric(p.box) && !p.box.lyricPartial) || isBubble(p.box)) ? "none" : "";
     p.table = FX.buildTable(hotwords, effects, p.style);
+    // 形・アバター位置・デザインを変えたら、出ている吹き出しをその場で描き直す
+    // （共有枠では、この話者の吹き出しにだけこの話者のデザインと相手のアバター位置を当てる）
+    if (isBubble(p.box)) {
+      const host = p._bubHost || p;
+      FX.bubbleRelayout(host.boxEl, host.box, p.style, p._bubSpk || "", p._bubTarget);
+    }
   }
 
   // style/init イベントからペイン構成を更新する。
@@ -162,7 +174,28 @@
       speakerNames = [];
       def.boxEl.style.display = "";
     }
+    shareBubbles();
     for (const p of panes.values()) applyPane(p);
+  }
+
+  // コラボで2人とも同じ吹き出しレイアウトのときは、相手の吹き出しも自分の枠にまとめる。
+  // 別々の枠のままだと同じ場所・同じアバターへ重なって描かれ、相手の吹き出しが自分の
+  // 吹き出しを隠す（散らすでも互いの吹き出しを知らずに同じポイントへ出る）。
+  // まとめると積み重ね・散らす・表示する数が2人の発話を通して効き、相手の吹き出しの
+  // 尻尾はレイアウトの「相手のアバター位置」（未設定なら左右反転の位置）を向く
+  function shareBubbles() {
+    for (const p of panes.values()) {
+      p._bubHost = p; p._bubSpk = ""; p._bubTarget = null;
+    }
+    if (speakerNames.length < 2) return;
+    const [a, b] = speakerNames;
+    const pa = panes.get(a), pb = panes.get(b);
+    pa._bubSpk = a; pb._bubSpk = b;
+    if (!(isBubble(pa.box) && isBubble(pb.box) && pa.box.id && pa.box.id === pb.box.id)) return;
+    const box = pa.box;
+    pb._bubHost = pa;
+    pb._bubTarget = { x: box.guestTailX ?? (100 - (box.tailX ?? 85)), y: box.guestTailY ?? (box.tailY ?? 85) };
+    FX.bubbleClear(pb.boxEl);   // 別々の枠だったときに相手の枠へ出ていた吹き出しは片付ける
   }
 
   // ---------------- 字幕の描画 ----------------
@@ -191,7 +224,27 @@
                (p.box.smoothMs || 250) + 80);
   }
 
+  // 吹き出しへ本文を出す（partial=true は認識途中）
+  function bubble(p, text, id, partial, style = p.style) {
+    const host = p._bubHost || p;   // コラボで枠を共有していれば自分（先頭話者）の枠へ
+    FX.bubbleUpdate(host.boxEl, { text, fid: id, partial, style, table: p.table, box: host.box,
+                                  speaker: p._bubSpk || "", target: p._bubTarget || null });
+  }
+  const dropBubblePartial = p => FX.bubbleDropPartial((p._bubHost || p).boxEl, p._bubSpk || "");
+
   function addFinal(p, text, id) {
+    if (enOnly(p) && isBubble(p.box)) {
+      // 英訳のみ＋吹き出し: 訳が届くまで「…」の吹き出しで発話中だけ伝える
+      if (text && id != null) {
+        pendingEn.set(id, p);
+        while (pendingEn.size > PENDING_MAX)
+          pendingEn.delete(pendingEn.keys().next().value);
+        bubble(p, "…", null, true);
+        clearTimeout(p._enWait);
+        p._enWait = setTimeout(() => dropBubblePartial(p), PENDING_HIDE_MS);
+      }
+      return;
+    }
     if (enOnly(p)) {
       // 英訳のみ: 日本語は出さず、翻訳待ちの目印「…」だけ立てる。
       // 翻訳が来ない行（失敗・混雑時の間引き）は表示しない仕様のため、
@@ -208,6 +261,8 @@
       return;
     }
     if (!text) { p.partialEl.textContent = ""; return; }
+
+    if (isBubble(p.box)) { bubble(p, text, id, false); return; }
 
     if (isLyric(p.box)) {   // フレーズを画面に散らすタイポグラフィ演出
       p.partialEl.textContent = "";
@@ -226,6 +281,7 @@
     clearTimeout(p._enWait);
     const font = FX.trStyle(p.style, lang).enFont;
     const style = font && font !== p.style.enFont ? Object.assign({}, p.style, { font }) : p.style;
+    if (isBubble(p.box)) { bubble(p, en, id, false, style); return; }
     if (isLyric(p.box)) {
       p.partialEl.textContent = "";
       // fid を渡しておく＝2言語目以降の訳をこのシーンへ併記できるように
@@ -236,6 +292,13 @@
   }
 
   function setPartial(p, text) {
+    if (isBubble(p.box)) {
+      // 認識途中: 吹き出しが薄文字で伸びていく（設定でオフ可）。空は「途中経過を消す」合図
+      if (!text) { dropBubblePartial(p); return; }
+      if (p.box.bubblePartial === false) return;
+      bubble(p, enOnly(p) ? "…" : text, null, true);
+      return;
+    }
     if (enOnly(p)) {
       // 英訳のみ: 日本語の途中経過は出さず「…」で発話中だけ伝える
       p.partialEl.textContent = text ? "…" : "";
@@ -291,6 +354,10 @@
     }
     if (fallback) return;   // 併記側は日本語が本文として出ているので不要
     for (const p of panes.values()) {
+      if (isBubble(p.box)) {
+        if (FX.bubbleTranslate(p.boxEl, id, en, p.style, order, lang)) return;
+        continue;
+      }
       if (isLyric(p.box)) {
         // リリックは .line[data-fid] を作らないため、シーンへ直接併記する。
         // シーンが既に消えていれば false → 見切れた行と同じ扱いで捨てる
@@ -331,7 +398,7 @@
       case "translation": addTranslation(msg.id, msg.text, msg.fallback, msg.order || 0, msg.lang || ""); break;
       case "partial": setPartial(paneFor(msg.speaker), msg.text); break;
       case "clear_partial":   // 「確定した字幕だけ表示」に切り替えた合図
-        for (const p of panes.values()) p.partialEl.textContent = "";
+        for (const p of panes.values()) { p.partialEl.textContent = ""; FX.bubbleDropPartial(p.boxEl); }
         break;
       case "state":
         // 起動完了時に翻訳の実態が届く（翻訳のみ表示⇄併記の切替に即反映）
@@ -343,6 +410,7 @@
           clearTimeout(p._enWait);
           p.finalsEl.textContent = ""; p.partialEl.textContent = "";
           FX.lyricClear(p.boxEl);
+          FX.bubbleClear(p.boxEl);
         }
         break;
     }

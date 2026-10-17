@@ -76,9 +76,17 @@
   .editor:not(.advanced-open) .advanced-only { display: none !important; }
   #translationFields { display: contents; }
   :root.translation-focus #form > :not(#translationFields) { display: none !important; }
-  :root.translation-focus #translationFields { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; }
-  :root.translation-focus #translationFields .advanced-only { display: block !important; }
-  :root.translation-focus #translationFields .chk { display: flex !important; }
+  :root.translation-focus #translationFields { grid-column: 1 / -1; display: grid; gap: 8px 16px;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+  /* 翻訳の見た目だけを出す画面では詳細項目も常に出す（ただし状況で隠す行は hidden で隠す） */
+  :root.translation-focus #translationFields .advanced-only:not([hidden]) { display: block !important; }
+  :root.translation-focus #translationFields .chk:not([hidden]) { display: flex !important; }
+  :root.translation-focus #styleAdvancedBtn, :root.translation-focus .adv-more,
+  :root.translation-focus #styleEditTools .basic-note,
+  :root.translation-focus #styleEditTools .tools-sep { display: none !important; }
+  /* 併記用の項目は包み枠ごとフォームの格子に流し込む（枠が1マスに収まり片側へ寄らないように） */
+  #enBothFields { display: contents; }
+  #r_enOnlyNote, #r_trSubNote { grid-column: 1 / -1; }
   .editor-actions { display: flex; align-items: center; flex-wrap:wrap; gap: 8px; padding: 10px;
     margin-bottom: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel2); }
   .editor-actions .copy { flex: 1; min-width: 0; }
@@ -86,14 +94,24 @@
   .editor-actions .copy span { display: block; color: var(--dim); font-size: 11px; margin-top: 2px; }
   .edit-tools { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
   .edit-tools span { color: var(--dim); font-size: 11px; }
+  /* 「もっと細かく調整／基本項目に戻す」は見落とされやすいので、隠れている項目数つきで目立たせる */
+  .btn.adv-toggle { color: var(--accent); border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 10%, var(--panel2)); }
+  .btn.adv-toggle:hover { background: color-mix(in srgb, var(--accent) 18%, var(--panel2)); }
+  /* フォーム末尾にも同じ切替を置く（基本項目を見終えた視線の先・長い一覧の下端） */
+  .form .adv-more { grid-column: 1 / -1; justify-self: stretch; margin-top: 10px; padding: 10px;
+    border-style: dashed; }
+  .edit-tools .tools-sep { width: 1px; height: 20px; background: var(--line); }
   /* フォーム内のセクション見出し（2カラムを全幅でまたぐ） */
+  /* 区分けの見出し。項目名（12〜13px）より一段大きく、上に余白と色付きの下線で区切りを立てる */
   .fsec {
-    grid-column: 1 / -1; display: flex; align-items: baseline; gap: 8px;
-    margin-top: 14px; padding-bottom: 5px; border-bottom: 1px solid var(--line);
-    font-size: 11px; font-weight: 800; letter-spacing: .12em; color: var(--accent);
+    grid-column: 1 / -1; display: flex; align-items: baseline; gap: 10px;
+    margin-top: 22px; padding-bottom: 6px;
+    border-bottom: 2px solid color-mix(in srgb, currentColor 35%, var(--line));
+    font-size: 14.5px; font-weight: 800; letter-spacing: .06em; color: var(--accent);
   }
-  .fsec:first-child { margin-top: 0; }
-  .fsec small { font-weight: 400; letter-spacing: 0; color: var(--dim); }
+  .fsec:first-child { margin-top: 2px; }
+  .fsec small { font-size: 11px; font-weight: 400; letter-spacing: 0; color: var(--dim); }
   .fsec.en { color: #ff7ac2; }
   .fr label { display: flex; justify-content: space-between; color: var(--dim); margin-bottom: 3px; }
   .fr label output { color: var(--accent); font-weight: 700; }
@@ -135,7 +153,75 @@
   #stageScroll { position: absolute; left: 0; right: 0; bottom: 0; }
   #stage .line { word-break: break-word; line-height: 1.35; }
   .stageBtns { display: flex; gap: 6px; margin-top: 6px; }
+  /* 編集中（カスタマイズ）: 一覧を畳み、フォーム（左・ここだけスクロール）と
+     プレビュー（右・固定）を横に並べる。縦に積むと「もっと細かく調整」で項目が
+     増えたとき、縮まないプレビューにフォームの高さを奪われて数行しか見えなくなるため */
+  .page.show.editing { grid-template-columns: 1fr; }
+  .page.editing > .panel:first-child { display: none; }
+  .page.editing .editor { display: grid; overflow: hidden; column-gap: 14px;
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 46%);
+    grid-template-rows: auto auto auto minmax(0, 1fr); }
+  .page.editing .editor > h2, .page.editing .editor-actions,
+  .page.editing .edit-tools { grid-column: 1 / -1; }
+  .page.editing .form { grid-column: 1; grid-row: 4; min-height: 0; align-content: start;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); padding-right: 4px; }
+  .page.editing #previewBox, .page.editing #stageWrap { grid-column: 2; grid-row: 4;
+    align-self: start; margin-top: 0; max-width: none; }
+  .page.editing #customizePresetBtn, .page.editing #customizeBoxBtn { display: none; }
+  /* 狭い窓では縦並びに戻し、プレビューは窓の高さの3割までに抑える */
+  @media (max-width: 560px) {
+    .page.editing .editor { display: flex; }
+    .page.editing .form { flex: 1; }
+    .page.editing #stageWrap { max-width: calc(30vh * 16 / 9); }
+    .page.editing #previewBox { max-height: 30vh; overflow: hidden; }
+  }
+  /* レイアウトのプレビュー上で字幕の枠を直接動かす取っ手（編集中のみ） */
+  #stageHandle { position: absolute; z-index: 3; display: none; box-sizing: border-box;
+    border: 2px dashed var(--accent); border-radius: 4px; cursor: move; touch-action: none;
+    background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  .page.editing #stageHandle { display: block; }
+  #stageHandle .grip { position: absolute; right: 2px; bottom: 2px; width: 14px; height: 14px;
+    border-radius: 3px; background: var(--accent); border: 2px solid #fff; cursor: nwse-resize; }
+  #stageHandle .geo { position: absolute; left: 4px; top: 3px; padding: 1px 6px; border-radius: 4px;
+    font-size: 10px; font-weight: 800; color: #061117; background: var(--accent); white-space: nowrap;
+    pointer-events: none; opacity: 0; transition: opacity .12s; }
+  #stageHandle.dragging .geo, #stageHandle:hover .geo { opacity: 1; }
+  /* 吹き出し: アバター位置の印（尻尾が向く先）。編集中はドラッグで動かせる */
+  #stageAvatar { position: absolute; z-index: 4; display: none; width: 26px; height: 26px;
+    margin: -13px 0 0 -13px; border-radius: 50%; border: 2px solid #fff; touch-action: none;
+    background: var(--accent2, #ff2d95); box-shadow: 0 0 0 3px rgba(0,0,0,.35); }
+  #stageAvatar::after { content: attr(data-label); position: absolute; left: 50%; top: 30px;
+    transform: translateX(-50%); padding: 1px 6px; border-radius: 4px; white-space: nowrap;
+    font-size: 10px; font-weight: 800; color: #fff; background: rgba(0,0,0,.6); }
+  #stage.bubble-mode #stageAvatar { display: block; }
+  /* コラボ時: 相手のアバター（同じ吹き出しレイアウトを2人で使うとき、相手の尻尾が向く先） */
+  #stageGuestAvatar { position: absolute; z-index: 4; display: none; width: 26px; height: 26px;
+    margin: -13px 0 0 -13px; border-radius: 50%; border: 2px solid #fff; touch-action: none;
+    background: var(--ok, #3dffa0); box-shadow: 0 0 0 3px rgba(0,0,0,.35); }
+  #stageGuestAvatar::after { content: attr(data-label); position: absolute; left: 50%; top: 30px;
+    transform: translateX(-50%); padding: 1px 6px; border-radius: 4px; white-space: nowrap;
+    font-size: 10px; font-weight: 800; color: #fff; background: rgba(0,0,0,.6); }
+  #stage.bubble-mode.collab-mode #stageGuestAvatar { display: block; }
+  .page.editing #stage.bubble-mode #stageGuestAvatar { cursor: grab; }
+  .page.editing #stage.bubble-mode #stageAvatar { cursor: grab; }
+  #frameFields, #geoFields { display: contents; }
+  /* 吹き出しを散らすポイント（中心の印＋1つの大きさの上限の枠）。編集中はドラッグで動かす */
+  #stageSpots { position: absolute; inset: 0; z-index: 3; display: none; pointer-events: none; }
+  #stage.scatter-mode #stageSpots { display: block; }
+  #stage.scatter-mode #stageHandle { display: none !important; }
+  .page.editing #stage.scatter-mode { cursor: copy; }
+  .spot-area { position: absolute; border: 1.5px dashed rgba(255,255,255,.55); border-radius: 8px;
+    transform: translate(-50%, -50%); pointer-events: none; }
+  .spot-dot { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%;
+    display: grid; place-items: center; font-size: 11px; font-weight: 900; color: #061117;
+    background: var(--accent); border: 2px solid #fff; pointer-events: auto; touch-action: none; }
+  .page.editing .spot-dot { cursor: grab; }
   footer { display: flex; gap: 10px; align-items: center; padding: 10px 14px; background: var(--panel); border-top: 1px solid var(--line); }
+  /* 保存ボタン式の画面: 未保存のあいだだけ目印を出し、保存ボタンを強める
+     （配信に映る見た目・単語は、いじっている途中で本番へ出ないよう保存ボタン式のまま） */
+  .unsaved-mark { color: var(--warn, #ffb84d); font-size: 12px; font-weight: 800; }
+  .unsaved-mark[hidden] { display: none; }
+  .btn.need-save { color: #061117; background: var(--ok); border-color: var(--ok); }
   #saved { color: var(--ok); font-size: 12px; opacity: 0; transition: opacity .3s; }
   [hidden] { display: none !important; }
   .expbar {
@@ -151,7 +237,7 @@
 </head>
 <body>
   <nav>
-    <button id="tabStyle" class="active" onclick="showTab('style')" data-i18n="sy.tab_style">🎨 文字スタイル</button>
+    <button id="tabStyle" class="active" onclick="showTab('style')" data-i18n="sy.tab_style">🎨 デザイン</button>
     <button id="tabBox" onclick="showTab('box')" data-i18n="sy.tab_box">📐 レイアウト</button>
   </nav>
 
@@ -171,14 +257,16 @@
         <button class="btn save" id="customizePresetBtn" onclick="beginPresetEdit()">カスタマイズ</button>
       </div>
       <div class="edit-tools" id="styleEditTools" hidden>
-        <span data-i18n="sy.basic_only_note">まずは、よく使う項目だけ表示しています</span>
+        <button class="btn small" onclick="closePresetEdit(); loadForm()" data-i18n="sy.back_to_list">← 一覧に戻る</button>
+        <span class="basic-note" data-i18n="sy.basic_only_note">まずは、よく使う項目だけ表示しています</span>
         <span style="flex:1"></span>
-        <button class="btn small" id="styleAdvancedBtn" onclick="toggleStyleAdvanced()">もっと細かく調整</button>
+        <button class="btn small adv-toggle" id="styleAdvancedBtn" onclick="toggleStyleAdvanced()">もっと細かく調整</button>
+        <span class="tools-sep"></span>
         <button class="btn small" id="managePresetBtn" onclick="managePreset()">初期状態に戻す</button>
       </div>
       <div class="form locked" id="form">
-        <div class="fsec" data-i18n="sy.sec_preset">📛 プリセット</div>
-        <div class="fr"><label data-i18n="sy.preset_name">プリセット名</label><input type="text" id="f_name"></div>
+        <div class="fsec" data-i18n="sy.sec_preset">📛 名前</div>
+        <div class="fr"><label data-i18n="sy.preset_name">デザイン名</label><input type="text" id="f_name"></div>
         <div class="fr"><label data-i18n="sy.desc">説明</label><input type="text" id="f_desc"></div>
 
         <div class="fsec" data-i18n="sy.sec_body">✏️ 本文（メイン字幕）</div>
@@ -216,6 +304,8 @@
           <option value="zh_tw" data-i18n="st.tl_zhtw">中国語（繁体字・台湾）</option>
           <option value="zh_hk" data-i18n="st.tl_zhhk">中国語（繁体字・香港）</option>
           <option value="id" data-i18n="st.tl_id">インドネシア語</option>
+          <option value="pt" data-i18n="st.tl_pt">ポルトガル語</option>
+          <option value="es" data-i18n="st.tl_es">スペイン語</option>
           <option value="ja" data-i18n="st.tl_ja">日本語</option>
           <option value="ko" data-i18n="st.tl_ko">韓国語（試験的）</option>
         </select></div>
@@ -232,6 +322,7 @@
         <div class="fr advanced-only"><label><span data-i18n="sy.glow_size">グロー強さ</span> <output id="o_enGlowSize"></output><span data-i18n="sy.zero_none">（0でなし）</span></label><input type="range" id="f_enGlowSize" min="0" max="30" step="2"></div>
         </div>
         </div>
+        <button class="btn adv-toggle adv-more" onclick="toggleStyleAdvanced()"></button>
       </div>
       <div id="previewBox">
         <div class="ptag" data-i18n="sy.preview_click_play">プレビュー ▶ クリックで再生</div>
@@ -243,49 +334,57 @@
   <!-- ================= ボックス ================= -->
   <div class="page" id="pageBox">
     <section class="panel">
-      <h2 data-i18n="sy.choose_position">字幕の位置を選ぶ</h2>
+      <h2 data-i18n="sy.choose_position">レイアウトを選ぶ</h2>
       <button class="btn new-item" onclick="newBoxFromFree()" title="フリー（枠なし）を元に作成" data-i18n="sy.new_layout" data-i18n-title="sy.new_from_free">＋ 新しいレイアウト</button>
       <div id="blist"></div>
     </section>
     <section class="panel editor" id="boxEditor">
       <h2><span data-i18n="sy.preview">プレビュー</span> — <span id="editBoxName"></span></h2>
       <div class="editor-actions">
-        <div class="copy"><b id="boxActionTitle">この位置を使いますか？</b><span id="boxActionDesc">画面下のボタンで現在の字幕に切り替えられます</span></div>
+        <div class="copy"><b id="boxActionTitle">このレイアウトを使いますか？</b><span id="boxActionDesc">画面下のボタンで現在の字幕に切り替えられます</span></div>
         <button class="btn" onclick="duplicateBox()" data-i18n="sy.duplicate">これを元に新規作成</button>
         <button class="btn save" id="customizeBoxBtn" onclick="beginBoxEdit()">カスタマイズ</button>
       </div>
       <div class="edit-tools" id="boxEditTools" hidden>
-        <span data-i18n="sy.adjust_pos_size">位置と大きさを調整できます</span><span style="flex:1"></span>
-        <button class="btn small" id="boxAdvancedBtn" onclick="toggleBoxAdvanced()">もっと細かく調整</button>
+        <button class="btn small" onclick="closeBoxEdit(); loadBoxForm()" data-i18n="sy.back_to_list">← 一覧に戻る</button>
+        <span data-i18n="sy.adjust_pos_size">プレビューの枠はドラッグで移動、右下の角で大きさを変えられます</span><span style="flex:1"></span>
+        <button class="btn small adv-toggle" id="boxAdvancedBtn" onclick="toggleBoxAdvanced()">もっと細かく調整</button>
+        <span class="tools-sep"></span>
         <button class="btn small" id="manageBoxBtn" onclick="manageBox()">初期状態に戻す</button>
       </div>
       <div class="form locked" id="bform">
-        <div class="fr"><label data-i18n="sy.box_name">ボックス名</label><input type="text" id="b_name"></div>
+        <div class="fsec" data-i18n="sy.bsec_name">📛 名前</div>
+        <div class="fr"><label data-i18n="sy.box_name">レイアウト名</label><input type="text" id="b_name"></div>
         <div class="fr"><label data-i18n="sy.desc">説明</label><input type="text" id="b_desc"></div>
+
+        <div id="geoFields">
+        <div class="fsec"><span data-i18n="sy.bsec_geo">📐 位置と大きさ</span> <small data-i18n="sy.bsec_geo_d">プレビューの枠をドラッグしても変えられます</small></div>
+        <div class="fr"><label><span data-i18n="sy.pos_x">横位置 X</span> <output id="o_bx"></output></label><input type="range" id="b_x" min="0" max="90" step="1"></div>
+        <div class="fr"><label><span data-i18n="sy.pos_y">縦位置 Y</span> <output id="o_by"></output></label><input type="range" id="b_y" min="0" max="90" step="1"></div>
+        <div class="fr"><label><span data-i18n="sy.width">幅</span> <output id="o_bw"></output></label><input type="range" id="b_w" min="10" max="100" step="1"></div>
+        <div class="fr"><label><span data-i18n="sy.height">高さ</span> <output id="o_bh"></output></label><input type="range" id="b_h" min="8" max="100" step="1"></div>
+        </div>
+
+        <div class="fsec advanced-only" data-i18n="sy.bsec_mode">🧾 表示</div>
         <div class="fr advanced-only"><label data-i18n="sy.display_mode">表示のしかた</label>
           <select id="b_mode">
             <option value="flow" data-i18n="sy.mode_flow">通常（積み上げ・スクロール）</option>
             <option value="vertical" data-i18n="sy.mode_vertical">縦書き（右から左へ）</option>
             <option value="lyric" data-i18n="sy.mode_lyric">リリックビデオ風字幕</option>
+            <option value="bubble" data-i18n="sy.mode_bubble">吹き出し（漫画風）</option>
           </select></div>
-        <div class="fr advanced-only"></div>
-        <div class="fr"><label><span data-i18n="sy.pos_x">横位置 X</span> <output id="o_bx"></output></label><input type="range" id="b_x" min="0" max="90" step="1"></div>
-        <div class="fr"><label><span data-i18n="sy.pos_y">縦位置 Y</span> <output id="o_by"></output></label><input type="range" id="b_y" min="0" max="90" step="1"></div>
-        <div class="fr"><label><span data-i18n="sy.width">幅</span> <output id="o_bw"></output></label><input type="range" id="b_w" min="10" max="100" step="1"></div>
-        <div class="fr"><label><span data-i18n="sy.height">高さ</span> <output id="o_bh"></output></label><input type="range" id="b_h" min="8" max="100" step="1"></div>
-        <div class="fr advanced-only"><label data-i18n="sy.bg_color">背景色</label><input type="color" id="b_bg"></div>
-        <div class="fr advanced-only"><label><span data-i18n="sy.bg_opacity">背景の濃さ</span> <output id="o_bop"></output><span data-i18n="sy.zero_transparent">（0で透明）</span></label><input type="range" id="b_bgOpacity" min="0" max="1" step="0.05"></div>
-        <div class="fr advanced-only"><label><span data-i18n="sy.radius">角丸</span> <output id="o_brad"></output></label><input type="range" id="b_radius" min="0" max="40" step="2"></div>
-        <div class="fr advanced-only"><label><span data-i18n="sy.padding">内側余白</span> <output id="o_bpad"></output></label><input type="range" id="b_padding" min="0" max="48" step="2"></div>
-        <div class="fr advanced-only"><label data-i18n="sy.border_color">枠線色</label><input type="color" id="b_borderColor"></div>
-        <div class="fr advanced-only"><label><span data-i18n="sy.border_width">枠線太さ</span> <output id="o_bbw"></output><span data-i18n="sy.zero_none">（0でなし）</span></label><input type="range" id="b_borderWidth" min="0" max="6" step="1"></div>
         <div class="fr only-flow advanced-only"><label data-i18n="sy.text_align">文字揃え</label>
           <select id="b_align"><option value="left" data-i18n="sy.align_left">左揃え</option><option value="center" data-i18n="sy.align_center">中央</option><option value="right" data-i18n="sy.align_right">右揃え</option></select></div>
+
+        <div class="fsec only-flow advanced-only" data-i18n="sy.bsec_flow">🎞 行の流れ方</div>
         <div class="fr only-flow advanced-only"><label><span data-i18n="sy.max_lines">保持する行数</span> <output id="o_bml"></output></label><input type="range" id="b_maxLines" min="2" max="40" step="1"></div>
+        <div class="fr only-flow advanced-only"></div>
         <div class="fr chk only-flow advanced-only"><input type="checkbox" id="b_smooth"><span data-i18n="sy.smooth_scroll">スムーズスクロール</span></div>
         <div class="fr only-flow advanced-only"><label><span data-i18n="sy.scroll_speed">スクロール速度</span> <output id="o_bsm"></output></label><input type="range" id="b_smoothMs" min="100" max="600" step="50"></div>
         <div class="fr chk only-flow advanced-only"><input type="checkbox" id="b_autoClear"><span data-i18n="sy.auto_clear">一定時間で字幕を消す</span></div>
         <div class="fr only-flow advanced-only" id="r_clearSec"><label><span data-i18n="sy.clear_after">消えるまでの時間</span> <output id="o_bclear"></output></label><input type="range" id="b_clearSec" min="2" max="30" step="1"></div>
+
+        <div class="fsec only-lyric advanced-only" data-i18n="sy.bsec_lyric">🎤 リリック演出</div>
         <div class="fr only-lyric advanced-only"><label data-i18n="sy.lyric_mood">演出の雰囲気</label>
           <select id="b_lyricMood">
             <option value="auto" data-i18n="sy.mood_auto">おまかせ</option>
@@ -296,10 +395,71 @@
         <div class="fr only-lyric advanced-only"><label><span data-i18n="sy.display_time">表示時間</span> <output id="o_blife"></output></label><input type="range" id="b_lifeSec" min="2" max="15" step="1"></div>
         <div class="fr only-lyric advanced-only"><label><span data-i18n="sy.overlap_count">重ねる字幕数</span> <output id="o_bmc"></output></label><input type="range" id="b_lyricMaxScenes" min="1" max="3" step="1"></div>
         <div class="fr chk only-lyric advanced-only"><input type="checkbox" id="b_lyricPartial"><span data-i18n="sy.show_partial">認識途中も表示する</span></div>
+
+        <div class="fsec only-bubble"><span data-i18n="sy.bsec_bubble">💬 吹き出し</span> <small data-i18n="sy.bsec_bubble_d">位置と大きさは、吹き出しが広がってよい範囲です</small></div>
+        <div class="fr only-bubble"><label data-i18n="sy.bub_shape">形</label>
+          <select id="b_bubbleShape">
+            <option value="round" data-i18n="sy.bub_round">角丸（標準）</option>
+            <option value="ellipse" data-i18n="sy.bub_ellipse">楕円</option>
+            <option value="burst" data-i18n="sy.bub_burst">ギザギザ（叫び）</option>
+            <option value="cloud" data-i18n="sy.bub_cloud">もくもく（考え中）</option>
+          </select></div>
+        <div class="fr only-bubble"><label data-i18n="sy.bub_dir">書き方向</label>
+          <select id="b_bubbleDir">
+            <option value="h" data-i18n="sy.bub_dir_h">横書き</option>
+            <option value="v" data-i18n="sy.bub_dir_v">縦書き</option>
+          </select></div>
+        <div class="fr only-bubble"><label data-i18n="sy.bub_align">文字の寄せ方</label>
+          <select id="b_bubbleAlign">
+            <option value="start"></option>
+            <option value="center"></option>
+            <option value="end"></option>
+          </select></div>
+        <div class="fr only-bubble"><label data-i18n="sy.bub_arrange">並べ方</label>
+          <select id="b_bubbleArrange">
+            <option value="stack" data-i18n="sy.bub_arr_stack">積み重ね（アバター寄り）</option>
+            <option value="scatter" data-i18n="sy.bub_arr_scatter">ポイントに散らす</option>
+          </select></div>
+        <div class="fr only-bubble"><label><span data-i18n="sy.bub_history">表示する数</span> <output id="o_bhist"></output></label><input type="range" id="b_bubbleHistory" min="1" max="6" step="1"></div>
+        <div class="fr only-bubble only-scatter" style="grid-column:1/-1"><small class="spot-hint" data-i18n="sy.bub_spot_hint">プレビューをクリックでポイントを追加、ドラッグで移動、ダブルクリックで削除（最大8か所）。新しい発話は、ほかと重ならない空きポイントにランダムで出ます</small></div>
+        <div class="fr only-bubble only-scatter"><label><span data-i18n="sy.bub_spot_w">1つの大きさの上限 幅</span> <output id="o_bspw"></output></label><input type="range" id="b_bubbleSpotW" min="8" max="80" step="1"></div>
+        <div class="fr only-bubble only-scatter"><label><span data-i18n="sy.bub_spot_h">1つの大きさの上限 高さ</span> <output id="o_bsph"></output></label><input type="range" id="b_bubbleSpotH" min="8" max="80" step="1"></div>
+        <div class="fr only-bubble"><label><span data-i18n="sy.bub_tail_x">アバター位置 X</span> <output id="o_btx"></output></label><input type="range" id="b_tailX" min="0" max="100" step="1"></div>
+        <div class="fr only-bubble"><label><span data-i18n="sy.bub_tail_y">アバター位置 Y</span> <output id="o_bty"></output></label><input type="range" id="b_tailY" min="0" max="100" step="1"></div>
+        <div class="fr only-bubble only-collab" style="grid-column:1/-1"><small data-i18n="sy.bub_guest_hint">コラボで相手もこのレイアウトを使うと、2人の吹き出しを1つにまとめて並べます。相手の吹き出しの尻尾は下の位置を向きます</small></div>
+        <div class="fr only-bubble only-collab"><label><span data-i18n="sy.bub_gtail_x">相手のアバター位置 X</span> <output id="o_bgtx"></output></label><input type="range" id="b_guestTailX" min="0" max="100" step="1"></div>
+        <div class="fr only-bubble only-collab"><label><span data-i18n="sy.bub_gtail_y">相手のアバター位置 Y</span> <output id="o_bgty"></output></label><input type="range" id="b_guestTailY" min="0" max="100" step="1"></div>
+        <div class="fr chk only-bubble"><input type="checkbox" id="b_tailOn"><span data-i18n="sy.bub_tail_on">尻尾をアバターへ向ける</span></div>
+        <div class="fr only-bubble" id="r_tailLen"><label><span data-i18n="sy.bub_tail_len">尻尾の長さ</span> <output id="o_btl"></output></label><input type="range" id="b_tailLen" min="20" max="300" step="10"></div>
+        <div class="fr only-bubble"><label><span data-i18n="sy.bub_scale">文字の大きさ</span> <output id="o_bbs"></output><span data-i18n="sy.bub_scale_d">（デザイン比・最大）</span></label><input type="range" id="b_bubbleScale" min="0.5" max="2" step="0.05"></div>
+        <div class="fr only-bubble advanced-only"><label><span data-i18n="sy.bub_min">縮めてよい下限</span> <output id="o_bbm"></output><span data-i18n="sy.bub_min_d">（長い文で）</span></label><input type="range" id="b_bubbleMinScale" min="0.3" max="1" step="0.05"></div>
+        <div class="fr only-bubble advanced-only"><label data-i18n="sy.bub_fill">塗りの色</label><input type="color" id="b_bubbleFill"></div>
+        <div class="fr only-bubble advanced-only"><label><span data-i18n="sy.bub_fill_op">塗りの濃さ</span> <output id="o_bfo"></output></label><input type="range" id="b_bubbleFillOpacity" min="0" max="1" step="0.05"></div>
+        <div class="fr only-bubble advanced-only"><label data-i18n="sy.bub_stroke">線の色</label><input type="color" id="b_bubbleStroke"></div>
+        <div class="fr only-bubble advanced-only"><label><span data-i18n="sy.bub_stroke_w">線の太さ</span> <output id="o_bsw"></output><span data-i18n="sy.zero_none">（0でなし）</span></label><input type="range" id="b_bubbleStrokeWidth" min="0" max="12" step="1"></div>
+        <div class="fr chk only-bubble advanced-only"><input type="checkbox" id="b_bubbleInkOn"><span data-i18n="sy.bub_ink_on">吹き出し用の文字色にする（デザインの色・縁取りを使わない）</span></div>
+        <div class="fr only-bubble advanced-only" id="r_bubbleInk"><label data-i18n="sy.bub_ink">文字色</label><input type="color" id="b_bubbleInk"></div>
+        <div class="fr chk only-bubble advanced-only"><input type="checkbox" id="b_bubblePartial"><span data-i18n="sy.show_partial">認識途中も表示する</span></div>
+        <div class="fr only-bubble advanced-only"><label><span data-i18n="sy.bub_life">消えるまでの時間</span> <output id="o_bbl"></output><span data-i18n="sy.bub_life_d">（0で次の発話まで）</span></label><input type="range" id="b_bubbleLife" min="0" max="30" step="1"></div>
+
+        <div id="frameFields">
+        <div class="fsec advanced-only" data-i18n="sy.bsec_frame">🖼 枠の見た目</div>
+        <div class="fr advanced-only"><label data-i18n="sy.bg_color">背景色</label><input type="color" id="b_bg"></div>
+        <div class="fr advanced-only"><label><span data-i18n="sy.bg_opacity">背景の濃さ</span> <output id="o_bop"></output><span data-i18n="sy.zero_transparent">（0で透明）</span></label><input type="range" id="b_bgOpacity" min="0" max="1" step="0.05"></div>
+        <div class="fr advanced-only"><label data-i18n="sy.border_color">枠線色</label><input type="color" id="b_borderColor"></div>
+        <div class="fr advanced-only"><label><span data-i18n="sy.border_width">枠線太さ</span> <output id="o_bbw"></output><span data-i18n="sy.zero_none">（0でなし）</span></label><input type="range" id="b_borderWidth" min="0" max="6" step="1"></div>
+        <div class="fr advanced-only"><label><span data-i18n="sy.radius">角丸</span> <output id="o_brad"></output></label><input type="range" id="b_radius" min="0" max="40" step="2"></div>
+        <div class="fr advanced-only"><label><span data-i18n="sy.padding">内側余白</span> <output id="o_bpad"></output></label><input type="range" id="b_padding" min="0" max="48" step="2"></div>
+        </div>
+        <button class="btn adv-toggle adv-more" onclick="toggleBoxAdvanced()"></button>
       </div>
       <div id="stageWrap">
         <div id="stage">
           <div class="ptag"><span data-i18n="sy.layout_preview">レイアウトプレビュー（1920×1080の縮小）</span><span id="stageStyleName" style="margin-left:10px;color:rgba(255,255,255,.55)"></span></div>
+          <div id="stageSpots"></div>
+          <div id="stageGuestAvatar" data-label="相手" title="コラボ相手の尻尾が向く先（ドラッグで移動）" data-i18n-title="sy.guest_avatar_t"></div>
+          <div id="stageAvatar" data-label="アバター" title="尻尾が向く先（ドラッグで移動）" data-i18n-title="sy.avatar_t"></div>
+          <div id="stageHandle" title="ドラッグで移動・右下の角で大きさを変更" data-i18n-title="sy.handle_t"><span class="geo" id="stageGeo"></span><span class="grip"></span></div>
           <div id="stageInner">
             <div id="stageBox"><div id="stageClip"><div id="stageScroll"></div></div></div>
           </div>
@@ -323,6 +483,7 @@
   <footer>
     <button class="btn" id="saveOnlyBtn" onclick="saveOnly()" data-i18n="sy.save">💾 保存</button>
     <button class="btn save" id="switchUseBtn" onclick="saveAndUse()">このデザインに切り替える</button>
+    <span class="unsaved-mark" id="unsavedMark" hidden data-i18n="sy.unsaved_mark">● 未保存の変更があります</span>
     <span id="saved">保存しました ✓</span>
     <span style="flex:1"></span>
     <span id="ioMsg"></span>
@@ -341,6 +502,7 @@
       if (currentTopTab === "box") { renderBoxList(); loadBoxForm(); }
       else { renderList(); loadForm(); }
       updateFooterActions();
+      syncAdvLabel("styleEditor", "styleAdvancedBtn"); syncAdvLabel("boxEditor", "boxAdvancedBtn");
     } catch (e) {}
   });
   let presets = [], boxes = [], defaultPresets = [], defaultBoxes = [];
@@ -348,6 +510,7 @@
   let effects = [], hotwords = [], sysFonts = [];
   let activePresetId = "", activeBoxId = "";
   let presetEditing = false, boxEditing = false;
+  let collabOn = false;
   const styleQuery = new URLSearchParams(location.search);
   const requestedTopTab = styleQuery.get("tab") === "box" ? "box" : "style";
   let currentTopTab = requestedTopTab;
@@ -369,8 +532,7 @@
   });
 
   async function init() {
-    $("f_animIn").innerHTML =
-      FX.LINE_ANIMS.map(([v, l]) => `<option value="${v}">${l}</option>`).join("");
+    $("f_animIn").innerHTML = FX.optionsHtml("an", FX.LINE_ANIMS);
 
     const [pj, bj, ej, hj, fj, cj, dj] = await Promise.all([
       fetch("/api/presets"), fetch("/api/boxes"), fetch("/api/effects"),
@@ -386,21 +548,19 @@
     defaultBoxes = dj.boxes || [];
     activePresetId = cj.preset || "";
     activeBoxId = cj.box || "";
+    collabOn = !!cj.collab;   // コラボ中だけ「相手のアバター位置」を出す
     applyTheme(cj.theme);   // 保存済みテーマを確定反映（先読みの上書き）
 
     // フォント選択: おすすめ + システムフォント全部
-    const rec = FX.FONTS.map(f =>
-      `<option value="${f.css.replace(/"/g, "&quot;")}">${f.label}</option>`).join("");
+    // 選択肢は表示言語で出す（data-i18n 付き。言語を切り替えると i18n.js がその場で書き換える）
+    const rec = FX.FONTS.map(f => FX.fontOptionHtml(f)).join("");
+    const sysEsc = n => String(n).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
     const sys = sysFonts.map(n =>
-      `<option value="'${n}'">${n}</option>`).join("");
-    $("f_fontSel").innerHTML =
-      '<option value="">（直接指定を使う）</option>' +
-      `<optgroup label="おすすめ">${rec}</optgroup>` +
-      `<optgroup label="システムフォント (${sysFonts.length})">${sys}</optgroup>`;
-    $("f_enFontSel").innerHTML =
-      '<option value="">（本文と同じ）</option>' +
-      `<optgroup label="おすすめ">${rec}</optgroup>` +
-      `<optgroup label="システムフォント (${sysFonts.length})">${sys}</optgroup>`;
+      `<option value="'${sysEsc(n)}'">${sysEsc(n)}</option>`).join("");
+    const groups = `<optgroup ${FX.groupAttrs("fx.fonts_rec", "おすすめ")}>${rec}</optgroup>` +
+      `<optgroup ${FX.groupAttrs("fx.fonts_sys", "システムフォント")}>${sys}</optgroup>`;
+    $("f_fontSel").innerHTML = FX.textOptionHtml("", "sy.font_direct", "（直接指定を使う）") + groups;
+    $("f_enFontSel").innerHTML = FX.textOptionHtml("", "sy.font_same", "（本文と同じ）") + groups;
 
     const pi = presets.findIndex(p => p.id === (styleQuery.get("preset") || activePresetId));
     cur = pi >= 0 ? pi : 0;
@@ -410,6 +570,12 @@
     renderList(); loadForm();
     renderBoxList(); loadBoxForm();
     bindAll();
+    // スタジオの「リリック風字幕を配信で使う」から: 表示のしかたの項目まで開いて見せる
+    if (styleQuery.get("focus") === "lyric") {
+      showTab("box"); beginBoxEdit();
+      if (!$("boxEditor").classList.contains("advanced-open")) toggleBoxAdvanced();
+      $("b_mode").focus(); $("b_mode").scrollIntoView({ block: "nearest" });
+    }
   }
 
   function showTab(t) {
@@ -485,16 +651,33 @@
     updateFooterActions();
   }
 
+  // 詳細項目の開閉ボタン。閉じているときは隠れている項目の数も添える
+  function syncAdvLabel(editorId, btnId) {
+    const editor = $(editorId), open = editor.classList.contains("advanced-open");
+    const shown = el => {   // 表示のしかたで隠している行（包み枠ごとの場合も）は数えない
+      for (let e = el; e && e !== editor; e = e.parentElement)
+        if (e.hidden || e.style.display === "none") return false;
+      return true;
+    };
+    const n = [...editor.querySelectorAll(".fr.advanced-only")]
+      .filter(el => shown(el) && el.querySelector("input,select")).length;
+    const label = open ? "▴ " + T("sy.basic_only","基本項目だけに戻す")
+      : "▾ " + T("sy.adjust_more","もっと細かく調整") + T("sy.adv_count","（+{n}項目）").replace("{n}", n);
+    $(btnId).textContent = label;
+    editor.querySelectorAll(".adv-more").forEach(b => { b.textContent = label; });
+  }
   function isBuiltinPreset(p) { return !!p && defaultPresets.some(x => x.id === p.id); }
   function closePresetEdit() {
     presetEditing = false;
+    $("pageStyle").classList.remove("editing");
     $("form").classList.add("locked");
     $("styleEditTools").hidden = true;
     $("styleEditor").classList.remove("advanced-open");
-    $("styleAdvancedBtn").textContent = T("sy.adjust_more","もっと細かく調整");
+    syncAdvLabel("styleEditor", "styleAdvancedBtn");
   }
   function beginPresetEdit() {
     presetEditing = true;
+    $("pageStyle").classList.add("editing");
     $("form").classList.remove("locked");
     $("styleEditTools").hidden = false;
     const builtin = isBuiltinPreset(presets[cur]);
@@ -505,7 +688,7 @@
   }
   function toggleStyleAdvanced() {
     const open = $("styleEditor").classList.toggle("advanced-open");
-    $("styleAdvancedBtn").textContent = open ? T("sy.basic_only","基本項目だけに戻す") : T("sy.adjust_more","もっと細かく調整");
+    syncAdvLabel("styleEditor", "styleAdvancedBtn");
   }
   function collect() {
     const p = presets[cur];
@@ -559,7 +742,7 @@
     const own = !!(trLang && p.trStyles && p.trStyles[trLang]);
     $("f_trLang").value = trLang;
     $("f_trOverride").checked = own;
-    $("r_trOverride").style.display = trLang ? "" : "none";
+    $("r_trOverride").hidden = !trLang;
     // 言語を選んでいて上書きOFF＝共通の値を表示するだけ（触れない）
     for (const id of TR_FIELDS) $(id).disabled = !!trLang && !own;
   }
@@ -584,6 +767,8 @@
     en: EN_SAMPLE,
     zh: "大家晚上好，感谢收看！", zh_tw: "大家晚安，感謝收看！", zh_hk: "大家晚安，多謝收睇！",
     id: "Selamat malam semuanya, terima kasih sudah menonton!",
+    pt: "Boa noite a todos, obrigado por assistirem!",
+    es: "¡Buenas noches a todos, gracias por ver!",
     ja: "皆さんこんばんは、見てくれてありがとう！",
     ko: "여러분 안녕하세요, 시청해 주셔서 감사합니다!",
   };
@@ -642,6 +827,7 @@
   }
 
   function addPresetFrom(source, name) {
+    setStyleDirty(true);
     if (!source) return;
     const p = JSON.parse(JSON.stringify(source));
     p.id = uniqueId("custom-", presets);
@@ -669,6 +855,7 @@
     const original = defaultPresets.find(p => p.id === presets[cur].id);
     if (!original || !confirm(T("sy.confirm_reset","「{name}」を初期状態に戻しますか？").replace("{name}", presets[cur].name))) return;
     presets[cur] = JSON.parse(JSON.stringify(original));
+    setStyleDirty(true);
     renderList(); loadForm(); beginPresetEdit();
     $("styleActionDesc").textContent = T("sy.reset_done","初期状態に戻しました。下の「保存」で確定します");
   }
@@ -677,6 +864,7 @@
     if (presets.length <= 1) { alert(T("sy.cant_delete_last","最後の1つは削除できません")); return; }
     if (!confirm(T("sy.confirm_delete","「{name}」を削除しますか？").replace("{name}", presets[cur].name))) return;
     presets.splice(cur, 1);
+    setStyleDirty(true);
     cur = Math.max(0, cur - 1);
     closePresetEdit(); renderList(); loadForm();
   }
@@ -704,19 +892,48 @@
   // 翻訳のみでも、2つ目以降の翻訳先は主言語の下に訳文の書式で付くので調整項目は残す
   function updateTranslationRows() {
     const en = $("f_displayMode").value === "en";
-    $("r_enOnlyNote").style.display = en ? "" : "none";
-    $("r_trSubNote").style.display = en ? "" : "none";
+    $("r_enOnlyNote").hidden = !en;
+    $("r_trSubNote").hidden = !en;
+  }
+
+  // 寄せ方の選択肢名は書き方向で変わる（値は start/center/end のまま＝向きを変えても引き継ぐ）
+  function syncBubbleAlignLabels() {
+    const v = $("b_bubbleDir").value === "v";
+    const [s, c, e] = $("b_bubbleAlign").options;
+    s.textContent = v ? T("sy.bub_al_top", "上詰め") : T("sy.bub_al_left", "左詰め");
+    c.textContent = T("sy.bub_al_center", "中央");
+    e.textContent = v ? T("sy.bub_al_bottom", "下詰め") : T("sy.bub_al_right", "右詰め");
   }
 
   function updateModeRows() {
-    const lyric = $("b_mode").value === "lyric";
+    const mode = $("b_mode").value;
+    const lyric = mode === "lyric", bubble = mode === "bubble";
     for (const el of document.querySelectorAll(".only-flow"))
-      el.style.display = lyric ? "none" : "";
+      el.style.display = lyric || bubble ? "none" : "";
     for (const el of document.querySelectorAll(".only-lyric"))
       el.style.display = lyric ? "" : "none";
+    for (const el of document.querySelectorAll(".only-bubble"))
+      el.style.display = bubble ? "" : "none";
+    // 吹き出しは自分で枠を描くので、レイアウトの背景・枠線は使わない
+    $("frameFields").style.display = bubble ? "none" : "contents";
+    $("stage").classList.toggle("bubble-mode", bubble);
+    const scatter = bubble && $("b_bubbleArrange").value === "scatter";
+    $("stage").classList.toggle("collab-mode", bubble && collabOn);
+    for (const el of document.querySelectorAll(".only-collab"))
+      el.style.display = bubble && collabOn ? "" : "none";
+    $("stage").classList.toggle("scatter-mode", scatter);
+    for (const el of document.querySelectorAll(".only-scatter"))
+      el.style.display = scatter ? "" : "none";
+    // 散らすときは吹き出しの位置をポイントで決めるので、枠の位置と大きさは使わない
+    $("geoFields").style.display = scatter ? "none" : "contents";
+    if (bubble) {
+      if (!$("b_tailOn").checked) $("r_tailLen").style.display = "none";
+      if (!$("b_bubbleInkOn").checked) $("r_bubbleInk").style.display = "none";
+    }
     // 自動消去の秒数はチェックONのときだけ出す
-    if (!lyric && !$("b_autoClear").checked)
+    if (!lyric && !bubble && !$("b_autoClear").checked)
       $("r_clearSec").style.display = "none";
+    syncAdvLabel("boxEditor", "boxAdvancedBtn");   // 表示のしかたで隠れる項目数が変わる
   }
 
   function loadBoxForm() {
@@ -746,10 +963,35 @@
     setR("b_lifeSec", "o_blife", b.lifeSec ?? 6, v => v + "秒");
     setR("b_lyricMaxScenes", "o_bmc", b.lyricMaxScenes ?? 2, v => v + "文");
     $("b_lyricPartial").checked = !!b.lyricPartial;
+    $("b_bubbleShape").value = b.bubbleShape || "round";
+    $("b_bubbleDir").value = b.bubbleDir === "v" ? "v" : "h";
+    $("b_bubbleAlign").value = ["start", "end"].includes(b.bubbleAlign) ? b.bubbleAlign : "center";
+    syncBubbleAlignLabels();
+    $("b_bubbleArrange").value = b.bubbleArrange === "scatter" ? "scatter" : "stack";
+    setR("b_bubbleSpotW", "o_bspw", b.bubbleSpotW ?? 32, v => v + "%");
+    setR("b_bubbleSpotH", "o_bsph", b.bubbleSpotH ?? 24, v => v + "%");
+    setR("b_bubbleHistory", "o_bhist", b.bubbleHistory ?? 1, v => T("sy.bub_history_n", "{n}個").replace("{n}", v));
+    setR("b_tailX", "o_btx", b.tailX ?? 85, v => v + "%");
+    setR("b_tailY", "o_bty", b.tailY ?? 85, v => v + "%");
+    // 相手のアバター位置。未設定なら左右反転の位置（overlay 側の既定と同じ）
+    setR("b_guestTailX", "o_bgtx", b.guestTailX ?? (100 - (b.tailX ?? 85)), v => v + "%");
+    setR("b_guestTailY", "o_bgty", b.guestTailY ?? (b.tailY ?? 85), v => v + "%");
+    $("b_tailOn").checked = b.tailOn !== false;
+    setR("b_tailLen", "o_btl", b.tailLen ?? 140, v => v + "px");
+    setR("b_bubbleScale", "o_bbs", b.bubbleScale ?? 1, v => "×" + v);
+    setR("b_bubbleMinScale", "o_bbm", b.bubbleMinScale ?? 0.5, v => "×" + v);
+    $("b_bubbleFill").value = b.bubbleFill || "#ffffff";
+    setR("b_bubbleFillOpacity", "o_bfo", b.bubbleFillOpacity ?? 1, v => v);
+    $("b_bubbleStroke").value = b.bubbleStroke || "#1a1a1a";
+    setR("b_bubbleStrokeWidth", "o_bsw", b.bubbleStrokeWidth ?? 4, v => v + "px");
+    $("b_bubbleInkOn").checked = b.bubbleInkOn !== false;
+    $("b_bubbleInk").value = b.bubbleInk || "#1a1a1a";
+    $("b_bubblePartial").checked = b.bubblePartial !== false;
+    setR("b_bubbleLife", "o_bbl", b.bubbleLife ?? 0, v => +v ? v + "秒" : T("sy.bub_life_keep", "次の発話まで"));
     updateModeRows();
     stageApply(); stageClear(); stageAdd(); stageAdd();
     $("customizeBoxBtn").textContent = T("sy.customize","カスタマイズ");
-    $("boxActionTitle").textContent = b.id === activeBoxId ? T("sy.using_box","この位置を使用中です") : T("sy.use_box_q","この位置を使いますか？");
+    $("boxActionTitle").textContent = b.id === activeBoxId ? T("sy.using_box","このレイアウトを使用中です") : T("sy.use_box_q","このレイアウトを使いますか？");
     $("boxActionDesc").textContent = b.id === activeBoxId
       ? T("sy.selected_now","今の字幕に選ばれています") : T("sy.switch_hint","画面下のボタンで現在の字幕に切り替えられます");
     updateFooterActions();
@@ -758,13 +1000,16 @@
   function isBuiltinBox(b) { return !!b && defaultBoxes.some(x => x.id === b.id); }
   function closeBoxEdit() {
     boxEditing = false;
+    $("pageBox").classList.remove("editing");
     $("bform").classList.add("locked");
     $("boxEditTools").hidden = true;
     $("boxEditor").classList.remove("advanced-open");
-    $("boxAdvancedBtn").textContent = T("sy.adjust_more","もっと細かく調整");
+    syncAdvLabel("boxEditor", "boxAdvancedBtn");
   }
   function beginBoxEdit() {
     boxEditing = true;
+    $("pageBox").classList.add("editing");
+    syncStageHandle();
     $("bform").classList.remove("locked");
     $("boxEditTools").hidden = false;
     const builtin = isBuiltinBox(boxes[curBox]);
@@ -775,7 +1020,7 @@
   }
   function toggleBoxAdvanced() {
     const open = $("boxEditor").classList.toggle("advanced-open");
-    $("boxAdvancedBtn").textContent = open ? T("sy.basic_only","基本項目だけに戻す") : T("sy.adjust_more","もっと細かく調整");
+    syncAdvLabel("boxEditor", "boxAdvancedBtn");
     updateModeRows();
   }
   function collectBox() {
@@ -802,6 +1047,27 @@
     b.lifeSec = +$("b_lifeSec").value;
     b.lyricMaxScenes = +$("b_lyricMaxScenes").value;
     b.lyricPartial = $("b_lyricPartial").checked;
+    b.bubbleShape = $("b_bubbleShape").value;
+    b.bubbleDir = $("b_bubbleDir").value;
+    b.bubbleAlign = $("b_bubbleAlign").value;
+    b.bubbleHistory = +$("b_bubbleHistory").value;
+    b.bubbleArrange = $("b_bubbleArrange").value;
+    b.bubbleSpotW = +$("b_bubbleSpotW").value;
+    b.bubbleSpotH = +$("b_bubbleSpotH").value;
+    b.tailX = +$("b_tailX").value; b.tailY = +$("b_tailY").value;
+    b.guestTailX = +$("b_guestTailX").value; b.guestTailY = +$("b_guestTailY").value;
+    b.tailOn = $("b_tailOn").checked;
+    b.tailLen = +$("b_tailLen").value;
+    b.bubbleScale = +$("b_bubbleScale").value;
+    b.bubbleMinScale = +$("b_bubbleMinScale").value;
+    b.bubbleFill = $("b_bubbleFill").value;
+    b.bubbleFillOpacity = +$("b_bubbleFillOpacity").value;
+    b.bubbleStroke = $("b_bubbleStroke").value;
+    b.bubbleStrokeWidth = +$("b_bubbleStrokeWidth").value;
+    b.bubbleInkOn = $("b_bubbleInkOn").checked;
+    b.bubbleInk = $("b_bubbleInk").value;
+    b.bubblePartial = $("b_bubblePartial").checked;
+    b.bubbleLife = +$("b_bubbleLife").value;
     return b;
   }
 
@@ -822,11 +1088,210 @@
   }
   new ResizeObserver(updateStageScale).observe(document.getElementById("stage"));
 
+  // 吹き出しのプレビュー用の文（短い→長いの順。最後は枠いっぱいで文字が縮む長さ）
+  const BUBBLE_LINES = [
+    "こんばんは！",
+    "今日もゆるっと配信していきます。",
+    "コメントもどんどん読んでいきますね、いつもありがとう！",
+    "えっ、ちょっと待って、いま何が起きたの！？　見間違いじゃないよね、すごすぎない？　もう一回やってみるから見てて！",
+  ];
+
+  // ---- 吹き出しを散らすポイント（中心の印＋上限の大きさの枠） ----
+  // 印は数が変わったときだけ作り直し、ほかは位置・大きさだけ書き換える。作り直すと
+  // ダブルクリックの2回目が別の要素に当たる・ドラッグ中に印が差し替わる、が起きるため
+  function syncStageSpots() {
+    const b = boxes[curBox], wrap = $("stageSpots");
+    const spots = b && b.mode === "bubble" && b.bubbleArrange === "scatter" ? (b.bubbleSpots || []) : [];
+    if (wrap.querySelectorAll(".spot-dot").length !== spots.length) {
+      wrap.textContent = "";
+      spots.forEach((_, i) => {
+        const area = document.createElement("div");
+        area.className = "spot-area";
+        const dot = document.createElement("div");
+        dot.className = "spot-dot";
+        dot.dataset.i = i;
+        dot.addEventListener("pointerdown", e => dragSpot(e, +dot.dataset.i, dot, area));
+        dot.addEventListener("dblclick", e => { e.stopPropagation(); removeSpot(+dot.dataset.i); });
+        wrap.append(area, dot);
+      });
+    }
+    const dots = wrap.querySelectorAll(".spot-dot"), areas = wrap.querySelectorAll(".spot-area");
+    spots.forEach((p, i) => {
+      const dot = dots[i], area = areas[i];
+      dot.textContent = i + 1;
+      for (const el of [dot, area]) { el.style.left = p.x + "%"; el.style.top = p.y + "%"; }
+      area.style.width = (b.bubbleSpotW ?? 32) + "%"; area.style.height = (b.bubbleSpotH ?? 24) + "%";
+    });
+  }
+  function stagePercent(e) {
+    const r = $("stage").getBoundingClientRect();
+    return { x: Math.round(clampGeo01((e.clientX - r.left) / r.width) * 100),
+             y: Math.round(clampGeo01((e.clientY - r.top) / r.height) * 100) };
+  }
+  function spotsChanged() {
+    setStyleDirty(true);
+    syncStageSpots();
+    FX.bubbleClear($("stageBox")); stageAdd(); stageAdd();   // 新しいポイントで出し直す
+  }
+  function dragSpot(e, i, dot, area) {
+    if (!boxEditing) return;
+    e.preventDefault(); e.stopPropagation();
+    dot.setPointerCapture(e.pointerId);
+    const b = boxes[curBox];
+    const sx = e.clientX, sy = e.clientY;
+    let moved = false;
+    const move = ev => {
+      if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) < 3) return;   // クリックはドラッグにしない
+      moved = true;
+      const p = stagePercent(ev);
+      b.bubbleSpots[i] = p;
+      for (const el of [dot, area]) { el.style.left = p.x + "%"; el.style.top = p.y + "%"; }
+    };
+    const up = () => {
+      dot.removeEventListener("pointermove", move);
+      dot.removeEventListener("pointerup", up);
+      dot.removeEventListener("pointercancel", up);
+      if (moved) spotsChanged();
+    };
+    dot.addEventListener("pointermove", move);
+    dot.addEventListener("pointerup", up);
+    dot.addEventListener("pointercancel", up);
+  }
+  function removeSpot(i) {
+    const b = boxes[curBox];
+    if (!boxEditing || (b.bubbleSpots || []).length <= 1) return;   // 最後の1か所は残す
+    b.bubbleSpots.splice(i, 1);
+    spotsChanged();
+  }
+  // 空いている所をクリックするとポイントを足す（印・アバター・枠の取っ手の上は除く）
+  $("stage").addEventListener("click", e => {
+    const b = boxes[curBox];
+    if (!boxEditing || !b || b.mode !== "bubble" || b.bubbleArrange !== "scatter") return;
+    if (e.target.closest(".spot-dot, #stageAvatar, #stageGuestAvatar, .stageBtns")) return;
+    b.bubbleSpots = b.bubbleSpots || [];
+    if (b.bubbleSpots.length >= 8) return;
+    b.bubbleSpots.push(stagePercent(e));
+    spotsChanged();
+  });
+
+  // ---- アバター位置（吹き出しの尻尾が向く先）のドラッグ ----
+  function guestTarget(b) {
+    return { x: b.guestTailX ?? (100 - (b.tailX ?? 85)), y: b.guestTailY ?? (b.tailY ?? 85) };
+  }
+  function syncStageAvatar() {
+    const b = boxes[curBox];
+    if (!b) return;
+    const el = $("stageAvatar");
+    el.style.left = (b.tailX ?? 85) + "%";
+    el.style.top = (b.tailY ?? 85) + "%";
+    el.dataset.label = T("sy.avatar", "アバター");
+    const g = $("stageGuestAvatar"), t = guestTarget(b);
+    g.style.left = t.x + "%"; g.style.top = t.y + "%";
+    g.dataset.label = T("sy.guest_avatar", "相手");
+  }
+  bindAvatarDrag("stageAvatar", "b_tailX", "b_tailY", "o_btx", "o_bty");
+  bindAvatarDrag("stageGuestAvatar", "b_guestTailX", "b_guestTailY", "o_bgtx", "o_bgty");
+  function bindAvatarDrag(elId, xId, yId, oxId, oyId) {
+    const el = $(elId);
+    el.addEventListener("pointerdown", e => {
+      if (!boxEditing) return;
+      e.preventDefault();
+      el.setPointerCapture(e.pointerId);
+      const stage = $("stage").getBoundingClientRect();
+      const move = ev => {
+        const x = Math.round(clampGeo01((ev.clientX - stage.left) / stage.width) * 100);
+        const y = Math.round(clampGeo01((ev.clientY - stage.top) / stage.height) * 100);
+        $(xId).value = x; $(oxId).textContent = x + "%";
+        $(yId).value = y; $(oyId).textContent = y + "%";
+        collectBox(); setStyleDirty(true);
+        stageApply();
+      };
+      const up = () => {
+        el.removeEventListener("pointermove", move);
+        el.removeEventListener("pointerup", up);
+        el.removeEventListener("pointercancel", up);
+      };
+      el.addEventListener("pointermove", move);
+      el.addEventListener("pointerup", up);
+      el.addEventListener("pointercancel", up);
+    });
+  }
+  const clampGeo01 = v => Math.min(1, Math.max(0, v));
+
+  // ---- プレビュー上の直接操作（枠のドラッグで移動・右下の角で大きさ） ----
+  // 位置・大きさは画面に対する％（スライダーと同じ単位・同じ範囲）。取っ手はステージ
+  // （縮小表示）の上に％で重ねるので、縮小率に関係なくそのまま対応する
+  const GEO = { x: [0, 90], y: [0, 90], w: [10, 100], h: [8, 100] };
+  const clampGeo = (k, v) => Math.round(Math.min(GEO[k][1], Math.max(GEO[k][0], v)));
+  function syncStageHandle() {
+    const b = boxes[curBox];
+    if (!b) return;
+    const g = { x: +(b.x ?? 0), y: +(b.y ?? 0), w: +(b.w ?? 100), h: +(b.h ?? 100) };
+    const el = $("stageHandle");
+    el.style.left = g.x + "%"; el.style.top = g.y + "%";
+    el.style.width = Math.min(g.w, 100 - g.x) + "%"; el.style.height = Math.min(g.h, 100 - g.y) + "%";
+    syncStageAvatar();
+    syncStageSpots();
+    $("stageGeo").textContent = `X ${g.x}%  Y ${g.y}%  ${T("sy.width","幅")} ${g.w}%  ${T("sy.height","高さ")} ${g.h}%`;
+  }
+  // ドラッグ結果をスライダーへ書き戻し、スライダーで動かしたときと同じ経路で反映する
+  function applyStageGeo(g) {
+    const fmt = v => v + "%";
+    for (const [k, id, out] of [["x","b_x","o_bx"],["y","b_y","o_by"],["w","b_w","o_bw"],["h","b_h","o_bh"]]) {
+      if (g[k] === undefined) continue;
+      $(id).value = g[k]; $(out).textContent = fmt($(id).value);
+    }
+    collectBox(); setStyleDirty(true);
+    stageApply();
+  }
+  (function bindStageHandle() {
+    const el = $("stageHandle");
+    el.addEventListener("pointerdown", e => {
+      if (!boxEditing) return;
+      e.preventDefault();
+      const stage = $("stage").getBoundingClientRect();
+      const b = boxes[curBox];
+      const start = { px: e.clientX, py: e.clientY,
+        x: +(b.x ?? 0), y: +(b.y ?? 0), w: +(b.w ?? 100), h: +(b.h ?? 100) };
+      const resize = e.target.classList.contains("grip");
+      el.setPointerCapture(e.pointerId);
+      el.classList.add("dragging");
+      const move = ev => {
+        const dx = (ev.clientX - start.px) / stage.width * 100;
+        const dy = (ev.clientY - start.py) / stage.height * 100;
+        if (resize) {
+          applyStageGeo({ w: clampGeo("w", Math.min(start.w + dx, 100 - start.x)),
+                          h: clampGeo("h", Math.min(start.h + dy, 100 - start.y)) });
+        } else {
+          // 画面の外へははみ出させない（幅が広いときは動ける範囲も狭くなる）
+          applyStageGeo({ x: clampGeo("x", Math.min(start.x + dx, 100 - Math.min(start.w, 100))),
+                          y: clampGeo("y", Math.min(start.y + dy, 100 - Math.min(start.h, 100))) });
+        }
+      };
+      const up = () => {
+        el.classList.remove("dragging");
+        el.removeEventListener("pointermove", move);
+        el.removeEventListener("pointerup", up);
+        el.removeEventListener("pointercancel", up);
+        renderBoxList();
+        stageClear(); stageAdd(); stageAdd();   // 新しい枠で行の流れを見せ直す
+      };
+      el.addEventListener("pointermove", move);
+      el.addEventListener("pointerup", up);
+      el.addEventListener("pointercancel", up);
+    });
+  })();
+
   function stageApply() {
     const b = boxes[curBox];
     // 中身は本物の1920×1080座標系なので、box定義をそのまま適用（縮小はscaleが担う）
     FX.applyBox($("stageBox"), $("stageScroll"), b, $("stageClip"));
     updateStageScale();
+    syncStageHandle();
+    if (b.mode === "bubble") {
+      FX.bubbleRelayout($("stageBox"), b, stageStyle());
+      if (collabOn) FX.bubbleRelayout($("stageBox"), b, stageStyle(), "guest", guestTarget(b));
+    }
   }
 
   // ステージ用フォールバック（使用中プリセットが見つからない場合のみ）
@@ -845,7 +1310,16 @@
     const b = boxes[curBox];
     const p = stageStyle();
     const table = FX.buildTable(hotwords, effects, p);
-    $("stageStyleName").textContent = p.name ? `スタイル: ${p.name}` : "";
+    $("stageStyleName").textContent = p.name ? T("sy.stage_design","デザイン: ") + p.name : "";
+    if (b.mode === "bubble") {
+      // 長さの違う文を順に出し、吹き出しの伸び縮みと文字の縮み方を確かめられるようにする
+      // コラボ中は自分と相手を交互に（相手の吹き出しの尻尾は相手のアバターへ）
+      const guest = collabOn && stageN % 2 === 1;
+      FX.bubbleUpdate($("stageBox"), { text: BUBBLE_LINES[stageN++ % BUBBLE_LINES.length],
+                                       partial: false, style: p, table, box: b,
+                                       speaker: guest ? "guest" : "", target: guest ? guestTarget(b) : null });
+      return;
+    }
     if ((b.mode || "flow") === "lyric") {
       // 実寸座標系なので fontScale=1（本番と同一の散らばり・サイズ）
       FX.lyricSpawn($("stageBox"), STAGE_LINES[stageN++ % STAGE_LINES.length],
@@ -868,10 +1342,12 @@
   function stageClear() {
     $("stageScroll").innerHTML = "";
     FX.lyricClear($("stageBox"));
+    FX.bubbleClear($("stageBox"));
     stageN = 0;
   }
 
   function addBoxFrom(source, name) {
+    setStyleDirty(true);
     if (!source) return;
     const b = JSON.parse(JSON.stringify(source));
     b.id = uniqueId("box-", boxes);
@@ -899,6 +1375,7 @@
     const original = defaultBoxes.find(b => b.id === boxes[curBox].id);
     if (!original || !confirm(T("sy.confirm_reset","「{name}」を初期状態に戻しますか？").replace("{name}", boxes[curBox].name))) return;
     boxes[curBox] = JSON.parse(JSON.stringify(original));
+    setStyleDirty(true);
     renderBoxList(); loadBoxForm(); beginBoxEdit();
     $("boxActionDesc").textContent = "初期状態に戻しました。下の「保存」で確定します";
   }
@@ -927,6 +1404,7 @@
     if (boxes.length <= 1) { alert(T("sy.cant_delete_last","最後の1つは削除できません")); return; }
     if (!confirm(T("sy.confirm_delete","「{name}」を削除しますか？").replace("{name}", boxes[curBox].name))) return;
     boxes.splice(curBox, 1);
+    setStyleDirty(true);
     curBox = Math.max(0, curBox - 1);
     closeBoxEdit(); renderBoxList(); loadBoxForm();
   }
@@ -977,15 +1455,40 @@
       b_clearSec: ["o_bclear", v => v + "秒"],
       b_lyricScale: ["o_bscale", v => "×" + v],
       b_lifeSec: ["o_blife", v => v + "秒"], b_lyricMaxScenes: ["o_bmc", v => v + "文"],
+      b_tailX: ["o_btx", v => v + "%"], b_tailY: ["o_bty", v => v + "%"],
+      b_guestTailX: ["o_bgtx", v => v + "%"], b_guestTailY: ["o_bgty", v => v + "%"],
+      b_tailLen: ["o_btl", v => v + "px"], b_bubbleScale: ["o_bbs", v => "×" + v],
+      b_bubbleMinScale: ["o_bbm", v => "×" + v], b_bubbleFillOpacity: ["o_bfo", v => v],
+      b_bubbleStrokeWidth: ["o_bsw", v => v + "px"],
+      b_bubbleSpotW: ["o_bspw", v => v + "%"], b_bubbleSpotH: ["o_bsph", v => v + "%"],
+      b_bubbleHistory: ["o_bhist", v => T("sy.bub_history_n", "{n}個").replace("{n}", v)],
+      b_bubbleLife: ["o_bbl", v => +v ? v + "秒" : T("sy.bub_life_keep", "次の発話まで")],
     };
     for (const el of document.querySelectorAll("#bform input, #bform select")) {
       el.addEventListener("input", () => {
         if (bouts[el.id]) $(bouts[el.id][0]).textContent = bouts[el.id][1](el.value);
-        collectBox();
+        collectBox(); setStyleDirty(true);
         $("editBoxName").textContent = boxes[curBox].name;
         renderBoxList();
         if (el.id === "b_mode") { updateModeRows(); stageClear(); stageAdd(); }
-        else if (el.id === "b_autoClear") updateModeRows();
+        else if (el.id === "b_autoClear" || el.id === "b_tailOn" || el.id === "b_bubbleInkOn") updateModeRows();
+        else if (el.id === "b_bubbleDir") syncBubbleAlignLabels();
+        else if (el.id === "b_bubbleArrange") {
+          // 初めて散らすときは、画面の上側に4か所の初期ポイントを置く（アバターから遠い順に
+          // 左右へ散らす。あとでドラッグで動かす前提の、重なりにくい出発点）
+          const bx = boxes[curBox];
+          if (el.value === "scatter" && !(bx.bubbleSpots || []).length) {
+            const left = (bx.tailX ?? 85) > 50;   // アバターが右なら左寄りに、左なら右寄りに
+            bx.bubbleSpots = [[20, 16], [54, 13], [24, 44], [58, 41]]
+              .map(([x, y]) => ({ x: left ? x : 100 - x, y }));
+            // 1つだけだと散らす意味が無いので、表示する数もポイントの数に合わせる
+            if (+$("b_bubbleHistory").value <= 1) {
+              setR("b_bubbleHistory", "o_bhist", bx.bubbleSpots.length, v => T("sy.bub_history_n", "{n}個").replace("{n}", v));
+              collectBox();
+            }
+          }
+          updateModeRows(); syncStageSpots(); stageClear(); stageAdd(); stageAdd();
+        }
         clearTimeout(bt);
         bt = setTimeout(stageApply, 120);
       });
@@ -993,6 +1496,7 @@
   }
 
   function onEdit() {
+    setStyleDirty(true);
     collect();
     $("editName").textContent = presets[cur].name;
     renderList();
@@ -1015,7 +1519,18 @@
       postJson("/api/presets", { presets }),
       postJson("/api/boxes", { boxes })
     ]);
+    setStyleDirty(false);
   }
+
+  // 未保存の編集（デザイン・レイアウト）。スタジオ（親窓）が閉じる前に確かめる窓口
+  let styleDirty = false;   // 変えるときは setStyleDirty を通す
+  function setStyleDirty(v) {
+    styleDirty = !!v;
+    $("unsavedMark").hidden = !styleDirty;
+    $("saveOnlyBtn").classList.toggle("need-save", styleDirty);
+  }
+  window.mojiIsDirty = () => styleDirty;
+  window.mojiSave = async () => { try { await persistAll(); return true; } catch (e) { return false; } };
 
   function savedMessage(text, error=false) {
     const s = $("saved");
@@ -1063,8 +1578,8 @@
     const bar = $("expBar");
     bar.hidden = !bar.hidden;
     if (!bar.hidden) {
-      $("expCurPreset").textContent = T("sy.exp_cur_style","表示中のスタイル「{name}」").replace("{name}", presets[cur].name);
-      $("expCurBox").textContent = T("sy.exp_cur_box","表示中のボックス「{name}」").replace("{name}", boxes[curBox].name);
+      $("expCurPreset").textContent = T("sy.exp_cur_style","表示中のデザイン「{name}」").replace("{name}", presets[cur].name);
+      $("expCurBox").textContent = T("sy.exp_cur_box","表示中のレイアウト「{name}」").replace("{name}", boxes[curBox].name);
       const usedPreset = presets.find(p => p.id === activePresetId) || presets[cur];
       const usedBox = boxes.find(b => b.id === activeBoxId) || boxes[curBox];
       $("expActivePair").textContent = T("sy.exp_active_pair","使用中の組み合わせ「{p} ＋ {b}」").replace("{p}", usedPreset.name).replace("{b}", usedBox.name);
@@ -1109,7 +1624,7 @@
       [fetch("/api/presets"), fetch("/api/boxes")].map(p => p.then(x => x.json())));
     presets = pj.presets || []; boxes = bj.boxes || [];
     renderList(); loadForm(); renderBoxList(); loadBoxForm();
-    ioMsg(`インポートしました（スタイル ${r.presets} 件 / ボックス ${r.boxes} 件）`, true);
+    ioMsg(T("sy.imported","インポートしました（デザイン {p} 件 / レイアウト {b} 件）").replace("{p}", r.presets).replace("{b}", r.boxes), true);
   }
 
   // API応答を待つ前に入口どおりのタブを表示する。取得が遅い／失敗した場合も、

@@ -47,8 +47,11 @@ DEFAULT_CONFIG = {
     "asr_lang": "auto",     # sensevoice時の認識言語（auto/ja/zh/en/ko/yue）
     "setup_suggested": False,  # 初回の「おすすめ設定」提案を表示済みか
     "use_hotwords": True, "hotwords_score": 2.0, "translate": False,
-    "translate_lang": "en",  # 翻訳先（en/zh/zh_tw/zh_hk/id/ja/ko）。複数時は先頭＝主言語
+    "translate_lang": "en",  # 翻訳先（en/zh/zh_tw/zh_hk/id/pt/es/ja/ko）。複数時は先頭＝主言語
     "translate_langs": [],   # 複数の翻訳先（表示順・最大3）。空なら translate_lang の1言語
+    # 非保証の追加翻訳先（M2M-100 の言語コード。例 ["th", "vi"]）。画面には無い裏口で、
+    # ここに書くと設定画面の翻訳先に「（非保証）」付きで並ぶ。品質は測っていない
+    "translate_extra_langs": [],
     "save_log": True, "mask_char": "○", "num_arabic": True,
     "word_fx": True,        # 単語エフェクトの表示（OFFでも認識誘導・置換は有効）
     "preset": "standard", "box": "none", "port": 8765,
@@ -58,6 +61,19 @@ DEFAULT_CONFIG = {
     # GUI窓の拡大率。"auto"=起動モニタから自動判定 / 0.75〜1.5=利用者の明示指定。
     # overlayは対象外（OBSに映る字幕の大きさは変わらない）
     "ui_scale": "auto",
+    # GUI窓の版（"new"=新UI / "legacy"=旧UI）。旧UIは ui/legacy/ のスナップショットを
+    # 同じURLで配る（コックピット上部の切替ボタンでいつでも行き来できる）。overlayは対象外
+    "ui_variant": "new",
+    # コックピットの字幕モニタの表示方法（"preview"=配信プレビュー / "log"=簡易ログ）。
+    # GUI窓はプライベートモードで localStorage が起動ごとに消えるため、記憶は config に持つ
+    "monitor_mode": "preview",
+    "guide_dismissed": False,   # 「はじめの3ステップ」を閉じた（または字幕が出た）か
+    "update_dismissed": "",     # 更新のお知らせを閉じたバージョン（同じ版は再表示しない）
+    # 字幕スタジオで最後に編集していた単語セット（None=未記録→配信で使うセットで開く）。
+    # 配信で使うセット（word_profile）とは別。消えたセット名なら画面側で使用中に戻す
+    "studio_edit_profile": None,
+    # コックピット「字幕に追加する」から外した機能（word_fx/translate/sound_fx/voice/vrchat/collab）
+    "cockpit_hidden_features": [],
     # 窓ごとの大きさ・位置（閉じた時点の値を次回起動で復元）。
     # {"cockpit": {"x","y","w","h","scale"}, ...}。書き換えは save_window_geometry 経由
     "window_geometry": {},
@@ -246,6 +262,22 @@ def save_window_geometry(key, geom):
         save_config(cfg)
 
 
+def _notify_words_saved(profile):
+    """認識辞書・伏せ字・固定訳の保存を知らせる。これらは認識エンジンの開始時に読むので、
+    動作中ならコックピットが「再起動で反映」を出す（ワード演出は表示側で即反映のため対象外）"""
+    broadcast({"type": "words_saved", "profile": profile})
+
+
+def _ui_file(name):
+    """GUIファイルの実体パス。旧UIを選んでいて ui/legacy/ に同名があればそちらを返す
+    （無いもの＝共有の fx.js / theme-sync.js などは新旧共通の ui/ から配る）"""
+    if load_config().get("ui_variant") == "legacy":
+        legacy = os.path.join(BASE, "ui", "legacy", name)
+        if os.path.isfile(legacy):
+            return legacy
+    return os.path.join(BASE, "ui", name)
+
+
 def resolve_ui_scale(cfg=None):
     """実際にGUI窓へ適用する拡大率。明示指定があればそれを、なければ自動判定を返す。"""
     if cfg is None:
@@ -333,7 +365,7 @@ def _vc_commands_path():
 _VC_ACTION_TYPES = ("scene", "box", "preset", "random",
                     "translate_lang", "translate_on", "translate_off", "clear")
 _VC_RANDOM_TARGETS = ("scene", "box", "preset")
-_VC_TRANS_LANGS = ("en", "zh", "zh_tw", "zh_hk", "id", "ja", "ko")
+_VC_TRANS_LANGS = ("en", "zh", "zh_tw", "zh_hk", "id", "pt", "es", "ja", "ko")
 
 
 def _valid_vc_command(c):
@@ -875,7 +907,7 @@ def _try_voice_command(text, spk=""):
                         langs = [cmd["lang"]] + [x for x in langs if x != cmd["lang"]]
                         from engine import translate_targets
                         cfg["translate_langs"] = translate_targets(
-                            {"translate_langs": langs})
+                            {**cfg, "translate_langs": langs})
                     msg = f"翻訳を{cmd['label']}に切り替えました"
                 else:
                     msg = "翻訳をオンにしました"
@@ -1122,7 +1154,7 @@ class Handler(BaseHTTPRequestHandler):
             if os.path.splitext(name)[1] not in self._MIME:
                 self._send_body(404, b"not found", "text/plain")
                 return
-            self._file(os.path.join(BASE, "ui", name))
+            self._file(_ui_file(name))
         elif path.startswith("/soundfx/"):
             # 音イベント演出のユーザー画像（overlay が <img> で読む）。
             # 日本語ファイル名は encodeURIComponent で届くため復号してから検証する
@@ -1292,6 +1324,18 @@ class Handler(BaseHTTPRequestHandler):
                 body["ui_lang"] = "ja"    # 未知値は日本語へ（既定）
             if "ui_scale" in body:
                 body["ui_scale"] = normalize_ui_scale(body.get("ui_scale"))
+            if "ui_variant" in body and body.get("ui_variant") not in ("new", "legacy"):
+                body["ui_variant"] = "new"
+            if "monitor_mode" in body and body.get("monitor_mode") not in ("preview", "log"):
+                body["monitor_mode"] = "preview"
+            if "update_dismissed" in body and not isinstance(body.get("update_dismissed"), str):
+                body["update_dismissed"] = ""
+            if "studio_edit_profile" in body and not isinstance(body.get("studio_edit_profile"), str):
+                body["studio_edit_profile"] = None
+            if "cockpit_hidden_features" in body:
+                v = body.get("cockpit_hidden_features")
+                body["cockpit_hidden_features"] = sorted(
+                    {x for x in v if isinstance(x, str) and len(x) <= 32} if isinstance(v, list) else set())
             if "window_geometry" in body:
                 body["window_geometry"] = normalize_window_geometry(
                     body.get("window_geometry"))
@@ -1316,14 +1360,22 @@ class Handler(BaseHTTPRequestHandler):
                 # 従来の単一キー translate_lang にも写す（旧UI・音声コマンド互換）
                 from engine import translate_targets
                 raw = body.get("translate_langs")
+                extras = body.get("translate_extra_langs",
+                                  load_config().get("translate_extra_langs"))
                 body["translate_langs"] = (
-                    translate_targets({"translate_langs": raw})
+                    translate_targets({"translate_langs": raw,
+                                       "translate_extra_langs": extras})
                     if isinstance(raw, list) and raw else [])
                 if body["translate_langs"]:
                     body["translate_lang"] = body["translate_langs"][0]
             elif "translate_lang" in body:
                 # 旧UI（単一選択）からの保存は1言語に戻す
                 body["translate_langs"] = []
+            if "translate_extra_langs" in body:
+                # 中身の検証は engine.extra_translate_langs が読むたびに行う。ここでは形だけ
+                raw = body.get("translate_extra_langs")
+                body["translate_extra_langs"] = (
+                    [str(x)[:8] for x in raw[:20]] if isinstance(raw, list) else [])
             if "vrchat_source" in body and body["vrchat_source"] not in ("ja", "tr"):
                 body["vrchat_source"] = "ja"
             if "vrchat_port" in body:
@@ -1353,6 +1405,9 @@ class Handler(BaseHTTPRequestHandler):
                 broadcast({"type": "theme", "theme": cfg.get("theme", "light")})
             if "ui_lang" in body:
                 broadcast({"type": "ui_lang", "ui_lang": cfg.get("ui_lang", "ja")})
+            if "ui_variant" in body:
+                # 開いているGUI窓はこの合図で読み直し、選んだ版の画面に切り替わる
+                broadcast({"type": "ui_variant", "ui_variant": cfg.get("ui_variant", "new")})
             if body.get("final_only"):
                 # 「確定した字幕だけ表示」に切り替えた瞬間、表示中の薄文字を消す
                 # （次の発話が確定するまで残ってしまうのを防ぐ）
@@ -1378,6 +1433,7 @@ class Handler(BaseHTTPRequestHandler):
             if p is None:
                 return
             wordstore.save_hotwords(body.get("entries", []), p)
+            _notify_words_saved(p)
             ev = {"type": "style"}
             ev.update(resolve_style(load_config()))
             broadcast(ev)
@@ -1387,6 +1443,7 @@ class Handler(BaseHTTPRequestHandler):
             if p is None:
                 return
             wordstore.save_banned(body.get("words", []), p)
+            _notify_words_saved(p)
             if "mask_char" in body:      # 伏せ字文字は全体設定（プロファイル外）
                 with _config_lock:
                     cfg = load_config()
@@ -1398,6 +1455,7 @@ class Handler(BaseHTTPRequestHandler):
             if p is None:
                 return
             wordstore.save_glossary(body.get("entries", []), p)
+            _notify_words_saved(p)
             self._json({"ok": True})
         elif path == "/api/effects":
             p = self._profile_arg(body.get("profile"))
@@ -1616,6 +1674,7 @@ class Handler(BaseHTTPRequestHandler):
         wordstore.save_hotwords(new_hot, p)
         if counts["glossary"]:
             wordstore.save_glossary(new_gl, p)
+        _notify_words_saved(p)
         ev = {"type": "style"}
         ev.update(resolve_style(load_config()))
         broadcast(ev)
@@ -1706,6 +1765,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         new_gl, counts = wordimport.apply_import_glossary(uniq, gloss, mode)
         wordstore.save_glossary(new_gl, p)
+        _notify_words_saved(p)
         ev = {"type": "style"}
         ev.update(resolve_style(load_config()))
         broadcast(ev)

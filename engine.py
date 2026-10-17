@@ -89,12 +89,32 @@ def _translate_signature(plan, aux_precision):
     return plan + ((aux_precision,) if plan[0] == "fugumt" else ())
 
 
-TRANSLATE_LANGS = ("en", "zh", "zh_tw", "zh_hk", "id", "ja", "ko")
+TRANSLATE_LANGS = ("en", "zh", "zh_tw", "zh_hk", "id", "pt", "es", "ja", "ko")
 MAX_TRANSLATE_TARGETS = 3   # 同時に出す翻訳先の上限（画面の段数とCPU負荷の兼ね合い）
 
 _TRANS_LABEL = {"en": "英訳", "zh": "中国語（簡体字）訳",
                 "zh_tw": "中国語（台湾繁体字）訳", "zh_hk": "中国語（香港繁体字）訳",
-                "ja": "日本語訳", "ko": "韓国語訳", "id": "インドネシア語訳"}
+                "ja": "日本語訳", "ko": "韓国語訳", "id": "インドネシア語訳",
+                "pt": "ポルトガル語訳", "es": "スペイン語訳"}
+
+
+def extra_translate_langs(cfg):
+    """非保証の追加翻訳先（config.json の translate_extra_langs）。
+
+    画面には出さない裏口。M2M-100 が持つ言語コードなら何でも翻訳先にできるが、
+    品質は測っていない（例: タイ語は月を取り違える・実測 2026-10-17）。
+    M2M-100 に無いコード・正式対応済みの言語・重複は捨てる。
+    """
+    raw = cfg.get("translate_extra_langs")
+    if not isinstance(raw, list) or not raw:
+        return []
+    from translate import M2M_LANG_CODES
+    out = []
+    for lang in raw:
+        if (isinstance(lang, str) and lang in M2M_LANG_CODES
+                and lang not in TRANSLATE_LANGS and lang not in out):
+            out.append(lang)
+    return out
 
 
 def translate_targets(cfg):
@@ -102,14 +122,15 @@ def translate_targets(cfg):
 
     複数指定の translate_langs を優先し、無ければ従来の単一 translate_lang を使う
     （v0.9.x までの設定はそのまま1言語として動く）。未知の値・重複は捨て、
-    上限 MAX_TRANSLATE_TARGETS 個まで。
+    上限 MAX_TRANSLATE_TARGETS 個まで。translate_extra_langs に書いた言語も通す。
     """
     langs = cfg.get("translate_langs")
     if not isinstance(langs, list) or not langs:
         langs = [cfg.get("translate_lang", "en")]
+    allowed = TRANSLATE_LANGS + tuple(extra_translate_langs(cfg))
     out = []
     for lang in langs:
-        if lang in TRANSLATE_LANGS and lang not in out:
+        if lang in allowed and lang not in out:
             out.append(lang)
     return out[:MAX_TRANSLATE_TARGETS] or ["en"]
 
