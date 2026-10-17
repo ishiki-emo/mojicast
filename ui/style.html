@@ -186,6 +186,16 @@
     font-size: 10px; font-weight: 800; color: #061117; background: var(--accent); white-space: nowrap;
     pointer-events: none; opacity: 0; transition: opacity .12s; }
   #stageHandle.dragging .geo, #stageHandle:hover .geo { opacity: 1; }
+  /* 吹き出し: アバター位置の印（尻尾が向く先）。編集中はドラッグで動かせる */
+  #stageAvatar { position: absolute; z-index: 4; display: none; width: 26px; height: 26px;
+    margin: -13px 0 0 -13px; border-radius: 50%; border: 2px solid #fff; touch-action: none;
+    background: var(--accent2, #ff2d95); box-shadow: 0 0 0 3px rgba(0,0,0,.35); }
+  #stageAvatar::after { content: attr(data-label); position: absolute; left: 50%; top: 30px;
+    transform: translateX(-50%); padding: 1px 6px; border-radius: 4px; white-space: nowrap;
+    font-size: 10px; font-weight: 800; color: #fff; background: rgba(0,0,0,.6); }
+  #stage.bubble-mode #stageAvatar { display: block; }
+  .page.editing #stage.bubble-mode #stageAvatar { cursor: grab; }
+  #frameFields { display: contents; }
   footer { display: flex; gap: 10px; align-items: center; padding: 10px 14px; background: var(--panel); border-top: 1px solid var(--line); }
   /* 保存ボタン式の画面: 未保存のあいだだけ目印を出し、保存ボタンを強める
      （配信に映る見た目・単語は、いじっている途中で本番へ出ないよう保存ボタン式のまま） */
@@ -337,6 +347,7 @@
             <option value="flow" data-i18n="sy.mode_flow">通常（積み上げ・スクロール）</option>
             <option value="vertical" data-i18n="sy.mode_vertical">縦書き（右から左へ）</option>
             <option value="lyric" data-i18n="sy.mode_lyric">リリックビデオ風字幕</option>
+            <option value="bubble" data-i18n="sy.mode_bubble">吹き出し（漫画風）</option>
           </select></div>
         <div class="fr only-flow advanced-only"><label data-i18n="sy.text_align">文字揃え</label>
           <select id="b_align"><option value="left" data-i18n="sy.align_left">左揃え</option><option value="center" data-i18n="sy.align_center">中央</option><option value="right" data-i18n="sy.align_right">右揃え</option></select></div>
@@ -361,6 +372,35 @@
         <div class="fr only-lyric advanced-only"><label><span data-i18n="sy.overlap_count">重ねる字幕数</span> <output id="o_bmc"></output></label><input type="range" id="b_lyricMaxScenes" min="1" max="3" step="1"></div>
         <div class="fr chk only-lyric advanced-only"><input type="checkbox" id="b_lyricPartial"><span data-i18n="sy.show_partial">認識途中も表示する</span></div>
 
+        <div class="fsec only-bubble"><span data-i18n="sy.bsec_bubble">💬 吹き出し</span> <small data-i18n="sy.bsec_bubble_d">位置と大きさは、吹き出しが広がってよい範囲です</small></div>
+        <div class="fr only-bubble"><label data-i18n="sy.bub_shape">形</label>
+          <select id="b_bubbleShape">
+            <option value="round" data-i18n="sy.bub_round">角丸（標準）</option>
+            <option value="ellipse" data-i18n="sy.bub_ellipse">楕円</option>
+            <option value="burst" data-i18n="sy.bub_burst">ギザギザ（叫び）</option>
+            <option value="cloud" data-i18n="sy.bub_cloud">もくもく（考え中）</option>
+          </select></div>
+        <div class="fr only-bubble"><label data-i18n="sy.bub_dir">書き方向</label>
+          <select id="b_bubbleDir">
+            <option value="h" data-i18n="sy.bub_dir_h">横書き</option>
+            <option value="v" data-i18n="sy.bub_dir_v">縦書き</option>
+          </select></div>
+        <div class="fr only-bubble"><label><span data-i18n="sy.bub_tail_x">アバター位置 X</span> <output id="o_btx"></output></label><input type="range" id="b_tailX" min="0" max="100" step="1"></div>
+        <div class="fr only-bubble"><label><span data-i18n="sy.bub_tail_y">アバター位置 Y</span> <output id="o_bty"></output></label><input type="range" id="b_tailY" min="0" max="100" step="1"></div>
+        <div class="fr chk only-bubble"><input type="checkbox" id="b_tailOn"><span data-i18n="sy.bub_tail_on">尻尾をアバターへ向ける</span></div>
+        <div class="fr only-bubble" id="r_tailLen"><label><span data-i18n="sy.bub_tail_len">尻尾の長さ</span> <output id="o_btl"></output></label><input type="range" id="b_tailLen" min="20" max="300" step="10"></div>
+        <div class="fr only-bubble"><label><span data-i18n="sy.bub_scale">文字の大きさ</span> <output id="o_bbs"></output><span data-i18n="sy.bub_scale_d">（デザイン比・最大）</span></label><input type="range" id="b_bubbleScale" min="0.5" max="2" step="0.05"></div>
+        <div class="fr only-bubble advanced-only"><label><span data-i18n="sy.bub_min">縮めてよい下限</span> <output id="o_bbm"></output><span data-i18n="sy.bub_min_d">（長い文で）</span></label><input type="range" id="b_bubbleMinScale" min="0.3" max="1" step="0.05"></div>
+        <div class="fr only-bubble advanced-only"><label data-i18n="sy.bub_fill">塗りの色</label><input type="color" id="b_bubbleFill"></div>
+        <div class="fr only-bubble advanced-only"><label><span data-i18n="sy.bub_fill_op">塗りの濃さ</span> <output id="o_bfo"></output></label><input type="range" id="b_bubbleFillOpacity" min="0" max="1" step="0.05"></div>
+        <div class="fr only-bubble advanced-only"><label data-i18n="sy.bub_stroke">線の色</label><input type="color" id="b_bubbleStroke"></div>
+        <div class="fr only-bubble advanced-only"><label><span data-i18n="sy.bub_stroke_w">線の太さ</span> <output id="o_bsw"></output><span data-i18n="sy.zero_none">（0でなし）</span></label><input type="range" id="b_bubbleStrokeWidth" min="0" max="12" step="1"></div>
+        <div class="fr chk only-bubble advanced-only"><input type="checkbox" id="b_bubbleInkOn"><span data-i18n="sy.bub_ink_on">吹き出し用の文字色にする（デザインの色・縁取りを使わない）</span></div>
+        <div class="fr only-bubble advanced-only" id="r_bubbleInk"><label data-i18n="sy.bub_ink">文字色</label><input type="color" id="b_bubbleInk"></div>
+        <div class="fr chk only-bubble advanced-only"><input type="checkbox" id="b_bubblePartial"><span data-i18n="sy.show_partial">認識途中も表示する</span></div>
+        <div class="fr only-bubble advanced-only"><label><span data-i18n="sy.bub_life">消えるまでの時間</span> <output id="o_bbl"></output><span data-i18n="sy.bub_life_d">（0で次の発話まで）</span></label><input type="range" id="b_bubbleLife" min="0" max="30" step="1"></div>
+
+        <div id="frameFields">
         <div class="fsec advanced-only" data-i18n="sy.bsec_frame">🖼 枠の見た目</div>
         <div class="fr advanced-only"><label data-i18n="sy.bg_color">背景色</label><input type="color" id="b_bg"></div>
         <div class="fr advanced-only"><label><span data-i18n="sy.bg_opacity">背景の濃さ</span> <output id="o_bop"></output><span data-i18n="sy.zero_transparent">（0で透明）</span></label><input type="range" id="b_bgOpacity" min="0" max="1" step="0.05"></div>
@@ -368,11 +408,13 @@
         <div class="fr advanced-only"><label><span data-i18n="sy.border_width">枠線太さ</span> <output id="o_bbw"></output><span data-i18n="sy.zero_none">（0でなし）</span></label><input type="range" id="b_borderWidth" min="0" max="6" step="1"></div>
         <div class="fr advanced-only"><label><span data-i18n="sy.radius">角丸</span> <output id="o_brad"></output></label><input type="range" id="b_radius" min="0" max="40" step="2"></div>
         <div class="fr advanced-only"><label><span data-i18n="sy.padding">内側余白</span> <output id="o_bpad"></output></label><input type="range" id="b_padding" min="0" max="48" step="2"></div>
+        </div>
         <button class="btn adv-toggle adv-more" onclick="toggleBoxAdvanced()"></button>
       </div>
       <div id="stageWrap">
         <div id="stage">
           <div class="ptag"><span data-i18n="sy.layout_preview">レイアウトプレビュー（1920×1080の縮小）</span><span id="stageStyleName" style="margin-left:10px;color:rgba(255,255,255,.55)"></span></div>
+          <div id="stageAvatar" data-label="アバター" title="尻尾が向く先（ドラッグで移動）" data-i18n-title="sy.avatar_t"></div>
           <div id="stageHandle" title="ドラッグで移動・右下の角で大きさを変更" data-i18n-title="sy.handle_t"><span class="geo" id="stageGeo"></span><span class="grip"></span></div>
           <div id="stageInner">
             <div id="stageBox"><div id="stageClip"><div id="stageScroll"></div></div></div>
@@ -566,8 +608,13 @@
   // 詳細項目の開閉ボタン。閉じているときは隠れている項目の数も添える
   function syncAdvLabel(editorId, btnId) {
     const editor = $(editorId), open = editor.classList.contains("advanced-open");
+    const shown = el => {   // 表示のしかたで隠している行（包み枠ごとの場合も）は数えない
+      for (let e = el; e && e !== editor; e = e.parentElement)
+        if (e.hidden || e.style.display === "none") return false;
+      return true;
+    };
     const n = [...editor.querySelectorAll(".fr.advanced-only")]
-      .filter(el => !el.hidden && el.style.display !== "none" && el.querySelector("input,select")).length;
+      .filter(el => shown(el) && el.querySelector("input,select")).length;
     const label = open ? "▴ " + T("sy.basic_only","基本項目だけに戻す")
       : "▾ " + T("sy.adjust_more","もっと細かく調整") + T("sy.adv_count","（+{n}項目）").replace("{n}", n);
     $(btnId).textContent = label;
@@ -802,13 +849,23 @@
   }
 
   function updateModeRows() {
-    const lyric = $("b_mode").value === "lyric";
+    const mode = $("b_mode").value;
+    const lyric = mode === "lyric", bubble = mode === "bubble";
     for (const el of document.querySelectorAll(".only-flow"))
-      el.style.display = lyric ? "none" : "";
+      el.style.display = lyric || bubble ? "none" : "";
     for (const el of document.querySelectorAll(".only-lyric"))
       el.style.display = lyric ? "" : "none";
+    for (const el of document.querySelectorAll(".only-bubble"))
+      el.style.display = bubble ? "" : "none";
+    // 吹き出しは自分で枠を描くので、レイアウトの背景・枠線は使わない
+    $("frameFields").style.display = bubble ? "none" : "contents";
+    $("stage").classList.toggle("bubble-mode", bubble);
+    if (bubble) {
+      if (!$("b_tailOn").checked) $("r_tailLen").style.display = "none";
+      if (!$("b_bubbleInkOn").checked) $("r_bubbleInk").style.display = "none";
+    }
     // 自動消去の秒数はチェックONのときだけ出す
-    if (!lyric && !$("b_autoClear").checked)
+    if (!lyric && !bubble && !$("b_autoClear").checked)
       $("r_clearSec").style.display = "none";
     syncAdvLabel("boxEditor", "boxAdvancedBtn");   // 表示のしかたで隠れる項目数が変わる
   }
@@ -840,6 +897,22 @@
     setR("b_lifeSec", "o_blife", b.lifeSec ?? 6, v => v + "秒");
     setR("b_lyricMaxScenes", "o_bmc", b.lyricMaxScenes ?? 2, v => v + "文");
     $("b_lyricPartial").checked = !!b.lyricPartial;
+    $("b_bubbleShape").value = b.bubbleShape || "round";
+    $("b_bubbleDir").value = b.bubbleDir === "v" ? "v" : "h";
+    setR("b_tailX", "o_btx", b.tailX ?? 85, v => v + "%");
+    setR("b_tailY", "o_bty", b.tailY ?? 85, v => v + "%");
+    $("b_tailOn").checked = b.tailOn !== false;
+    setR("b_tailLen", "o_btl", b.tailLen ?? 140, v => v + "px");
+    setR("b_bubbleScale", "o_bbs", b.bubbleScale ?? 1, v => "×" + v);
+    setR("b_bubbleMinScale", "o_bbm", b.bubbleMinScale ?? 0.5, v => "×" + v);
+    $("b_bubbleFill").value = b.bubbleFill || "#ffffff";
+    setR("b_bubbleFillOpacity", "o_bfo", b.bubbleFillOpacity ?? 0.95, v => v);
+    $("b_bubbleStroke").value = b.bubbleStroke || "#1a1a1a";
+    setR("b_bubbleStrokeWidth", "o_bsw", b.bubbleStrokeWidth ?? 4, v => v + "px");
+    $("b_bubbleInkOn").checked = b.bubbleInkOn !== false;
+    $("b_bubbleInk").value = b.bubbleInk || "#1a1a1a";
+    $("b_bubblePartial").checked = b.bubblePartial !== false;
+    setR("b_bubbleLife", "o_bbl", b.bubbleLife ?? 0, v => +v ? v + "秒" : T("sy.bub_life_keep", "次の発話まで"));
     updateModeRows();
     stageApply(); stageClear(); stageAdd(); stageAdd();
     $("customizeBoxBtn").textContent = T("sy.customize","カスタマイズ");
@@ -899,6 +972,21 @@
     b.lifeSec = +$("b_lifeSec").value;
     b.lyricMaxScenes = +$("b_lyricMaxScenes").value;
     b.lyricPartial = $("b_lyricPartial").checked;
+    b.bubbleShape = $("b_bubbleShape").value;
+    b.bubbleDir = $("b_bubbleDir").value;
+    b.tailX = +$("b_tailX").value; b.tailY = +$("b_tailY").value;
+    b.tailOn = $("b_tailOn").checked;
+    b.tailLen = +$("b_tailLen").value;
+    b.bubbleScale = +$("b_bubbleScale").value;
+    b.bubbleMinScale = +$("b_bubbleMinScale").value;
+    b.bubbleFill = $("b_bubbleFill").value;
+    b.bubbleFillOpacity = +$("b_bubbleFillOpacity").value;
+    b.bubbleStroke = $("b_bubbleStroke").value;
+    b.bubbleStrokeWidth = +$("b_bubbleStrokeWidth").value;
+    b.bubbleInkOn = $("b_bubbleInkOn").checked;
+    b.bubbleInk = $("b_bubbleInk").value;
+    b.bubblePartial = $("b_bubblePartial").checked;
+    b.bubbleLife = +$("b_bubbleLife").value;
     return b;
   }
 
@@ -919,6 +1007,50 @@
   }
   new ResizeObserver(updateStageScale).observe(document.getElementById("stage"));
 
+  // 吹き出しのプレビュー用の文（短い→長いの順。最後は枠いっぱいで文字が縮む長さ）
+  const BUBBLE_LINES = [
+    "こんばんは！",
+    "今日もゆるっと配信していきます。",
+    "コメントもどんどん読んでいきますね、いつもありがとう！",
+    "えっ、ちょっと待って、いま何が起きたの！？　見間違いじゃないよね、すごすぎない？　もう一回やってみるから見てて！",
+  ];
+
+  // ---- アバター位置（吹き出しの尻尾が向く先）のドラッグ ----
+  function syncStageAvatar() {
+    const b = boxes[curBox];
+    if (!b) return;
+    const el = $("stageAvatar");
+    el.style.left = (b.tailX ?? 85) + "%";
+    el.style.top = (b.tailY ?? 85) + "%";
+    el.dataset.label = T("sy.avatar", "アバター");
+  }
+  (function bindStageAvatar() {
+    const el = $("stageAvatar");
+    el.addEventListener("pointerdown", e => {
+      if (!boxEditing) return;
+      e.preventDefault();
+      el.setPointerCapture(e.pointerId);
+      const stage = $("stage").getBoundingClientRect();
+      const move = ev => {
+        const x = Math.round(clampGeo01((ev.clientX - stage.left) / stage.width) * 100);
+        const y = Math.round(clampGeo01((ev.clientY - stage.top) / stage.height) * 100);
+        $("b_tailX").value = x; $("o_btx").textContent = x + "%";
+        $("b_tailY").value = y; $("o_bty").textContent = y + "%";
+        collectBox(); setStyleDirty(true);
+        stageApply();
+      };
+      const up = () => {
+        el.removeEventListener("pointermove", move);
+        el.removeEventListener("pointerup", up);
+        el.removeEventListener("pointercancel", up);
+      };
+      el.addEventListener("pointermove", move);
+      el.addEventListener("pointerup", up);
+      el.addEventListener("pointercancel", up);
+    });
+  })();
+  const clampGeo01 = v => Math.min(1, Math.max(0, v));
+
   // ---- プレビュー上の直接操作（枠のドラッグで移動・右下の角で大きさ） ----
   // 位置・大きさは画面に対する％（スライダーと同じ単位・同じ範囲）。取っ手はステージ
   // （縮小表示）の上に％で重ねるので、縮小率に関係なくそのまま対応する
@@ -931,6 +1063,7 @@
     const el = $("stageHandle");
     el.style.left = g.x + "%"; el.style.top = g.y + "%";
     el.style.width = Math.min(g.w, 100 - g.x) + "%"; el.style.height = Math.min(g.h, 100 - g.y) + "%";
+    syncStageAvatar();
     $("stageGeo").textContent = `X ${g.x}%  Y ${g.y}%  ${T("sy.width","幅")} ${g.w}%  ${T("sy.height","高さ")} ${g.h}%`;
   }
   // ドラッグ結果をスライダーへ書き戻し、スライダーで動かしたときと同じ経路で反映する
@@ -987,6 +1120,7 @@
     FX.applyBox($("stageBox"), $("stageScroll"), b, $("stageClip"));
     updateStageScale();
     syncStageHandle();
+    if (b.mode === "bubble") FX.bubbleRelayout($("stageBox"), b, stageStyle());
   }
 
   // ステージ用フォールバック（使用中プリセットが見つからない場合のみ）
@@ -1006,6 +1140,12 @@
     const p = stageStyle();
     const table = FX.buildTable(hotwords, effects, p);
     $("stageStyleName").textContent = p.name ? T("sy.stage_design","デザイン: ") + p.name : "";
+    if (b.mode === "bubble") {
+      // 長さの違う文を順に出し、吹き出しの伸び縮みと文字の縮み方を確かめられるようにする
+      FX.bubbleUpdate($("stageBox"), { text: BUBBLE_LINES[stageN++ % BUBBLE_LINES.length],
+                                       partial: false, style: p, table, box: b });
+      return;
+    }
     if ((b.mode || "flow") === "lyric") {
       // 実寸座標系なので fontScale=1（本番と同一の散らばり・サイズ）
       FX.lyricSpawn($("stageBox"), STAGE_LINES[stageN++ % STAGE_LINES.length],
@@ -1028,6 +1168,7 @@
   function stageClear() {
     $("stageScroll").innerHTML = "";
     FX.lyricClear($("stageBox"));
+    FX.bubbleClear($("stageBox"));
     stageN = 0;
   }
 
@@ -1140,6 +1281,11 @@
       b_clearSec: ["o_bclear", v => v + "秒"],
       b_lyricScale: ["o_bscale", v => "×" + v],
       b_lifeSec: ["o_blife", v => v + "秒"], b_lyricMaxScenes: ["o_bmc", v => v + "文"],
+      b_tailX: ["o_btx", v => v + "%"], b_tailY: ["o_bty", v => v + "%"],
+      b_tailLen: ["o_btl", v => v + "px"], b_bubbleScale: ["o_bbs", v => "×" + v],
+      b_bubbleMinScale: ["o_bbm", v => "×" + v], b_bubbleFillOpacity: ["o_bfo", v => v],
+      b_bubbleStrokeWidth: ["o_bsw", v => v + "px"],
+      b_bubbleLife: ["o_bbl", v => +v ? v + "秒" : T("sy.bub_life_keep", "次の発話まで")],
     };
     for (const el of document.querySelectorAll("#bform input, #bform select")) {
       el.addEventListener("input", () => {
@@ -1148,7 +1294,7 @@
         $("editBoxName").textContent = boxes[curBox].name;
         renderBoxList();
         if (el.id === "b_mode") { updateModeRows(); stageClear(); stageAdd(); }
-        else if (el.id === "b_autoClear") updateModeRows();
+        else if (el.id === "b_autoClear" || el.id === "b_tailOn" || el.id === "b_bubbleInkOn") updateModeRows();
         clearTimeout(bt);
         bt = setTimeout(stageApply, 120);
       });
