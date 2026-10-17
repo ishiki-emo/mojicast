@@ -14,9 +14,10 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     background: var(--bg); color: var(--fg);
-    font-family: "Yu Gothic UI", "Meiryo", sans-serif;
+    font-family: "Yu Gothic UI", "Meiryo", "Hiragino Sans", sans-serif;
     line-height: 1.8; font-size: 15px;
   }
+  a { color: var(--acc); }
   .wrap { max-width: 880px; margin: 0 auto; padding: 32px 20px 80px; }
   header { text-align: center; padding: 28px 0 8px; }
   header h1 { font-size: 28px; letter-spacing: .04em; }
@@ -27,13 +28,14 @@
     font-size: 12px; padding: 3px 12px; border-radius: 20px;
     border: 1px solid var(--line); color: var(--dim); background: var(--panel);
   }
+  .badge.new { border-color: var(--pink); color: var(--pink); font-weight: 700; }
   nav {
     background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
     padding: 16px 22px; margin: 26px 0;
   }
   nav b { color: var(--dim); font-size: 12px; letter-spacing: .1em; }
   nav ol { margin: 8px 0 0 22px; }
-  nav a { color: var(--acc); text-decoration: none; }
+  nav a { text-decoration: none; }
   nav a:hover { text-decoration: underline; }
   section { margin-top: 46px; }
   h2 {
@@ -42,6 +44,7 @@
   }
   h2 .no { color: var(--acc); margin-right: 8px; }
   h3 { font-size: 16px; margin: 24px 0 8px; color: var(--acc); }
+  h4 { font-size: 15px; margin: 18px 0 6px; }
   p { margin: 8px 0; }
   ul, ol { margin: 8px 0 8px 24px; }
   li { margin: 4px 0; }
@@ -55,11 +58,13 @@
   }
   .card.warn { border-left: 4px solid var(--warn); }
   .card.ok { border-left: 4px solid var(--ok); }
+  .card.new { border-left: 4px solid var(--pink); }
   .card b.tag { font-size: 12px; letter-spacing: .08em; color: var(--dim); display: block; margin-bottom: 4px; }
   table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 14px; }
   th, td { border: 1px solid var(--line); padding: 8px 12px; text-align: left; vertical-align: top; }
   th { background: #eef2f8; color: var(--dim); font-weight: 600; white-space: nowrap; }
   td:first-child { white-space: nowrap; }
+  td.wrap1:first-child { white-space: normal; }
   .step { display: flex; gap: 14px; margin: 14px 0; align-items: flex-start; }
   .step .n {
     flex: 0 0 30px; height: 30px; border-radius: 50%; background: var(--acc);
@@ -73,15 +78,10 @@
     display: block; width: 100%; height: auto; margin: 14px 0 4px;
     border: 1px solid var(--line); border-radius: 10px;
   }
-  .shot.narrow { max-width: 400px; }
-  .shot.mid { max-width: 640px; }
+  .shot.mid { max-width: 640px; margin-left: auto; margin-right: auto; }
   .cap { display: block; text-align: center; color: var(--dim); font-size: 12px; margin: 2px 0 14px; }
   .shotrow { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-start; }
   .shotrow > div { flex: 1; min-width: 260px; }
-  /* CPU適性ランク */
-  .rank { font-weight: 800; white-space: nowrap; }
-  .rank.r1 { color: var(--ok); } .rank.r2 { color: var(--acc); }
-  .rank.r3 { color: var(--warn); } .rank.r4 { color: #d94141; }
 </style>
 </head>
 <body>
@@ -89,26 +89,29 @@
 
 <header>
   <h1>Moji<span class="accent">cast</span></h1>
-  <div class="sub">配信用リアルタイム字幕アプリ — マニュアル（v0.5）</div>
+  <div class="sub">配信用リアルタイム字幕アプリ — マニュアル（v1.0.0）</div>
   <div class="badges">
     <span class="badge">🔌 完全オフライン</span>
     <span class="badge">🎙 日本語音声認識</span>
     <span class="badge">🌏 多言語認識（中英日韓粤）</span>
-    <span class="badge">🌐 翻訳の併記（英中日韓ほか）</span>
+    <span class="badge">🌐 翻訳の併記（最大3言語）</span>
+    <span class="badge new">💬 吹き出し字幕</span>
     <span class="badge">🎧 1対1コラボ字幕</span>
     <span class="badge">🎬 OBS 連携</span>
+    <span class="badge">🪟 Windows ／ 🍎 Mac</span>
   </div>
 </header>
 
 <nav>
   <b>目次</b>
   <ol>
-    <li><a href="#start">はじめに・起動方法</a></li>
+    <li><a href="#start">はじめに</a></li>
     <li><a href="#env">動作環境</a></li>
     <li><a href="#cockpit">コックピット（メイン画面）</a></li>
-    <li><a href="#settings">アプリ設定（声の聞き取り・翻訳・コラボ・接続）</a></li>
+    <li><a href="#settings">アプリ設定</a></li>
     <li><a href="#obs">OBS に字幕を出す</a></li>
-    <li><a href="#studio">スタジオ（字幕の見た目と言葉）</a></li>
+    <li><a href="#studio">字幕スタジオ（見た目・単語・演出）</a></li>
+    <li><a href="#bubble">吹き出し字幕</a></li>
     <li><a href="#translate">翻訳の併記</a></li>
     <li><a href="#collab">1対1コラボ字幕</a></li>
     <li><a href="#files">フォルダとアップデート</a></li>
@@ -122,83 +125,92 @@
   <div class="overflow">
   <table>
     <tr><th>やりたいこと</th><th>見る場所</th></tr>
-    <tr><td>とにかく動かしたい</td><td><a href="#start">1章 はじめに・起動方法</a></td></tr>
+    <tr><td>とにかく動かしたい</td><td><a href="#start">1章 はじめに</a></td></tr>
     <tr><td>OBS に字幕を出したい</td><td><a href="#obs">5章 OBS に字幕を出す</a></td></tr>
-    <tr><td>字幕の見た目を手早く変えたい</td><td>「字幕の見た目」の切替 — <a href="#cockpit">3章 コックピット</a></td></tr>
-    <tr><td>自分だけの字幕デザインを作りたい</td><td>同梱の <a href="ガイド/スタイルガイド.html"><b>スタイルガイド.html</b></a></td></tr>
-    <tr><td>「ありがとう」でキラキラを飛ばしたい</td><td>同梱の <a href="ガイド/エフェクトガイド.html"><b>エフェクトガイド.html</b></a></td></tr>
-    <tr><td>名前・ゲーム名が誤認識される</td><td>認識させる単語 — <a href="#studio">6章 スタジオ</a></td></tr>
-    <tr><td>ゲームの技名などをまとめて登録したい</td><td>単語の一括登録（CSV / JSON） — <a href="#bulk">6章 スタジオ</a></td></tr>
-    <tr><td>英語・中国語などの字幕も併記したい</td><td><a href="#translate">7章 翻訳の併記</a></td></tr>
-    <tr><td><b>英語と中国語のように、2〜3言語を同時に出したい</b></td><td><a href="#multi">7章 複数の言語を同時に表示</a></td></tr>
-    <tr><td><b>言語ごとにフォントや色を変えたい</b></td><td>翻訳字幕の見た目 — <a href="#trstyle">6章 スタジオ</a></td></tr>
-    <tr><td>日本語以外の言語で配信したい</td><td>アプリ設定→声の聞き取りで多言語モデルへ（<a href="#settings">4章</a>）</td></tr>
-    <tr><td>海外の配信を日本語字幕で見たい</td><td>多言語認識＋翻訳先=日本語（<a href="#translate">7章</a>）</td></tr>
-    <tr><td>コラボ相手の字幕も出したい</td><td><a href="#collab">8章 1対1コラボ字幕</a></td></tr>
+    <tr><td>新しい画面が合わない・前の画面に戻したい</td><td>ヘッダーの <code>旧UI</code> — <a href="#uivariant">3章</a></td></tr>
+    <tr><td>字幕の見た目を手早く変えたい</td><td>「字幕の見た目」の切替 — <a href="#look">3章 コックピット</a></td></tr>
+    <tr><td>自分だけの字幕デザインを作りたい</td><td><a href="#edit">6章 デザインとレイアウトの編集</a> ／ 同梱の <a href="ガイド/スタイルガイド.html"><b>スタイルガイド.html</b></a></td></tr>
+    <tr><td>漫画みたいな吹き出しで字幕を出したい</td><td><a href="#bubble">7章 吹き出し字幕</a></td></tr>
+    <tr><td>「ありがとう」でキラキラを飛ばしたい</td><td>ワード演出 — 同梱の <a href="ガイド/エフェクトガイド.html"><b>エフェクトガイド.html</b></a></td></tr>
+    <tr><td>笑い声や拍手で画像を出したい</td><td><a href="#soundfx">6章 リアクション演出</a></td></tr>
+    <tr><td>名前・ゲーム名が誤認識される</td><td><a href="#words">6章 認識させる単語</a></td></tr>
+    <tr><td>ゲームの技名などをまとめて登録したい</td><td><a href="#bulk">6章 単語の一括登録</a></td></tr>
+    <tr><td>ゲームごとに単語を切り替えたい</td><td><a href="#sets">6章 単語セット</a></td></tr>
+    <tr><td>英語・中国語などの字幕も併記したい</td><td><a href="#translate">8章 翻訳の併記</a></td></tr>
+    <tr><td>英語＋中国語のように2〜3言語を同時に出したい</td><td><a href="#multi">8章 複数の言語を同時に表示</a></td></tr>
+    <tr><td>言語ごとにフォントや色を変えたい</td><td><a href="#trstyle">6章 翻訳字幕の見た目</a></td></tr>
+    <tr><td>日本語以外の言語で配信したい</td><td>アプリ設定→声の聞き取りで多言語モデルへ（<a href="#hearing">4章</a>）</td></tr>
+    <tr><td>海外の配信を日本語字幕で見たい</td><td>多言語認識＋翻訳先=日本語（<a href="#translate">8章</a>）</td></tr>
+    <tr><td>コラボ相手の字幕も出したい</td><td><a href="#collab">9章 1対1コラボ字幕</a>（Windows のみ）</td></tr>
+    <tr><td>声でレイアウトを切り替えたい</td><td><a href="#voice">4章 ボイスコマンド</a></td></tr>
+    <tr><td>VRChat のチャットボックスに字幕を出したい</td><td><a href="#vrchat">4章 VRChat連携</a>（Windows のみ）</td></tr>
     <tr><td>歌枠で歌詞みたいに散らしたい</td><td>リリックビデオ風字幕 — <a href="ガイド/スタイルガイド.html">スタイルガイド.html</a></td></tr>
-    <tr><td>作ったスタイルを配りたい・もらいたい</td><td>mojipack — <a href="#studio">6章 スタジオ</a> / <a href="ガイド/スタイルガイド.html">スタイルガイド.html</a></td></tr>
-    <tr><td><b>Zip 版からインストーラ版へ移りたい（設定を引き継ぎたい）</b></td><td><a href="#installer">9章 インストーラ版</a></td></tr>
-    <tr><td>配信後の文字起こしが欲しい</td><td>ログ保存 — <a href="#files">9章 フォルダとアップデート</a></td></tr>
-    <tr><td>設定をバックアップしたい</td><td><code>data\</code> をコピーするだけ — <a href="#files">9章</a></td></tr>
-    <tr><td>動作が重い</td><td><a href="#trouble">10章 困ったときは</a>（認識モデルを「多言語」にすると約1/3に）</td></tr>
+    <tr><td>作ったデザインを配りたい・もらいたい</td><td>mojipack — <a href="#share">6章 保存・共有</a></td></tr>
+    <tr><td>配信後の文字起こしが欲しい</td><td><a href="#logs">10章 字幕ログ</a></td></tr>
+    <tr><td>設定をバックアップしたい</td><td><code>data</code> フォルダをコピーするだけ — <a href="#files">10章</a></td></tr>
+    <tr><td>Zip 版からインストーラ版へ移りたい</td><td><a href="#installer">10章 インストーラ版</a></td></tr>
+    <tr><td>動作が重い</td><td><a href="#trouble">11章 困ったときは</a>（認識モデルを「多言語」にすると約1/3に）</td></tr>
     <tr><td>仕組みやスペックを詳しく知りたい</td><td>同梱の <a href="ガイド/テクニカルガイド.html">テクニカルガイド.html</a></td></tr>
-    <tr><td>うまく動かない</td><td><a href="#trouble">10章 困ったときは</a></td></tr>
+    <tr><td>うまく動かない</td><td><a href="#trouble">11章 困ったときは</a></td></tr>
   </table>
   </div>
 </nav>
 
 <!-- ============================================================ -->
 <section id="start">
-  <h2><span class="no">1</span>はじめに・起動方法</h2>
-  <p>Mojicast は、マイクの音声をリアルタイムに文字起こしして配信画面に字幕として表示するアプリです。
+  <h2><span class="no">1</span>はじめに</h2>
+  <p>Mojicast は、マイクの声をその場で文字にして、配信画面に字幕として重ねるアプリです。
      音声認識（日本語＋多言語）・句読点付け・翻訳（英・中・日・韓・インドネシア・ポルトガル・スペイン）・コラボ相手の字幕化まで、
-     <b>すべてお使いのPCの中だけで動きます</b>。
-     音声がネットに送られることはありません。<b>画面はライト基調</b>です
-     （ヘッダーの 🌙/☀ でダークにも切替可・字幕そのものの色には影響しません）。</p>
+     <b>すべてお使いのPCの中だけで動きます</b>。音声がネットに送られることはありません。</p>
 
   <a href="https://youtu.be/GObqilowmkU" target="_blank">
     <img class="shot" src="{{IMG:hero_video}}" alt="1対1コラボ字幕のデモ"></a>
   <span class="cap">1対1コラボ字幕のデモ —
-    <a style="color:var(--acc)" href="https://youtu.be/GObqilowmkU" target="_blank">▶ 30秒デモ動画（YouTube）</a>
-    ／ テスト協力:
-    <a style="color:var(--acc)" href="https://x.com/oftunlab" target="_blank">絵咲まくらさん</a></span>
+    <a href="https://youtu.be/GObqilowmkU" target="_blank">▶ 30秒デモ動画（YouTube）</a>
+    ／ テスト協力: <a href="https://x.com/oftunlab" target="_blank">絵咲まくらさん</a></span>
 
-  <div class="card"><b class="tag">初回起動</b>
-    初回だけ「WindowsによってPCが保護されました」(SmartScreen)が出ることがあります。
-    未署名アプリのためで、<b>「詳細情報」→「実行」</b>で起動できます（インストーラ版はインストール時に1回だけ）。<br>
-    ダウンロード由来のブロック(MOTW)は<b>アプリが起動時に自動解除</b>するので、手動の解除操作は不要です。<br>
-    また、OSの言語やCPUに合わせた<b>おすすめ設定</b>の提案が出ることがあります
-    （低スペック機の軽量構成、中国語/英語OSでの多言語認識など）。適用するかはあなた次第で、
-    あとからいつでも変更できます。
-  </div>
-
-  <h3>配布は2種類（v0.9.9〜）</h3>
+  <h3>配布ファイル</h3>
   <div class="overflow">
   <table>
-    <tr><th></th><th>インストーラ版（おすすめ）</th><th>Zip 版（ポータブル）</th></tr>
-    <tr><td>ファイル</td><td><code>Mojicast-v*-setup.exe</code></td><td><code>Mojicast-v*-win-x64.zip</code></td></tr>
-    <tr><td>始め方</td><td>ダブルクリックしてインストール → スタートメニューの「Mojicast」</td><td>展開したフォルダの <code>Mojicast.exe</code></td></tr>
-    <tr><td>向いている人</td><td>ふつうに使いたい人</td><td>USBメモリで持ち歩きたい・インストールしたくない人</td></tr>
+    <tr><th></th><th>ファイル</th><th>始め方</th></tr>
+    <tr><td><b>Windows インストーラ版</b><br><span class="dim">おすすめ</span></td><td><code>Mojicast-v*-win-x64-setup.exe</code></td><td>ダブルクリックしてインストール → スタートメニューの「Mojicast」</td></tr>
+    <tr><td>Windows Zip 版<br><span class="dim">ポータブル</span></td><td><code>Mojicast-v*-win-x64.zip</code></td><td>展開したフォルダの <code>Mojicast.exe</code>（USBメモリで持ち歩きたい・インストールしたくない人向け）</td></tr>
+    <tr><td>Mac<br><span class="dim">Apple Silicon</span></td><td><code>Mojicast-*-mac-arm64.dmg</code></td><td><code>Mojicast.app</code> をアプリケーションフォルダへドラッグ</td></tr>
   </table>
   </div>
-  <p class="dim">中身は同じです。インストーラ版は Zip 展開で起きる「ブロック」（起動時の .NET エラー）が起きません。</p>
 
-  <h3>起動手順（インストーラ版）</h3>
-  <div class="step"><div class="n">1</div><div><code>Mojicast-v*-setup.exe</code> をダブルクリック（管理者権限は不要）</div></div>
-  <div class="step"><div class="n">2</div><div>案内どおり「次へ」→「インストール」。以前の Zip 版を使っていた人は<a style="color:var(--acc)" href="#installer">9章</a>も参照</div></div>
-  <div class="step"><div class="n">3</div><div>スタートメニューの「Mojicast」で起動し、中央の「はじめの3ステップ」どおりに進める</div></div>
+  <h3>起動手順（Windows インストーラ版）</h3>
+  <div class="step"><div class="n">1</div><div><code>Mojicast-v*-win-x64-setup.exe</code> をダブルクリック（管理者権限は不要）</div></div>
+  <div class="step"><div class="n">2</div><div>案内どおり「次へ」→「インストール」。以前の Zip 版を使っていた人は<a href="#installer">10章</a>も参照</div></div>
+  <div class="step"><div class="n">3</div><div>スタートメニューの「Mojicast」で起動</div></div>
 
-  <h3>起動手順（Zip 版）</h3>
-  <div class="step"><div class="n">1</div><div>このフォルダを<b>丸ごとローカルディスクにコピー</b>する（Zip 内や共有ドライブから直接起動しない）</div></div>
+  <h3>起動手順（Windows Zip 版）</h3>
+  <div class="step"><div class="n">1</div><div>このフォルダを<b>丸ごとローカルディスクにコピー</b>する（Zip の中や共有ドライブから直接起動しない）</div></div>
   <div class="step"><div class="n">2</div><div><code>Mojicast.exe</code> をダブルクリック</div></div>
-  <div class="step"><div class="n">3</div><div>コックピット画面が開いたら、中央の「はじめの3ステップ」どおりに進める</div></div>
 
-  <img class="shot" src="{{IMG:cockpit_solo}}" alt="起動直後のコックピット">
-  <span class="cap">起動直後のコックピット。中央に「はじめの3ステップ」が出ます（ライト基調）</span>
+  <h3 id="mac">起動手順（Mac）</h3>
+  <div class="step"><div class="n">1</div><div>dmg を開き、<code>Mojicast.app</code> を<b>アプリケーション</b>フォルダへドラッグ</div></div>
+  <div class="step"><div class="n">2</div><div>初回だけ macOS の確認を通します。Mojicast は Apple の公証（有料の開発者登録）を受けていないため、
+      ダブルクリックすると「“Mojicast” は開いていません」と出ます。<b>「ゴミ箱に入れる」は押さず「完了」</b>で閉じてください</div></div>
+  <div class="step"><div class="n">3</div><div><b>システム設定 → プライバシーとセキュリティ</b> を下へスクロールし、「“Mojicast”の使用がブロックされました」の右の
+      <b>「このまま開く」</b> → パスワード（または Touch ID）で起動します。2回目からは普通にダブルクリックで起動します</div></div>
+  <div class="step"><div class="n">4</div><div>「マイクへのアクセスを許可しますか」と聞かれたら<b>「許可」</b></div></div>
+  <p class="dim">dmg 内の「はじめにお読みください（Mac版）」に、画像つきの手順と「壊れているため開けません」と出たときの対処があります。</p>
+
+  <h3>最初の字幕を出すまで</h3>
+  <p>コックピット（メイン画面）の中央に<b>「はじめの3ステップ」</b>が出ます。この順に進めれば字幕が出ます。</p>
+  <div class="step"><div class="n">1</div><div><b>マイクを選ぶ</b>（上の 🎤 欄）</div></div>
+  <div class="step"><div class="n">2</div><div><b>「▶ 開始」を押す</b>（右上のボタン）</div></div>
+  <div class="step"><div class="n">3</div><div><b>表示用のURLをOBSに貼る</b>（右の「OBSに表示」からコピー → <a href="#obs">5章</a>）</div></div>
+
+  <img class="shot" src="{{IMG:cockpit_first}}" alt="起動直後のコックピット">
+  <span class="cap">起動直後のコックピット。中央に「はじめの3ステップ」が出ます</span>
 
   <div class="card warn"><b class="tag">初回のみ</b>
-    初回の ▶開始 時に認識モデル（約1.2GB）を自動ダウンロードし、読み込みに少し時間がかかります。
-    2回目以降はダウンロード無し・完全オフラインで動きます。</div>
+    Windows で「WindowsによってPCが保護されました」(SmartScreen) が出たら<b>「詳細情報」→「実行」</b>（インストーラ版はインストール時に1回だけ）。<br>
+    初回の ▶開始 で認識モデル（約1.2GB）を自動ダウンロードします。2回目以降は完全オフラインです。<br>
+    OSの言語やCPUに合わせた<b>おすすめ設定</b>の提案（<code>💡 おすすめ設定</code> の帯）が出ることがあります
+    （低スペック機の軽量構成、中国語/英語のOSでの多言語認識など）。適用するかは自由で、あとからいつでも変えられます。</div>
 
   <div class="card warn"><b class="tag">⚠ ご利用にあたって</b>
     認識・翻訳・伏せ字は完璧ではなく、不適切な表示が出ることがあります（大事な場面はご自身でも確認を）。<br>
@@ -211,384 +223,474 @@
   <h2><span class="no">2</span>動作環境</h2>
   <div class="overflow">
   <table>
-    <tr><th></th><th>目安</th></tr>
-    <tr><td>OS</td><td>Windows 10（2020年以降のアップデート適用）/ Windows 11</td></tr>
-    <tr><td>PC</td><td><b>2017年以降の一般的なPC</b>なら動きます。新しいほど快適</td></tr>
-    <tr><td>メモリ</td><td>8GB以上（16GB推奨）</td></tr>
-    <tr><td>ストレージ</td><td>空き5GB</td></tr>
-    <tr><td>その他</td><td>マイク / WebView2ランタイム（Win11標準搭載） / 初回のみネット接続（AIの部品を自動DL）</td></tr>
+    <tr><th></th><th>Windows</th><th>Mac</th></tr>
+    <tr><td>OS</td><td>Windows 10（2020年以降のアップデート適用）/ Windows 11</td><td>Apple Silicon（M1 以降）の Mac。Intel Mac は非対応</td></tr>
+    <tr><td>PC</td><td><b>2017年以降の一般的なPC</b>なら動きます。新しいほど快適</td><td>Apple Silicon ならどれでも</td></tr>
+    <tr><td>メモリ</td><td>8GB以上（16GB推奨）</td><td>8GB以上（16GB推奨）</td></tr>
+    <tr><td>ストレージ</td><td>空き5GB</td><td>空き5GB</td></tr>
+    <tr><td>その他</td><td>マイク / WebView2ランタイム（Windows 11 は標準搭載） / 初回のみネット接続</td><td>マイク / 初回のみネット接続</td></tr>
   </table>
   </div>
   <ul>
     <li><b>初回起動時に、あなたのPCに合わせた「おすすめ設定」をアプリが提案します</b>（適用するかは自由）</li>
-    <li>使ってみて重いと感じたら →「困ったときは」（<a style="color:var(--acc)" href="#trouble">10章</a>）。ワンクリックで軽くできます</li>
-    <li>翻訳を<b>2〜3言語同時</b>に出す場合は、メモリ16GB以上・余裕のあるCPUがおすすめです（<a style="color:var(--acc)" href="#multi">7章</a>）</li>
+    <li>使ってみて重いと感じたら → <a href="#trouble">11章 困ったときは</a></li>
+    <li>翻訳を<b>2〜3言語同時</b>に出す場合は、メモリ16GB以上・余裕のあるCPUがおすすめです（<a href="#multi">8章</a>）</li>
   </ul>
   <div class="card"><b class="tag">配信との同時利用</b>
     OBSの映像エンコードは<b>GPUエンコード（NVENC / AMF）推奨</b>。Mojicast はGPUをほぼ使わないため、
     ゲーム・Live2D・OBSとはCPU/GPUの棲み分けができます。</div>
-  <p class="dim">CPU世代ごとの詳しい適性表・実測データ・世代の見方は、同梱の
+  <div class="card warn"><b class="tag">Mac 版でできないこと</b>
+    <b>1対1コラボ字幕</b>（相手の声の取り込みが Windows の仕組みに依存するため・将来対応予定）と
+    <b>VRChat連携</b>（VRChat に Mac 版がないため）は使えません。それ以外の機能は Windows 版と同じです。</div>
+  <p class="dim">CPU世代ごとの詳しい適性表・実測データは、同梱の
     <a href="ガイド/テクニカルガイド.html"><b>テクニカルガイド.html</b></a> へ。</p>
 </section>
 
 <!-- ============================================================ -->
 <section id="cockpit">
   <h2><span class="no">3</span>コックピット（メイン画面）</h2>
-  <p>配信中の司令塔です。<b>左が字幕モニタ・右が「字幕に足すもの」と「OBS表示」</b>、こまかい設定は
-     下の <code>⚙ アプリ設定</code> に集約しています。</p>
+  <p>配信中の司令塔です。<b>左が字幕の確認と見た目の切替、右が字幕に足す機能とOBSへの表示</b>。
+     こまかい設定は右下の <code>🎨 字幕スタジオ</code> と <code>⚙ アプリ設定</code> から開きます。</p>
 
   <img class="shot" src="{{IMG:cockpit_solo}}" alt="コックピット">
-  <span class="cap">認識中のコックピット。中央の字幕モニタで表示内容を確認できます（ライト基調）</span>
+  <span class="cap">認識中のコックピット。字幕モニタの「配信プレビュー」で、OBSに映る字幕をそのまま確認できます</span>
 
   <div class="overflow">
   <table>
     <tr><th>場所</th><th>内容</th></tr>
-    <tr><td>ヘッダー</td><td>ロゴ・状態表示（停止中/認識中）・テーマ切替（🌙/☀）・<code>▶ 開始</code>/<code>■ 停止</code></td></tr>
-    <tr><td>マイクバー</td><td>🎤 マイク選択・入力レベルメーター・<code>⚙ 聞き取り設定</code>（→<a style="color:var(--acc)" href="#settings">4章</a>）</td></tr>
-    <tr><td>字幕モニタ</td><td>表示内容の確認。<code>簡易ログ</code>/<code>配信プレビュー</code>を切替（下記）</td></tr>
-    <tr><td>字幕の見た目</td><td>シーン・デザイン・レイアウトの切替を前面に</td></tr>
-    <tr><td>右カラム</td><td>「字幕に追加する」トグル・「単語セット」・「OBSに表示」</td></tr>
-    <tr><td>フッター</td><td><code>🎨 字幕スタジオ</code>（<a style="color:var(--acc)" href="#studio">6章</a>）・<code>⚙ アプリ設定</code>（<a style="color:var(--acc)" href="#settings">4章</a>）</td></tr>
+    <tr><td>ヘッダー</td><td>状態表示（停止中/認識中）・<code>旧UI</code>・テーマ切替（🌙/☀）・<code>▶ 開始</code>/<code>■ 停止</code></td></tr>
+    <tr><td>マイク欄</td><td>🎤 マイクの選択・入力レベルのメーター・<code>⚙ 聞き取り設定</code>（→<a href="#hearing">4章</a>）</td></tr>
+    <tr><td>字幕モニタ</td><td>字幕の確認。<code>簡易ログ</code>/<code>配信プレビュー</code> を切替（下記）</td></tr>
+    <tr><td>字幕の見た目</td><td>シーン・デザイン・レイアウトの切替</td></tr>
+    <tr><td>右カラム</td><td>「字幕に追加する」・「単語セット」・「OBSに表示」</td></tr>
+    <tr><td>右下</td><td><code>🎨 字幕スタジオ</code>（<a href="#studio">6章</a>）・<code>⚙ アプリ設定</code>（<a href="#settings">4章</a>）</td></tr>
+    <tr><td>フッター</td><td>バージョン番号・<code>💬 Discordコミュニティ</code></td></tr>
   </table>
   </div>
 
-  <h3>字幕モニタ（簡易ログ / 配信プレビュー）</h3>
-  <p>モニタ上の切替で表示を選べます。<code>表示クリア</code>でモニタとOBSの表示を消せます。</p>
-  <ul>
-    <li><b>簡易ログ</b> … 確定した字幕がテキストで流れる軽量表示。話者や処理の確認に</li>
-    <li><b>配信プレビュー</b> … OBSに映る字幕を実寸（1920×1080）でそのまま確認できるプレビュー。
-        スタイルやレイアウトを変えたときの見え方チェックに便利です</li>
-  </ul>
+  <h3 id="uivariant">新UI／旧UI</h3>
+  <p>v1.0.0 で画面を全面的に新しくしました。<b>合わなければ、ヘッダーの <code>旧UI</code> でいつでも前の画面に戻せます</b>
+     （旧UIの画面にある <code>新UI</code> で今の画面に戻ります）。切り替えるとすべての窓が開き直ります。
+     設定・単語・字幕デザインは両方の画面で共通なので、行き来しても何も失われません。</p>
+  <p class="dim">旧UIの字幕スタジオには「吹き出し」の設定項目がありません。吹き出しのレイアウトを作り込むときは新UIで。</p>
 
-  <h3>字幕の見た目</h3>
-  <p>配信前にサッと決める3項目です。じっくり作り込むのは <code>詳細カスタマイズ</code>（スタジオ）へ。</p>
+  <h3>字幕モニタ（簡易ログ / 配信プレビュー）</h3>
+  <p>モニタ上の切替で表示を選べます。<b>最初は「配信プレビュー」で開き、前回選んでいた表示を次の起動でも覚えています。</b></p>
+  <ul>
+    <li><b>配信プレビュー</b> … OBSに映る字幕を、1920×1080の画面を縮小してそのまま確認できます。デザインやレイアウトを変えたときの見え方チェックに</li>
+    <li><b>簡易ログ</b> … 確定した字幕がテキストで流れる軽い表示。話者や認識内容の確認に</li>
+  </ul>
+  <p><code>配信の字幕を消す</code> で、モニタと<b>OBSに映っている字幕</b>の両方を消せます。</p>
+
+  <h3 id="look">字幕の見た目</h3>
+  <p>配信前にサッと決める3項目です。じっくり作り込むのは <code>詳細カスタマイズ</code>（字幕スタジオ）へ。</p>
   <div class="overflow">
   <table>
     <tr><th>項目</th><th>内容</th></tr>
-    <tr><td>シーン</td><td>デザイン＋レイアウトのセットを一括切替。<code>＋</code>で今の組み合わせを保存</td></tr>
-    <tr><td>デザイン</td><td>文字スタイルのプリセット切替</td></tr>
-    <tr><td>レイアウト</td><td>表示位置・大きさ・流れ方の切替</td></tr>
+    <tr><td>シーン</td><td>デザイン＋レイアウトのセットをまとめて切替。<code>＋</code> で今の組み合わせを保存、🗑 で削除</td></tr>
+    <tr><td>デザイン</td><td>フォント・色・動き（文字の見た目）の切替</td></tr>
+    <tr><td>レイアウト</td><td>画面内の表示場所・流れ方の切替。<b>吹き出し</b>もここで選べます（<a href="#bubble">7章</a>）</td></tr>
   </table>
   </div>
-  <p>単語セット（雑談用・ゲーム用など）の切替は、右カラムの「<b>単語セット</b>」から。</p>
   <div class="card"><b class="tag">シーンの調整と上書き</b>
     シーンを選んだあとデザインやレイアウトを変えると「〇〇（調整中）」表示になり、
-    <code>上書き</code> でそのシーンを更新、<code>新規</code> で別のシーンとして保存できます。
+    <code>上書き</code> でそのシーンを更新、<code>＋</code> で別のシーンとして保存できます。
     「雑談」「ゲーム」「歌枠」の3シーンが最初から入っています。</div>
   <div class="card"><b class="tag">コラボ時</b>
-    1対1コラボをオンにすると、各行が<b>「自分」「相手」の2段</b>になり、別々のデザイン・位置を割り当てられます。</div>
+    1対1コラボをオンにすると、各行が<b>「自分」「相手」の2段</b>になり、別々のデザイン・レイアウトを割り当てられます。</div>
 
-  <h3>字幕に追加する（右カラムのトグル）</h3>
-  <p>確定字幕に「乗せるもの」をトグルで足します。各トグルの <code>設定</code> から詳細画面へ飛べます。</p>
+  <h3 id="features">字幕に追加する</h3>
+  <p>確定した字幕に「乗せるもの」をスイッチで足します。各行の <code>設定</code> から、その機能の詳しい設定画面へ飛べます。</p>
   <div class="overflow">
   <table>
-    <tr><th>トグル</th><th>説明</th></tr>
-    <tr><td>ワード演出</td><td>強調単語の光り・アニメ・パーティクルをまとめてオン/オフ。<b>オフでも認識誘導・置換・伏せ字は有効</b>。<code>設定</code>→スタジオのワード演出</td></tr>
-    <tr><td>英訳（翻訳）</td><td>確定字幕の下に翻訳を併記。ラベルは翻訳先に合わせて変わります（英訳/中国語訳/日本語訳など）。<code>設定</code>→スタジオの翻訳字幕。翻訳先の切替は<a style="color:var(--acc)" href="#settings">4章</a>／<a style="color:var(--acc)" href="#translate">7章</a></td></tr>
-    <tr><td>VRChat送信</td><td>字幕をVRChatのチャットボックスへ表示（v0.8.0〜）。<code>設定</code>→アプリ設定のVRChat連携（<a style="color:var(--acc)" href="#settings">4章</a>）</td></tr>
-    <tr><td>1対1コラボ</td><td>Discord等の相手の声も字幕化。<code>設定</code>→アプリ設定のコラボ音声（<a style="color:var(--acc)" href="#collab">8章</a>）</td></tr>
+    <tr><th>機能</th><th>説明</th></tr>
+    <tr><td>💥 ワード演出</td><td>「ありがとう」などの言葉を光らせたり、パーティクルを飛ばしたりします。<b>オフでも認識させる単語・伏せ字は効きます</b>。<code>設定</code>→字幕スタジオのワード演出</td></tr>
+    <tr><td>🌐 英訳（翻訳）</td><td>確定した字幕の下に翻訳を併記（最大3言語）。名前は1つ目の翻訳先に合わせて変わります（英訳/中国語訳/日本語訳など）。<code>設定</code>→アプリ設定の翻訳（<a href="#translate">8章</a>）</td></tr>
+    <tr><td>🎉 リアクション演出</td><td>笑い声・拍手などを聞き取って、画像やパーティクルを出します（実験的）。<code>設定</code>→字幕スタジオのリアクション演出（<a href="#soundfx">6章</a>）</td></tr>
+    <tr><td>🗣 ボイスコマンド</td><td>声でレイアウトなどを切り替えます。呼びかけた発話は字幕に出ません。<code>設定</code>→アプリ設定のボイスコマンド（<a href="#voice">4章</a>）</td></tr>
+    <tr><td>🥽 VRChat送信</td><td>字幕をVRChatのチャットボックスへ表示（Windows のみ）。<code>設定</code>→アプリ設定のVRChat連携（<a href="#vrchat">4章</a>）</td></tr>
+    <tr><td>🎧 1対1コラボ</td><td>Discord などの相手の声も字幕にします（Windows のみ）。<code>設定</code>→アプリ設定の1対1コラボ（<a href="#collab">9章</a>）</td></tr>
   </table>
   </div>
+  <div class="card ok"><b class="tag">使わない機能は隠せます</b>
+    見出しの横の <code>表示を選ぶ</code> を押すと各行にチェックが出るので、外した機能は一覧から消えます
+    （機能のオン・オフとは別で、表示だけの設定です。隠した機能も <code>表示を選ぶ</code> からいつでも戻せます）。</div>
+
+  <h3>単語セット</h3>
+  <p><b>配信で使う単語セット</b>（認識させる単語・ワード演出の単語などの組み合わせ）を選びます。
+     「雑談用」「格ゲー用」のように、配信の内容に合わせて切り替えます。単語セットの作り方は<a href="#sets">6章</a>へ。</p>
 
   <h3>OBSに表示</h3>
-  <p>表示用URL（<code>http://localhost:8765</code>）の <code>コピー</code> と、推奨サイズの案内。
-     <code>接続設定</code> でポートを変えられます（<a style="color:var(--acc)" href="#settings">4章 OBS接続</a>）。</p>
+  <p>表示用URL（<code>http://localhost:8765</code>）の <code>コピー</code> と、推奨サイズの案内です。
+     <code>接続設定</code> でポートを変えられます（<a href="#s-obs">4章 OBS接続</a>）。</p>
 </section>
 
 <!-- ============================================================ -->
 <section id="settings">
-  <h2><span class="no">4</span>アプリ設定（声の聞き取り・翻訳・コラボ・接続）</h2>
-  <p>コックピット右下の <code>⚙ アプリ設定</code>、マイクバーの <code>⚙ 聞き取り設定</code>、各トグルの
-     <code>設定</code> から開く<b>統合設定窓</b>です。左のメニューで6つに分かれています。</p>
+  <h2><span class="no">4</span>アプリ設定</h2>
+  <p>コックピット右下の <code>⚙ アプリ設定</code>、マイク欄の <code>⚙ 聞き取り設定</code>、「字幕に追加する」の各 <code>設定</code> から開きます。
+     左のメニューで8つに分かれています。<b>変更はその場で保存されます</b>（保存ボタンはありません）。</p>
 
   <img class="shot" src="{{IMG:settings_hearing}}" alt="アプリ設定 声の聞き取り">
-  <span class="cap">アプリ設定「声の聞き取り」。認識モデル・区切り・認識の補助をまとめて</span>
+  <span class="cap">アプリ設定「声の聞き取り」。マイク・認識モデル・区切り・認識の補助をまとめて</span>
 
-  <div class="card"><b class="tag">統合について</b>
-    以前あった「AIモデル設定窓」と「1対1コラボ設定窓」は、この<b>アプリ設定に統合</b>されました。</div>
+  <div class="card warn"><b class="tag">反映タイミング</b>
+    マイク・認識・翻訳・コラボまわりは<b>次の ▶開始 から反映</b>されます。認識中に変えるとコックピットに
+    <code>⚠ 変更は次の ▶開始 から反映されます</code> の帯が出るので、<code>今すぐ反映（再起動）</code> を押せばその場で反映できます
+    （停止→開始を自動でやるだけです）。</div>
 
-  <h3>🎙 声の聞き取り</h3>
+  <h3 id="hearing">🎙 声の聞き取り</h3>
   <div class="overflow">
   <table>
     <tr><th>項目</th><th>説明</th></tr>
-    <tr><td>使うマイク</td><td>音声入力デバイスの選択</td></tr>
-    <tr><td>認識モデル</td><td><b>日本語特化（おすすめ）</b>…高精度・単語の認識誘導対応 ／ <b>多言語</b>…中・英・日・韓・広東語</td></tr>
-    <tr><td>認識する言語</td><td>多言語モデル選択時のみ。自動判定か言語固定（固定のほうが判定ミスがない）</td></tr>
-    <tr><td>字幕の区切り</td><td><code>話し終わりの区切り</code>（この長さ黙ると1行が確定）／<code>一区切りの最長</code>（強制確定の秒数・<b>重いPCでは短め推奨</b>）／<code>途中経過の更新間隔</code>（薄文字の更新頻度）</td></tr>
-    <tr><td>認識の補助</td><td><code>登録した単語を認識に使う</code>／<code>登録単語の出やすさ</code>（効かない→上げる/誤爆→下げる）／<code>漢数字を数字にする</code>（三十五→35。「一緒」等は変換しない）／<code>高精度モード</code>（精度がわずかに上がるが<b>数倍重い</b>・通常オフ推奨）</td></tr>
+    <tr><td>使うマイク</td><td>音声入力の機器を選びます。<b>入力レベル</b>のメーターで、声が届いているか確かめられます（▶開始中に動きます）</td></tr>
+    <tr><td>認識モデル</td><td><b>日本語特化（おすすめ）</b>…高精度・登録した単語で認識を誘導できる ／ <b>多言語</b>…中・英・日・韓・広東語</td></tr>
+    <tr><td>認識する言語</td><td>多言語モデルのときだけ。自動判定か言語固定（固定のほうが判定ミスがない）</td></tr>
+    <tr><td>字幕の区切り</td><td><code>話し終わりの区切り</code>（この長さ黙ると1行が確定。<b>早口で1行が長すぎるときは短く</b>）／<code>一区切りの最長</code>（喋り続けたときに強制的に確定する秒数・<b>重いPCでは短め</b>）／<code>確定した字幕だけ表示する</code>（話し終わるまで何も出さない。<b>CPUの負荷も下がる</b>。オンの間はVRChatの入力中表示も出ません）／<code>途中経過の更新間隔</code>（薄文字の更新頻度）</td></tr>
+    <tr><td>認識の補助</td><td><code>登録した単語を認識に使う</code>／<code>登録単語の出やすさ</code>（効かない→上げる・誤爆する→下げる）／<code>漢数字を数字にする</code>（三十五→35。「一緒」などは変えない）／<code>句読点を付ける</code>（確定した文に「、」「。」を付ける）／<code>高精度モード</code>（認識と句読点に大きいモデルを使う。メモリ約+650MB・通常はオフでOK）</td></tr>
   </table>
   </div>
   <div class="card"><b class="tag">認識モデルの使い分け</b>
     通常は「日本語特化」のままでOK。「多言語」の出番は
-    ①中国語・英語など日本語以外の配信 ②動作を軽くしたいとき、の2つ。
+    ①中国語・英語など日本語以外の配信 ②動作を軽くしたいとき、の2つです。
     多言語モデルでは「認識させる単語」の認識誘導が効かないため、固有名詞の誤変換は
-    読み欄への登録（置換）で直します。日本語の精度は日本語特化のほうが上です。
-    初回選択時にモデル（約240MB）を自動DL。モデルの中身は
-    <a style="color:var(--acc)" href="ガイド/テクニカルガイド.html">テクニカルガイド.html</a> へ。</div>
-  <div class="card warn"><b class="tag">反映タイミング</b>
-    マイク・認識まわりは<b>次回 ▶開始 時に反映</b>されます。認識中に変更すると黄色い警告バーが出るので、
-    コックピットの<b>「今すぐ反映（再起動）」ボタン</b>を押せばその場で反映できます（停止→開始を自動でやるだけ）。</div>
+    読み欄への登録（置き換え）で直します。日本語の精度は日本語特化のほうが上です。
+    初めて選んだときにモデル（約240MB）を自動ダウンロードします。モデルの中身は
+    <a href="ガイド/テクニカルガイド.html">テクニカルガイド.html</a> へ。</div>
 
   <h3>🌐 翻訳</h3>
-  <p>翻訳先の切替と、実際に使われるモデルの表示。詳しくは<a style="color:var(--acc)" href="#translate">7章</a>。</p>
+  <p>翻訳先の切替と、実際に使われる翻訳モデルの確認です。詳しくは<a href="#translate">8章</a>。</p>
   <ul>
-    <li><code>翻訳字幕を使う</code>（コックピットの英訳トグルと連動）</li>
+    <li><code>翻訳字幕を使う</code>（コックピットの英訳スイッチと連動）</li>
     <li><code>字幕を翻訳する言語</code>: 英語 / 中国語圏（簡体字・中国大陸／繁体字・台湾／繁体字・香港）/ インドネシア語 / ポルトガル語 / スペイン語 / 日本語 / 韓国語〔試験的〕</li>
-    <li><code>2つ目の翻訳先</code>・<code>3つ目の翻訳先</code>（v0.9.9〜）… 同時に表示したい言語を足せます（不要なら「なし」）。
-        別の段で選んでいる言語を選ぶと、その段と入れ替わります（<a style="color:var(--acc)" href="#multi">7章</a>）</li>
+    <li><code>2つ目の翻訳先</code>・<code>3つ目の翻訳先</code> … 同時に表示したい言語を足せます（不要なら「なし」）。
+        別の段で選んでいる言語を選ぶと、その段と入れ替わります（<a href="#multi">8章</a>）</li>
     <li>選んだ言語ごとに<b>実際に使われる翻訳モデル</b>（FuguMT / M2M-100 / ＋OpenCC）が表示されます</li>
   </ul>
 
-  <h3>🎧 コラボ音声</h3>
-  <p>1対1コラボの相手音声の取り込み設定。詳しくは<a style="color:var(--acc)" href="#collab">8章</a>。</p>
+  <h3>🎧 1対1コラボ</h3>
+  <p>相手の声の取り込み設定です（Windows のみ）。詳しくは<a href="#collab">9章</a>。</p>
   <ul>
-    <li><code>コラボ字幕を使う</code>（<code>ヘッドホンを使用してください</code>）</li>
-    <li><code>相手の声が鳴るアプリ</code> … Discord.exe 等を選ぶ（<code>↻ 更新</code>／<code>🔊</code>＝いま音が鳴っているアプリ）</li>
-    <li>表示名 <code>自分</code>/<code>相手</code>（字幕ログの話者チップに使われます）</li>
+    <li><code>コラボ字幕を使う</code>（ヘッドホンを使ってください）</li>
+    <li><code>相手の声が鳴るアプリ</code> … Discord.exe などを選ぶ（<code>↻ 更新</code>／🔊 ＝いま音が鳴っているアプリ）</li>
+    <li><code>字幕で使う表示名</code> の <code>自分</code>/<code>相手</code>（字幕ログの話者名に使われます）</li>
   </ul>
 
-  <h3>🎤 ボイスコマンド</h3>
-  <p>配信中に<b>声でMojicastを操作</b>できます（v0.7.0〜）。「ウェイクワード＋コマンド」をひと息に話すと実行され、
-     <b>コマンドの発話は字幕には表示されません</b>。実行結果はコックピット右下にトースト表示されます。</p>
-  <div class="step"><div class="n">1</div><div><code>ボイスコマンドを使う</code> をオン</div></div>
-  <div class="step"><div class="n">2</div><div><code>ウェイクワード</code> に呼びかけの名前を登録（例：ステラ）。カタカナ・ひらがなが認識されやすい。
-      違う言葉に化けるときは、<b>字幕に出たその表記も「、」区切りで並べて登録</b>（例：モジキャスト、文字キャスト）</div></div>
+  <h3 id="voice">🎤 ボイスコマンド</h3>
+  <p>配信中に<b>声でMojicastを操作</b>できます。「ウェイクワード＋コマンド」をひと息に話すと実行され、
+     <b>コマンドの発話は字幕に出ません</b>。実行結果はコックピットの右下に表示されます。</p>
+  <div class="step"><div class="n">1</div><div><code>ボイスコマンドを使う</code> をオン（コックピットの「ボイスコマンド」スイッチでも切替可）</div></div>
+  <div class="step"><div class="n">2</div><div><code>ウェイクワード</code> に呼びかけの名前を登録（例：ステラ）。カタカナ・ひらがなの名前が認識されやすいです。
+      違う言葉に化けるときは、<b>字幕に出たその表記も「、」区切りで並べて登録</b>してください（例：モジキャスト、文字キャスト）</div></div>
   <div class="overflow">
   <table>
     <tr><th>言い方（例）</th><th>動作</th></tr>
-    <tr><td>「ステラ、レイアウトを下部バーに」「ステラ、レイアウト2」</td><td>レイアウト切替（名前 or 並び順の番号）</td></tr>
+    <tr><td>「ステラ、レイアウトを下部バーに」「ステラ、レイアウト2」</td><td>レイアウト切替（名前、または字幕スタジオの一覧の上から数えた番号）</td></tr>
     <tr><td>「ステラ、デザインをサイバーに」「ステラ、デザイン2」</td><td>デザイン切替</td></tr>
-    <tr><td>「ステラ、歌枠」「ステラ、シーン2」</td><td>シーン切替（デザイン＋レイアウト一括）</td></tr>
+    <tr><td>「ステラ、歌枠」「ステラ、シーン2」</td><td>シーン切替（デザイン＋レイアウトを一括）</td></tr>
     <tr><td>「ステラ、レイアウト変えて」（デザイン/シーンも同様）</td><td>おまかせで別のものに切替</td></tr>
     <tr><td>「ステラ、翻訳を英語に」「ステラ、翻訳オフ」</td><td>翻訳の切替（<b>認識の動作中は自動で再起動</b>）</td></tr>
   </table>
   </div>
   <p><b>カスタムコマンド:</b> 自分の言い回しに動作を割り当てられます（例：「おそうじ」→字幕クリア、「うたわく」→歌枠シーン）。
-     動作はシーン/デザイン/レイアウト切替・おまかせ・翻訳切替・翻訳オン/オフ・字幕クリアの8種類。
-     組み込みと同じ言い回しならカスタムが優先されます。</p>
+     <code>＋ コマンドを追加</code> で行を足します。組み込みと同じ言い回しなら、カスタムが優先されます。</p>
   <div class="card"><b class="tag">ボイスコマンドの性質</b>
     コマンドは<b>確定した字幕</b>から判定するため、発話からひと呼吸おいて実行されます。<br>
     <b>コラボ中は自分の声だけ</b>がコマンドとして扱われます（相手の声からは発動しません）。<br>
-    ウェイクワードの認識誘導は「■ 停止 → ▶ 開始」後に反映されます（コマンド自体はすぐ使えます）。</div>
+    ウェイクワードを認識されやすくする効果だけは「■ 停止 → ▶ 開始」後に反映されます（コマンド自体はすぐ使えます）。</div>
 
-  <h3>🥽 VRChat連携</h3>
-  <p>認識した字幕をVRChatの<b>チャットボックス</b>に表示できます（v0.8.0〜）。VRChat内での会話支援や
-     イベント登壇などに。配信（OBS）とは独立して使え、<b>再起動なしですぐ反映</b>されます。</p>
-  <p><b>設定手順:</b></p>
-  <ol>
-    <li>VRChat側でOSCを有効化: アクションメニュー → Options → OSC → <b>Enabled</b></li>
-    <li><code>VRChatへ送信する</code> をオン（コックピット右カラムの「VRChat送信」トグルでも切替可）</li>
-    <li><code>送信内容</code> で <b>文字起こし（認識した文章）</b> か <b>訳文（翻訳がONのとき）</b> を選択</li>
-  </ol>
-  <div class="card"><b class="tag">VRChat送信の性質</b>
-    チャットボックスは<b>144文字まで</b>。発話が続くときはVRChatのスパム対策に合わせて<b>約1.6秒間隔でまとめて送信</b>されます。<br>
-    発話中はチャットボックスに「入力中」のインジケータが出ます。<br>
-    <b>コラボ中は自分の発話だけ</b>が送られます。伏せ字にする単語は伏せ字のまま送られます。<br>
-    <code>OSCポート</code> は通常変更不要です（VRChatの既定 9000）。</div>
-
-  <h3>🔌 OBS接続</h3>
+  <h3 id="s-obs">🎬 OBS接続</h3>
   <ul>
     <li><code>表示用URL</code>（<code>コピー</code>）と推奨サイズの案内</li>
-    <li><code>接続ポート</code> … 既定 8765。衝突時はここで変更（<b>次回起動後に反映</b>・OBS側のURLも更新を）</li>
+    <li><code>接続ポート</code> … 既定 8765。ほかのアプリとぶつかるときだけ変更（<b>Mojicastを再起動すると反映</b>・OBS側のURLも直してください）</li>
   </ul>
 
-  <h3>⚙ その他</h3>
+  <h3 id="vrchat">🥽 VRChat連携</h3>
+  <p>認識した字幕を VRChat の<b>チャットボックス</b>に表示できます（Windows のみ）。VRChat 内での会話の補助や
+     イベント登壇などに。配信（OBS）とは別に使え、<b>再起動なしですぐ反映</b>されます。</p>
+  <ol>
+    <li>VRChat 側で OSC を有効にする: アクションメニュー → Options → OSC → <b>Enabled</b></li>
+    <li><code>VRChatへ送信する</code> をオン（コックピットの「VRChat送信」スイッチでも切替可）</li>
+    <li><code>送信内容</code> で <b>文字起こし（認識した文章）</b> か <b>訳文（翻訳がONのとき）</b> を選ぶ</li>
+  </ol>
+  <div class="card"><b class="tag">VRChat送信の性質</b>
+    チャットボックスは<b>144文字まで</b>。発話が続くときは VRChat のスパム対策に合わせて<b>約1.6秒間隔でまとめて送信</b>されます。<br>
+    発話中はチャットボックスに「入力中」の表示が出ます。<br>
+    <b>コラボ中は自分の発話だけ</b>が送られます。伏せ字にする単語は伏せ字のまま送られます。<br>
+    <code>OSCポート</code> は通常変更不要です（VRChat の既定 9000）。</div>
+
+  <h3>⚙ 画面とログ</h3>
   <div class="overflow">
   <table>
     <tr><th>項目</th><th>説明</th></tr>
-    <tr><td>句読点を付ける</td><td>確定文に「、」「。」を自動付与</td></tr>
-    <tr><td>字幕ログを保存する</td><td>文字起こしを <code>logs\</code> にテキスト保存（<a style="color:var(--acc)" href="#files">9章</a>）。<code>字幕ログの保存フォルダを開く</code>ボタンあり</td></tr>
+    <tr><td>字幕ログを保存する</td><td>話した内容をテキストで保存（<a href="#logs">10章</a>）。<code>字幕ログの保存フォルダを開く</code> ボタンあり</td></tr>
+    <tr><td>表示言語</td><td>アプリの画面の言語（日本語 / 中文 / English）</td></tr>
     <tr><td>画面テーマ</td><td>ライト（既定）／ダーク。<b>OBSに映る字幕の色には影響しません</b></td></tr>
+    <tr><td>文字とボタンの大きさ</td><td>自動（画面に合わせる）／小／標準／大／特大。高解像度のモニタで小さく見えるときに</td></tr>
   </table>
   </div>
+
+  <h3>ℹ️ 情報・連絡先</h3>
+  <p>今のバージョンの確認、<code>🔄 更新を確認</code>、GitHub・Discord・X・クレジット（使っているAIモデルとライセンス）へのリンクです。</p>
 </section>
 
 <!-- ============================================================ -->
 <section id="obs">
   <h2><span class="no">5</span>OBS に字幕を出す</h2>
   <div class="step"><div class="n">1</div><div>OBS で「ソース追加」→「<b>ブラウザ</b>」を選ぶ</div></div>
-  <div class="step"><div class="n">2</div><div>URL に <code>http://localhost:8765</code> を入力（コックピット右カラムの「OBSに表示」からコピー可）</div></div>
-  <div class="step"><div class="n">3</div><div>幅・高さを<b>配信解像度と同じ</b>にする（例: 1920 × 1080）</div></div>
-  <p>アプリ側で ▶開始 すると、喋った内容が OBS 側にも表示されます。スタイルやレイアウトの変更も即座に反映されます。
-     貼る前の見え方はコックピットの<code>配信プレビュー</code>で確認できます。</p>
+  <div class="step"><div class="n">2</div><div>URL に <code>http://localhost:8765</code> を入力（コックピット右カラムの「OBSに表示」からコピーできます）</div></div>
+  <div class="step"><div class="n">3</div><div>幅・高さを<b>配信の解像度と同じ</b>にする（例: 1920 × 1080）</div></div>
+  <p>アプリ側で ▶開始 すると、喋った内容が OBS 側にも表示されます。デザインやレイアウトを保存すると、すぐに反映されます。
+     貼る前の見え方はコックピットの <code>配信プレビュー</code> で確認できます。</p>
   <div class="card"><b class="tag">表示の流れ</b>
-    話している間は<b>薄い文字</b>で途中経過が出て、ひと呼吸おくと<b>確定文字</b>に変わりエフェクトが発動します。
-    長く喋り続けると薄文字の頭に「…」が付くことがあります（表示の省略で、確定文には全文が入ります）。</div>
+    話している間は<b>薄い文字</b>で途中経過が出て、ひと呼吸おくと<b>確定した文字</b>に変わり、エフェクトが動きます。
+    長く喋り続けると薄文字の頭に「…」が付くことがあります（表示の省略で、確定した文には全文が入ります）。</div>
 </section>
 
 <!-- ============================================================ -->
 <section id="studio">
-  <h2><span class="no">6</span>スタジオ（字幕の見た目と言葉）</h2>
-  <p>コックピットの <code>🎨 字幕スタジオ</code>、または各項目の <code>カスタマイズ</code>/<code>設定</code> から開きます。
-     左メニュー「つくるもの」で <b>字幕 / 翻訳字幕 / ワード演出 / 保存・共有</b> に分かれます。
-     右上の「編集する単語セット」は<b>単語系にだけ効く</b>プロファイル切替です。</p>
+  <h2><span class="no">6</span>字幕スタジオ（見た目・単語・演出）</h2>
+  <p>コックピットの <code>🎨 字幕スタジオ</code>、<code>詳細カスタマイズ</code>、各機能の <code>設定</code> から開きます。左のメニューで次の5つに分かれています。</p>
 
-  <h3>💬 字幕（見た目・位置・認識単語）</h3>
-  <img class="shot" src="{{IMG:studio_style}}" alt="スタジオ 文字スタイル">
-  <ul>
-    <li><b>文字スタイル</b> … フォント・色・フチ・グロー・登場アニメ等。「⧉ 新しいデザイン（複製）」で自分用プリセットを作るのがおすすめ。保存でOBSへ即反映</li>
-    <li><b>レイアウト</b> … 表示位置・背景・行数など。<code>表示のしかた</code>で <b>通常（積み上げ・スクロール）／縦書き（右から左へ）／リリックビデオ風字幕</b> を選べます</li>
-    <li>コラボ用に「コラボ（小さめ）」スタイルと「左下ハーフ」「右下ハーフ」レイアウトが最初から入っています</li>
-    <li>各項目の意味や読みやすくするコツは、同梱の <a href="ガイド/スタイルガイド.html"><b>スタイルガイド.html</b></a> に実例つきでまとめています</li>
-  </ul>
+  <img class="shot" src="{{IMG:studio_style}}" alt="字幕スタジオ">
+  <span class="cap">字幕スタジオの「字幕」。いま配信で使っているデザイン・レイアウト・単語が一番上に出ます</span>
 
-  <h3>📖 単語（4タブ）</h3>
-  <img class="shot" src="{{IMG:studio_words}}" alt="スタジオ 単語">
   <div class="overflow">
   <table>
-    <tr><th>タブ</th><th>役割</th></tr>
-    <tr><td>🎤 認識させる単語</td><td>固有名詞の誤認識対策。「読み／実際に出る形」欄には<b>誤変換の形</b>も入れられ、
-        <b>「／」区切りで複数並記OK</b>。変更は次回 ▶開始 時に反映</td></tr>
-    <tr><td>✨ 強調する単語</td><td>色・アニメ・パーティクルで装飾。「ありがとう」など定番は登録済み。保存で即反映。
-        全カタログは同梱の <a href="ガイド/エフェクトガイド.html"><b>エフェクトガイド.html</b></a> へ</td></tr>
-    <tr><td>🚫 伏せ字にする単語</td><td>出したくない単語を「○○○」に置換</td></tr>
-    <tr><td>🌐 英訳を固定する単語</td><td>人名などの英訳を固定（例: 星野ひかり → Hikari Hoshino）。<b>日本語→英語（FuguMT）の翻訳時のみ有効</b></td></tr>
+    <tr><th>メニュー</th><th>できること</th></tr>
+    <tr><td>💬 字幕</td><td>字幕のデザイン・レイアウト、認識させる単語、伏せ字にする単語</td></tr>
+    <tr><td>🌐 翻訳字幕</td><td>翻訳字幕の見た目、訳を固定する単語</td></tr>
+    <tr><td>✨ ワード演出</td><td>言葉に合わせた色・動き・パーティクル</td></tr>
+    <tr><td>🎉 リアクション演出</td><td>笑い声・拍手などで画像を出す</td></tr>
+    <tr><td>↗ 保存・共有</td><td>デザインとレイアウトを <code>.mojipack</code> で書き出す・取り込む</td></tr>
   </table>
   </div>
-  <p>上部の「編集する単語セット」で<b>単語セット（単語プロファイル）</b>（雑談用・ゲーム用など）を作れます。
-     単語セットは「共通」への<b>加算</b>なので、いつも使う単語は共通に入れておけば全セットで有効です。</p>
+  <div class="card"><b class="tag">保存していない変更の確認</b>
+    デザイン・レイアウト・単語は<b>保存ボタンを押すと配信に反映</b>されます。
+    保存していない変更があるあいだは <code>● 未保存の変更があります</code> と表示され、そのまま字幕スタジオを閉じたり
+    単語セットを切り替えたりしようとすると<b>「保存して続ける／保存しない／戻る」</b>を聞かれます。</div>
 
-  <h3 id="bulk">単語の一括登録（CSV / JSON）</h3>
-  <p>ゲームの技名のように<b>数百〜数千語</b>をまとめて入れたいときは、🎤 認識させる単語タブの
-     「📥 ファイルから取り込む」を使います。</p>
+  <h3 id="edit">デザインとレイアウトの編集</h3>
+  <img class="shot" src="{{IMG:studio_layout}}" alt="レイアウトの編集">
+  <span class="cap">編集中は設定の欄とプレビューが横に並びます。プレビューの枠はドラッグで移動、右下の角で大きさを変えられます</span>
+  <div class="step"><div class="n">1</div><div>「字幕」→ 字幕デザイン（または字幕のレイアウト）の <code>開く</code></div></div>
+  <div class="step"><div class="n">2</div><div>一覧から選ぶと、プレビューで見え方を確認できます。気に入ったら <code>このデザインに切り替える</code>（<code>このレイアウトに切り替える</code>）で配信に使います</div></div>
+  <div class="step"><div class="n">3</div><div>自分好みに直すときは <code>カスタマイズ</code>。同梱のものを直接いじらず、<code>これを元に新規作成</code> で自分用を作るのがおすすめです</div></div>
+  <div class="step"><div class="n">4</div><div>最初はよく使う項目だけ出ています。全部の項目を出すときは <code>もっと細かく調整</code>（<code>基本項目だけに戻す</code> で戻ります）。
+      項目は「名前」「本文」「位置と大きさ」などの見出しで区切られています</div></div>
+  <div class="step"><div class="n">5</div><div><code>💾 保存</code> で配信に反映。同梱の状態に戻したいときは <code>初期状態に戻す</code></div></div>
+  <div class="overflow">
+  <table>
+    <tr><th>デザインでできること</th><th>レイアウトでできること</th></tr>
+    <tr><td class="wrap1">フォント・太さ・サイズ・文字色・強調の色・縁取り・グロー・影・字間・登場アニメ、途中表示（薄文字）の濃さ、翻訳字幕の見た目</td>
+        <td>位置と大きさ、<code>表示のしかた</code>（<b>通常（積み上げ・スクロール）／縦書き（右から左へ）／リリックビデオ風字幕／吹き出し（漫画風）</b>）、文字揃え、保持する行数・スクロール・一定時間で消す、枠の背景・枠線・角丸・余白</td></tr>
+  </table>
+  </div>
   <ul>
-    <li>列は <code>表記,読み,出やすさ,英訳</code>（読み以降は省略可・<code>#</code> で始まる行はコメント）。
-        <b>英訳の列があれば「🌐 英訳を固定する単語」にも同時に入ります</b></li>
+    <li>コラボ用に「コラボ（小さめ）」デザインと「左下ハーフ」「右下ハーフ」レイアウト、吹き出し用に「吹き出し」「吹き出し（縦書き）」レイアウトが最初から入っています</li>
+    <li>各項目の意味や読みやすくするコツは、同梱の <a href="ガイド/スタイルガイド.html"><b>スタイルガイド.html</b></a> に実例つきでまとめています</li>
+    <li>「字幕」の<b>リリック演出ラボ</b>（試作）では、12種類のリリック演出を曲の流れで見比べられます（ここでの設定は保存されません）</li>
+  </ul>
+
+  <h3 id="words">📖 単語（4種類）</h3>
+  <img class="shot" src="{{IMG:studio_words}}" alt="字幕スタジオ 単語">
+  <div class="overflow">
+  <table>
+    <tr><th>種類</th><th>役割</th></tr>
+    <tr><td>🎤 認識させる単語</td><td>名前やゲーム用語の誤認識対策。「読み／実際に出る形」欄には、ひらがなの読みでも<b>実際に出てしまう誤変換の形</b>でも入れられ、どちらも「表記」の形に直ります。
+        <b>「／」区切りで複数並べられます</b>（「,」で区切っても「／」に直して保存します）。<code>出やすさ</code> は空欄=標準、目安1.5〜4.0。<b>次の ▶開始 から反映</b></td></tr>
+    <tr><td>✨ ワード演出の単語</td><td>画面に出たときに派手に飾る単語。色・フォント・サイズ・アニメ・飛ぶ絵文字を個別に指定。<b>保存するとすぐ反映</b>。
+        全カタログは同梱の <a href="ガイド/エフェクトガイド.html"><b>エフェクトガイド.html</b></a> へ</td></tr>
+    <tr><td>🚫 伏せ字にする単語</td><td>出したくない言葉を「○○」に置き換えます（途中経過・確定字幕・ログのすべて）。<b>伏せ字を含む行は翻訳されず、日本語のまま出ます</b>（訳すと伏せ字が別の語に化けるため）。次の ▶開始 から反映</td></tr>
+    <tr><td>🌐 訳を固定する単語</td><td>名前や作品名を、いつも同じ表記で訳します（例: 星野ひかり → Hikari Hoshino）。<b>大文字で始めた英訳は中国語・韓国語などの翻訳にも使われ</b>、その言語の読みに置き換わって残ります。
+        小文字で始めた語（例: 文字起こし → transcription）は英訳だけ。次の ▶開始 から反映</td></tr>
+  </table>
+  </div>
+
+  <h4 id="sets">単語セット（編集する／配信で使う）</h4>
+  <p><b>単語セット</b>は「雑談用」「格ゲー用」のような単語の組み合わせです。単語セットは「共通」に<b>加算</b>して使われます
+     （同じ単語は単語セット側が優先）。いつも使う単語は「共通のみ」に入れておけば、全部の単語セットで効きます。</p>
+  <ul>
+    <li><b>配信で使う単語セット</b>はコックピットの「単語セット」で選びます</li>
+    <li><b>編集する単語セット</b>は字幕スタジオ右上で選びます。ここで別の単語セットを開いて直しても、<b>配信中の認識は変わりません</b></li>
+    <li>配信で使っていない単語セットを開いているときは、右上に「配信では『〇〇』を使用中」と出ます。
+        <code>配信でこのセットを使う</code> を押すと、その単語セットに切り替わります</li>
+    <li>単語セットの作成・削除は、単語の画面の上の <code>＋ 新しい単語セット</code>／<code>🗑 この単語セットを削除</code> から</li>
+  </ul>
+
+  <h4 id="bulk">単語の一括登録（CSV / JSON）</h4>
+  <p>ゲームの技名のように<b>数百〜数千語</b>をまとめて入れたいときは、🎤 認識させる単語の
+     <code>📥 ファイルから取り込む（CSV / JSON）</code> を使います。</p>
+  <ul>
+    <li>列は <code>表記,読み,出やすさ,英訳,種別</code>（読み以降は省略可・<code>#</code> で始まる行はコメント）。
+        <b>英訳の列があれば「訳を固定する単語」にも同時に入ります</b></li>
     <li>Excel で保存した CSV（Shift_JIS）もそのまま読めます</li>
     <li>取り込む前に件数・既にある語・ファイル内の重複・弾いた行が表示され、<b>「追加のみ」か「同じ表記は上書き」</b>を選べます</li>
-    <li>「📤 CSVで書き出す」で今の単語セットを <code>data\export\</code> に書き出せます（Excel で編集して戻す・バックアップ）。
-        書き出したCSVを取り込み直しても、英訳だけの語が認識辞書に混ざることはありません</li>
-    <li>🌐 英訳を固定する単語タブでも同じように取り込み・書き出しができます（列は <code>日本語,英訳</code> の2列）</li>
+    <li><code>📤 CSVで書き出す</code> で今の単語セットを <code>data\export\</code> に書き出せます（Excel で編集して戻す・バックアップ）。
+        書き出したCSVを取り込み直しても、英訳だけの語が認識の単語に混ざることはありません</li>
+    <li>🌐 訳を固定する単語でも、同じように取り込み・書き出しができます（列は <code>日本語,英訳</code> の2列）</li>
   </ul>
   <div class="card"><b class="tag">AIに作らせると早い</b>
     「◯◯（ゲーム名）の全キャラクターの技名を CSV で列挙して。列は『表記,読み,出やすさ,英訳』で、読みはひらがな、
     出やすさは空欄、英訳は公式英語名。1行目は見出し行にして」のように頼むと早いです。
     実在しない語や間違った英名が混ざることがあるので、取り込み前の集計で確認してください。</div>
 
-  <h3 id="trstyle">🌐 翻訳字幕（見た目・固定訳）</h3>
+  <h3 id="trstyle">🌐 翻訳字幕</h3>
   <ul>
-    <li><code>翻訳字幕の見た目</code> … 翻訳字幕のサイズ・濃さ・専用色・専用の縁取り/グローを本文と独立して設定できます</li>
-    <li><code>見た目を設定する言語</code>（同画面・v0.9.9〜） … 「すべての言語（共通）」のほかに言語を選び、
-        <code>この言語だけ別の見た目にする</code> をオンにすると、<b>その言語だけ</b>サイズ・色・フォント・縁取りを変えられます
-        （オンにしていない項目は共通のまま）。中国語・韓国語は<b>文字が入っていないフォント</b>もあるので、
+    <li><code>翻訳字幕の見た目</code> … 翻訳字幕のサイズ（本文比）・濃さ・専用の色・フォント・縁取り/グローを、本文と別に設定できます。使用中のデザインに含まれる設定です</li>
+    <li><code>見た目を設定する言語</code> … 「すべての言語（共通）」のほかに言語を選び、<code>この言語だけ別の見た目にする</code> をオンにすると、
+        <b>その言語だけ</b>サイズ・色・フォント・縁取りを変えられます。中国語・韓国語は<b>文字が入っていないフォント</b>もあるので、
         言語ごとにフォントを選べるのが一番の使いどころです。プレビューにはその言語の例文が出ます</li>
-    <li><code>表示モード</code>（同画面・v0.8.0〜） … <b>日本語と併記（標準）／翻訳のみ表示</b>。翻訳のみでは訳文が本文のサイズ・エフェクトで表示され、日本語は出ません</li>
-    <li><code>訳し方を固定する言葉</code> … 上記「英訳を固定する単語」（日本語→英語のみ）</li>
-    <li><code>翻訳の動作設定 ↗</code> … 翻訳先の切替（アプリ設定の翻訳へ・<a style="color:var(--acc)" href="#translate">7章</a>）</li>
+    <li><code>表示モード</code> … <b>日本語と併記（標準）／翻訳のみ表示</b>（<a href="#translate">8章</a>）</li>
+    <li><code>訳を固定する単語</code> … 上の「🌐 訳を固定する単語」と同じものです</li>
+    <li><code>翻訳の動作設定 ↗</code> … 翻訳先の切替（アプリ設定の翻訳へ）</li>
   </ul>
 
-  <h3>🔗 保存・共有（mojipack）</h3>
+  <h3 id="soundfx">🎉 リアクション演出</h3>
+  <p>笑い声・拍手・歓声などを<b>マイクの音から聞き取って</b>、画像やパーティクルを画面に出す機能です（実験的）。</p>
+  <div class="step"><div class="n">1</div><div>字幕スタジオの「リアクション演出」（またはコックピットの「リアクション演出」の <code>設定</code>）を開き、<code>リアクション演出を使う</code> をオン</div></div>
+  <div class="step"><div class="n">2</div><div>初回だけ検出モデル（約27MB）を取得します。<b>次の ▶開始 から動きます</b></div></div>
+  <div class="step"><div class="n">3</div><div>演出したい音（笑い・拍手・歓声・歌・口笛・泣き・驚き・叫び・咳・くしゃみ など）ごとに <code>有効にする</code> をオンにし、<code>＋ 画像を追加…</code> で画像（GIFも可）を選ぶ</div></div>
+  <div class="step"><div class="n">4</div><div>画像はプレビュー上でドラッグして配置、クリックで選んで大きさを変えられます。パーティクル・登場の動き・表示時間・<code>音の大きさ（スコア）で演出を強くする</code> なども選べます</div></div>
+  <div class="step"><div class="n">5</div><div><code>🎉 テスト発火</code> で、声を出さずに見え方を確認できます</div></div>
+  <p class="dim">検出のしやすさには、声質や笑い方の個人差があります。</p>
+
+  <h3 id="share">↗ 保存・共有（mojipack）</h3>
   <ul>
-    <li><code>📤 カスタマイズを書き出す</code> … 文字スタイルとレイアウトを <code>.mojipack</code> ファイルにまとめて配布</li>
-    <li><code>📥 もらったカスタマイズを使う</code> … 受け取った <code>.mojipack</code> を追加（<b>今ある設定は上書きされません</b>）</li>
+    <li><code>カスタマイズを書き出す</code> … デザインとレイアウトを <code>.mojipack</code> ファイルにまとめます（<code>ファイルに保存</code>／<code>保存先を開く</code>）</li>
+    <li><code>もらったカスタマイズを使う</code> … 受け取った <code>.mojipack</code> を追加します（<b>今ある設定は上書きされません</b>）</li>
   </ul>
-  <p class="dim">文字スタイル編集画面の下部（<code>📤 エクスポート</code>／<code>📥 インポート</code>）からも同じ操作ができます。
+  <p class="dim">デザイン・レイアウトの編集画面の下（<code>📤 エクスポート</code>／<code>📥 インポート</code>）からも同じ操作ができます。
      配り方・もらい方のコツは <a href="ガイド/スタイルガイド.html">スタイルガイド.html</a> の「書き出し・取り込み」へ。</p>
 </section>
 
 <!-- ============================================================ -->
+<section id="bubble">
+  <a id="7-吹き出し字幕"></a><!-- ガイド（STYLE_GUIDE.md）からの MANUAL.md#7-吹き出し字幕 リンク用 -->
+  <h2><span class="no">7</span>吹き出し字幕</h2>
+  <img class="shot mid" src="{{IMG:bubble_demo}}" alt="吹き出し字幕の例">
+  <span class="cap">吹き出し字幕の例（ポイントに散らす・表示する数3）。尻尾はアバターの方を向きます</span>
+  <p>話した内容を<b>漫画の吹き出し</b>で出すレイアウトです（v1.0.0〜）。<b>吹き出しの尻尾がアバターの方を向きます。</b>
+     文の長さで吹き出しが伸び縮みし、話している途中は薄い文字で伸びていきます（上の例の右上）。</p>
+
+  <h3>使い方</h3>
+  <div class="step"><div class="n">1</div><div>コックピットの「字幕の見た目」→<b>レイアウト</b>で、同梱の<b>「吹き出し」</b>か<b>「吹き出し（縦書き）」</b>を選ぶ。これだけで使えます</div></div>
+  <div class="step"><div class="n">2</div><div>アバターの位置に合わせるときは、字幕スタジオ → 字幕のレイアウト → 吹き出しのレイアウトを選んで <code>カスタマイズ</code></div></div>
+  <div class="step"><div class="n">3</div><div>プレビューの<b>「アバター」の印をドラッグ</b>して、配信画面のアバターの位置に重ねる（尻尾がその方向を向きます）</div></div>
+  <div class="step"><div class="n">4</div><div>プレビューの枠（吹き出しが広がってよい範囲）を、ドラッグと右下の角で調整して <code>💾 保存</code></div></div>
+  <img class="shot" src="{{IMG:studio_bubble}}" alt="吹き出しレイアウトの編集">
+  <span class="cap">吹き出しレイアウトの編集。右のプレビューのピンクの印が「アバター」です</span>
+  <p>自分で作るときは、レイアウトの <code>表示のしかた</code> を<b>吹き出し（漫画風）</b>にすると、「💬 吹き出し」の項目が出ます。</p>
+
+  <h3>吹き出しの項目</h3>
+  <div class="overflow">
+  <table>
+    <tr><th>項目</th><th>内容</th></tr>
+    <tr><td>形</td><td><b>角丸（標準）／楕円／ギザギザ（叫び）／もくもく（考え中）</b></td></tr>
+    <tr><td>書き方向</td><td>横書き／縦書き</td></tr>
+    <tr><td>文字の寄せ方</td><td>横書きは左詰め・中央・右詰め、縦書きは上詰め・中央・下詰め</td></tr>
+    <tr><td>表示する数</td><td>何個前の発話まで吹き出しを残すか（1〜6個）。新しいものほど手前に出ます</td></tr>
+    <tr><td>並べ方</td><td><b>積み重ね（アバター寄り）</b>…新しいものほど手前、古いものは少し小さく奥へ ／
+        <b>ポイントに散らす</b>…プレビューで置いた場所のうち、ほかと重ならない所にランダムで出し、古いものほど薄くなります</td></tr>
+    <tr><td>アバター位置 X / Y</td><td>尻尾が向く先（プレビューの「アバター」の印のドラッグと同じ）</td></tr>
+    <tr><td>尻尾</td><td><code>尻尾をアバターへ向ける</code>・<code>尻尾の長さ</code>（既定 30px）</td></tr>
+    <tr><td>文字の大きさ</td><td>文の長さで吹き出しが伸び縮みし、入りきらないときは <code>縮めてよい下限</code> まで文字を縮めます</td></tr>
+    <tr><td>塗り・線</td><td>塗りの色・濃さ、線の色・太さ</td></tr>
+    <tr><td>吹き出し用の文字色</td><td>オンにすると、デザインの色・縁取りを使わず、吹き出しに読みやすい文字色で出します</td></tr>
+    <tr><td>認識途中も表示する</td><td>話している途中も、薄い文字で吹き出しが伸びていきます</td></tr>
+    <tr><td>消えるまでの時間</td><td>0 で次の発話まで残ります</td></tr>
+  </table>
+  </div>
+  <p><b>ポイントに散らす</b>ときは、プレビューの空いている所を<b>クリックでポイントを追加、ドラッグで移動、ダブルクリックで削除</b>（最大8か所）。
+     <code>1つの大きさの上限 幅／高さ</code> で、1つの吹き出しが広がる大きさを決めます。</p>
+  <div class="card"><b class="tag">コラボで使うとき</b>
+    自分も相手も同じ吹き出しレイアウトを選ぶと、<b>2人の吹き出しを1つにまとめて</b>、重ならないように並べます。
+    相手の吹き出しの尻尾は<b>「相手のアバター位置」</b>（プレビューの「相手」の印）を向きます。この項目はコラボがオンのときだけ出ます。</div>
+</section>
+
+<!-- ============================================================ -->
 <section id="translate">
-  <h2><span class="no">7</span>翻訳の併記</h2>
-  <p>コックピット右カラムの<b>「英訳（翻訳）」トグルをオン</b>にすると、確定した字幕の下に翻訳が小さく併記されます。
-     海外リスナー向けの配信にどうぞ。翻訳先は「アプリ設定 → 翻訳」で切り替えられます
-     （コックピットのトグル名も翻訳先に合わせて変わります）。</p>
+  <h2><span class="no">8</span>翻訳の併記</h2>
+  <p>コックピットの<b>「英訳（翻訳）」をオン</b>にすると、確定した字幕の下に翻訳が併記されます。
+     翻訳先は「アプリ設定 → 翻訳」で切り替えます（コックピットの名前も翻訳先に合わせて変わります）。</p>
   <div class="overflow">
   <table>
     <tr><th>翻訳先</th><th>モデル</th><th>補足</th></tr>
-    <tr><td>英語（既定）</td><td>FuguMT</td>
-        <td>人名などはスタジオの「英訳を固定する単語」で訳を固定できます</td></tr>
-    <tr><td>中国語（簡体字・中国大陸）</td><td>M2M-100</td>
-        <td>選択後の初回 ▶開始 時にモデルを自動DL（約470MB）。「英訳を固定する単語」は適用されません</td></tr>
-    <tr><td>中国語（繁体字・台湾）</td><td>M2M-100 ＋ OpenCC</td>
-        <td>翻訳後に台湾正体字と台湾で一般的な語彙へ整えます</td></tr>
-    <tr><td>中国語（繁体字・香港）</td><td>M2M-100 ＋ OpenCC</td>
-        <td>翻訳後に香港繁体字へ整えます</td></tr>
-    <tr><td>インドネシア語</td><td>M2M-100</td>
-        <td>日本語から直接翻訳します</td></tr>
-    <tr><td>ポルトガル語</td><td>M2M-100</td>
-        <td>日本語から直接翻訳します。「配信→transmissão ao vivo」など配信用語に対応</td></tr>
-    <tr><td>スペイン語</td><td>M2M-100</td>
-        <td>日本語から直接翻訳します。「配信→transmisión en vivo」など配信用語に対応</td></tr>
-    <tr><td>日本語</td><td>M2M-100</td>
-        <td>多言語認識（中・英・韓）と組み合わせて、<b>海外の配信を日本語字幕に</b>する方向。認識言語は固定推奨</td></tr>
-    <tr><td>韓国語</td><td>M2M-100</td>
-        <td><b>試験的</b>。翻訳が不安定なことがあります</td></tr>
+    <tr><td>英語（既定）</td><td>FuguMT</td><td>「配信→stream」「スパチャ→Super Chat」など配信用語の組み込み辞書つき</td></tr>
+    <tr><td>中国語（簡体字・中国大陸）</td><td>M2M-100</td><td>「配信→直播」など配信用語に対応。初めて選んだときに翻訳モデルを自動ダウンロード（約470MB）</td></tr>
+    <tr><td>中国語（繁体字・台湾）</td><td>M2M-100 ＋ OpenCC</td><td>簡体字の訳を、台湾の正体字と台湾で一般的な語彙へ整えます</td></tr>
+    <tr><td>中国語（繁体字・香港）</td><td>M2M-100 ＋ OpenCC</td><td>簡体字の訳を香港の繁体字へ整えます</td></tr>
+    <tr><td>インドネシア語</td><td>M2M-100</td><td>日本語から直接翻訳します</td></tr>
+    <tr><td>ポルトガル語</td><td>M2M-100</td><td>日本語から直接翻訳します。「配信→transmissão ao vivo」など配信用語に対応</td></tr>
+    <tr><td>スペイン語</td><td>M2M-100</td><td>日本語から直接翻訳します。「配信→transmisión en vivo」など配信用語に対応</td></tr>
+    <tr><td>日本語</td><td>M2M-100</td><td>多言語認識（中・英・韓）と組み合わせて、<b>海外の配信を日本語字幕に</b>する使い方。認識言語は固定推奨</td></tr>
+    <tr><td>韓国語</td><td>M2M-100</td><td><b>試験的</b>。翻訳が不安定なことがあります</td></tr>
   </table>
   </div>
-  <p class="dim">広東語は繁体字の種類ではなく別の言語です。現在は音声認識のみ対応し、翻訳先としては未対応です。認識言語と同じ翻訳先を選ぶと翻訳はスキップされます。</p>
   <ul>
-    <li>翻訳もローカルで動きます（ネット不要・追加料金なし）</li>
-    <li>日本語の字幕が先に出て、翻訳がひと呼吸おいて追いつきます</li>
-    <li>オンにして最初の ▶開始 時だけ「翻訳モデルをロード中...」と数秒待ちが入ります</li>
-    <li>翻訳字幕の見た目（サイズ・色・フチ）はスタジオの「翻訳字幕の見た目」で本文と独立して調整できます</li>
+    <li>名前などは、字幕スタジオの「訳を固定する単語」で訳を固定できます（大文字で始めた英訳は、ほかの言語の翻訳にも使われます）</li>
+    <li>広東語は繁体字の種類ではなく別の言語です。現在は音声認識のみ対応で、翻訳先には選べません</li>
+    <li>認識している言語と同じ翻訳先を選ぶと、翻訳はスキップされます</li>
+    <li>翻訳もPCの中で動きます（ネット不要・追加料金なし）。日本語の字幕が先に出て、翻訳がひと呼吸おいて追いつきます</li>
   </ul>
-  <div class="card ok"><b class="tag">配信用語は組み込みで対応</b>
-    「配信→stream」「スパチャ→Super Chat」「歌枠→singing stream」（英訳）、
-    「配信→直播」「コメ欄→评论区」（中国語訳）など、
-    誤訳されがちな配信用語はアプリに組み込みで正しく訳されます。</div>
-  <div class="card"><b class="tag">翻訳のみ表示（v0.8.0〜）</b>
-    スタジオ「翻訳字幕の見た目」の<code>表示モード</code>を<b>翻訳のみ表示</b>にすると、日本語を出さずに
-    訳文だけを<b>本文のサイズ・エフェクト</b>で表示できます（画面の圧迫を防げます。表示行数はレイアウトの
-    <code>表示行数</code>がそのまま効きます）。デザインごとの設定なので、シーンに組み込めば
-    「ステラ、英語配信」のようにボイスコマンドで一括切替もできます。翻訳がOFFのときは自動で併記（日本語表示）に戻ります。<br>
-    強調単語のエフェクトは、訳文に出る<b>英語の表記</b>（例: Stella）で登録すると翻訳のみ表示でも発動します
-    （「英訳を固定する単語」との併用が確実です）。</div>
-  <h3 id="multi">複数の言語を同時に表示（v0.9.9〜）</h3>
+  <div class="card"><b class="tag">翻訳のみ表示</b>
+    字幕スタジオ「翻訳字幕の見た目」の <code>表示モード</code> を<b>翻訳のみ表示</b>にすると、日本語を出さずに
+    訳文だけを<b>本文のサイズ・エフェクト</b>で表示できます（画面の圧迫を防げます）。デザインごとの設定なので、シーンに組み込めば
+    「ステラ、英語配信」のようにボイスコマンドで一括切替もできます。翻訳がオフのときは自動で日本語の表示に戻ります。<br>
+    強調する単語のエフェクトは、訳文に出る<b>英語の表記</b>（例: Stella）で登録すると翻訳のみ表示でも発動します
+    （訳を固定する単語との併用が確実です）。</div>
+
+  <h3 id="multi">複数の言語を同時に表示</h3>
   <p>「アプリ設定 → 翻訳」の <code>2つ目の翻訳先</code>・<code>3つ目の翻訳先</code> で、<b>最大3言語</b>を同時に出せます
-     （例: 英語＋中国語＋韓国語）。</p>
+     （例: 英語＋中国語＋ポルトガル語）。</p>
   <ul>
     <li>字幕には<b>選んだ順に縦に並びます</b>（届いた順ではありません）</li>
-    <li><b>翻訳のみ表示</b>では、1つ目の言語が本文（本文のサイズ・エフェクト）になり、2つ目以降はその下に訳文の書式で付きます</li>
-    <li>訳の速い言語から先に出ます。英語はほぼすぐ、中国語・韓国語は0.2〜0.4秒ほど遅れて追いつきます</li>
+    <li><b>翻訳のみ表示</b>では、1つ目の言語が本文になり、2つ目以降はその下に訳文の書式で付きます</li>
+    <li>訳の速い言語から先に出ます。英語はほぼすぐ、ほかの言語は0.2〜0.4秒ほど遅れて追いつきます</li>
     <li>ある言語だけ訳せなかった行は、その言語だけ表示しません（ほかの言語は出ます）</li>
     <li><b>VRChat</b> のチャットボックスには1つ目の言語だけ送ります（チャットボックスは1枠のため）</li>
     <li>ボイスコマンドの「翻訳を韓国語に」は、韓国語を<b>1つ目に繰り上げ</b>ます（ほかの言語は残ります）</li>
-    <li>言語ごとの見た目は<a style="color:var(--acc)" href="#trstyle">6章 翻訳字幕</a>で変えられます</li>
+    <li>言語ごとの見た目は<a href="#trstyle">6章 翻訳字幕</a>で変えられます</li>
   </ul>
   <div class="card warn"><b class="tag">重さの目安</b>
     翻訳は1言語ずつ順に行うので、言語を足すほど CPU の負荷が増えます。
     メモリは「英語」と「それ以外の言語」で別のAIを使うため、<b>英語＋中国語のように両方を使うと約1GB</b>、
-    中国語＋韓国語のように英語以外どうしなら1言語のときとほぼ同じです。
-    中国語の簡体字・台湾・香港を並べても、翻訳は1回で済むのでほとんど重くなりません。
-    余裕のあるPC向けの機能です。重いときは言語を減らしてください。</div>
-
+    中国語＋ポルトガル語のように英語以外どうしなら1言語のときとほぼ同じです。
+    中国語の簡体字・台湾・香港を並べても、翻訳は1回で済むのでほとんど重くなりません。重いときは言語を減らしてください。</div>
   <div class="card warn"><b class="tag">訳の精度について</b>
-    翻訳はPC内で完結する<b>軽量なローカルモデル</b>で動くため、精度はクラウド翻訳ほどではなく
-    <b>「意味が伝わればOK」くらいのそれなり</b>とお考えください。長い一文や固有名詞・スラングは崩れやすいです。
-    人名などは「英訳を固定する単語」で訳を固定でき、配信でよく使う語は組み込み辞書で補正しています。
+    翻訳はPCの中で完結する<b>軽いローカルモデル</b>で動くため、精度はクラウド翻訳ほどではなく
+    <b>「意味が伝わればOK」くらいのそれなり</b>とお考えください。長い一文や固有名詞・スラングは崩れやすく、
+    ときどき意味が逆になることもあります（「全然大丈夫じゃない」が「大丈夫」と訳されるなど）。大事な場面では頼りすぎないでください。
     気になった誤訳があればぜひフィードバックしてください。</div>
 </section>
 
 <!-- ============================================================ -->
 <section id="collab">
-  <h2><span class="no">8</span>1対1コラボ字幕</h2>
-  <p>Discord等で通話しながらのコラボ配信で、<b>自分と相手の両方の字幕</b>を別々のスタイル・位置で表示できます。
-     相手の声は「通話アプリの音」から直接取り込むので、<b>相手側の準備は一切不要</b>です
-     （相手がスマホ・ゲーム機でもOK）。
-     ▶ 実際に動く様子は<a style="color:var(--acc)" href="https://youtu.be/GObqilowmkU"
-     target="_blank">30秒デモ動画（YouTube）</a>をどうぞ。</p>
+  <h2><span class="no">9</span>1対1コラボ字幕</h2>
+  <p>Discord などで通話しながらのコラボ配信で、<b>自分と相手の両方の字幕</b>を別々のデザイン・位置で表示できます（Windows のみ）。
+     相手の声は「通話アプリの音」から直接取り込むので、<b>相手側の準備は一切不要</b>です（相手がスマホ・ゲーム機でもOK）。
+     ▶ 実際に動く様子は <a href="https://youtu.be/GObqilowmkU" target="_blank">30秒デモ動画（YouTube）</a> をどうぞ。</p>
 
   <div class="overflow">
   <table>
     <tr><th>できること</th><th>制約</th></tr>
-    <tr><td>相手はアプリ導入・設定不要<br>相手の字幕に専用のスタイル・位置を割当<br>字幕ログに話者名チップ表示</td>
-        <td><b>1対1限定</b>（3人以上は相手全員の声が1つにまとまる）<br>相手の音は通話品質のため、認識精度は自分よりやや低め<br>Windows 10 2004 以降が必要</td></tr>
+    <tr><td class="wrap1">相手はアプリの導入・設定不要<br>相手の字幕に専用のデザイン・位置を割り当て<br>字幕ログに話者名が付く</td>
+        <td><b>1対1限定</b>（3人以上だと相手全員の声が1つにまとまる）<br>相手の音は通話の音質なので、精度は自分よりやや低め<br>Windows 10 2004 以降が必要（Mac は非対応）</td></tr>
   </table>
   </div>
 
   <h3>設定手順</h3>
-  <div class="step"><div class="n">1</div><div>コックピット右カラムの<b>「1対1コラボ」トグルをオン</b> → アプリ設定の「コラボ音声」が開く</div></div>
-  <div class="step"><div class="n">2</div><div>Discord等の通話アプリを起動してから <b>↻</b> を押し、
-      「相手の声が鳴るアプリ」で <b>Discord.exe</b> などを選ぶ（🔊 は今音が鳴っているアプリ）</div></div>
-  <div class="step"><div class="n">3</div><div>自分と相手の<b>表示名</b>を決める（字幕ログのチップに使われます）</div></div>
-  <div class="step"><div class="n">4</div><div>コックピットに戻ると「字幕の見た目」が<b>自分/相手の2段</b>になるので、相手の<b>デザイン・レイアウト</b>を選ぶ。
-      おすすめは 自分=<b>右下ハーフ</b> / 相手=<b>左下ハーフ</b>（立ち絵が左右に並ぶ配置向け）</div></div>
+  <div class="step"><div class="n">1</div><div>コックピットの<b>「1対1コラボ」をオン</b> → アプリ設定の「1対1コラボ」が開きます</div></div>
+  <div class="step"><div class="n">2</div><div>Discord などを起動してから <b>↻ 更新</b> を押し、「相手の声が鳴るアプリ」で <b>Discord.exe</b> などを選ぶ（🔊 = いま音が鳴っているアプリ）</div></div>
+  <div class="step"><div class="n">3</div><div>自分と相手の<b>表示名</b>を決める</div></div>
+  <div class="step"><div class="n">4</div><div>コックピットの「字幕の見た目」が<b>自分/相手の2段</b>になるので、相手の<b>デザイン・レイアウト</b>を選ぶ。
+      おすすめは 自分=<b>右下ハーフ</b> / 相手=<b>左下ハーフ</b>。2人とも<b>吹き出し</b>にすると、吹き出しを1つの画面にまとめて並べます（<a href="#bubble">7章</a>）</div></div>
   <div class="step"><div class="n">5</div><div><b>ヘッドホンを着けて</b> ▶開始</div></div>
 
   <div class="shotrow">
     <div>
-      <img class="shot" src="{{IMG:settings_collab}}" alt="コラボ音声の設定">
-      <span class="cap">アプリ設定「コラボ音声」（取り込むアプリと表示名）</span>
+      <img class="shot" src="{{IMG:settings_collab}}" alt="アプリ設定 1対1コラボ">
+      <span class="cap">アプリ設定「1対1コラボ」（取り込むアプリと表示名）</span>
     </div>
     <div>
       <img class="shot" src="{{IMG:cockpit_collab}}" alt="コラボ中のコックピット">
@@ -597,60 +699,59 @@
   </div>
 
   <div class="card warn"><b class="tag">ヘッドホン必須</b>
-    スピーカーで聞くと、相手の声をマイクが拾って<b>二重に字幕化</b>されます。コラボ中は必ずヘッドホン・イヤホンで。</div>
+    スピーカーで聞くと、相手の声をマイクが拾って<b>二重に字幕になります</b>。コラボ中は必ずヘッドホン・イヤホンで。</div>
   <div class="card"><b class="tag">負荷について</b>
     コラボ中は認識が2人分になるため、PCによっては重くなります。
-    重い場合は認識モデルを「多言語」にするのが効果的（<b>2人分でも負荷がほぼ増えません</b>。精度は少し下がります）。
-    詳しい実測データは <a href="ガイド/テクニカルガイド.html">テクニカルガイド.html</a> へ。
-    ほかに「高精度モード」をオフ、英訳をオフ、「一区切りの最長」を8秒程度にするのも有効です。</div>
+    重い場合は認識モデルを「多言語」にするのが効果的です（<b>2人分でも負荷がほぼ増えません</b>。精度は少し下がります）。
+    ほかに「高精度モード」をオフ、翻訳をオフ、「一区切りの最長」を8秒程度にするのも有効です。
+    詳しい実測データは <a href="ガイド/テクニカルガイド.html">テクニカルガイド.html</a> へ。</div>
 </section>
 
 <!-- ============================================================ -->
 <section id="files">
-  <h2><span class="no">9</span>フォルダとアップデート</h2>
+  <h2><span class="no">10</span>フォルダとアップデート</h2>
   <div class="overflow">
   <table>
     <tr><th>ファイル / フォルダ</th><th>内容</th></tr>
-    <tr><td><code>Mojicast.exe</code></td><td>アプリ本体</td></tr>
-    <tr><td><code>_internal\</code></td><td>実行に必要なファイル（触らない）</td></tr>
-    <tr><td><code>models\</code></td><td>AIモデル一式。初回起動時に自動DL（触らない）</td></tr>
-    <tr><td><code>data\</code></td><td>あなたの設定・単語帳・スタイル一式。初回起動時に自動生成。
-        <b>バックアップはこのフォルダをコピーするだけ</b></td></tr>
-    <tr><td><code>data\profiles\</code></td><td>単語セット（雑談用・ゲーム用などの単語プロファイル）</td></tr>
-    <tr><td><code>logs\</code></td><td>「字幕ログを保存する」オン時の文字起こしテキスト（下記）と診断ログ</td></tr>
-    <tr><td><code>ui\</code> / <code>overlay.html</code></td><td>画面ファイル（触らない）</td></tr>
+    <tr><td><code>Mojicast.exe</code>（Mac は <code>Mojicast.app</code>）</td><td>アプリ本体</td></tr>
+    <tr><td><code>_internal</code></td><td>実行に必要なファイル（Windows・触らない）</td></tr>
+    <tr><td><code>models</code></td><td>AIモデル一式。初回に自動ダウンロード（触らない）</td></tr>
+    <tr><td><code>data</code></td><td>あなたの設定・単語・字幕デザイン一式。<b>バックアップはこのフォルダをコピーするだけ</b></td></tr>
+    <tr><td><code>data\profiles</code></td><td>単語セット</td></tr>
+    <tr><td><code>logs</code></td><td>字幕ログ（文字起こし）と診断ログ</td></tr>
   </table>
   </div>
+  <ul>
+    <li><b>Windows Zip 版</b>: 展開したフォルダの中にあります</li>
+    <li><b>Windows インストーラ版</b>: <code>%LOCALAPPDATA%\Programs\Mojicast</code> の中。スタートメニューの<b>「Mojicast のフォルダを開く」</b>から開けます</li>
+    <li><b>Mac</b>: <code>~/ライブラリ/Application Support/Mojicast</code> の中（<code>Mojicast.app</code> の中ではありません）</li>
+  </ul>
 
-  <h3>文字起こしログ（logs フォルダ）</h3>
-  <p>アプリ設定の「その他 →<b> 字幕ログを保存する</b>」がオンのとき（既定オン）、配信の文字起こしが
-     テキストで残ります。</p>
+  <h3 id="logs">字幕ログ（文字起こし）</h3>
+  <p>アプリ設定の「画面とログ →<b> 字幕ログを保存する</b>」がオンのとき（既定オン）、配信の文字起こしがテキストで残ります。</p>
   <ul>
     <li>保存先は <code>logs\日付\</code> フォルダ。<b>▶開始のたびに1ファイル</b>できます
         （例: <code>logs\2026-07-20\2026-07-20_161916.log</code>）</li>
-    <li>各行は <code>[発言時刻] 本文</code> の形式。<b>コラボ中は <code>[話者名]</code> も付く</b>ので、
-        誰の発言かあとから分かります</li>
-    <li>確定した字幕だけが記録されます（薄文字の途中経過は残りません）。
-        伏せ字にした単語は伏せ字のまま記録されます</li>
+    <li>各行は <code>[発言時刻] 本文</code> の形式。<b>コラボ中は <code>[話者名]</code> も付く</b>ので、誰の発言かあとから分かります</li>
+    <li>確定した字幕だけを記録します（途中経過の薄文字は残りません）。伏せ字にした単語は伏せ字のまま記録されます</li>
     <li>書き込みは発言ごとなので、アプリが落ちてもそれまでの分は残ります</li>
-    <li>自動では削除されません。溜まってきたら古い日付フォルダをそのまま削除してOKです</li>
+    <li>自動では削除されません。溜まってきたら古い日付のフォルダをそのまま削除してOKです</li>
   </ul>
   <div class="card ok"><b class="tag">活用アイデア</b>
     配信のアーカイブ字幕づくり・切り抜きの台本探し・「あの話いつしたっけ？」の検索
     （テキストなのでフォルダごと全文検索できます）など。</div>
 
   <h3>更新のお知らせ</h3>
-  <p>新しいバージョンが出ると、コックピット上部に「新しいバージョンがあります」の帯が表示されます。
-     アプリ設定→<b>情報・連絡先</b>→「<b>更新を確認</b>」からいつでも手動確認もできます。
-     確認・ダウンロードページはブラウザで開きます（音声やデータが送信されることはありません）。</p>
+  <p>新しいバージョンが出ると、コックピットの上に「新しいバージョンがあります」の帯が出ます。
+     アプリ設定 →<b>情報・連絡先</b>→ <code>🔄 更新を確認</code> からいつでも確かめられます。
+     確認・ダウンロードのページはブラウザで開きます（音声やデータが送信されることはありません）。</p>
 
-  <h3 id="installer">インストーラ版（v0.9.9〜）</h3>
+  <h3 id="installer">インストーラ版（Windows）</h3>
   <ul>
-    <li>インストール先は既定で <code>%LOCALAPPDATA%\Programs\Mojicast</code>（ユーザーごと・管理者権限不要）。上の表のフォルダはこの中にあります</li>
-    <li>エクスプローラーで普段は見えない場所なので、スタートメニューの<b>「Mojicast のフォルダを開く」</b>から開けます（ログや <code>data\</code> を見たいとき・問い合わせのとき）</li>
+    <li>インストール先は既定で <code>%LOCALAPPDATA%\Programs\Mojicast</code>（ユーザーごと・管理者権限不要）</li>
     <li><b>アップデート</b>: 新しい <code>setup.exe</code> を実行するだけ。設定・単語・AIモデルはそのまま残ります</li>
     <li><b>アンインストール</b>: Windows の「設定 → アプリ → Mojicast」。最後に「設定やAIモデルも削除しますか？」と聞かれます
-        （「いいえ」で残せます。再インストールすればそのまま使えます）</li>
+        （「いいえ」で残せます。入れ直せばそのまま使えます）</li>
   </ul>
   <div class="card ok"><b class="tag">以前の Zip 版から移るとき（設定の引き継ぎ）</b>
     インストール先の画面で、<b>今使っている Mojicast のフォルダ（<code>Mojicast.exe</code> があるフォルダ）を選ぶ</b>と、
@@ -660,45 +761,55 @@
     選んで「引き継ぐ」を押すだけです（見つからなければ「別のフォルダを選ぶ…」）。AIモデルもコピーするか選べ、
     引き継ぎ元のフォルダは変更しません。使っていなかった人は「使っていない」で閉じれば以後は出ません。</div>
 
-  <h3>アップデート方法（Zip 版）</h3>
+  <h3>アップデート方法（Windows Zip 版）</h3>
   <div class="step"><div class="n">1</div><div>Mojicast を終了する</div></div>
-  <div class="step"><div class="n">2</div><div>旧フォルダ内の <code>_internal</code> フォルダを削除する</div></div>
-  <div class="step"><div class="n">3</div><div>新しいZipを同じフォルダに上書き展開する</div></div>
-  <p class="dim">設定・単語帳・スタイル・AIモデル（models）はそのまま引き継がれます。
-     新しいZipにはデータファイルが含まれないため、あなたのカスタマイズは上書きされません。
-     アップデートで追加された新しい既定スタイルは、初回起動時に自動で一覧へ追加されます。</p>
-  <p class="dim">アンインストールはフォルダごと削除するだけです。レジストリ等は使いません。</p>
+  <div class="step"><div class="n">2</div><div>古いフォルダの中の <code>_internal</code> フォルダを削除する</div></div>
+  <div class="step"><div class="n">3</div><div>新しい Zip を同じフォルダに上書き展開する</div></div>
+  <p class="dim">設定・単語・字幕デザイン・AIモデル（models）はそのまま引き継がれます。
+     新しい Zip にはデータファイルが含まれないため、あなたのカスタマイズは上書きされません。
+     新しく追加された同梱のデザイン・レイアウトは、初回起動時に自動で一覧へ追加されます。
+     アンインストールはフォルダごと削除するだけです（レジストリは使いません）。</p>
+
+  <h3>アップデート方法（Mac）</h3>
+  <p>新しい dmg の <code>Mojicast.app</code> を、アプリケーションフォルダへドラッグして上書きします。
+     設定・単語・AIモデルは <code>~/ライブラリ/Application Support/Mojicast</code> にあるので、そのまま残ります。
+     アンインストールは <code>Mojicast.app</code> をゴミ箱へ（データも消すときは上のフォルダも削除）。</p>
 </section>
 
 <!-- ============================================================ -->
 <section id="trouble">
-  <h2><span class="no">10</span>困ったときは</h2>
+  <h2><span class="no">11</span>困ったときは</h2>
   <div class="overflow">
   <table>
     <tr><th>症状</th><th>対処</th></tr>
+    <tr><td>新しい画面が使いにくい</td><td>ヘッダーの <code>旧UI</code> で前の画面に戻せます（<a href="#uivariant">3章</a>）。設定や単語はそのまま使えます</td></tr>
     <tr><td>動作が重い</td><td>① 認識モデルを「多言語」に（負荷が約1/3・精度は少し下がる。アプリ設定→声の聞き取り→認識モデル）
-        ②「高精度モード」をオフ ③ 使わないなら翻訳をオフ、または翻訳先を1言語に減らす ④「一区切りの最長」を8秒程度に
+        ②「高精度モード」をオフ ③ 翻訳をオフ、または翻訳先を1言語に減らす ④「一区切りの最長」を8秒程度に
         ⑤「確定した字幕だけ表示する」をオン（途中経過の計算を省く）。
-        CPU使用率が上がるのは「誰かが喋っている間」だけです。詳しくは
-        <a style="color:var(--acc)" href="ガイド/テクニカルガイド.html">テクニカルガイド.html</a></td></tr>
-    <tr><td>2つ目・3つ目の翻訳が遅れて出る</td><td>翻訳は1言語ずつ順に行うため、後の言語ほど遅れます（中国語・韓国語は1文0.1〜0.2秒ずつ）。遅れが積み重なるようなら言語を減らしてください</td></tr>
-    <tr><td>中国語・韓国語の訳が□や変な字形になる</td><td>選んだフォントにその言語の文字が入っていません。スタジオ→翻訳字幕の<code>見た目を設定する言語</code>で、その言語だけ別のフォントにできます</td></tr>
-    <tr><td>画面が真っ白</td><td>「Microsoft Edge WebView2 ランタイム」をインストール（Web検索で公式Microsoftサイトから）。Windows 11 では通常発生しません</td></tr>
-    <tr><td>「ポート ○○ は使用中」</td><td>アプリが既に起動しています。タスクトレイやタスクマネージャーで確認して二重起動を解消。
-        別アプリとの衝突ならアプリ設定の「OBS接続 → 接続ポート」で変更（次回起動時反映・OBS側のURLも更新）</td></tr>
-    <tr><td>マイクを拾わない</td><td>Windows 設定 → プライバシー → マイクの許可を確認。他アプリの占有も確認。マイク選択を「既定のマイク」に戻すのも有効</td></tr>
-    <tr><td>認識が変・遅い</td><td>詳細設定の「無音で文を区切る」「途中経過の更新間隔」を調整。固有名詞の誤認識はスタジオの「認識させる単語」で改善</td></tr>
-    <tr><td>コラボで相手の字幕が出ない</td><td>通話アプリを起動してからコラボ設定の ↻ →選び直し。相手が喋ったときに出ます。
+        CPU使用率が上がるのは「誰かが喋っている間」だけです。詳しくは <a href="ガイド/テクニカルガイド.html">テクニカルガイド.html</a></td></tr>
+    <tr><td>2つ目・3つ目の翻訳が遅れて出る</td><td>翻訳は1言語ずつ順に行うため、後の言語ほど遅れます（1文あたり0.1〜0.2秒ずつ）。遅れが積み重なるようなら言語を減らしてください</td></tr>
+    <tr><td>中国語・韓国語の訳が□や変な字形になる</td><td>選んだフォントにその言語の文字が入っていません。字幕スタジオ→翻訳字幕の見た目の <code>見た目を設定する言語</code> で、その言語だけ別のフォントにできます</td></tr>
+    <tr><td>吹き出しの尻尾が変な方向を向く</td><td>字幕スタジオでレイアウトを <code>カスタマイズ</code> し、プレビューの「アバター」の印をアバターの位置へドラッグ（<a href="#bubble">7章</a>）</td></tr>
+    <tr><td>保存したのに配信に反映されない</td><td>認識させる単語・伏せ字・訳を固定する単語は<b>次の ▶開始 から</b>反映されます（コックピットの <code>今すぐ反映（再起動）</code> も使えます）。
+        編集している単語セットが「配信で使う単語セット」と同じかも確認を（<a href="#sets">6章</a>）</td></tr>
+    <tr><td>コックピットに一部の機能が見当たらない</td><td>「字幕に追加する」の <code>表示を選ぶ</code> で隠しているかもしれません。チェックを入れ直すと戻ります</td></tr>
+    <tr><td>画面が真っ白（Windows）</td><td>「Microsoft Edge WebView2 ランタイム」をインストール（Web検索で公式Microsoftサイトから）。Windows 11 では通常起きません</td></tr>
+    <tr><td>「ポート ○○ は使用中」</td><td>アプリが既に起動しています。タスクマネージャーで確認して二重起動を解消。
+        ほかのアプリとの衝突ならアプリ設定の「OBS接続 → 接続ポート」で変更（再起動後に反映・OBS側のURLも更新）</td></tr>
+    <tr><td>マイクを拾わない</td><td>アプリ設定→声の聞き取りの入力レベルのメーターで確認。Windows は「設定 → プライバシー → マイク」、
+        Mac は「システム設定 → プライバシーとセキュリティ → マイク」で Mojicast を許可。ほかのアプリがマイクを占有していないかも確認を</td></tr>
+    <tr><td>コラボで相手の字幕が出ない</td><td>通話アプリを起動してから ↻ 更新 → 選び直し。相手が喋ったときに出ます。
         アプリを選び直したら、いったん ■停止 → ▶開始</td></tr>
     <tr><td>コラボで字幕が二重に出る</td><td>スピーカーの音をマイクが拾っています。ヘッドホンを使ってください</td></tr>
     <tr><td>OBS に何も出ない</td><td>アプリが起動しているか、URL が <code>http://localhost:8765</code> か、▶開始 しているかを確認。ブラウザソースを右クリック→「再読み込み」も有効</td></tr>
     <tr><td>多言語モデルで固有名詞が直らない</td><td>認識誘導が効かないモデルのため、「認識させる単語」の読み欄に<b>実際に出た誤変換の形</b>を登録します（「／」区切りで複数OK）</td></tr>
-    <tr><td>翻訳が出ない</td><td>認識言語と翻訳先が同じだとスキップされます。アプリ設定→翻訳の「使用モデル」表示を確認</td></tr>
+    <tr><td>翻訳が出ない</td><td>認識している言語と翻訳先が同じだとスキップされます。アプリ設定→翻訳の「使用モデル」の表示を確認</td></tr>
     <tr><td>「句読点の読み込みに失敗」<br>「翻訳の読み込みに失敗」と出る</td><td>字幕本体はそのまま動きます。原因が <code>logs\load_error.log</code> に記録されるので、
         続く場合はこのファイルを添えて報告してください</td></tr>
     <tr><td>起動時に .NET / clr / Python.Runtime のエラー</td><td>通常は起動時に自動解除されますが、まれに残ることがあります。フォルダ内の <code>ブロック解除.bat</code> を一度実行してください</td></tr>
-    <tr><td>起動しない・すぐ落ちる</td><td>Zip 版はフォルダをローカルディスクに置いているか確認（Zip内・ネットワークドライブは不可）。ウイルス対策ソフトの誤検知の場合は除外設定へ。インストーラ版にするのも有効です</td></tr>
-    <tr><td>ログや設定のフォルダが見つからない（インストーラ版）</td><td>スタートメニューの「Mojicast のフォルダを開く」</td></tr>
+    <tr><td>起動しない・すぐ落ちる（Windows）</td><td>Zip 版はフォルダをローカルディスクに置いているか確認（Zip内・ネットワークドライブは不可）。ウイルス対策ソフトの誤検知の場合は除外設定へ。インストーラ版にするのも有効です</td></tr>
+    <tr><td>Mac で「開いていません」<br>「壊れているため開けません」と出る</td><td><a href="#mac">1章 起動手順（Mac）</a>と、dmg 内の「はじめにお読みください（Mac版）」を参照</td></tr>
+    <tr><td>ログや設定のフォルダが見つからない</td><td><a href="#files">10章</a>の場所を参照（インストーラ版はスタートメニューの「Mojicast のフォルダを開く」）</td></tr>
   </table>
   </div>
   <p class="dim">上級者向け: 認識中にブラウザで <code>http://localhost:8765/api/perf</code> を開くと、
@@ -707,17 +818,18 @@
 
 <!-- ============================================================ -->
 <section id="feedback">
-  <h2><span class="no">11</span>連絡先・フィードバック</h2>
+  <h2><span class="no">12</span>連絡先・フィードバック</h2>
   <p>使ってくれてありがとうございます！ 不具合報告・要望・感想はお気軽にどうぞ。報告の際は、
      アプリ設定の「情報・連絡先」に表示される<b>バージョン番号</b>もあわせてお知らせください。</p>
   <div class="overflow">
   <table>
     <tr><th>窓口</th><th>用途</th></tr>
-    <tr><td>🐙 <a style="color:var(--acc)" href="https://github.com/ishiki-emo/mojicast/issues" target="_blank">GitHub Issues</a></td><td>不具合報告・機能要望（推奨）</td></tr>
-    <tr><td>𝕏 <a style="color:var(--acc)" href="https://x.com/ishiki_emo" target="_blank">X @ishiki_emo</a></td><td>作者（癒色えも）へ直接ひとこと</td></tr>
+    <tr><td>💬 <a href="https://discord.gg/Qmx7Mrf6TE" target="_blank">Discord コミュニティ</a></td><td>使い方の質問・要望・雑談</td></tr>
+    <tr><td>🐙 <a href="https://github.com/ishiki-emo/mojicast/issues" target="_blank">GitHub Issues</a></td><td>不具合報告・機能要望</td></tr>
+    <tr><td>𝕏 <a href="https://x.com/ishiki_emo" target="_blank">X @ishiki_emo</a></td><td>作者（癒色えも）へ直接ひとこと</td></tr>
   </table>
   </div>
-  <p class="dim">アプリ内でも「アプリ設定 → 情報・連絡先」から上記リンクをブラウザで開けます。</p>
+  <p class="dim">アプリ内でも、コックピットのフッターの <code>💬 Discordコミュニティ</code> や、アプリ設定 → 情報・連絡先 から開けます。</p>
   <p>以下のような情報が特に助かります。</p>
   <ul>
     <li>誤認識・誤訳の具体例（何と言ったら何と表示されたか）</li>
@@ -728,7 +840,7 @@
 </section>
 
 <footer>
-  Mojicast — ReazonSpeech k2 + Silero VAD + BERT句読点 + FuguMT英訳 + M2M-100多言語訳 / ローカル完結・オフライン動作
+  Mojicast v1.0.0 — ReazonSpeech k2 + Silero VAD + BERT句読点 + FuguMT英訳 + M2M-100多言語訳 / ローカル完結・オフライン動作
 </footer>
 
 </div>
