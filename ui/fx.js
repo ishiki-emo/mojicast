@@ -1158,16 +1158,21 @@
       const px = -uy, py = ux;   // 尻尾の向きに直交する向き
       if (shape === "cloud") {
         // 考え中: 小さな丸が3つ、アバターへ向かって小さくなる
+        // 丸はもくもくの外側（でこぼこの外周）から並べる。尻尾が短くても雲の下に隠れないよう、
+        // 間隔は丸の大きさを基準にし、尻尾の長さぶんだけ広げる
         const base = clamp(Math.min(W, H) * 0.09, 6, 24);
-        [[0.3, 1], [0.62, 0.66], [0.9, 0.42]].forEach(([t, k]) => {
-          const d = R + L * t;
+        const outer = 1 / Math.sqrt((ux / (W / 2)) ** 2 + (uy / (H / 2)) ** 2);
+        [[0.9, 0, 1], [2.5, 0.45, 0.66], [3.7, 0.9, 0.42]].forEach(([g, t, k]) => {
+          const d = outer + base * g + L * t;
           out.push(["circle", { cx: cx + ux * d, cy: cy + uy * d, r: base * k }]);
         });
       } else {
         const hw = clamp(Math.min(W, H) * (shape === "burst" ? 0.1 : 0.14), 8, 34);
         const bd = R * 0.7;                       // 付け根は本体の内側（継ぎ目を本体で隠す）
         const bx = cx + ux * bd, by = cy + uy * bd;
-        const tx = cx + ux * (R + L), ty = cy + uy * (R + L);
+        // ギザギザはとげの先（外周）から測る（内側の縁から測ると短い尻尾がとげに埋もれる）
+        const reach = shape === "burst" ? 1 / Math.sqrt((ux / (W / 2)) ** 2 + (uy / (H / 2)) ** 2) : R;
+        const tx = cx + ux * (reach + L), ty = cy + uy * (reach + L);
         const b1x = bx + px * hw, b1y = by + py * hw, b2x = bx - px * hw, b2y = by - py * hw;
         // 少しだけ反らせる（真っ直ぐな三角より漫画らしく）
         const bend = shape === "burst" ? 0 : hw * 0.55;
@@ -1314,8 +1319,8 @@
       if (i === 0 && box.tailOn !== false) {
         const dx = ax - cx, dy = ay - cy, dist = Math.hypot(dx, dy);
         const R = bubEdge(g.shape, g.W, g.H, dx, dy);
-        const L = Math.min(+(box.tailLen ?? 140), dist - R - 6);
-        if (dist > 1 && L > g.f * 0.4) tail = { ux: dx / dist, uy: dy / dist, R, L };
+        const L = Math.min(+(box.tailLen ?? 30), dist - R - 6);
+        if (dist > 1 && L > 8) tail = { ux: dx / dist, uy: dy / dist, R, L };
       }
       bubDraw(st, g, cx, cy, tail, boxW, boxH);
       // 手前ほど上に重ね、奥ほど少し沈ませる。吹き出しごと透かすと、重なった所で奥の
@@ -1393,8 +1398,8 @@
         const { x: ax, y: ay } = avatarOf(st);   // 尻尾はその吹き出しの話者のアバターへ
         const dx = ax - cx, dy = ay - cy, dist = Math.hypot(dx, dy);
         const R = bubEdge(g.shape, g.W, g.H, dx, dy);
-        const L = Math.min(+(box.tailLen ?? 140), dist - R - 6);
-        if (dist > 1 && L > g.f * 0.4) tail = { ux: dx / dist, uy: dy / dist, R, L };
+        const L = Math.min(+(box.tailLen ?? 30), dist - R - 6);
+        if (dist > 1 && L > 8) tail = { ux: dx / dist, uy: dy / dist, R, L };
       }
       bubDraw(st, g, cx, cy, tail, c.boxW, c.boxH);
       st.wrap.style.zIndex = String(10 - i);
