@@ -14,6 +14,7 @@
     if (qs.get("embed") === "1") document.documentElement.classList.add("embed");
   })();
 </script>
+<script src="/ui/i18n.js" defer></script>
 <script src="/ui/theme-sync.js" defer></script>
 <script src="/ui/fx.js"></script>
 <script src="/ui/soundfx.js"></script>
@@ -104,18 +105,18 @@
     margin-bottom: 12px; }
   /* スタジオ埋め込み時: 見出し・説明・オンオフはスタジオ側に出すので二重に並べない */
   :root.embed header { display: none; }
+  .row label.checkline { width: auto; }   /* 項目名の列幅（108px）に押し込まない */
   .checkline { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
   input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; }
 </style>
 </head>
 <body>
 <header>
-  <span class="t">🎉 リアクション演出</span>
-  <span class="beta">実験的</span>
-  <span class="d">笑い声・拍手などを検出して、画像やパーティクルを画面に出します。
-    検出のしやすさには声質・笑い方の個人差があります</span>
-  <span style="font-size:12px;color:var(--dim)">機能を使う</span>
-  <button class="switch" id="master" aria-label="リアクション演出をオン・オフ"
+  <span class="t" data-i18n="sx.title">🎉 リアクション演出</span>
+  <span class="beta" data-i18n="sx.beta">実験的</span>
+  <span class="d" data-i18n="sx.desc">笑い声・拍手などを検出して、画像やパーティクルを画面に出します。検出のしやすさには声質・笑い方の個人差があります</span>
+  <span style="font-size:12px;color:var(--dim)" data-i18n="sx.use">機能を使う</span>
+  <button class="switch" id="master" aria-label="リアクション演出をオン・オフ" title="リアクション演出をオン・オフ" data-i18n-title="sx.master_t"
           onclick="toggleMaster()"><i></i></button>
 </header>
 <main>
@@ -124,51 +125,53 @@
     <h2 id="edTitle"></h2>
     <div class="sub" id="edSub"></div>
     <div class="row">
-      <label>この音で演出</label>
-      <label class="checkline"><input type="checkbox" id="rOn" onchange="upd()">有効にする</label>
-      <button class="act primary" style="margin-left:auto" onclick="testFire()">🎉 テスト発火</button>
+      <label data-i18n="sx.this_sound">この音で演出</label>
+      <label class="checkline"><input type="checkbox" id="rOn" onchange="upd()"><span data-i18n="sx.enable">有効にする</span></label>
+      <button class="act primary" style="margin-left:auto" onclick="testFire()" data-i18n="sx.test">🎉 テスト発火</button>
     </div>
     <div class="row" style="align-items:flex-start">
-      <label style="padding-top:6px">画像</label>
+      <label style="padding-top:6px" data-i18n="sx.image">画像</label>
       <div style="flex:1">
         <div class="chips" id="chips"></div>
-        <div class="hint">クリックで追加・もう一回で解除（複数選ぶと発火のたびランダムで1枚）。
-          番号①②…がプレビューの画像と対応します。位置・大きさの編集はプレビューの画像をクリック/ドラッグで。×はファイル削除。GIFも使えます</div>
-        <button class="act" onclick="$('file').click()">＋ 画像を追加…</button>
+        <div class="hint" data-i18n="sx.image_hint">クリックで追加・もう一回で解除（複数選ぶと発火のたびランダムで1枚）。番号①②…がプレビューの画像と対応します。位置・大きさの編集はプレビューの画像をクリック/ドラッグで。×はファイル削除。GIFも使えます</div>
+        <button class="act" onclick="$('file').click()" data-i18n="sx.add_image">＋ 画像を追加…</button>
         <input type="file" id="file" accept=".png,.jpg,.jpeg,.gif,.webp" hidden
                onchange="uploadImage(this.files[0])">
       </div>
     </div>
-    <div class="row"><label>パーティクル</label><select id="rParticle" onchange="upd()"></select></div>
-    <div class="row"><label>登場</label><select id="rEnter" onchange="upd()"></select>
-      <label style="width:auto">表示中</label><select id="rAnim" onchange="upd()"></select></div>
-    <div class="row"><label>大きさ</label>
+    <div class="row"><label data-i18n="sx.particle">パーティクル</label><select id="rParticle" onchange="upd()"></select></div>
+    <div class="row"><label data-i18n="sx.enter">登場</label><select id="rEnter" onchange="upd()"></select>
+      <label style="width:auto" data-i18n="sx.during">表示中</label><select id="rAnim" onchange="upd()"></select></div>
+    <div class="row"><label data-i18n="sx.size">大きさ</label>
       <input type="range" id="rSize" min="4" max="60" step="1" oninput="upd()">
       <span class="val" id="vSize"></span></div>
-    <div class="row"><label>回転</label>
+    <div class="row"><label data-i18n="sx.rotate">回転</label>
       <input type="range" id="rRot" min="-180" max="180" step="5" oninput="upd()"
              ondblclick="this.value=0;upd()">
       <span class="val" id="vRot"></span></div>
-    <div class="row"><label>表示時間</label>
+    <div class="row"><label data-i18n="sx.duration">表示時間</label>
       <input type="range" id="rDur" min="400" max="6000" step="100" oninput="upd()">
       <span class="val" id="vDur"></span></div>
-    <div class="row"><label>位置ゆらぎ</label>
+    <div class="row"><label data-i18n="sx.jitter">位置ゆらぎ</label>
       <input type="range" id="rJitter" min="0" max="30" step="1" oninput="upd()">
       <span class="val" id="vJitter"></span></div>
-    <div class="row"><label>強弱</label>
-      <label class="checkline"><input type="checkbox" id="rScale" onchange="upd()">
-        音の大きさ（スコア）で演出を強くする</label></div>
-    <div class="row" style="align-items:flex-start"><label style="padding-top:6px">位置</label>
+    <div class="row"><label data-i18n="sx.strength">強弱</label>
+      <label class="checkline"><input type="checkbox" id="rScale" onchange="upd()"><span data-i18n="sx.scale_by_score">音の大きさ（スコア）で演出を強くする</span></label></div>
+    <div class="row" style="align-items:flex-start"><label style="padding-top:6px" data-i18n="sx.position">位置</label>
       <div style="flex:1">
         <div class="preview" id="preview" onclick="setPos(event)"></div>
-        <div class="hint">画像をドラッグして配置（画像ごとに別の位置・大きさを持てます）。
-          クリックで選択し、「大きさ」スライダーは選択中の画像に効きます。
-          OBSに映る画面全体が枠です</div>
+        <div class="hint" data-i18n="sx.position_hint">画像をドラッグして配置（画像ごとに別の位置・大きさを持てます）。クリックで選択し、「大きさ」スライダーは選択中の画像に効きます。OBSに映る画面全体が枠です</div>
       </div></div>
   </div>
 </main>
 <script>
   const $ = (id) => document.getElementById(id);
+  const T = (key, jaDefault) => window.MojicastI18n ? window.MojicastI18n.t(key, jaDefault) : jaDefault;
+  // 音の種類はサーバが日本語名で返す。表示だけ訳す（保存するルールの鍵は日本語名のまま）
+  const GROUP_KEYS = { "笑い": "laugh", "拍手・歓声": "applause", "歌・口笛": "sing",
+                       "泣き": "cry", "驚き・叫び": "scream", "咳・くしゃみ": "cough" };
+  const groupName = g => GROUP_KEYS[g] ? T("sx.g_" + GROUP_KEYS[g], g) : g;
+  const groupSub = g => GROUP_KEYS[g] ? T("sx.gd_" + GROUP_KEYS[g], SUBS[g] || "") : (SUBS[g] || "");
   const EMOJI = { "笑い": "😄", "拍手・歓声": "👏", "歌・口笛": "🎵",
                   "泣き": "😢", "驚き・叫び": "❗", "咳・くしゃみ": "🤧" };
   const SUBS = {
@@ -197,6 +200,20 @@
     return r.json();
   }
 
+  // 選択肢を今の表示言語で作り直す（fx.js / soundfx.js の共有リストは日本語名なので表示時に訳す）。
+  // 選択中の値は保つ
+  function fillOptions() {
+    for (const [id, pairs, prefix] of [["rParticle", FX.PARTICLES, "sx.pt_"],
+        ["rEnter", SFX.ENTER_ANIMS, "sx.en_"], ["rAnim", SFX.LOOP_ANIMS, "sx.an_"]]) {
+      const keep = $(id).value;
+      fillSelect($(id), pairs.map(([v, l]) => [v, T(prefix + v, l)]));
+      if (keep) $(id).value = keep;
+    }
+  }
+  // 表示言語を切り替えたら、JSで書いた文言（音の名前・選択肢など）も書き直す
+  window.addEventListener("mojicast-lang-changed", () => {
+    try { fillOptions(); renderGroups(); renderEditor(); } catch (e) {}
+  });
   function fillSelect(el, pairs) {
     el.innerHTML = "";
     for (const [v, label] of pairs) {
@@ -214,7 +231,7 @@
       b.className = "grow" + (g === sel ? " sel" : "");
       const on = rules[g]?.on;
       b.innerHTML = `<span class="emoji">${EMOJI[g] || "🔉"}</span>` +
-        `<span>${g}</span><span class="st${on ? " on" : ""}">${on ? "ON" : "OFF"}</span>`;
+        `<span>${groupName(g)}</span><span class="st${on ? " on" : ""}">${on ? "ON" : "OFF"}</span>`;
       b.onclick = () => { sel = g; renderGroups(); renderEditor(); };
       box.appendChild(b);
     }
@@ -261,8 +278,8 @@
     $("editor").style.display = "";
     const r = rule();
     selVar = r.variants.length ? 0 : -1;
-    $("edTitle").textContent = `${EMOJI[sel] || ""} ${sel}`;
-    $("edSub").textContent = SUBS[sel] || "";
+    $("edTitle").textContent = `${EMOJI[sel] || ""} ${groupName(sel)}`;
+    $("edSub").textContent = groupSub(sel);
     $("rOn").checked = !!r.on;
     $("rParticle").value = r.particle || "none";
     $("rEnter").value = r.enter || "pop";
@@ -279,7 +296,7 @@
   function renderVals() {
     $("vSize").textContent = $("rSize").value + "%";
     $("vRot").textContent = $("rRot").value + "°";
-    $("vDur").textContent = ($("rDur").value / 1000).toFixed(1) + "秒";
+    $("vDur").textContent = T("sx.sec", "{n}秒").replace("{n}", ($("rDur").value / 1000).toFixed(1));
     $("vJitter").textContent = $("rJitter").value + "%";
   }
 
@@ -289,7 +306,8 @@
     const r = rule();
     const used = new Set(r.variants.map(v => v.image));
     if (!images.length) {
-      box.innerHTML = '<span class="hint">まだ画像がありません。「＋画像を追加」から</span>';
+      box.innerHTML = '<span class="hint"></span>';
+      box.firstChild.textContent = T("sx.no_images", "まだ画像がありません。「＋画像を追加」から");
       return;
     }
     for (const name of images) {
@@ -301,7 +319,7 @@
         (i >= 0 ? `<span class="no">${i + 1}</span>` : "") +
         `<img src="/soundfx/${encodeURIComponent(name)}" alt="">` +
         `<span>${name}</span>` +
-        `<span class="del" title="この画像を削除">×</span>`;
+        `<span class="del" title="${T("sx.delete_image_t", "この画像を削除")}">×</span>`;
       c.onclick = (e) => {
         if (e.target.classList.contains("del")) return deleteImage(name);
         if (i >= 0) {
@@ -444,7 +462,7 @@
 
   async function uploadImage(file) {
     if (!file) return;
-    if (file.size > 2.5 * 1024 * 1024) { alert("画像は2.5MB以下にしてください"); return; }
+    if (file.size > 2.5 * 1024 * 1024) { alert(T("sx.too_big", "画像は2.5MB以下にしてください")); return; }
     const b64 = await new Promise((ok, ng) => {
       const fr = new FileReader();
       fr.onload = () => ok(fr.result.split(",")[1]);
@@ -452,7 +470,7 @@
       fr.readAsDataURL(file);
     });
     const r = await api("/api/soundfx/image", { name: file.name, data: b64 });
-    if (!r.ok) { alert(r.error || "アップロードに失敗しました"); return; }
+    if (!r.ok) { alert(r.error || T("sx.upload_fail", "アップロードに失敗しました")); return; }
     images = (await api("/api/soundfx/images")).images || [];
     const ru = rule();
     if (!ru.variants.some(v => v.image === r.name)) {
@@ -468,7 +486,7 @@
   }
 
   async function deleteImage(name) {
-    if (!confirm(`「${name}」を削除しますか？`)) return;
+    if (!confirm(T("sx.confirm_delete", "「{name}」を削除しますか？").replace("{name}", name))) return;
     await api("/api/soundfx/image-delete", { name });
     images = images.filter(n => n !== name);
     for (const g of Object.keys(rules))    // 参照も掃除
@@ -493,9 +511,7 @@
 
   // ---------------- 初期化 ----------------
   (async function init() {
-    fillSelect($("rParticle"), FX.PARTICLES);
-    fillSelect($("rEnter"), SFX.ENTER_ANIMS);
-    fillSelect($("rAnim"), SFX.LOOP_ANIMS);
+    fillOptions();
     const [c, g, im] = await Promise.all(
       [api("/api/config"), api("/api/soundfx/groups"), api("/api/soundfx/images")]);
     cfg = c; groups = g.groups || []; images = im.images || [];

@@ -92,6 +92,36 @@ class SettingsUiTests(unittest.TestCase):
         cfg.update(collab=False)
         app_server.save_config(cfg)
 
+    def test_reaction_fx_page_follows_ui_language(self):
+        cfg = app_server.load_config()
+        cfg["ui_lang"] = "en"
+        app_server.save_config(cfg)
+        try:
+            page = self.page
+            # スタジオに埋め込んだとき（言語は親から ?lang と postMessage で届く）
+            page.goto(self._url("/ui/studio?pillar=soundfx"))
+            page.wait_for_selector("#fSoundfx[src]")
+            frame = None
+            for _ in range(50):
+                frame = page.frame(url=lambda u: "/ui/soundfx_settings" in u)
+                if frame is not None:
+                    break
+                page.wait_for_timeout(100)
+            frame.wait_for_function("() => document.querySelector('#groupList .grow')")
+            frame.wait_for_function("() => document.body.innerText.includes('Laughter')")
+            text = frame.inner_text("body")
+            self.assertIn("Test fire", text)
+            self.assertIn("Particles", text)
+            self.assertNotIn("テスト発火", text)
+            self.assertEqual(frame.eval_on_selector("#rEnter", "e => e.options[0].text"), "Pop")
+            # 単体で開いたとき（theme-sync が config の言語を当てる）
+            page.goto(self._url("/ui/soundfx_settings"))
+            page.wait_for_function("() => document.body.innerText.includes('Reaction FX')")
+        finally:
+            cfg = app_server.load_config()
+            cfg["ui_lang"] = "ja"
+            app_server.save_config(cfg)
+
     def test_words_editor_marks_unsaved_until_saved(self):
         page = self.page
         page.goto(self._url("/ui/words"))
