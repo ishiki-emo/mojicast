@@ -17,6 +17,7 @@ from engine import (
     _aux_precision,
     _should_emit_partial,
     _translate_signature,
+    extra_translate_langs,
     translate_targets,
 )
 
@@ -688,6 +689,27 @@ class MultiTranslationTests(unittest.TestCase):
             translate_targets({"translate_langs": ["en", "xx", "en", "zh", "ko", "id"]}),
             ["en", "zh", "ko"])
         self.assertEqual(translate_targets({"translate_langs": ["xx"]}), ["en"])
+
+    def test_portuguese_and_spanish_are_regular_targets(self):
+        self.assertEqual(translate_targets({"translate_langs": ["pt", "es"]}), ["pt", "es"])
+        engine = CaptionEngine()
+        self.assertEqual(engine._translate_plan({"translate": True}, "pt"), ("m2m", "ja", "pt"))
+
+    def test_unsupported_extra_langs_pass_only_when_listed(self):
+        # 非保証の裏口（config.json の translate_extra_langs）。書いていなければ従来どおり捨てる
+        self.assertEqual(translate_targets({"translate_langs": ["th", "en"]}), ["en"])
+        cfg = {"translate_langs": ["th", "en"], "translate_extra_langs": ["th"]}
+        self.assertEqual(translate_targets(cfg), ["th", "en"])
+        self.assertEqual(CaptionEngine()._translate_plan({**cfg, "translate": True}, "th"),
+                         ("m2m", "ja", "th"))
+
+    def test_extra_langs_reject_codes_m2m_does_not_have(self):
+        # M2M-100 に無いコード・正式対応の言語・重複・型違いは裏口から入れない
+        self.assertEqual(
+            extra_translate_langs({"translate_extra_langs":
+                                   ["xx", "zh_tw", "ko", "vi", "vi", 3, "TH"]}),
+            ["vi"])
+        self.assertEqual(extra_translate_langs({"translate_extra_langs": "th"}), [])
 
     def test_plans_skip_the_source_language_but_keep_display_order(self):
         engine = CaptionEngine()

@@ -359,7 +359,8 @@
   }
   const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");
   const trNames = { en:"英語", zh:"中国語（簡体字）", zh_tw:"中国語（台湾繁体字）",
-    zh_hk:"中国語（香港繁体字）", id:"インドネシア語", ja:"日本語", ko:"韓国語" };
+    zh_hk:"中国語（香港繁体字）", id:"インドネシア語", pt:"ポルトガル語", es:"スペイン語",
+    ja:"日本語", ko:"韓国語" };
   async function refreshOverview() {
     try {
       cfg = await api("/api/config");
@@ -373,7 +374,7 @@
       $("wordsCurrent").textContent = T("su.registered","登録 {n}語").replace("{n}", (wd.entries || []).length);
       $("bannedCurrent").textContent = T("su.registered","登録 {n}語").replace("{n}", (nd.words || []).length);
       $("captionSummary").textContent = `${$("designCurrent").textContent} ／ ${$("layoutCurrent").textContent} ／ ${$("wordsCurrent").textContent}`;
-      $("translationCurrent").textContent = T("su.tr_" + (cfg.translate_lang || "en"), trNames[cfg.translate_lang] || "英語");
+      $("translationCurrent").textContent = T("su.tr_" + (cfg.translate_lang || "en"), trNames[cfg.translate_lang] || cfg.translate_lang || "英語");
       for (const [id,key] of [["effectsSwitch","word_fx"],["translationSwitch","translate"]]) $(id).setAttribute("aria-pressed",String(!!cfg[key]));
       if (!profiles.length) await loadProfiles(); else $("profileScope").value = profiles.includes(cfg.word_profile) ? cfg.word_profile : "";
     } catch (e) {}

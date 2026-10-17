@@ -191,6 +191,8 @@
               <option value="zh_hk" data-i18n="st.tl_zhhk">中国語（繁体字・香港）</option>
             </optgroup>
             <option value="id" data-i18n="st.tl_id">インドネシア語</option>
+            <option value="pt" data-i18n="st.tl_pt">ポルトガル語</option>
+            <option value="es" data-i18n="st.tl_es">スペイン語</option>
             <option value="ja" data-i18n="st.tl_ja">日本語</option>
             <option value="ko" data-i18n="st.tl_ko">韓国語（試験的）</option>
           </select></div>
@@ -399,8 +401,24 @@
       ? cfg.translate_langs : [cfg.translate_lang || "en"];
     return [...new Set(l)].slice(0, 3);
   }
+  // config.json の translate_extra_langs（非保証の追加言語・画面からは編集しない）を
+  // 1つ目の選択肢の末尾へ足す。読み直しのたびに作り直す
+  function addUnsupportedLangOptions() {
+    const sel = $("translateLang");
+    for (const o of sel.querySelectorAll("option.unsupported")) o.remove();
+    const known = new Set([...sel.options].map(o => o.value));
+    for (const code of Array.isArray(cfg.translate_extra_langs) ? cfg.translate_extra_langs : []) {
+      if (typeof code !== "string" || known.has(code)) continue;
+      known.add(code);
+      const o = document.createElement("option");
+      o.value = code; o.className = "unsupported";
+      o.textContent = code + T("st.tl_unsupported", "（非保証）");
+      sel.appendChild(o);
+    }
+  }
   // 1つ目の選択肢を複製して2つ目・3つ目を作る（先頭に「なし」）
   function buildExtraLangSelects() {
+    addUnsupportedLangOptions();
     for (const id of ["translateLang2", "translateLang3"]) {
       const sel = $(id);
       sel.innerHTML = "";
@@ -427,6 +445,7 @@
     let src = sv && cfg.asr_lang && !["auto","ja"].includes(cfg.asr_lang) ? cfg.asr_lang : "ja";
     if (src === "yue") src = "zh";
     const names = {ja:"日本語",zh:"中国語",en:"英語",ko:"韓国語",id:"インドネシア語",
+      pt:"ポルトガル語",es:"スペイン語",
       zh_tw:"中国語（台湾繁体字）",zh_hk:"中国語（香港繁体字）"};
     const routeText = tgt => {
       const regional = ["zh_tw", "zh_hk"].includes(tgt);
@@ -554,7 +573,8 @@
     ["translate_on", "翻訳オン"], ["translate_off", "翻訳オフ"], ["clear", "字幕クリア"],
   ];
   const VC_LANGS = [["en","英語"],["zh","中国語（簡体字）"],["zh_tw","中国語（繁体字）"],
-    ["zh_hk","広東語"],["id","インドネシア語"],["ja","日本語"],["ko","韓国語"]];
+    ["zh_hk","広東語"],["id","インドネシア語"],["pt","ポルトガル語"],["es","スペイン語"],
+    ["ja","日本語"],["ko","韓国語"]];
   const VC_RANDOM_TARGETS = [["scene","シーン"],["preset","デザイン"],["box","レイアウト"]];
 
   function vcTargetOptions(type, cur) {

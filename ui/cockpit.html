@@ -962,10 +962,11 @@
   // i18n: 訳語を引く（ja既定を同梱・i18n.js未読込でも安全）
   const T = (key, jaDefault) => window.MojicastI18n ? window.MojicastI18n.t(key, jaDefault) : jaDefault;
   const TR_NAMES = { en: "英訳", zh: "中国語訳", zh_tw: "台湾繁体字訳",
-    zh_hk: "香港繁体字訳", id: "インドネシア語訳", ja: "日本語訳", ko: "韓国語訳" };
+    zh_hk: "香港繁体字訳", id: "インドネシア語訳", pt: "ポルトガル語訳", es: "スペイン語訳",
+    ja: "日本語訳", ko: "韓国語訳" };
   function syncModelCard() {
     const lang = cfg.translate_lang || "en";
-    const name = T("trg." + lang, TR_NAMES[lang] || "英訳");
+    const name = T("trg." + lang, TR_NAMES[lang] || lang + "訳");
     // 翻訳先が複数なら「英訳 ＋2」のように数も出す（1つ目しか訳されないと誤解させない）
     const more = Array.isArray(cfg.translate_langs) ? new Set(cfg.translate_langs).size - 1 : 0;
     $("transFeatureLabel").textContent = more > 0 ? `${name} ＋${more}` : name;

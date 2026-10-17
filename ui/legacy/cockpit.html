@@ -918,10 +918,11 @@
   // i18n: 訳語を引く（ja既定を同梱・i18n.js未読込でも安全）
   const T = (key, jaDefault) => window.MojicastI18n ? window.MojicastI18n.t(key, jaDefault) : jaDefault;
   const TR_NAMES = { en: "英訳", zh: "中国語訳", zh_tw: "台湾繁体字訳",
-    zh_hk: "香港繁体字訳", id: "インドネシア語訳", ja: "日本語訳", ko: "韓国語訳" };
+    zh_hk: "香港繁体字訳", id: "インドネシア語訳", pt: "ポルトガル語訳", es: "スペイン語訳",
+    ja: "日本語訳", ko: "韓国語訳" };
   function syncModelCard() {
     const lang = cfg.translate_lang || "en";
-    $("transFeatureLabel").textContent = T("trg." + lang, TR_NAMES[lang] || "英訳");
+    $("transFeatureLabel").textContent = T("trg." + lang, TR_NAMES[lang] || lang + "訳");
   }
 
   // コックピットに残す配信中の機能トグル
