@@ -14,6 +14,12 @@
   const DICT = {
     zh: {
       // 新UI（feat/new-ui）で追加
+      "sy.bub_align": "文字对齐",
+      "sy.bub_al_left": "左对齐",
+      "sy.bub_al_right": "右对齐",
+      "sy.bub_al_top": "顶部对齐",
+      "sy.bub_al_bottom": "底部对齐",
+      "sy.bub_al_center": "居中",
       "sy.mode_bubble": "对话气泡（漫画风）",
       "sy.bsec_bubble": "💬 对话气泡",
       "sy.bsec_bubble_d": "位置与大小是气泡可扩展的范围",
@@ -541,6 +547,12 @@
     },
     en: {
       // 新UI（feat/new-ui）で追加
+      "sy.bub_align": "Text alignment",
+      "sy.bub_al_left": "Left",
+      "sy.bub_al_right": "Right",
+      "sy.bub_al_top": "Top",
+      "sy.bub_al_bottom": "Bottom",
+      "sy.bub_al_center": "Center",
       "sy.mode_bubble": "Speech bubble (manga style)",
       "sy.bsec_bubble": "💬 Speech bubble",
       "sy.bsec_bubble_d": "Position and size set how far the bubble may grow",

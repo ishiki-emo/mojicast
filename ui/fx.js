@@ -1078,6 +1078,8 @@
     t.style.letterSpacing = (style.letterSpacing || 0) + "em";
     t.style.fontSize = f + "px";
     t.style.writingMode = box.bubbleDir === "v" ? "vertical-rl" : "";
+    // 寄せ方は書き方向に沿った論理値（横書き: start=左詰め / 縦書き: start=上詰め）
+    t.style.textAlign = ["start", "end"].includes(box.bubbleAlign) ? box.bubbleAlign : "center";
     if (ink) {
       // 吹き出し用の文字色（白い吹き出しに白文字＋黒縁のデザインが乗って読めなくならないように）
       t.style.color = box.bubbleInk || "#1a1a1a";

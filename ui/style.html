@@ -385,6 +385,13 @@
             <option value="h" data-i18n="sy.bub_dir_h">横書き</option>
             <option value="v" data-i18n="sy.bub_dir_v">縦書き</option>
           </select></div>
+        <div class="fr only-bubble"><label data-i18n="sy.bub_align">文字の寄せ方</label>
+          <select id="b_bubbleAlign">
+            <option value="start"></option>
+            <option value="center"></option>
+            <option value="end"></option>
+          </select></div>
+        <div class="fr only-bubble"></div>
         <div class="fr only-bubble"><label><span data-i18n="sy.bub_tail_x">アバター位置 X</span> <output id="o_btx"></output></label><input type="range" id="b_tailX" min="0" max="100" step="1"></div>
         <div class="fr only-bubble"><label><span data-i18n="sy.bub_tail_y">アバター位置 Y</span> <output id="o_bty"></output></label><input type="range" id="b_tailY" min="0" max="100" step="1"></div>
         <div class="fr chk only-bubble"><input type="checkbox" id="b_tailOn"><span data-i18n="sy.bub_tail_on">尻尾をアバターへ向ける</span></div>
@@ -848,6 +855,15 @@
     $("r_trSubNote").hidden = !en;
   }
 
+  // 寄せ方の選択肢名は書き方向で変わる（値は start/center/end のまま＝向きを変えても引き継ぐ）
+  function syncBubbleAlignLabels() {
+    const v = $("b_bubbleDir").value === "v";
+    const [s, c, e] = $("b_bubbleAlign").options;
+    s.textContent = v ? T("sy.bub_al_top", "上詰め") : T("sy.bub_al_left", "左詰め");
+    c.textContent = T("sy.bub_al_center", "中央");
+    e.textContent = v ? T("sy.bub_al_bottom", "下詰め") : T("sy.bub_al_right", "右詰め");
+  }
+
   function updateModeRows() {
     const mode = $("b_mode").value;
     const lyric = mode === "lyric", bubble = mode === "bubble";
@@ -899,6 +915,8 @@
     $("b_lyricPartial").checked = !!b.lyricPartial;
     $("b_bubbleShape").value = b.bubbleShape || "round";
     $("b_bubbleDir").value = b.bubbleDir === "v" ? "v" : "h";
+    $("b_bubbleAlign").value = ["start", "end"].includes(b.bubbleAlign) ? b.bubbleAlign : "center";
+    syncBubbleAlignLabels();
     setR("b_tailX", "o_btx", b.tailX ?? 85, v => v + "%");
     setR("b_tailY", "o_bty", b.tailY ?? 85, v => v + "%");
     $("b_tailOn").checked = b.tailOn !== false;
@@ -974,6 +992,7 @@
     b.lyricPartial = $("b_lyricPartial").checked;
     b.bubbleShape = $("b_bubbleShape").value;
     b.bubbleDir = $("b_bubbleDir").value;
+    b.bubbleAlign = $("b_bubbleAlign").value;
     b.tailX = +$("b_tailX").value; b.tailY = +$("b_tailY").value;
     b.tailOn = $("b_tailOn").checked;
     b.tailLen = +$("b_tailLen").value;
@@ -1295,6 +1314,7 @@
         renderBoxList();
         if (el.id === "b_mode") { updateModeRows(); stageClear(); stageAdd(); }
         else if (el.id === "b_autoClear" || el.id === "b_tailOn" || el.id === "b_bubbleInkOn") updateModeRows();
+        else if (el.id === "b_bubbleDir") syncBubbleAlignLabels();
         clearTimeout(bt);
         bt = setTimeout(stageApply, 120);
       });

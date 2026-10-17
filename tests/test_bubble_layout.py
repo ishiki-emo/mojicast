@@ -109,6 +109,10 @@ class BubbleOverlayTests(unittest.TestCase):
 
     def setUp(self):
         self.page = self.browser.new_page(viewport={"width": 1920, "height": 1080})
+        # サーバからの style/init（実際の設定＝通常表示のレイアウト）が後から届くと、
+        # 表示のしかたが変わったとして吹き出しが消える（本番では正しい動き）。テストでは
+        # 吹き出しのレイアウトを自分で当てるので、SSE は止めておく
+        self.page.route("**/events", lambda route: route.abort())
         self.page.goto(f"http://127.0.0.1:{self.port}/overlay")
         self.page.wait_for_function("() => typeof handle === 'function' && window.FX")
 
@@ -204,6 +208,29 @@ class BubbleOverlayTests(unittest.TestCase):
         self._send({"type": "final", "text": "縦書きの吹き出し", "id": 4})
         self.assertEqual(self.page.eval_on_selector(".bub-text", "e => getComputedStyle(e).writingMode"),
                          "vertical-rl")
+
+    def test_text_alignment_follows_writing_direction(self):
+        def lines_left_edges():
+            return self.page.evaluate("""() => {
+              const r = document.createRange(); r.selectNodeContents(document.querySelector('.bub-main'));
+              return [...r.getClientRects()].map(x => Math.round(x.left));
+            }""")
+        # 横書き: 左詰めなら各行の左端がそろい、中央なら短い最終行が右へずれる
+        self._use(bubbleAlign="start")
+        self._send({"type": "final", "text": PHRASE * 2 + "おわり", "id": 6})
+        self.assertEqual(self.page.eval_on_selector(".bub-text", "e => e.style.textAlign"), "start")
+        lefts = lines_left_edges()
+        self.assertGreater(len(lefts), 1)
+        self.assertLessEqual(max(lefts) - min(lefts), 2)
+        self._use(bubbleAlign="center")
+        self._send({"type": "partial", "text": "x"})
+        self._send({"type": "final", "text": PHRASE * 2 + "おわり", "id": 7})
+        self.assertGreater(max(lines_left_edges()) - min(lines_left_edges()), 10)
+        # 縦書き: start は上詰め（論理値なので向きを変えても同じ値で引き継ぐ）
+        self._use(**dict(DEFAULT_BOXES["bubble-tate"], bubbleAlign="start"))
+        self._send({"type": "partial", "text": "x"})
+        self._send({"type": "final", "text": PHRASE, "id": 8})
+        self.assertEqual(self.page.eval_on_selector(".bub-text", "e => getComputedStyle(e).textAlign"), "start")
 
     def test_switching_mode_away_clears_the_bubble(self):
         self._use()
