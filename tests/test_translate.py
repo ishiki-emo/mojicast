@@ -104,6 +104,55 @@ class DecodeM2MTests(unittest.TestCase):
         self.assertEqual(_decode_m2m(["__ko__"]), "")
 
 
+class _CaptureM2M:
+    """translate_m2m がモデルへ渡した原文を記録する（モデルを読まずに置換を試す）"""
+
+    def __init__(self):
+        self.text = None
+        self.kwargs = None
+
+    def encode(self, text, out_type=str):
+        self.text = text
+        return ["▁x"]
+
+    def decode(self, tokens):
+        return "ok"
+
+    def translate_batch(self, source, **kwargs):
+        self.kwargs = kwargs
+        hyp = type("H", (), {"hypotheses": [["▁ok"]]})
+        return [hyp]
+
+
+class M2MStreamTermsTests(unittest.TestCase):
+    """M2M 方向の配信用語の事前置換。「配信」は素だと配送（entrega 等）に化ける"""
+
+    def setUp(self):
+        self._orig = (translate._m2m, translate._sp_m2m)
+        self.fake = _CaptureM2M()
+        translate._m2m = translate._sp_m2m = self.fake
+
+    def tearDown(self):
+        translate._m2m, translate._sp_m2m = self._orig
+
+    def test_portuguese_and_spanish_get_native_stream_terms(self):
+        translate.translate_m2m("定期配信です", "ja", "pt")
+        self.assertIn("transmissão ao vivo", self.fake.text)
+        translate.translate_m2m("配信者のスパチャ", "ja", "es")
+        self.assertEqual(self.fake.text, "streamerのSuper Chat")
+
+    def test_portuguese_keeps_channel_subscription_untouched(self):
+        # ポルトガル語は無置換の方が自然（Inscreva-se no canal）
+        translate.translate_m2m("チャンネル登録お願いします", "ja", "pt")
+        self.assertEqual(self.fake.text, "チャンネル登録お願いします")
+
+    def test_new_targets_use_repetition_penalty_but_english_does_not(self):
+        translate.translate_m2m("うんうん", "ja", "th")
+        self.assertEqual(self.fake.kwargs["repetition_penalty"], 1.2)
+        translate.translate_m2m("嗯嗯", "zh", "en")
+        self.assertEqual(self.fake.kwargs["repetition_penalty"], 1.0)
+
+
 class FabricatedInsultTests(unittest.TestCase):
     """言っていない罵倒語が湧いた訳は捨てる（原文フォールバックへ）。
 

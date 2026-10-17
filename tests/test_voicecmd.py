@@ -249,6 +249,12 @@ class TestTranslate(unittest.TestCase):
         cmd = voicecmd.parse("モジキャスト、翻訳を中国語の繁体字に", WAKES, BOXES)
         self.assertEqual(cmd["lang"], "zh_tw")
 
+    def test_lang_pt_and_es(self):
+        cmd = voicecmd.parse("モジキャスト、翻訳をポルトガル語に", WAKES, BOXES)
+        self.assertEqual((cmd["lang"], cmd["label"]), ("pt", "ポルトガル語"))
+        cmd = voicecmd.parse("モジキャスト、翻訳をスペイン語にして", WAKES, BOXES)
+        self.assertEqual(cmd["lang"], "es")
+
     def test_lang_ko(self):
         cmd = voicecmd.parse("モジキャスト、翻訳を韓国語に変えて", WAKES, BOXES)
         self.assertEqual(cmd["lang"], "ko")

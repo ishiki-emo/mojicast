@@ -129,6 +129,8 @@
             <option value="zh_hk">中国語（繁体字・香港）</option>
           </optgroup>
           <option value="id">インドネシア語</option>
+          <option value="pt">ポルトガル語</option>
+          <option value="es">スペイン語</option>
           <option value="ja">日本語（海外配信の認識と組み合わせて）</option>
           <option value="ko">韓国語（試験的）</option>
         </select>
@@ -184,6 +186,7 @@
       src = cfg.asr_lang;
     if (src === "yue") src = "zh";   // 広東語は中文字扱いで翻訳（engineと同じ判定）
     const L = { ja: "日", zh: "中", en: "英", ko: "韓", id: "インドネシア",
+      pt: "ポルトガル", es: "スペイン",
       zh_tw: "台湾繁体字", zh_hk: "香港繁体字" };
     const regional = ["zh_tw", "zh_hk"].includes(tgt);
     if (src === tgt) {

@@ -47,8 +47,11 @@ DEFAULT_CONFIG = {
     "asr_lang": "auto",     # sensevoice時の認識言語（auto/ja/zh/en/ko/yue）
     "setup_suggested": False,  # 初回の「おすすめ設定」提案を表示済みか
     "use_hotwords": True, "hotwords_score": 2.0, "translate": False,
-    "translate_lang": "en",  # 翻訳先（en/zh/zh_tw/zh_hk/id/ja/ko）。複数時は先頭＝主言語
+    "translate_lang": "en",  # 翻訳先（en/zh/zh_tw/zh_hk/id/pt/es/ja/ko）。複数時は先頭＝主言語
     "translate_langs": [],   # 複数の翻訳先（表示順・最大3）。空なら translate_lang の1言語
+    # 非保証の追加翻訳先（M2M-100 の言語コード。例 ["th", "vi"]）。画面には無い裏口で、
+    # ここに書くと設定画面の翻訳先に「（非保証）」付きで並ぶ。品質は測っていない
+    "translate_extra_langs": [],
     "save_log": True, "mask_char": "○", "num_arabic": True,
     "word_fx": True,        # 単語エフェクトの表示（OFFでも認識誘導・置換は有効）
     "preset": "standard", "box": "none", "port": 8765,
@@ -333,7 +336,7 @@ def _vc_commands_path():
 _VC_ACTION_TYPES = ("scene", "box", "preset", "random",
                     "translate_lang", "translate_on", "translate_off", "clear")
 _VC_RANDOM_TARGETS = ("scene", "box", "preset")
-_VC_TRANS_LANGS = ("en", "zh", "zh_tw", "zh_hk", "id", "ja", "ko")
+_VC_TRANS_LANGS = ("en", "zh", "zh_tw", "zh_hk", "id", "pt", "es", "ja", "ko")
 
 
 def _valid_vc_command(c):
@@ -875,7 +878,7 @@ def _try_voice_command(text, spk=""):
                         langs = [cmd["lang"]] + [x for x in langs if x != cmd["lang"]]
                         from engine import translate_targets
                         cfg["translate_langs"] = translate_targets(
-                            {"translate_langs": langs})
+                            {**cfg, "translate_langs": langs})
                     msg = f"翻訳を{cmd['label']}に切り替えました"
                 else:
                     msg = "翻訳をオンにしました"
@@ -1316,14 +1319,22 @@ class Handler(BaseHTTPRequestHandler):
                 # 従来の単一キー translate_lang にも写す（旧UI・音声コマンド互換）
                 from engine import translate_targets
                 raw = body.get("translate_langs")
+                extras = body.get("translate_extra_langs",
+                                  load_config().get("translate_extra_langs"))
                 body["translate_langs"] = (
-                    translate_targets({"translate_langs": raw})
+                    translate_targets({"translate_langs": raw,
+                                       "translate_extra_langs": extras})
                     if isinstance(raw, list) and raw else [])
                 if body["translate_langs"]:
                     body["translate_lang"] = body["translate_langs"][0]
             elif "translate_lang" in body:
                 # 旧UI（単一選択）からの保存は1言語に戻す
                 body["translate_langs"] = []
+            if "translate_extra_langs" in body:
+                # 中身の検証は engine.extra_translate_langs が読むたびに行う。ここでは形だけ
+                raw = body.get("translate_extra_langs")
+                body["translate_extra_langs"] = (
+                    [str(x)[:8] for x in raw[:20]] if isinstance(raw, list) else [])
             if "vrchat_source" in body and body["vrchat_source"] not in ("ja", "tr"):
                 body["vrchat_source"] = "ja"
             if "vrchat_port" in body:
