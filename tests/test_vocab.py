@@ -64,5 +64,65 @@ class ReplacerScaleTests(unittest.TestCase):
         self.assertLess(per_call, 0.01)
 
 
+class HotwordFileTests(unittest.TestCase):
+    """読み欄の「,」で列がずれ、強さに文字が入ると sherpa-onnx が
+    「invalid stof argument」でロードごと失敗していた（2026-10-17）"""
+
+    def setUp(self):
+        import tempfile
+        self.tmp = tempfile.TemporaryDirectory()
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _parse(self, text):
+        import os
+        import vocab
+        p = os.path.join(self.tmp.name, "h.txt")
+        with open(p, "w", encoding="utf-8") as f:
+            f.write(text)
+        return vocab.parse_vocab(p)
+
+    def _gen(self, entries):
+        import os
+        import vocab
+        out = vocab.write_hotwords(entries, os.path.join(self.tmp.name, "g.txt"))
+        with open(out, encoding="utf-8") as f:
+            return f.read().splitlines()
+
+    def test_broken_comma_line_is_read_as_extra_readings(self):
+        e = self._parse("癒色えも,意識エモ,意識えも\nC,しー,でぃー,3\nB,びー,\n")
+        self.assertEqual(e[0], ("癒色えも", "意識エモ／意識えも", None))
+        self.assertEqual(e[1], ("C", "しー／でぃー", "3"))
+        self.assertEqual(e[2], ("B", "びー", None))
+
+    def test_generated_file_never_has_non_numeric_score(self):
+        lines = self._gen([("癒色えも", "意識エモ", "意識えも"), ("A", "えー", "2.5"), ("B", "びー", "nan")])
+        self.assertEqual(lines, ["意識エモ", "えー :2.5", "びー"])
+        for line in lines:
+            if " :" in line:
+                float(line.split(" :")[1])
+
+    def test_save_turns_reading_commas_into_slashes(self):
+        import os
+        import wordstore
+        orig = (wordstore.DATA, wordstore.PROFILES_DIR, wordstore._ready)
+        try:
+            wordstore.DATA = self.tmp.name
+            wordstore.PROFILES_DIR = os.path.join(self.tmp.name, "profiles")
+            os.makedirs(wordstore.PROFILES_DIR, exist_ok=True)
+            wordstore._ready = True
+            wordstore.save_hotwords([
+                {"surface": "癒色えも", "reading": "意識エモ,意識えも，いしきえも", "score": ""},
+                {"surface": "A,B", "reading": "えーびー", "score": "強め"},
+            ])
+            got = wordstore.load_hotwords()
+            self.assertEqual(got[0]["reading"], "意識エモ／意識えも／いしきえも")
+            self.assertEqual(got[1]["surface"], "A，B")
+            self.assertEqual(got[1]["score"], "")
+        finally:
+            wordstore.DATA, wordstore.PROFILES_DIR, wordstore._ready = orig
+
+
 if __name__ == "__main__":
     unittest.main()

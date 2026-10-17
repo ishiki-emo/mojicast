@@ -2,7 +2,7 @@
 
 2系統を持つ（どちらも tools/convert_models.py で変換・torch/transformers 非依存）:
   - 英訳:     FuguMT (staka/fugumt-ja-en, fp32)        … ja→en 専用・実績枠
-  - 多言語訳: M2M-100 418M (facebook/m2m100_418M, int8) … 中国語・インドネシア語等
+  - 多言語訳: M2M-100 418M (facebook/m2m100_418M, int8) … 中国語・インドネシア語・ポルトガル語・スペイン語等
 
 中国語はM2M-100の簡体字訳を基準にし、台湾・香港向けはOpenCCで地域表記へ
 後処理する。広東語はM2M-100非対応であり、繁体字変換では代用しない。
@@ -316,6 +316,40 @@ _STREAM_TERMS_ID = [
     (re.compile(r"歌枠"), "Karaoke Stream"),
 ]
 
+# ポルトガル語・スペイン語向け。「配信」は無置換だと 40行中27〜30行が配送
+# （entrega）になる。英語の live stream でも直るが、現地語の方が文に馴染む
+# （単独の "live" は「生きる」に化けるので不可）。実測 2026-10-17。
+# チャンネル登録はポルトガル語では無置換の方が自然（Inscreva-se no canal）なので入れない。
+_STREAM_TERMS_PT = [
+    (re.compile(r"スーパーチャット|スパチャ"), "Super Chat"),
+    (re.compile(r"配信者"), "streamer"),
+    (re.compile(r"生配信|配信"), "transmissão ao vivo"),
+    (re.compile(r"切り抜き"), "clip"),
+    (re.compile(r"歌枠"), "Karaoke Stream"),
+    (re.compile(r"コメ欄"), "chat"),
+]
+_STREAM_TERMS_ES = [
+    (re.compile(r"スーパーチャット|スパチャ"), "Super Chat"),
+    (re.compile(r"配信者"), "streamer"),
+    (re.compile(r"生配信|配信"), "transmisión en vivo"),
+    (re.compile(r"切り抜き"), "clip"),
+    (re.compile(r"歌枠"), "Karaoke Stream"),
+    (re.compile(r"コメ欄"), "chat"),
+    (re.compile(r"チャンネル登録(?!者)"), "suscripción al canal"),
+]
+# ja→M2M の事前置換（翻訳先ごと）
+_STREAM_TERMS_M2M = {"zh": _STREAM_TERMS_ZH, "id": _STREAM_TERMS_ID,
+                     "pt": _STREAM_TERMS_PT, "es": _STREAM_TERMS_ES}
+
+# M2M-100 が持つ言語コード（facebook/m2m100_418M のモデルカード）。
+# 設定 translate_extra_langs（非保証の追加言語）の検証に使う
+M2M_LANG_CODES = frozenset((
+    "af am ar ast az ba be bg bn br bs ca ceb cs cy da de el en es et fa ff fi "
+    "fr fy ga gd gl gu ha he hi hr ht hu hy id ig ilo is it ja jv ka kk km kn "
+    "ko lb lg ln lo lt lv mg mk ml mn mr ms my ne nl no ns oc or pa pl ps pt ro "
+    "ru sd si sk sl so sq sr ss su sv sw ta th tl tn tr uk ur uz vi wo xh yi yo "
+    "zh zu").split())
+
 _m2m = None
 _sp_m2m = None
 _zh_converters = {}
@@ -425,7 +459,7 @@ def translate_m2m(text: str, src: str = "ja", tgt: str = "zh",
     zh_tw/zh_hk はモデル上ではzhへ翻訳し、出力をOpenCCで地域表記へ変換する。
     広東語yueはM2M-100非対応のため翻訳先には使わない（音声認識のみ）。
 
-    - ja→zh のときだけ配信用語の事前置換（_STREAM_TERMS_ZH）を適用
+    - ja→zh/id/pt/es のとき配信用語の事前置換（_STREAM_TERMS_M2M）を適用
     - repetition_penalty 省略時は言語別の既定を使う: greedy だと相槌・
       繰り返し口語で反復暴走するため、韓国語（実測 2026-07-22）に続き
       中国語も 1.2（#7 実測 2026-08-18: 実配信3298文中90件の暴走が、
@@ -434,21 +468,21 @@ def translate_m2m(text: str, src: str = "ja", tgt: str = "zh",
       実測 2026-08-25: 実配信4,766行で暴走38→17件・**新たな暴走0件・訳が
       消えた行0件**・速度差1.5ms。中国語のように0件にはならないが、残る17件は
       「お帰りなさい。うんうんうん」→ `ya ya` のように**原文自体が繰り返して
-      いる**行を含むため、これ以上強めると言っている内容を削ることになる
+      いる**行を含むため、これ以上強めると言っている内容を削ることになる。
+      以降に足したポルトガル語・スペイン語（と非保証の追加言語）も最初から
+      1.2（実測 2026-10-17: 実配信1,200行で暴走 各1件・訳が出ない行 各1件）。
+      1.0 のままなのは英語・日本語だけ
     """
     if not text or not text.strip():
         return ""
     model_tgt = "zh" if tgt in _ZH_VARIANT_CONFIGS else tgt
     if repetition_penalty is None:
-        repetition_penalty = 1.2 if model_tgt in ("ko", "zh", "id") else 1.0
+        repetition_penalty = 1.0 if model_tgt in ("en", "ja") else 1.2
     if _m2m is None:
         load_translator_zh()
-    if src == "ja" and model_tgt == "zh":
-        for pat, zh in _STREAM_TERMS_ZH:
-            text = pat.sub(zh, text)
-    elif src == "ja" and model_tgt == "id":
-        for pat, indonesian in _STREAM_TERMS_ID:
-            text = pat.sub(indonesian, text)
+    if src == "ja":
+        for pat, term in _STREAM_TERMS_M2M.get(model_tgt, ()):
+            text = pat.sub(term, text)
     tokens = _sp_m2m.encode(text, out_type=str)
     if len(tokens) > 510:
         tokens = tokens[:510]

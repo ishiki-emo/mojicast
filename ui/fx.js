@@ -18,13 +18,13 @@
 
   // ---------------- 選択肢定義 ----------------
   FX.FONTS = [
-    { label: "游ゴシック",              css: "'Yu Gothic','Yu Gothic UI',sans-serif" },
-    { label: "メイリオ",                css: "'Meiryo',sans-serif" },
-    { label: "UD教科書体（まる文字風）", css: "'UD デジタル 教科書体 N-B','UD デジタル 教科書体 NP-B',sans-serif" },
-    { label: "BIZ UDゴシック",          css: "'BIZ UDPGothic','BIZ UDGothic',sans-serif" },
-    { label: "游明朝",                  css: "'Yu Mincho',serif" },
-    { label: "MS ゴシック（レトロ）",    css: "'MS Gothic',monospace" },
-    { label: "Impact（英字向け）",       css: "Impact,'Yu Gothic UI',sans-serif" },
+    { id: "yugothic", label: "游ゴシック",              css: "'Yu Gothic','Yu Gothic UI',sans-serif" },
+    { id: "meiryo", label: "メイリオ",                css: "'Meiryo',sans-serif" },
+    { id: "udkyokasho", label: "UD教科書体（まる文字風）", css: "'UD デジタル 教科書体 N-B','UD デジタル 教科書体 NP-B',sans-serif" },
+    { id: "bizud", label: "BIZ UDゴシック",          css: "'BIZ UDPGothic','BIZ UDGothic',sans-serif" },
+    { id: "yumincho", label: "游明朝",                  css: "'Yu Mincho',serif" },
+    { id: "msgothic", label: "MS ゴシック（レトロ）",    css: "'MS Gothic',monospace" },
+    { id: "impact", label: "Impact（英字向け）",       css: "Impact,'Yu Gothic UI',sans-serif" },
   ];
 
   FX.LINE_ANIMS = [
@@ -183,6 +183,15 @@
     border:2px solid color-mix(in srgb,var(--lyr-accent,#69f0dd) 45%,transparent); }
   .lyr-band { background:linear-gradient(90deg,color-mix(in srgb,var(--lyr-accent,#69f0dd) 70%,transparent),color-mix(in srgb,var(--lyr-color,#fff) 28%,transparent)); }
   .lyr-flash { inset:0; background:var(--lyr-color,#fff); mix-blend-mode:overlay; }
+  /* 吹き出し（mode="bubble"）。枠の外へは尻尾だけがはみ出す */
+  .bub-wrap { position:absolute; inset:0; pointer-events:none; overflow:visible; }
+  .bub-svg { position:absolute; left:0; top:0; overflow:visible; }
+  .bub-text { position:absolute; width:max-content; line-height:1.3; text-align:center;
+    word-break:break-word; overflow-wrap:anywhere; white-space:normal; }
+  .bub-text .bub-tr { line-height:1.25; font-weight:600; }
+  .bub-pop { animation: bubpop .24s cubic-bezier(.34,1.56,.64,1); }
+  @keyframes bubpop { from { transform:scale(.55); opacity:0; } to { transform:none; opacity:1; } }
+  .bub-fade { transition: opacity .4s; opacity: 0; }
   `;
 
   FX.injectCss = function () {
@@ -448,19 +457,20 @@
    */
   FX.applyBox = function (boxEl, scrollEl, box, clipEl) {
     const mode = box.mode || "flow";
+    const bubble = mode === "bubble";
     boxEl.style.position = "absolute";
     boxEl.style.left = (box.x ?? 0) + "%";
     boxEl.style.top = (box.y ?? 0) + "%";
     boxEl.style.width = (box.w ?? 100) + "%";
     boxEl.style.height = (box.h ?? 100) + "%";
-    boxEl.style.background = box.bgOpacity > 0
+    boxEl.style.background = !bubble && box.bgOpacity > 0
       ? FX.hexToRgba(box.bg || "#000000", box.bgOpacity) : "transparent";
     boxEl.style.borderRadius = (box.radius ?? 0) + "px";
-    boxEl.style.border = (box.borderWidth > 0 && box.borderColor)
+    boxEl.style.border = (!bubble && box.borderWidth > 0 && box.borderColor)
       ? `${box.borderWidth}px solid ${box.borderColor}` : "none";
     boxEl.style.containerType = mode === "lyric" ? "size" : "";
     // クリップはclipEl（あれば）が担当。リリックははみ出し許可
-    boxEl.style.overflow = (clipEl || mode === "lyric") ? "visible" : "hidden";
+    boxEl.style.overflow = (clipEl || mode === "lyric" || bubble) ? "visible" : "hidden";
 
     if (clipEl) {
       clipEl.style.position = "absolute";
@@ -472,7 +482,7 @@
       let mask = "";
       if (mode === "vertical")
         mask = `linear-gradient(to left, transparent 0, #000 ${fade}px)`;
-      else if (mode !== "lyric")
+      else if (mode !== "lyric" && !bubble)
         mask = `linear-gradient(to bottom, transparent 0, #000 ${fade}px)`;
       clipEl.style.webkitMaskImage = mask;
       clipEl.style.maskImage = mask;
@@ -1017,5 +1027,517 @@
   };
 
   FX.injectCss();
+  // ================= 吹き出し（レイアウトの表示のしかた mode="bubble"） =================
+  // 発話を漫画の吹き出しで出す（既定は最新の1つ。bubbleHistory で数個まで並べる）。レイアウトの枠（x/y/w/h）が吹き出しの広がってよい
+  // 最大範囲で、文の長さに合わせて吹き出しが伸び縮みし、収まらなければ文字を縮め、
+  // それでも収まらなければ古い側を「…」で省く。尻尾はアバター位置（tailX/tailY＝画面に
+  // 対する％）へ向く。枠の外へは尻尾だけがはみ出してよい。
+  //   形: round（角丸）/ ellipse（楕円）/ burst（ギザギザ）/ cloud（もくもく）
+  //   方向: bubbleDir "h"（横書き）/ "v"（縦書き）
+  // 描画は SVG 1枚。本体と尻尾を同じ図形群として「太い線で塗った層」の上に「塗りの層」を
+  // 重ね、外周だけが線として見える（本体と尻尾の継ぎ目に線が出ない）。
+  const SVGNS = "http://www.w3.org/2000/svg";
+  // 文字の入る矩形 → 本体の大きさの倍率（楕円に内接する矩形は 1/√2 なので約1.42倍）
+  const BUB_K = { round: 1, ellipse: 1.42, burst: 1.78, cloud: 1.66 };
+  let bubSeq = 0;
+
+  function svgEl(tag, attrs) {
+    const el = document.createElementNS(SVGNS, tag);
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+    return el;
+  }
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+  // 吹き出し1つぶんの状態。container（レイアウトの枠の要素）の _bubs に新しい順で持つ
+  function bubState(container) {
+    const wrap = document.createElement("div");
+    wrap.className = "bub-wrap";
+    const svg = document.createElementNS(SVGNS, "svg");
+    svg.setAttribute("class", "bub-svg");
+    const text = document.createElement("div");
+    text.className = "bub-text";
+    const main = document.createElement("span");
+    main.className = "bub-main";
+    text.appendChild(main);
+    wrap.append(svg, text);
+    container.appendChild(wrap);
+    return { wrap, svg, text, main, raw: "", partial: false, fid: null,
+             tr: new Map(), style: null, table: [], box: null, timer: 0 };
+  }
+
+  // 本文・訳の中身を、指定の文字サイズで描く（大きさの測り直しのたびに呼ぶ）
+  function bubContent(st, text, f) {
+    const { box, style } = st;
+    const ink = box.bubbleInkOn !== false;
+    const t = st.text;
+    t.style.fontFamily = style.font;
+    t.style.fontWeight = style.weight;
+    t.style.letterSpacing = (style.letterSpacing || 0) + "em";
+    t.style.fontSize = f + "px";
+    t.style.writingMode = box.bubbleDir === "v" ? "vertical-rl" : "";
+    // 寄せ方は書き方向に沿った論理値（横書き: start=左詰め / 縦書き: start=上詰め）
+    t.style.textAlign = ["start", "end"].includes(box.bubbleAlign) ? box.bubbleAlign : "center";
+    if (ink) {
+      // 吹き出し用の文字色（白い吹き出しに白文字＋黒縁のデザインが乗って読めなくならないように）
+      t.style.color = box.bubbleInk || "#1a1a1a";
+      t.style.textShadow = "none";
+    } else {
+      t.style.color = style.color;
+      t.style.textShadow = FX.buildTextShadow(style);
+    }
+    // 強調単語はデザインの縁取りで描く（色付きの文字が白地でも沈まない）
+    const wordStyle = ink ? Object.assign({}, style, { outlineWidth: 1, outlineColor: "#1a1a1a" }) : style;
+    if (st.partial && !style.partialFx) st.main.textContent = text;
+    else FX.renderWords(st.main, text, st.table, wordStyle);
+    st.main.style.opacity = st.partial ? (style.partialOpacity ?? 0.55) : "";
+    // 訳（設定順に本文の下へ）
+    for (const el of t.querySelectorAll(".bub-tr")) el.remove();
+    for (const order of [...st.tr.keys()].sort((a, b) => a - b)) {
+      const { text: tr, lang } = st.tr.get(order);
+      const s = FX.trStyle(style, lang);
+      const el = document.createElement("div");
+      el.className = "bub-tr";
+      el.textContent = tr;
+      el.style.fontSize = (s.enScale ?? 0.6) + "em";
+      el.style.opacity = s.enOpacity ?? 0.82;
+      el.style.fontFamily = s.enFont || "";
+      if (!ink && s.enColor) el.style.color = s.enColor;
+      t.appendChild(el);
+    }
+  }
+
+  // 方向 (dx,dy) で中心から本体の縁までの距離
+  function bubEdge(shape, W, H, dx, dy) {
+    const len = Math.hypot(dx, dy) || 1;
+    const c = dx / len, s = dy / len;
+    if (shape === "round") {
+      const ax = Math.abs(c) > 1e-6 ? (W / 2) / Math.abs(c) : Infinity;
+      const ay = Math.abs(s) > 1e-6 ? (H / 2) / Math.abs(s) : Infinity;
+      return Math.min(ax, ay);
+    }
+    const k = shape === "burst" ? 0.86 : shape === "cloud" ? 0.9 : 1;
+    const rx = W / 2 * k, ry = H / 2 * k;
+    return 1 / Math.sqrt((c / rx) ** 2 + (s / ry) ** 2);
+  }
+
+  // 本体と尻尾の図形群（同じ図形を線の層・塗りの層の両方に使う）
+  function bubShapes(shape, cx, cy, W, H, f, tail) {
+    const out = [];
+    if (shape === "round") {
+      const r = Math.min(H / 2, W / 2, f * 1.1);
+      out.push(["rect", { x: cx - W / 2, y: cy - H / 2, width: W, height: H, rx: r, ry: r }]);
+    } else if (shape === "ellipse") {
+      out.push(["ellipse", { cx, cy, rx: W / 2, ry: H / 2 }]);
+    } else if (shape === "burst") {
+      // とげの数は外周の長さで決める（小さい吹き出しで細かくなりすぎない）。
+      // 長さのむらは角度から決める（描き直すたびに形が震えないよう乱数は使わない）
+      const per = Math.PI * (W + H) / 2;
+      const n = clamp(Math.round(per / (f * 1.15)), 12, 34);
+      const pts = [];
+      for (let i = 0; i < n * 2; i++) {
+        const a = i * Math.PI / n - Math.PI / 2;
+        const jit = 1 + 0.07 * Math.sin(i * 2.7 + 1.3);
+        const r = (i % 2 ? 0.8 : 1) * jit;
+        pts.push(`${cx + Math.cos(a) * W / 2 * r},${cy + Math.sin(a) * H / 2 * r}`);
+      }
+      out.push(["polygon", { points: pts.join(" ") }]);
+    } else {   // cloud
+      const per = Math.PI * (W + H) / 2;
+      const n = clamp(Math.round(per / (f * 1.7)), 8, 22);
+      const rb = per / n * 0.62;
+      const rx = Math.max(W / 2 - rb * 0.8, W / 4), ry = Math.max(H / 2 - rb * 0.8, H / 4);
+      out.push(["ellipse", { cx, cy, rx, ry }]);
+      for (let i = 0; i < n; i++) {
+        const a = i * 2 * Math.PI / n;
+        out.push(["circle", { cx: cx + Math.cos(a) * rx, cy: cy + Math.sin(a) * ry,
+                              r: rb * (0.92 + 0.12 * Math.sin(i * 1.9)) }]);
+      }
+    }
+    if (tail) {
+      const { ux, uy, R, L } = tail;
+      const px = -uy, py = ux;   // 尻尾の向きに直交する向き
+      if (shape === "cloud") {
+        // 考え中: 小さな丸が3つ、アバターへ向かって小さくなる
+        // 丸はもくもくの外側（でこぼこの外周）から並べる。尻尾が短くても雲の下に隠れないよう、
+        // 間隔は丸の大きさを基準にし、尻尾の長さぶんだけ広げる
+        const base = clamp(Math.min(W, H) * 0.09, 6, 24);
+        const outer = 1 / Math.sqrt((ux / (W / 2)) ** 2 + (uy / (H / 2)) ** 2);
+        [[0.9, 0, 1], [2.5, 0.45, 0.66], [3.7, 0.9, 0.42]].forEach(([g, t, k]) => {
+          const d = outer + base * g + L * t;
+          out.push(["circle", { cx: cx + ux * d, cy: cy + uy * d, r: base * k }]);
+        });
+      } else {
+        const hw = clamp(Math.min(W, H) * (shape === "burst" ? 0.1 : 0.14), 8, 34);
+        const bd = R * 0.7;                       // 付け根は本体の内側（継ぎ目を本体で隠す）
+        const bx = cx + ux * bd, by = cy + uy * bd;
+        // ギザギザはとげの先（外周）から測る（内側の縁から測ると短い尻尾がとげに埋もれる）
+        const reach = shape === "burst" ? 1 / Math.sqrt((ux / (W / 2)) ** 2 + (uy / (H / 2)) ** 2) : R;
+        const tx = cx + ux * (reach + L), ty = cy + uy * (reach + L);
+        const b1x = bx + px * hw, b1y = by + py * hw, b2x = bx - px * hw, b2y = by - py * hw;
+        // 少しだけ反らせる（真っ直ぐな三角より漫画らしく）
+        const bend = shape === "burst" ? 0 : hw * 0.55;
+        const m1x = (b1x + tx) / 2 + px * bend, m1y = (b1y + ty) / 2 + py * bend;
+        const m2x = (b2x + tx) / 2 + px * bend * 0.4, m2y = (b2y + ty) / 2 + py * bend * 0.4;
+        out.push(["path", { d: `M${b1x},${b1y} Q${m1x},${m1y} ${tx},${ty} Q${m2x},${m2y} ${b2x},${b2y} Z` }]);
+      }
+    }
+    return out;
+  }
+
+  // ---- 1つの吹き出しの大きさを決める（文字サイズ→省略の順で maxW×maxH に収める） ----
+  // scale: 奥の（古い）吹き出しほど小さく描くための倍率（文字サイズに掛ける）
+  function bubMeasure(st, maxW, maxH, margin, scale = 1) {
+    const { box } = st;
+    const shape = BUB_K[box.bubbleShape] ? box.bubbleShape : "round";
+    const K = BUB_K[shape];
+    const vertical = box.bubbleDir === "v";
+    const baseF = (st.style.size || 40) * (box.bubbleScale ?? 1) * scale;
+    const minF = baseF * clamp(box.bubbleMinScale ?? 0.5, 0.2, 1);
+    const t = st.text;
+    let f = baseF, cut = 0, text = st.raw, pad = 0, tw = 0, th = 0;
+    for (let iter = 0; iter < 60; iter++) {
+      bubContent(st, text, f);
+      pad = f * (shape === "round" ? 0.75 : 0.3);
+      const availW = Math.max(f * 2, (maxW - 2 * margin) / K - 2 * pad);
+      const availH = Math.max(f * 2, (maxH - 2 * margin) / K - 2 * pad);
+      t.style.maxWidth = vertical ? "none" : availW + "px";
+      t.style.maxHeight = vertical ? availH + "px" : "none";
+      tw = t.offsetWidth; th = t.offsetHeight;
+      if (vertical ? tw <= availW + 0.5 : th <= availH + 0.5) break;
+      if (f > minF + 0.01) { f = Math.max(minF, f * 0.9); continue; }
+      if (st.raw.length - cut <= 6) break;
+      cut += Math.max(1, Math.round((st.raw.length - cut) * 0.12));
+      text = "…" + st.raw.slice(cut);
+    }
+    let W = (tw + 2 * pad) * K, H = (th + 2 * pad) * K;
+    // 1文字だけでも潰れた形にならないよう、短辺の下限を持つ
+    W = Math.min(Math.max(W, H * 0.9), maxW - 2 * margin);
+    H = Math.min(Math.max(H, f * 1.9), maxH - 2 * margin);
+    return { shape, W, H, f, tw, th };
+  }
+
+  // ---- 1つの吹き出しを (cx, cy) に描く ----
+  function bubDraw(st, g, cx, cy, tail, boxW, boxH) {
+    const { box } = st;
+    const sw = Math.max(0, +(box.bubbleStrokeWidth ?? 4));
+    // SVG（枠いっぱい・はみ出し可）。線の層は塗りの層の形で穴を空け、外周だけ見せる
+    const svg = st.svg;
+    svg.textContent = "";
+    svg.setAttribute("width", boxW);
+    svg.setAttribute("height", boxH);
+    svg.setAttribute("viewBox", `0 0 ${boxW} ${boxH}`);
+    const shapes = bubShapes(g.shape, cx, cy, g.W, g.H, g.f, tail);
+    const id = "bubm" + (st.maskId || (st.maskId = ++bubSeq));
+    const defs = svgEl("defs", {});
+    const mask = svgEl("mask", { id, maskUnits: "userSpaceOnUse", x: -20000, y: -20000, width: 40000, height: 40000 });
+    mask.appendChild(svgEl("rect", { x: -20000, y: -20000, width: 40000, height: 40000, fill: "#fff" }));
+    const hole = svgEl("g", { fill: "#000" });
+    for (const [tag, a] of shapes) hole.appendChild(svgEl(tag, a));
+    mask.appendChild(hole);
+    defs.appendChild(mask);
+    svg.appendChild(defs);
+    const stroke = box.bubbleStroke || "#1a1a1a";
+    if (sw > 0) {
+      const gs = svgEl("g", { fill: stroke, stroke, "stroke-width": sw * 2, "stroke-linejoin": "round", mask: `url(#${id})` });
+      for (const [tag, a] of shapes) gs.appendChild(svgEl(tag, a));
+      svg.appendChild(gs);
+    }
+    // 濃さは図形ごとでなく層まとめて掛ける（尻尾と本体・もくもくの丸が重なる所だけ濃くならないように）
+    const fill = svgEl("g", { fill: box.bubbleFill || "#ffffff", opacity: box.bubbleFillOpacity ?? 1 });
+    for (const [tag, a] of shapes) fill.appendChild(svgEl(tag, a));
+    svg.appendChild(fill);
+    st.text.style.left = (cx - g.tw / 2) + "px";
+    st.text.style.top = (cy - g.th / 2) + "px";
+    st.wrap.style.transformOrigin = `${cx}px ${cy}px`;
+  }
+
+  // ---- 枠の中の吹き出し全部を並べ直す ----
+  // 最新（[0]）がいちばん手前で、アバターに近い側へ寄る。古いものはアバターと反対側へ、
+  // 少し重ねて奥に並べる（横書き=縦に積む／縦書き=横に並べる）。枠に入りきらない古いものは消す。
+  // 履歴が2つ以上のときは、1つの吹き出しが枠の主軸の6割までに収まるよう縮める
+  // （最新の長文が枠を占領して、ほかの吹き出しが1つも見えなくならないように）
+  const BUB_OVERLAP = 0.26;
+  function bubLayoutAll(container) {
+    const list = bubList(container);
+    if (!list.length) return;
+    const box = list[0].box;
+    if (!box) return;
+    const boxW = container.clientWidth, boxH = container.clientHeight;
+    if (!boxW || !boxH) return;
+    const keep = clamp(Math.round(+(box.bubbleHistory || 1)), 1, 6);
+    while (list.length > keep) bubRemove(container, list.pop());   // 古いものから消す
+    const vertical = box.bubbleDir === "v";
+    const sw = Math.max(0, +(box.bubbleStrokeWidth ?? 4));
+    const margin = sw + 4;
+    const par = container.offsetParent || container.parentElement;
+    const parW = (par && par.clientWidth) || 1920, parH = (par && par.clientHeight) || 1080;
+    // アバター位置（container 内の px）。吹き出しごとに target（コラボの相手など）があればそちら。
+    // 積み重ねの寄せ先・向きは最新の吹き出しの話者で決める
+    const avatarOf = st => {
+      const t = st && st.target;
+      return { x: (t ? t.x : (box.tailX ?? 85)) / 100 * parW - container.offsetLeft,
+               y: (t ? t.y : (box.tailY ?? 85)) / 100 * parH - container.offsetTop };
+    };
+    const { x: ax, y: ay } = avatarOf(list[0]);
+    if (box.bubbleArrange === "scatter") {
+      bubLayoutScatter(container, box, { boxW, boxH, margin, parW, parH, avatarOf, keep });
+      return;
+    }
+    const multi = keep > 1;
+    const maxW = multi && vertical ? boxW * 0.6 : boxW;
+    const maxH = multi && !vertical ? boxH * 0.6 : boxH;
+
+    let prev = null, dir = 0;
+    for (let i = 0; i < list.length; i++) {
+      const st = list[i];
+      st.box = box;
+      // 奥ほど少し小さく（奥行きが出て、限られた枠にも並べやすい）
+      const scale = Math.pow(0.88, i);
+      const g = bubMeasure(st, vertical ? maxW * scale : maxW, vertical ? maxH : maxH * scale, margin, scale);
+      // 主軸（積む向き）と交差軸。交差軸は全員アバター寄りにそろえる
+      const crossC = vertical
+        ? (boxH - 2 * margin <= g.H ? boxH / 2 : clamp(ay, margin + g.H / 2, boxH - margin - g.H / 2))
+        : (boxW - 2 * margin <= g.W ? boxW / 2 : clamp(ax, margin + g.W / 2, boxW - margin - g.W / 2));
+      const len = vertical ? g.W : g.H, boxLen = vertical ? boxW : boxH;
+      let mainC;
+      if (!prev) {
+        const a = vertical ? ax : ay;
+        mainC = boxLen - 2 * margin <= len ? boxLen / 2 : clamp(a, margin + len / 2, boxLen - margin - len / 2);
+        dir = a >= mainC ? -1 : 1;   // 古いものはアバターと反対側へ
+      } else {
+        const overlap = BUB_OVERLAP * Math.min(prev.len, len);
+        mainC = prev.mainC + dir * (prev.len / 2 + len / 2 - overlap);
+        const lo = mainC - len / 2, hi = mainC + len / 2;
+        if (lo < margin - 0.5 || hi > boxLen - margin + 0.5) {   // 入りきらない古いものは消す
+          for (const old of list.slice(i)) bubRemove(container, old);
+          break;
+        }
+      }
+      const cx = vertical ? mainC : crossC, cy = vertical ? crossC : mainC;
+      // 尻尾は最新の吹き出しだけ（古いものまで尻尾を出すと、アバターの周りが混み合う）
+      let tail = null;
+      if (i === 0 && box.tailOn !== false) {
+        const dx = ax - cx, dy = ay - cy, dist = Math.hypot(dx, dy);
+        const R = bubEdge(g.shape, g.W, g.H, dx, dy);
+        const L = Math.min(+(box.tailLen ?? 30), dist - R - 6);
+        if (dist > 1 && L > 8) tail = { ux: dx / dist, uy: dy / dist, R, L };
+      }
+      bubDraw(st, g, cx, cy, tail, boxW, boxH);
+      // 手前ほど上に重ね、奥ほど少し沈ませる。吹き出しごと透かすと、重なった所で奥の
+      // 吹き出しが透けて縞に見えるので、塗りは不透明のまま暗くし、文字だけ薄くする
+      st.wrap.style.zIndex = String(10 - i);
+      st.wrap.style.opacity = "";
+      st.svg.style.filter = i ? `brightness(${Math.max(0.6, 1 - 0.09 * i)})` : "";
+      st.text.style.opacity = i ? String(Math.max(0.5, 1 - 0.14 * i)) : "";
+      // 押し出された古い吹き出しは、前の位置からすっと動かす
+      if (i > 0 && st.cx !== undefined && (st.cx !== cx || st.cy !== cy)) {
+        const w = st.wrap;
+        w.style.transition = "none";
+        w.style.transform = `translate(${st.cx - cx}px, ${st.cy - cy}px)`;
+        void w.offsetWidth;
+        w.style.transition = "transform .28s ease-out, opacity .28s";
+        w.style.transform = "";
+      }
+      st.cx = cx; st.cy = cy;
+      prev = { mainC, len };
+    }
+  }
+
+  // ---- 並べ方「ポイントに散らす」 ----
+  // box.bubbleSpots = [{x, y}]（画面に対する％・吹き出しの中心）。新しい発話は、ほかの
+  // 吹き出しと重ならない空きポイントからランダムに選ぶ。空きが無ければいちばん古い吹き出しを
+  // 消してその場所を使う。吹き出しは出た場所から動かない。1つの大きさの上限は
+  // bubbleSpotW×bubbleSpotH（画面に対する％）。重ならないので、古いものほど全体を薄くする。
+  // 尻尾は全部の吹き出しからアバターへ（散らしても誰のセリフか分かるように）
+  function bubSpotsOf(box) {
+    const spots = Array.isArray(box.bubbleSpots) ? box.bubbleSpots.filter(
+      p => p && Number.isFinite(+p.x) && Number.isFinite(+p.y)) : [];
+    return spots.length ? spots : [{ x: (box.x ?? 0) + (box.w ?? 100) / 2, y: (box.y ?? 0) + (box.h ?? 100) / 2 }];
+  }
+  function bubLayoutScatter(container, box, c) {
+    const { margin, parW, parH, avatarOf } = c;
+    const spots = bubSpotsOf(box);
+    const offX = container.offsetLeft, offY = container.offsetTop;
+    const maxW = clamp(+(box.bubbleSpotW ?? 32), 5, 100) / 100 * parW;
+    const maxH = clamp(+(box.bubbleSpotH ?? 24), 5, 100) / 100 * parH;
+    const spotPx = i => ({ x: spots[i].x / 100 * parW - offX, y: spots[i].y / 100 * parH - offY });
+    const hits = (a, b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+    let list = bubList(container);
+    for (const st of list) if (st.spot != null && st.spot >= spots.length) st.spot = null;
+    // まだ場所の無い吹き出し（＝新しい発話）に場所を割り当てる
+    for (const st of [...list]) {
+      if (st.spot != null || !st.wrap.isConnected) continue;
+      const others = () => bubList(container).filter(o => o !== st);
+      const used = new Set(others().filter(o => o.spot != null).map(o => o.spot));
+      let free = spots.map((_, i) => i).filter(i => !used.has(i));
+      if (!free.length) {   // 空きが無い → いちばん古い吹き出しの場所を譲ってもらう
+        const oldest = others().reverse().find(o => o.spot != null);
+        if (oldest) { st.spot = oldest.spot; bubRemove(container, oldest); }
+        else st.spot = 0;
+        continue;
+      }
+      // 上限の大きさで置いても、出ている吹き出しに重ならない空きを優先する
+      const clear = free.filter(i => {
+        const p = spotPx(i);
+        const r = [p.x - maxW / 2, p.y - maxH / 2, p.x + maxW / 2, p.y + maxH / 2];
+        return !others().some(o => o.rect && hits(r, o.rect));
+      });
+      const pool = clear.length ? clear : free;
+      st.spot = pool[Math.floor(Math.random() * pool.length)];
+    }
+    list = bubList(container);
+    list.forEach((st, i) => {
+      st.box = box;
+      const g = bubMeasure(st, maxW, maxH, margin);
+      const p = spotPx(st.spot ?? 0);
+      // 画面の外へは出さない（ポイントが端にあっても吹き出しは画面内に収める）
+      const cx = clamp(p.x, -offX + margin + g.W / 2, parW - offX - margin - g.W / 2);
+      const cy = clamp(p.y, -offY + margin + g.H / 2, parH - offY - margin - g.H / 2);
+      let tail = null;
+      if (box.tailOn !== false) {
+        const { x: ax, y: ay } = avatarOf(st);   // 尻尾はその吹き出しの話者のアバターへ
+        const dx = ax - cx, dy = ay - cy, dist = Math.hypot(dx, dy);
+        const R = bubEdge(g.shape, g.W, g.H, dx, dy);
+        const L = Math.min(+(box.tailLen ?? 30), dist - R - 6);
+        if (dist > 1 && L > 8) tail = { ux: dx / dist, uy: dy / dist, R, L };
+      }
+      bubDraw(st, g, cx, cy, tail, c.boxW, c.boxH);
+      st.wrap.style.zIndex = String(10 - i);
+      st.wrap.style.transform = "";
+      st.svg.style.filter = "";
+      st.text.style.opacity = "";
+      // 古いものほど薄く（重ならないので吹き出しごと透かしてよい）
+      st.wrap.style.opacity = st.fading ? "" : String(Math.max(0.25, 1 - 0.22 * i));
+      st.rect = [cx - g.W / 2, cy - g.H / 2, cx + g.W / 2, cy + g.H / 2];
+      st.cx = cx; st.cy = cy;
+    });
+  }
+
+  function bubList(container) {
+    const list = (container._bubs || []).filter(st => st.wrap.isConnected);
+    container._bubs = list;
+    return list;
+  }
+  function bubRemove(container, st) {
+    clearTimeout(st.timer);
+    st.wrap.remove();
+    container._bubs = (container._bubs || []).filter(x => x !== st);
+  }
+
+  /**
+   * 吹き出しの本文を更新する。partial=true は認識途中（薄文字で伸びる）。
+   * 前の発話が確定したあとに次の発話が来たら、新しい吹き出しを手前に足す
+   * （表示する数 bubbleHistory を超えた古いものから消える。既定は1＝差し替え）
+   */
+  // opts.speaker: 話者の名前（コラボで1つの枠を2人が共有するとき）。opts.target: その話者の
+  // アバター位置 {x, y}（画面の％・無ければレイアウトのアバター位置）
+  FX.bubbleUpdate = function (container, opts) {
+    const list = bubList(container);
+    const spk = opts.speaker || "";
+    const mine = list.find(x => (x.spk || "") === spk);   // この話者のいちばん新しい吹き出し
+    const fresh = !mine || (!mine.partial && mine.raw) || mine.fading;
+    const st = fresh ? bubState(container) : mine;
+    if (fresh) { st.spot = null; st.spk = spk; list.unshift(st); }
+    st.target = opts.target || null;
+    container._bubs = list;
+    clearTimeout(st.timer);
+    st.style = opts.style; st.table = opts.table || []; st.box = opts.box;
+    st.raw = opts.text || "";
+    st.partial = !!opts.partial;
+    if (!opts.partial) st.fid = opts.fid ?? null;
+    bubLayoutAll(container);
+    if (fresh) {
+      st.wrap.classList.remove("bub-pop");
+      void st.wrap.offsetWidth;
+      st.wrap.classList.add("bub-pop");
+    }
+    if (!opts.partial) {
+      FX.burstLine(st.main);   // 登録単語のパーティクル
+      const life = +(opts.box.bubbleLife || 0);
+      if (life > 0) st.timer = setTimeout(() => {
+        st.fading = true;
+        st.wrap.style.opacity = "";
+        st.wrap.classList.add("bub-fade");
+        setTimeout(() => { bubRemove(container, st); bubLayoutAll(container); }, 450);
+      }, life * 1000);
+    }
+  };
+
+  // 認識途中の吹き出しを取り消す（空の途中経過・「確定だけ表示」への切替）。
+  // speaker を渡すとその話者の分だけ（省くと全員の途中経過）
+  FX.bubbleDropPartial = function (container, speaker) {
+    const drop = bubList(container).filter(x => x.partial &&
+      (speaker === undefined || (x.spk || "") === (speaker || "")));
+    if (!drop.length) return;
+    for (const st of drop) bubRemove(container, st);
+    bubLayoutAll(container);
+  };
+
+  // 確定した吹き出し（fid）に訳を併記する。もう出ていなければ false
+  FX.bubbleTranslate = function (container, fid, text, style, order = 0, lang = "") {
+    const st = bubList(container).find(x => !x.partial && x.fid === fid);
+    if (!st) return false;
+    st.tr.set(order, { text, lang });
+    if (style) st.style = style;
+    bubLayoutAll(container);
+    return true;
+  };
+
+  // 設定（形・アバター位置・表示する数・デザイン）が変わったら、出ている吹き出しを描き直す。
+  // speaker を渡すと、デザインと target はその話者の吹き出しにだけ当てる（コラボの共有枠）
+  FX.bubbleRelayout = function (container, box, style, speaker, target) {
+    const list = bubList(container);
+    if (!list.length) return;
+    for (const st of list) {
+      if (box) st.box = box;
+      const own = speaker === undefined || (st.spk || "") === (speaker || "");
+      if (own && style) st.style = style;
+      if (own && speaker !== undefined) st.target = target || null;
+    }
+    bubLayoutAll(container);
+  };
+
+  FX.bubbleClear = function (container) {
+    for (const st of container._bubs || []) { clearTimeout(st.timer); st.wrap.remove(); }
+    container._bubs = [];
+  };
+  // フォントの読み込みが終わると文字の幅が変わるので、出ている吹き出しを測り直す
+  if (document.fonts && document.fonts.ready)
+    document.fonts.ready.then(() => {
+      const seen = new Set();
+      document.querySelectorAll(".bub-wrap").forEach(w => {
+        const c = w.parentElement;
+        if (c && !seen.has(c)) { seen.add(c); bubLayoutAll(c); }
+      });
+    });
+
+  // ---------------- GUIの選択肢の表示名（設定画面用） ----------------
+  // 上の一覧は日本語名のみ。設定画面では i18n.js の辞書（fx.an_* / fx.pt_* / fx.font_*）で
+  // 訳して出す。data-i18n と原文（data-i18n-src）を付けておくと、あとで表示言語を
+  // 切り替えたときも i18n.js がその場で書き換える。overlay は i18n.js を読まないので日本語のまま
+  const escAttr = s => String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+  FX.tr = (key, ja) => (window.MojicastI18n ? window.MojicastI18n.t(key, ja) : ja);
+  // kind: "an"（演出の動き）/ "pt"（パーティクル）。value は保存される値のまま
+  FX.optionHtml = (kind, value, ja, selected) => {
+    const key = `fx.${kind}_${value}`;
+    return `<option value="${escAttr(value)}" data-i18n="${key}" data-i18n-src="${escAttr(ja)}"` +
+      `${selected ? " selected" : ""}>${escAttr(FX.tr(key, ja))}</option>`;
+  };
+  FX.optionsHtml = (kind, pairs, selectedValue) =>
+    pairs.map(([v, l]) => FX.optionHtml(kind, v, l, v === selectedValue)).join("");
+  // おすすめフォントの表示名（value は CSS の font-family）
+  FX.fontOptionHtml = (f, selected) => {
+    const key = `fx.font_${f.id}`;
+    return `<option value="${escAttr(f.css)}" data-i18n="${key}" data-i18n-src="${escAttr(f.label)}"` +
+      `${selected ? " selected" : ""}>${escAttr(FX.tr(key, f.label))}</option>`;
+  };
+  // optgroup の見出し（label 属性）
+  FX.groupAttrs = (key, ja) =>
+    `label="${escAttr(FX.tr(key, ja))}" data-i18n-label="${key}" data-i18n-label-src="${escAttr(ja)}"`;
+  // 固定の1択（「プリセット準拠」など）
+  FX.textOptionHtml = (value, key, ja, selected) =>
+    `<option value="${escAttr(value)}" data-i18n="${key}" data-i18n-src="${escAttr(ja)}"` +
+    `${selected ? " selected" : ""}>${escAttr(FX.tr(key, ja))}</option>`;
+
   window.FX = FX;
 })();

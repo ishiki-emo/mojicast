@@ -53,6 +53,15 @@ class MultiTranslationServerTests(unittest.TestCase):
         self.assertEqual(cfg["translate_langs"], ["ko", "en", "zh"])
         self.assertEqual(cfg["translate_lang"], "ko")
 
+    def test_unsupported_extra_lang_survives_save_only_when_listed(self):
+        cfg = self._post_config({"translate_langs": ["th", "pt"]})
+        self.assertEqual(cfg["translate_langs"], ["pt"])
+        # config.json に書いてある裏口の言語は、画面からの保存でも消えない
+        self._post_config({"translate_extra_langs": ["th"]})
+        cfg = self._post_config({"translate_langs": ["th", "pt"]})
+        self.assertEqual(cfg["translate_langs"], ["th", "pt"])
+        self.assertEqual(cfg["translate_lang"], "th")
+
     def test_single_language_save_from_old_ui_resets_the_list(self):
         self._post_config({"translate_langs": ["en", "zh"]})
         cfg = self._post_config({"translate_lang": "ko"})
