@@ -18,13 +18,13 @@
 
   // ---------------- 選択肢定義 ----------------
   FX.FONTS = [
-    { label: "游ゴシック",              css: "'Yu Gothic','Yu Gothic UI',sans-serif" },
-    { label: "メイリオ",                css: "'Meiryo',sans-serif" },
-    { label: "UD教科書体（まる文字風）", css: "'UD デジタル 教科書体 N-B','UD デジタル 教科書体 NP-B',sans-serif" },
-    { label: "BIZ UDゴシック",          css: "'BIZ UDPGothic','BIZ UDGothic',sans-serif" },
-    { label: "游明朝",                  css: "'Yu Mincho',serif" },
-    { label: "MS ゴシック（レトロ）",    css: "'MS Gothic',monospace" },
-    { label: "Impact（英字向け）",       css: "Impact,'Yu Gothic UI',sans-serif" },
+    { id: "yugothic", label: "游ゴシック",              css: "'Yu Gothic','Yu Gothic UI',sans-serif" },
+    { id: "meiryo", label: "メイリオ",                css: "'Meiryo',sans-serif" },
+    { id: "udkyokasho", label: "UD教科書体（まる文字風）", css: "'UD デジタル 教科書体 N-B','UD デジタル 教科書体 NP-B',sans-serif" },
+    { id: "bizud", label: "BIZ UDゴシック",          css: "'BIZ UDPGothic','BIZ UDGothic',sans-serif" },
+    { id: "yumincho", label: "游明朝",                  css: "'Yu Mincho',serif" },
+    { id: "msgothic", label: "MS ゴシック（レトロ）",    css: "'MS Gothic',monospace" },
+    { id: "impact", label: "Impact（英字向け）",       css: "Impact,'Yu Gothic UI',sans-serif" },
   ];
 
   FX.LINE_ANIMS = [
@@ -1017,5 +1017,33 @@
   };
 
   FX.injectCss();
+  // ---------------- GUIの選択肢の表示名（設定画面用） ----------------
+  // 上の一覧は日本語名のみ。設定画面では i18n.js の辞書（fx.an_* / fx.pt_* / fx.font_*）で
+  // 訳して出す。data-i18n と原文（data-i18n-src）を付けておくと、あとで表示言語を
+  // 切り替えたときも i18n.js がその場で書き換える。overlay は i18n.js を読まないので日本語のまま
+  const escAttr = s => String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+  FX.tr = (key, ja) => (window.MojicastI18n ? window.MojicastI18n.t(key, ja) : ja);
+  // kind: "an"（演出の動き）/ "pt"（パーティクル）。value は保存される値のまま
+  FX.optionHtml = (kind, value, ja, selected) => {
+    const key = `fx.${kind}_${value}`;
+    return `<option value="${escAttr(value)}" data-i18n="${key}" data-i18n-src="${escAttr(ja)}"` +
+      `${selected ? " selected" : ""}>${escAttr(FX.tr(key, ja))}</option>`;
+  };
+  FX.optionsHtml = (kind, pairs, selectedValue) =>
+    pairs.map(([v, l]) => FX.optionHtml(kind, v, l, v === selectedValue)).join("");
+  // おすすめフォントの表示名（value は CSS の font-family）
+  FX.fontOptionHtml = (f, selected) => {
+    const key = `fx.font_${f.id}`;
+    return `<option value="${escAttr(f.css)}" data-i18n="${key}" data-i18n-src="${escAttr(f.label)}"` +
+      `${selected ? " selected" : ""}>${escAttr(FX.tr(key, f.label))}</option>`;
+  };
+  // optgroup の見出し（label 属性）
+  FX.groupAttrs = (key, ja) =>
+    `label="${escAttr(FX.tr(key, ja))}" data-i18n-label="${key}" data-i18n-label-src="${escAttr(ja)}"`;
+  // 固定の1択（「プリセット準拠」など）
+  FX.textOptionHtml = (value, key, ja, selected) =>
+    `<option value="${escAttr(value)}" data-i18n="${key}" data-i18n-src="${escAttr(ja)}"` +
+    `${selected ? " selected" : ""}>${escAttr(FX.tr(key, ja))}</option>`;
+
   window.FX = FX;
 })();

@@ -292,11 +292,8 @@
   const $ = (id) => document.getElementById(id);
   const T = (key, jaDefault) => window.MojicastI18n ? window.MojicastI18n.t(key, jaDefault) : jaDefault;
   const SCALES = [["1", "標準"], ["1.15", "少し大きく"], ["1.3", "大きく"], ["1.5", "特大"]];
+  const SCALE_KEYS = { "1": "m", "1.15": "l", "1.3": "xl", "1.5": "xxl" };
 
-  function opt(list, sel) {
-    return list.map(([v, l]) =>
-      `<option value="${v}" ${v === sel ? "selected" : ""}>${l}</option>`).join("");
-  }
   function esc(s) { return String(s).replace(/"/g, "&quot;").replace(/</g, "&lt;"); }
 
   function showTab(t) {
@@ -473,25 +470,25 @@
 
   function addFxRow(e = {}) {
     const tr = document.createElement("tr");
-    const rec = FX.FONTS.map(f =>
-      `<option value="${f.css.replace(/"/g, "&quot;")}" ${f.css === e.font ? "selected" : ""}>${f.label}</option>`).join("");
+    // 選択肢は表示言語で出す（data-i18n 付き。言語を切り替えると i18n.js がその場で書き換える）
+    const rec = FX.FONTS.map(f => FX.fontOptionHtml(f, f.css === e.font)).join("");
     const sys = sysFonts.map(n => {
       const v = `'${n}'`;
-      return `<option value="${v}" ${v === e.font ? "selected" : ""}>${n}</option>`;
+      return `<option value="${esc(v)}" ${v === e.font ? "selected" : ""}>${esc(n)}</option>`;
     }).join("");
-    const fontOpts = '<option value="">プリセット準拠</option>' +
-      `<optgroup label="おすすめ">${rec}</optgroup>` +
-      `<optgroup label="システムフォント (${sysFonts.length})">${sys}</optgroup>`;
+    const fontOpts = FX.textOptionHtml("", "wd.font_preset", "プリセット準拠", !e.font) +
+      `<optgroup ${FX.groupAttrs("fx.fonts_rec", "おすすめ")}>${rec}</optgroup>` +
+      `<optgroup ${FX.groupAttrs("fx.fonts_sys", "システムフォント")}>${sys}</optgroup>`;
     const scaleOpts = SCALES.map(([v, l]) =>
-      `<option value="${v}" ${+v === +(e.scale || 1) ? "selected" : ""}>${l}</option>`).join("");
+      FX.textOptionHtml(v, "wd.scale_" + SCALE_KEYS[v], l, +v === +(e.scale || 1))).join("");
     tr.innerHTML = `
-      <td><input class="f-word" value="${esc(e.word || "")}" placeholder="単語"></td>
+      <td><input class="f-word" value="${esc(e.word || "")}" placeholder="${esc(T("wd.word_ph", "単語"))}"></td>
       <td><input type="color" class="f-color" value="${e.color || "#ffd400"}"></td>
       <td><select class="f-font">${fontOpts}</select></td>
       <td><select class="f-scale">${scaleOpts}</select></td>
-      <td><select class="f-anim">${opt(FX.WORD_ANIMS, e.anim || "pop")}</select></td>
-      <td><select class="f-particle">${opt(FX.PARTICLES, e.particle || "none")}</select></td>
-      <td class="prevCell"><span class="prev"></span><span class="hintClick">クリックで再生</span></td>
+      <td><select class="f-anim">${FX.optionsHtml("an", FX.WORD_ANIMS, e.anim || "pop")}</select></td>
+      <td><select class="f-particle">${FX.optionsHtml("pt", FX.PARTICLES, e.particle || "none")}</select></td>
+      <td class="prevCell"><span class="prev"></span><span class="hintClick" data-i18n="wd.click_play" data-i18n-src="クリックで再生">${esc(T("wd.click_play", "クリックで再生"))}</span></td>
       <td><button class="del" onclick="this.closest('tr').remove()">✕</button></td>`;
     $("fxTable").querySelector("tbody").appendChild(tr);
     const update = () => updatePreview(tr, true);

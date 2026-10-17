@@ -445,8 +445,7 @@
   });
 
   async function init() {
-    $("f_animIn").innerHTML =
-      FX.LINE_ANIMS.map(([v, l]) => `<option value="${v}">${l}</option>`).join("");
+    $("f_animIn").innerHTML = FX.optionsHtml("an", FX.LINE_ANIMS);
 
     const [pj, bj, ej, hj, fj, cj, dj] = await Promise.all([
       fetch("/api/presets"), fetch("/api/boxes"), fetch("/api/effects"),
@@ -465,18 +464,15 @@
     applyTheme(cj.theme);   // 保存済みテーマを確定反映（先読みの上書き）
 
     // フォント選択: おすすめ + システムフォント全部
-    const rec = FX.FONTS.map(f =>
-      `<option value="${f.css.replace(/"/g, "&quot;")}">${f.label}</option>`).join("");
+    // 選択肢は表示言語で出す（data-i18n 付き。言語を切り替えると i18n.js がその場で書き換える）
+    const rec = FX.FONTS.map(f => FX.fontOptionHtml(f)).join("");
+    const sysEsc = n => String(n).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
     const sys = sysFonts.map(n =>
-      `<option value="'${n}'">${n}</option>`).join("");
-    $("f_fontSel").innerHTML =
-      '<option value="">（直接指定を使う）</option>' +
-      `<optgroup label="おすすめ">${rec}</optgroup>` +
-      `<optgroup label="システムフォント (${sysFonts.length})">${sys}</optgroup>`;
-    $("f_enFontSel").innerHTML =
-      '<option value="">（本文と同じ）</option>' +
-      `<optgroup label="おすすめ">${rec}</optgroup>` +
-      `<optgroup label="システムフォント (${sysFonts.length})">${sys}</optgroup>`;
+      `<option value="'${sysEsc(n)}'">${sysEsc(n)}</option>`).join("");
+    const groups = `<optgroup ${FX.groupAttrs("fx.fonts_rec", "おすすめ")}>${rec}</optgroup>` +
+      `<optgroup ${FX.groupAttrs("fx.fonts_sys", "システムフォント")}>${sys}</optgroup>`;
+    $("f_fontSel").innerHTML = FX.textOptionHtml("", "sy.font_direct", "（直接指定を使う）") + groups;
+    $("f_enFontSel").innerHTML = FX.textOptionHtml("", "sy.font_same", "（本文と同じ）") + groups;
 
     const pi = presets.findIndex(p => p.id === (styleQuery.get("preset") || activePresetId));
     cur = pi >= 0 ? pi : 0;

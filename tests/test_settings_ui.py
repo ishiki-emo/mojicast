@@ -122,6 +122,43 @@ class SettingsUiTests(unittest.TestCase):
             cfg["ui_lang"] = "ja"
             app_server.save_config(cfg)
 
+    def test_effect_options_share_translations_and_follow_language_switch(self):
+        cfg = app_server.load_config()
+        cfg["ui_lang"] = "en"
+        app_server.save_config(cfg)
+        try:
+            page = self.page
+            page.goto(self._url("/ui/words?tab=fx"))
+            page.wait_for_function("() => !document.getElementById('saveAllBtn').disabled")
+            page.wait_for_function(
+                "() => document.querySelector('#fxTable .f-particle option').text === 'None'")
+            row = "#fxTable tbody tr:first-child"
+            texts = page.eval_on_selector(row, """r => ({
+              anim: [...r.querySelector('.f-anim').options].map(o => o.text),
+              particle: [...r.querySelector('.f-particle').options].map(o => o.text),
+              scale: [...r.querySelector('.f-scale').options].map(o => o.text),
+              font: r.querySelector('.f-font').options[0].text })""")
+            self.assertIn("Heartbeat", texts["anim"])
+            self.assertIn("🎊 Confetti", texts["particle"])
+            self.assertEqual(texts["scale"][0], "Normal")
+            self.assertEqual(texts["font"], "Follow the design")
+            # 日本語へ切り替えると、あとから作った行の選択肢も原文に戻る（値は変わらない）
+            before = page.eval_on_selector(f"{row} .f-anim", "e => e.value")
+            page.evaluate("window.MojicastI18n.applyLang('ja')")
+            self.assertEqual(page.eval_on_selector(
+                f"{row} .f-particle", "e => [...e.options].find(o => o.value === 'confetti').text"),
+                "🎊 紙吹雪")
+            self.assertEqual(page.eval_on_selector(f"{row} .f-anim", "e => e.value"), before)
+            # デザイン画面の登場アニメも同じ訳（共通キー）
+            page.goto(self._url("/ui/style"))
+            page.wait_for_selector("#plist .pitem")
+            page.wait_for_function(
+                "() => [...document.getElementById('f_animIn').options].some(o => o.text === 'Typewriter')")
+        finally:
+            cfg = app_server.load_config()
+            cfg["ui_lang"] = "ja"
+            app_server.save_config(cfg)
+
     def test_words_editor_marks_unsaved_until_saved(self):
         page = self.page
         page.goto(self._url("/ui/words"))

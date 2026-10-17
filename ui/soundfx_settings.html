@@ -200,19 +200,16 @@
     return r.json();
   }
 
-  // 選択肢を今の表示言語で作り直す（fx.js / soundfx.js の共有リストは日本語名なので表示時に訳す）。
-  // 選択中の値は保つ
+  // 選択肢は共通の訳（fx.js の FX.optionsHtml・ワード演出の表と同じ）で出す。
+  // data-i18n 付きなので、表示言語を切り替えると i18n.js がその場で書き換える
   function fillOptions() {
-    for (const [id, pairs, prefix] of [["rParticle", FX.PARTICLES, "sx.pt_"],
-        ["rEnter", SFX.ENTER_ANIMS, "sx.en_"], ["rAnim", SFX.LOOP_ANIMS, "sx.an_"]]) {
-      const keep = $(id).value;
-      fillSelect($(id), pairs.map(([v, l]) => [v, T(prefix + v, l)]));
-      if (keep) $(id).value = keep;
-    }
+    $("rParticle").innerHTML = FX.optionsHtml("pt", FX.PARTICLES);
+    $("rEnter").innerHTML = FX.optionsHtml("an", SFX.ENTER_ANIMS);
+    $("rAnim").innerHTML = FX.optionsHtml("an", SFX.LOOP_ANIMS);
   }
-  // 表示言語を切り替えたら、JSで書いた文言（音の名前・選択肢など）も書き直す
+  // 表示言語を切り替えたら、JSで書いた文言（音の名前・説明）も書き直す
   window.addEventListener("mojicast-lang-changed", () => {
-    try { fillOptions(); renderGroups(); renderEditor(); } catch (e) {}
+    try { renderGroups(); renderEditor(); } catch (e) {}
   });
   function fillSelect(el, pairs) {
     el.innerHTML = "";
