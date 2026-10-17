@@ -411,6 +411,7 @@
     <div class="led" id="led"></div>
     <div id="stateText" data-i18n="cp.state_stopped">停止中</div>
     <div class="spacer"></div>
+    <button id="uiVariantBtn" onclick="switchUiVariant('legacy')" title="以前の画面に戻す（いつでも新UIに戻せます）" data-i18n-title="cp.ui_legacy_t" data-i18n="cp.ui_legacy">旧UI</button>
     <button id="themeBtn" onclick="toggleTheme()" title="ライト/ダーク切替" data-i18n-title="cp.theme_toggle">🌙</button>
     <button id="btnEngine" onclick="toggleEngine()" data-i18n="cp.start">▶ 開始</button>
   </header>
@@ -819,6 +820,12 @@
     // （外さないと縮小時にフッター下へ余白が残る）
     if (s === 1) document.documentElement.style.removeProperty("--ui-zoom");
     else document.documentElement.style.setProperty("--ui-zoom", s);
+  }
+  // 新UI／旧UIの切替。保存するとSSEで全GUI窓が読み直され、選んだ版の画面になる
+  async function switchUiVariant(variant) {
+    $("uiVariantBtn").disabled = true;
+    try { await api("/api/config", { ui_variant: variant }); }
+    finally { $("uiVariantBtn").disabled = false; }
   }
   function toggleTheme() {
     cfg.theme = cfg.theme === "light" ? "dark" : "light";
@@ -1471,6 +1478,7 @@
       else if (m.type === "warn") setWarn(m.kind, m.message, m.active);
       else if (m.type === "vc") vcToast(m.message, m.ok);
       else if (m.type === "theme") { cfg.theme = m.theme; applyTheme(m.theme); }
+      else if (m.type === "ui_variant") location.reload();   // 新UI／旧UIの切替
       else if (m.type === "ui_scale") applyScale(m.ui_scale);
       else if (m.type === "ui_lang") { cfg.ui_lang = m.ui_lang; if (window.MojicastI18n) { window.MojicastI18n.applyLang(m.ui_lang); setState(lastState); syncModelCard(); } }
     };

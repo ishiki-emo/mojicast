@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>アプリ設定</title>
+<script>
+  (function () {
+    const qs = new URLSearchParams(location.search);
+    const s = parseFloat(qs.get("s"));
+    if (s > 0 && s !== 1) { document.documentElement.style.zoom = s; document.documentElement.style.setProperty("--ui-zoom", s); }
+    try {
+      const theme = qs.get("theme") || localStorage.getItem("mojicast-theme");
+      if (theme === "light") document.documentElement.dataset.theme = "light";
+      else if (theme === "dark") delete document.documentElement.dataset.theme;
+    } catch (e) {}
+  })();
+</script>
+<script src="/ui/i18n.js" defer></script>
+<script src="/ui/theme-sync.js" defer></script>
+<style>
+  :root {
+    --bg:#0d1117; --panel:#161c26; --panel2:#1c2432; --line:#2a3547;
+    --text:#dce6f5; --dim:#7d8ba1; --accent:#00e5ff; --ok:#3dffa0;
+    --warn:#ffb84d; --err:#ff5c5c;
+  }
+  :root[data-theme="light"] {
+    --bg:#f7f9fc; --panel:#fff; --panel2:#eef2f8; --line:#dbe2ec;
+    --text:#16202e; --dim:#5c6b80; --accent:#0499bd; --ok:#12a05f;
+    --warn:#b5761a; --err:#d94141;
+  }
+  * { box-sizing:border-box; }
+  html,body { height: calc(100vh / var(--ui-zoom, 1)); }
+  body { margin:0; overflow:hidden; background:var(--bg); color:var(--text);
+    font-family:'Yu Gothic UI','Meiryo',sans-serif; font-size:15px; user-select:none; }
+  button,select,input { font:inherit; }
+  button:focus-visible,select:focus-visible,input:focus-visible {
+    outline:2px solid var(--accent); outline-offset:2px;
+  }
+  .top { height:66px; display:flex; align-items:center; gap:14px; padding:0 20px;
+    border-bottom:1px solid var(--line); background:var(--panel); }
+  .brand { display:flex; align-items:center; gap:10px; }
+  .mark { width:34px; height:34px; display:grid; place-items:center; border-radius:10px;
+    color:#061117; background:var(--accent); font-weight:1000; }
+  .brand strong { letter-spacing:.11em; }
+  .brand i { color:var(--accent); font-style:normal; }
+  #pageDesc { color:var(--dim); font-size:13px; }
+  .top .close { margin-left:auto; }
+  /* 行は minmax(0,1fr) で親の高さに固定（studio.html と同じ理由: 暗黙の auto 行は
+     ナビが利用可能高さを超えると行ごと膨らみ、下端が窓の外へはみ出す） */
+  .layout { height:calc(100% - 66px); display:grid; grid-template-columns:220px 1fr;
+    grid-template-rows:minmax(0,1fr); }
+  .nav { min-height:0; overflow-y:auto; padding:15px 12px; border-right:1px solid var(--line); background:var(--panel); }
+  .nav-caption { margin:5px 10px 8px; color:var(--dim); font-size:11px; font-weight:800; letter-spacing:.14em; }
+  .nav button { width:100%; display:grid; grid-template-columns:28px 1fr; gap:2px 9px;
+    margin-bottom:6px; padding:11px 12px; border:1px solid transparent; border-radius:10px;
+    color:var(--dim); background:transparent; text-align:left; cursor:pointer; }
+  .nav button:hover { background:var(--panel2); color:var(--text); }
+  .nav button:disabled { opacity:.45; cursor:default; pointer-events:none; }
+  .nav button.active { color:var(--text); border-color:color-mix(in srgb,var(--accent) 45%,var(--line));
+    background:color-mix(in srgb,var(--accent) 8%,var(--panel2)); }
+  .nav .icon { grid-row:1/3; font-size:18px; }
+  .nav strong { font-size:14px; }
+  .nav small { color:var(--dim); font-size:11px; }
+  .content { position:relative; min-width:0; min-height:0; }
+  .pane { display:none; height:100%; overflow:auto; padding:26px; }
+  .pane.active { display:block; }
+  h1 { margin:0 0 7px; font-size:24px; }
+  .lead { margin:0 0 20px; color:var(--dim); line-height:1.7; }
+  .warnbar { display:none; align-items:flex-start; gap:9px; margin-bottom:16px; padding:11px 13px;
+    border:1px solid color-mix(in srgb,var(--warn) 45%,transparent); border-radius:10px;
+    background:color-mix(in srgb,var(--warn) 8%,transparent); color:var(--warn); font-size:12px; line-height:1.6; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .card { padding:17px; border:1px solid var(--line); border-radius:13px; background:var(--panel); }
+  .card.wide { grid-column:1/-1; }
+  .card h2 { margin:0 0 4px; font-size:16px; }
+  .card > p { margin:0 0 15px; color:var(--dim); font-size:12px; line-height:1.65; }
+  .field { margin-top:14px; }
+  .field:first-of-type { margin-top:0; }
+  .field label { display:flex; justify-content:space-between; gap:10px; margin-bottom:6px; color:var(--dim); font-size:12px; }
+  select,input[type=text],input[type=number] { width:100%; height:38px; padding:0 10px;
+    color:var(--text); background:var(--panel2); border:1px solid var(--line); border-radius:8px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .checkrow { display:flex; align-items:center; gap:11px; min-height:43px; padding:9px 10px;
+    margin-top:9px; border:1px solid var(--line); border-radius:9px; background:var(--panel2); }
+  .checkrow input { width:18px; height:18px; accent-color:var(--accent); }
+  .checkrow span { flex:1; }
+  .checkrow b { display:block; font-size:13px; }
+  .checkrow small { color:var(--dim); }
+  .route,.note { margin-top:12px; padding:10px 12px; border-radius:9px; background:var(--panel2);
+    border:1px solid var(--line); color:var(--dim); font-size:12px; line-height:1.65; }
+  .route { color:var(--accent); font-weight:700; }
+  .actions { display:flex; gap:8px; margin-top:12px; }
+  button { padding:8px 12px; border:1px solid var(--line); border-radius:9px;
+    color:var(--text); background:var(--panel2); cursor:pointer; font-weight:700; }
+  button:hover { border-color:var(--accent); }
+  button.primary { color:#061117; border-color:var(--accent); background:var(--accent); }
+  .saved { position:fixed; right:22px; bottom:18px; z-index:5; opacity:0; transform:translateY(8px);
+    padding:9px 13px; border-radius:9px; color:#061117; background:var(--ok); font-weight:800;
+    box-shadow:0 10px 30px rgba(0,0,0,.28); transition:.2s; pointer-events:none; }
+  .saved.show { opacity:1; transform:none; }
+  .saved.error { color:#fff; background:var(--err); }
+  .danger { color:var(--err); }
+  .linkrow { display:flex; align-items:center; gap:12px; margin-top:10px; padding:12px 14px;
+    border:1px solid var(--line); border-radius:11px; background:var(--panel2); cursor:pointer; }
+  .linkrow:hover { border-color:var(--accent); background:color-mix(in srgb,var(--accent) 8%,var(--panel2)); }
+  .linkrow:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .linkrow .lk-ico { font-size:20px; width:26px; text-align:center; flex:none; }
+  .linkrow .lk-body { flex:1; min-width:0; }
+  .linkrow .lk-body b { display:block; font-size:14px; }
+  .linkrow .lk-body small { color:var(--dim); }
+  .linkrow .lk-arw { flex:none; color:var(--accent); font-weight:800; }
+  @media(max-width:780px) { .layout{grid-template-columns:190px 1fr}.grid{grid-template-columns:1fr}.card.wide{grid-column:auto}#pageDesc{display:none} }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="mark">M</span><strong>APP SETTINGS<i>.</i></strong></div>
+  <div id="pageDesc">機器・AI・接続を設定します</div>
+  <button class="close" onclick="closeThisWindow()" data-i18n="close">閉じる</button>
+</header>
+
+<div class="layout">
+  <nav class="nav" aria-label="アプリ設定の項目">
+    <div class="nav-caption" data-i18n="st.nav_caption">アプリ設定</div>
+    <button data-section="hearing" onclick="switchSection('hearing')"><span class="icon">🎙</span><strong data-i18n="st.nav_hearing">声の聞き取り</strong><small data-i18n="st.nav_hearing_d">マイク・認識・区切り</small></button>
+    <button data-section="translation" onclick="switchSection('translation')"><span class="icon">🌐</span><strong data-i18n="st.nav_translation">翻訳</strong><small data-i18n="st.nav_translation_d">翻訳先・使用モデル</small></button>
+    <button data-section="collab" onclick="switchSection('collab')"><span class="icon">🎧</span><strong data-i18n="st.nav_collab">コラボ音声</strong><small data-i18n="st.nav_collab_d">通話アプリ・表示名</small></button>
+    <button data-section="voice" onclick="switchSection('voice')"><span class="icon">🎤</span><strong data-i18n="st.nav_voice">ボイスコマンド</strong><small data-i18n="st.nav_voice_d">声でレイアウト切替</small></button>
+    <button data-section="obs" onclick="switchSection('obs')"><span class="icon">🎬</span><strong data-i18n="st.nav_obs">OBS接続</strong><small data-i18n="st.nav_obs_d">表示URL・ポート</small></button>
+    <button data-section="vrchat" onclick="switchSection('vrchat')"><span class="icon">🥽</span><strong data-i18n="st.nav_vrchat">VRChat連携</strong><small data-i18n="st.nav_vrchat_d">チャットボックス送信</small></button>
+    <button data-section="other" onclick="switchSection('other')"><span class="icon">⚙</span><strong data-i18n="st.nav_other">その他</strong><small data-i18n="st.nav_other_d">ログ・表示処理</small></button>
+    <button data-section="about" onclick="switchSection('about')"><span class="icon">ℹ️</span><strong data-i18n="st.nav_about">情報・連絡先</strong><small data-i18n="st.nav_about_d">バージョン・作者</small></button>
+  </nav>
+
+  <main class="content">
+    <section class="pane" id="pHearing">
+      <h1 data-i18n="st.h1_hearing">声の聞き取り</h1><p class="lead" data-i18n="st.lead_hearing">マイクと認識方法を設定します。普段はおすすめのままで使えます。</p>
+      <div class="warnbar restart-warn" data-i18n="restart_warn">⚠ 変更は、コックピットで「■ 停止 → ▶ 開始」すると反映されます。</div>
+      <div class="grid">
+        <article class="card"><h2 data-i18n="st.card_mic">使うマイク</h2><p data-i18n="st.card_mic_d">配信で話す声を取り込む機器です。</p>
+          <div class="field"><label for="device" data-i18n="st.f_audio_in">音声入力</label><select id="device"></select></div>
+          <div class="note" data-i18n="st.note_meter">入力レベルはコックピットのメーターで確認できます。</div>
+        </article>
+        <article class="card"><h2 data-i18n="st.card_model">認識モデル</h2><p data-i18n="st.card_model_d">話す言語に合わせて選びます。</p>
+          <div class="field"><label for="asrModel" data-i18n="st.f_use_model">使用するモデル</label><select id="asrModel"><option value="k2-ja" data-i18n="st.opt_k2">日本語特化（おすすめ）</option><option value="sensevoice" data-i18n="st.opt_multi">多言語</option></select></div>
+          <div class="field" id="asrLangRow"><label for="asrLang" data-i18n="st.f_rec_lang">認識する言語</label><select id="asrLang"><option value="auto" data-i18n="st.opt_auto">自動判定</option><option value="ja" data-i18n="st.opt_ja">日本語</option><option value="en" data-i18n="st.opt_en">英語</option><option value="zh" data-i18n="st.opt_zh">中国語</option><option value="ko" data-i18n="st.opt_ko">韓国語</option><option value="yue" data-i18n="st.opt_yue">広東語</option></select></div>
+        </article>
+        <article class="card"><h2 data-i18n="st.card_split">字幕の区切り</h2><p data-i18n="st.card_split_d">字幕が確定するタイミングを調整します。<b>早口で1行が長くなりすぎるときは「話し終わりの区切り」を短く</b>してください（300→150msで1行がおよそ3/4の長さになります）。ゆっくり話す人や、文の途中で切れてしまうときは長めに。</p>
+          <div class="field"><label><span data-i18n="st.f_silence">話し終わりの区切り</span> <output id="silenceOut"></output></label><input id="silence" type="range" min="100" max="800" step="50"></div>
+          <div class="field"><label><span data-i18n="st.f_maxutt">一区切りの最長</span> <output id="maxUttOut"></output></label><input id="maxUtt" type="range" min="5" max="30" step="1"></div>
+          <label class="checkrow"><input id="finalOnly" type="checkbox"><span><b data-i18n="st.chk_finalonly">確定した字幕だけ表示する</b><small data-i18n="st.chk_finalonly_d">話し終わるまで表示しません（CPUの負荷も下がります）</small></span></label>
+          <div class="field" id="intervalRow"><label><span data-i18n="st.f_interval">途中経過の更新間隔</span> <output id="intervalOut"></output></label><input id="interval" type="range" min="0.2" max="1" step="0.1"></div>
+        </article>
+        <article class="card"><h2 data-i18n="st.card_assist">認識の補助</h2><p data-i18n="st.card_assist_d">固有名詞や数字の認識を補助します。</p>
+          <label class="checkrow"><input id="useHotwords" type="checkbox"><span><b data-i18n="st.chk_hotwords">登録した単語を認識に使う</b><small data-i18n="st.chk_hotwords_d">字幕スタジオで登録した言葉を優先します</small></span></label>
+          <div class="field"><label><span data-i18n="st.f_hotscore">登録単語の出やすさ</span> <output id="hotwordsOut"></output></label><input id="hotwordsScore" type="range" min="1" max="4" step="0.5"></div>
+          <label class="checkrow"><input id="numArabic" type="checkbox"><span><b data-i18n="st.chk_numarabic">漢数字を数字にする</b><small data-i18n="st.chk_numarabic_d">「三」を「3」のように表示します</small></span></label>
+          <label class="checkrow"><input id="highPrecision" type="checkbox"><span><b data-i18n="st.chk_highprec">高精度モード</b><small data-i18n="st.chk_highprec_d">認識と句読点に大きいモデルを使います（メモリ約+650MB）</small></span></label>
+        </article>
+      </div>
+    </section>
+
+    <section class="pane" id="pTranslation">
+      <h1 data-i18n="st.h1_translation">翻訳</h1><p class="lead" data-i18n="st.lead_translation">翻訳先と、実際に使われる翻訳モデルを確認します。</p>
+      <div class="warnbar restart-warn" data-i18n="restart_warn">⚠ 変更は、コックピットで「■ 停止 → ▶ 開始」すると反映されます。</div>
+      <div class="grid">
+        <article class="card wide"><h2 data-i18n="st.card_transop">翻訳の動作</h2><p data-i18n="st.card_transop_d"><b>機械翻訳なので、ときどき意味が逆になります</b>（「全然大丈夫じゃない」が「大丈夫」と訳されるなど）。大事な場面では頼りすぎないでください。見た目と固定訳は字幕スタジオで編集できます。</p>
+          <label class="checkrow"><input id="translate" type="checkbox"><span><b data-i18n="st.chk_translate">翻訳字幕を使う</b><small data-i18n="st.chk_translate_d">コックピットからもオン・オフできます</small></span></label>
+          <div class="field"><label for="translateLang" data-i18n="st.f_translang">字幕を翻訳する言語</label><select id="translateLang">
+            <option value="en" data-i18n="st.tl_en">英語</option>
+            <optgroup label="中国語圏" data-i18n-label="st.tl_group_zh">
+              <option value="zh" data-i18n="st.tl_zh">中国語（簡体字・中国大陸）</option>
+              <option value="zh_tw" data-i18n="st.tl_zhtw">中国語（繁体字・台湾）</option>
+              <option value="zh_hk" data-i18n="st.tl_zhhk">中国語（繁体字・香港）</option>
+            </optgroup>
+            <option value="id" data-i18n="st.tl_id">インドネシア語</option>
+            <option value="ja" data-i18n="st.tl_ja">日本語</option>
+            <option value="ko" data-i18n="st.tl_ko">韓国語（試験的）</option>
+          </select></div>
+          <div class="field"><label for="translateLang2" data-i18n="st.f_translang2">2つ目の翻訳先（同時に表示）</label><select id="translateLang2" class="tl-extra"></select></div>
+          <div class="field"><label for="translateLang3" data-i18n="st.f_translang3">3つ目の翻訳先（同時に表示）</label><select id="translateLang3" class="tl-extra"></select></div>
+          <div class="note" data-i18n="st.note_multi_trans">翻訳先を増やすと、言語ごとに翻訳の時間がかかります（中国語・韓国語は1文あたり約0.1〜0.2秒）。字幕には選んだ順に縦に並び、「翻訳のみ」表示では1つ目が本文になります。</div>
+          <div class="route" id="translationRoute"></div>
+          <div class="note" data-i18n="st.note_trans">翻訳モデルは、認識言語と翻訳先に合わせて自動で選ばれます。台湾・香港向けは地域ごとの漢字と語彙に整えます。</div>
+        </article>
+      </div>
+    </section>
+
+    <section class="pane" id="pCollab">
+      <h1 data-i18n="st.h1_collab">コラボ音声</h1><p class="lead" data-i18n="st.lead_collab">Discordなど、相手の声が鳴るアプリを選びます。</p>
+      <div class="warnbar restart-warn" data-i18n="restart_warn">⚠ 変更は、コックピットで「■ 停止 → ▶ 開始」すると反映されます。</div>
+      <div class="grid">
+        <article class="card wide"><h2 data-i18n="st.card_collab">1対1コラボ字幕</h2><p data-i18n="st.card_collab_d">自分と相手の声を分けて字幕にします。</p>
+          <label class="checkrow"><input id="collab" type="checkbox"><span><b data-i18n="st.chk_collab">コラボ字幕を使う</b><small data-i18n="st.chk_collab_d">ヘッドホンを使用してください</small></span></label>
+          <div class="field"><label for="collabProcess" data-i18n="st.f_collabapp">相手の声が鳴るアプリ</label><div class="actions" style="margin-top:0"><select id="collabProcess" style="flex:1"></select><button id="reloadApps" data-i18n="st.btn_reload">↻ 更新</button></div></div>
+          <div class="note" id="collabHint" data-i18n="st.note_collab">Discordなどを起動し、通話中に更新すると見つけやすくなります。</div>
+        </article>
+        <article class="card wide"><h2 data-i18n="st.card_names">字幕で使う表示名</h2><p data-i18n="st.card_names_d">話者を見分けるための名前です。</p>
+          <div class="grid"><div class="field"><label for="selfName" data-i18n="st.f_self">自分</label><input id="selfName" type="text" maxlength="20" placeholder="自分" data-i18n-ph="st.ph_self"></div><div class="field"><label for="guestName" data-i18n="st.f_guest">相手</label><input id="guestName" type="text" maxlength="20" placeholder="ゲスト" data-i18n-ph="st.ph_guest"></div></div>
+          <div class="note" data-i18n="st.note_names">相手側のデザインとレイアウトは、コックピットの「字幕の見た目」で選べます。</div>
+        </article>
+      </div>
+    </section>
+
+    <section class="pane" id="pVoice">
+      <h1 data-i18n="st.h1_voice">ボイスコマンド</h1><p class="lead" data-i18n="st.lead_voice">配信中に、声でMojicastを操作します。まずはレイアウト切替から。</p>
+      <div class="warnbar" data-i18n="st.warn_vc">💡 コマンドはすぐ使えます。呼びかけを認識されやすくする効果（認識誘導）だけは「■ 停止 → ▶ 開始」後に反映されます。</div>
+      <div class="grid">
+        <article class="card wide"><h2 data-i18n="st.card_voice">ウェイクワード（呼びかけの名前）</h2><p data-i18n="st.card_voice_d">この名前に続けて話した発話だけがコマンドになります。</p>
+          <label class="checkrow"><input id="vcEnabled" type="checkbox"><span><b data-i18n="st.chk_vc">ボイスコマンドを使う</b><small data-i18n="st.chk_vc_d">コマンドの発話は字幕に表示されません</small></span></label>
+          <div class="field"><label for="vcWake" data-i18n="st.f_wake">ウェイクワード（「、」区切りで複数OK）</label><input id="vcWake" type="text" maxlength="200" placeholder="例：ステラ、すてら" data-i18n-ph="st.ph_wake"></div>
+          <div class="note" data-i18n="st.note_wake">カタカナ・ひらがなの名前が認識されやすいです。違う言葉に化けるときは、字幕に出たその表記もそのまま並べて登録してください（例：モジキャスト、文字キャスト）。</div>
+        </article>
+        <article class="card wide"><h2 data-i18n="st.card_vccmd">カスタムコマンド</h2><p data-i18n="st.card_vccmd_d">自分の言い回しに動作を割り当てます。ウェイクワードに続けて話すと実行されます。</p>
+          <div id="vcCmdRows"></div>
+          <div class="actions" style="margin-top:8px"><button id="vcCmdAdd" data-i18n="st.vccmd_add">＋ コマンドを追加</button></div>
+          <div class="note" data-i18n="st.vccmd_note">言い回しは「、」区切りで複数OK（誤認識されがちな表記も並べると確実）。組み込みコマンドと同じ言い回しは、こちらが優先されます。</div>
+        </article>
+        <article class="card wide"><h2 data-i18n="st.card_vcuse">組み込みコマンド</h2><p data-i18n="st.card_vcuse_d">ウェイクワードに続けて、ひと息に話します。</p>
+          <div class="note" data-i18n="st.vc_ex1">「ステラ、レイアウトを下部バーに」…名前で切替</div>
+          <div class="note" data-i18n="st.vc_ex2">「ステラ、レイアウト2」…並び順の番号で切替（字幕スタジオの一覧の上から数えます）</div>
+          <div class="note" data-i18n="st.vc_ex4">「ステラ、レイアウト変えて」…おまかせで別のレイアウトに切替</div>
+          <div class="note" data-i18n="st.vc_ex6">「ステラ、デザインをサイバーに」「ステラ、デザイン変えて」…字幕デザインも同じように切替できます</div>
+          <div class="note" data-i18n="st.vc_ex7">「ステラ、歌枠」「ステラ、シーン変えて」…シーン（デザイン＋位置のセット）を一括切替</div>
+          <div class="note" data-i18n="st.vc_ex5">「ステラ、翻訳を英語に」「ステラ、翻訳オフ」…翻訳の切替（認識の動作中は自動で再起動します）</div>
+          <div class="note" data-i18n="st.vc_ex3">実行すると、コックピットの画面右下に結果が表示されます。</div>
+        </article>
+      </div>
+    </section>
+
+    <section class="pane" id="pObs">
+      <h1 data-i18n="st.h1_obs">OBS接続</h1><p class="lead" data-i18n="st.lead_obs">字幕をOBSのブラウザソースへ表示するための接続設定です。</p>
+      <div class="grid">
+        <article class="card wide"><h2 data-i18n="st.card_url">表示用URL</h2><p data-i18n="st.card_url_d">OBSのブラウザソースに貼り付けます。</p>
+          <div class="actions" style="margin-top:0"><input id="obsUrl" type="text" readonly style="flex:1"><button class="primary" id="copyObs" data-i18n="st.btn_copy">コピー</button></div>
+          <div class="note" data-i18n="st.note_url">推奨サイズは配信解像度と同じです（例：1920×1080）。</div>
+        </article>
+        <article class="card"><h2 data-i18n="st.card_port">接続ポート</h2><p data-i18n="st.card_port_d">通常は変更する必要はありません。</p>
+          <div class="field"><label for="port" data-i18n="st.f_port">ポート番号</label><input id="port" type="number" min="1024" max="65535"></div>
+          <div class="note" data-i18n="st.note_port">変更後はMojicastを再起動し、OBS側のURLも更新してください。</div>
+        </article>
+      </div>
+    </section>
+
+    <section class="pane" id="pVrchat">
+      <h1 data-i18n="st.h1_vrchat">VRChat連携</h1><p class="lead" data-i18n="st.lead_vrchat">認識した字幕をVRChatのチャットボックスへ表示します（OSC送信）。</p>
+      <div class="grid">
+        <article class="card wide"><h2 data-i18n="st.card_vrchat">チャットボックス送信</h2><p data-i18n="st.card_vrchat_d">再起動なしですぐ反映されます。コックピットからもオン・オフできます。</p>
+          <label class="checkrow"><input id="vrchatOn" type="checkbox"><span><b data-i18n="st.chk_vrchat">VRChatへ送信する</b><small data-i18n="st.chk_vrchat_d">VRChat側でもOSCを有効にしてください（アクションメニュー → Options → OSC → Enabled）</small></span></label>
+          <div class="field"><label for="vrchatSource" data-i18n="st.f_vrcsource">送信内容</label><select id="vrchatSource"><option value="ja" data-i18n="st.opt_vrc_ja">文字起こし（認識した文章）</option><option value="tr" data-i18n="st.opt_vrc_tr">訳文（翻訳がONのとき）</option></select></div>
+          <div class="note" data-i18n="st.note_vrchat">チャットボックスは144文字まで。発話が続くときはVRChatのスパム対策に合わせ、約1.6秒間隔でまとめて送られます。コラボ中は自分の発話だけが送られます。</div>
+        </article>
+        <article class="card"><h2 data-i18n="st.card_vrcport">OSCポート</h2><p data-i18n="st.card_vrcport_d">通常は変更する必要はありません。</p>
+          <div class="field"><label for="vrchatPort" data-i18n="st.f_port">ポート番号</label><input id="vrchatPort" type="number" min="1024" max="65535"></div>
+          <div class="note" data-i18n="st.note_vrcport">VRChatのOSC受信ポート（既定9000）に合わせます。</div>
+        </article>
+      </div>
+    </section>
+
+    <section class="pane" id="pOther">
+      <h1 data-i18n="st.h1_other">その他</h1><p class="lead" data-i18n="st.lead_other">字幕処理とアプリ画面の設定です。</p>
+      <div class="grid">
+        <article class="card"><h2 data-i18n="st.card_capproc">字幕処理</h2><p data-i18n="st.card_capproc_d">認識後の文章を整えます。</p>
+          <label class="checkrow"><input id="punctuate" type="checkbox"><span><b data-i18n="st.chk_punct">句読点を付ける</b></span></label>
+          <label class="checkrow"><input id="saveLog" type="checkbox"><span><b data-i18n="st.chk_savelog">字幕ログを保存する</b><small data-i18n="st.chk_savelog_d">あとから配信内容を確認できます</small></span></label>
+          <div class="actions"><button id="openLogs" data-i18n="st.btn_openlogs">字幕ログの保存フォルダを開く</button></div>
+        </article>
+        <article class="card"><h2 data-i18n="st.card_appscr">アプリ画面</h2><p data-i18n="st.card_appscr_d">OBSに映る字幕の色には影響しません。</p>
+          <div class="field"><label for="uiLang" data-i18n="st.f_lang">表示言語</label><select id="uiLang"><option value="ja">日本語</option><option value="zh">中文</option><option value="en">English</option></select></div>
+          <div class="field"><label for="theme" data-i18n="st.f_theme">画面テーマ</label><select id="theme"><option value="light" data-i18n="st.opt_light">ライト</option><option value="dark" data-i18n="st.opt_dark">ダーク</option></select></div>
+          <div class="field"><label for="uiScale" data-i18n="st.f_scale">文字とボタンの大きさ</label><select id="uiScale">
+            <option value="auto" data-i18n="st.opt_scale_auto">自動（画面に合わせる）</option>
+            <option value="0.8" data-i18n="st.opt_scale_s">小</option>
+            <option value="1" data-i18n="st.opt_scale_m">標準</option>
+            <option value="1.25" data-i18n="st.opt_scale_l">大</option>
+            <option value="1.5" data-i18n="st.opt_scale_xl">特大</option>
+          </select></div>
+          <div class="note" id="uiScaleNote"></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="pane" id="pAbout">
+      <h1 data-i18n="st.h1_about">情報・連絡先</h1><p class="lead" data-i18n="st.lead_about">バージョンの確認と、作者への連絡・不具合報告の入口です。</p>
+      <div class="grid">
+        <article class="card"><h2 data-i18n="st.card_ver">バージョン</h2><p data-i18n="st.card_ver_d">お問い合わせの際は、この番号もお知らせください。</p>
+          <div class="field"><label data-i18n="st.f_curver">現在のバージョン</label><div class="route" id="aboutVer" style="color:var(--text);font-weight:800">—</div></div>
+          <div class="actions"><button id="btnCheckUpdate" data-i18n="st.btn_checkupdate">🔄 更新を確認</button></div>
+        </article>
+        <article class="card"><h2 data-i18n="st.card_contact">作者・連絡先</h2><p data-i18n="st.card_contact_d">不具合報告や要望はこちらからどうぞ。ブラウザで開きます。</p>
+          <div class="linkrow" onclick="openExternal('https://github.com/ishiki-emo/mojicast')" role="link" tabindex="0">
+            <span class="lk-ico">🐙</span><span class="lk-body"><b>GitHub</b><small data-i18n="st.lk_github_d">ソース・不具合報告（Issues）</small></span><span class="lk-arw">↗</span>
+          </div>
+          <div class="linkrow" onclick="openExternal('https://discord.gg/Qmx7Mrf6TE')" role="link" tabindex="0">
+            <span class="lk-ico">💬</span><span class="lk-body"><b>Discord</b><small data-i18n="st.lk_discord_d">使い方の質問・要望・雑談（コミュニティ）</small></span><span class="lk-arw">↗</span>
+          </div>
+          <div class="linkrow" onclick="openExternal('https://x.com/ishiki_emo')" role="link" tabindex="0">
+            <span class="lk-ico">𝕏</span><span class="lk-body"><b>X（@ishiki_emo）</b><small data-i18n="st.lk_x_d">作者へ直接ひとこと</small></span><span class="lk-arw">↗</span>
+          </div>
+          <div class="linkrow" onclick="openExternal(location.origin + '/CREDITS.md')" role="link" tabindex="0">
+            <span class="lk-ico">📜</span><span class="lk-body"><b data-i18n="st.lk_credits">クレジット</b><small data-i18n="st.lk_credits_d">利用しているAIモデル・ライブラリとライセンス</small></span><span class="lk-arw">↗</span>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+</div>
+<div class="saved" id="saved">✓ 保存しました</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const qs = new URLSearchParams(location.search);
+  const panes = { hearing:"pHearing", translation:"pTranslation", collab:"pCollab", voice:"pVoice", obs:"pObs", vrchat:"pVrchat", other:"pOther", about:"pAbout" };
+  const descsJa = { hearing:"マイク・認識・区切りを設定", translation:"翻訳先とモデルを設定", collab:"通話相手の音声を設定", voice:"声でレイアウトを切り替え", obs:"OBSとの接続を設定", vrchat:"VRChatのチャットボックスへ送信", other:"ログと画面表示を設定", about:"バージョンと連絡先" };
+  const T = (key, jaDefault) => window.MojicastI18n ? window.MojicastI18n.t(key, jaDefault) : jaDefault;
+  let cfg = {}, running = false, savedTimer, nameTimer, vcTimer, curSection = "hearing";
+
+  async function api(path, body) {
+    const opt = body === undefined ? {} : { method:"POST", body:JSON.stringify(body) };
+    return (await fetch(path, opt)).json();
+  }
+  function closeThisWindow() {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.close_window)
+      window.pywebview.api.close_window("settings");
+    else window.close();
+  }
+  // 外部URLはOSの既定ブラウザで開く（WebView2内の target=_blank は開けないため）
+  function openExternal(url) {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.open_external)
+      window.pywebview.api.open_external(url);
+    else window.open(url, "_blank", "noopener");
+  }
+  // linkrow をキーボードでも起動できるように（Enter / Space）
+  document.addEventListener("keydown", e => {
+    if ((e.key === "Enter" || e.key === " ") && e.target.classList.contains("linkrow")) {
+      e.preventDefault(); e.target.click();
+    }
+  });
+  const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");
+  function applyTheme(theme) {
+    if (theme === "light") document.documentElement.dataset.theme = "light";
+    else delete document.documentElement.dataset.theme;
+    try { localStorage.setItem("mojicast-theme", theme); } catch (e) {}
+  }
+  function toast(text=T("st.saved","✓ 保存しました"), isError=false) {
+    $("saved").textContent = text; $("saved").classList.toggle("error", isError); $("saved").classList.add("show");
+    clearTimeout(savedTimer); savedTimer = setTimeout(() => $("saved").classList.remove("show"), 1400);
+  }
+  function showRestart() {
+    if (running) document.querySelectorAll(".restart-warn").forEach(x => x.style.display="flex");
+  }
+  async function save(patch, needsRestart=true) {
+    Object.assign(cfg, patch); await api("/api/config", patch); toast();
+    if (needsRestart) showRestart();
+  }
+  function switchSection(section) {
+    section = panes[section] ? section : "hearing";
+    curSection = section;
+    document.querySelectorAll(".pane").forEach(x => x.classList.toggle("active", x.id === panes[section]));
+    document.querySelectorAll(".nav button[data-section]").forEach(x => x.classList.toggle("active", x.dataset.section === section));
+    $("pageDesc").textContent = T("st.desc_" + section, descsJa[section]);
+    if (section === "collab") loadApps();
+  }
+  // 言語が切り替わったら動的テキスト（ページ説明）を再適用
+  window.addEventListener("mojicast-lang-changed", () => { $("pageDesc").textContent = T("st.desc_" + curSection, descsJa[curSection]); syncTranslationRoute(); syncScaleNote(); });
+  // 画面の大きさ: 効いている倍率と、反映範囲（窓サイズは次回起動から）を明示する
+  function syncScaleNote() {
+    const pct = v => Math.round(v * 100) + "%";
+    const auto = cfg.ui_scale_auto || 1;
+    const value = $("uiScale").value;
+    const effective = value === "auto" ? auto : parseFloat(value);
+    $("uiScaleNote").textContent = T(
+      "st.scale_note",
+      "いまの大きさは {p}（自動なら {a}）。開いている画面はすぐ変わり、ウィンドウそのものの大きさは次回の起動から変わります。OBSに映る字幕の大きさには影響しません。")
+      .replace("{p}", pct(effective)).replace("{a}", pct(auto));
+  }
+  function syncAsrLanguage() { $("asrLangRow").style.display = $("asrModel").value === "sensevoice" ? "" : "none"; }
+  // 確定字幕だけ表示するときは途中経過を作らないので、更新間隔の設定は伏せる
+  function syncFinalOnly() { $("intervalRow").style.display = $("finalOnly").checked ? "none" : ""; }
+  // 翻訳先（表示順）。translate_langs（複数）が無い旧設定は translate_lang の1言語
+  function currentTranslateLangs() {
+    const l = Array.isArray(cfg.translate_langs) && cfg.translate_langs.length
+      ? cfg.translate_langs : [cfg.translate_lang || "en"];
+    return [...new Set(l)].slice(0, 3);
+  }
+  // 1つ目の選択肢を複製して2つ目・3つ目を作る（先頭に「なし」）
+  function buildExtraLangSelects() {
+    for (const id of ["translateLang2", "translateLang3"]) {
+      const sel = $(id);
+      sel.innerHTML = "";
+      const none = document.createElement("option");
+      none.value = ""; none.textContent = T("st.tl_none", "なし"); none.dataset.i18n = "st.tl_none";
+      sel.appendChild(none);
+      for (const c of $("translateLang").children) sel.appendChild(c.cloneNode(true));
+    }
+  }
+  function setTranslateLangs() {
+    const langs = currentTranslateLangs();
+    $("translateLang").value = langs[0];
+    $("translateLang2").value = langs[1] || "";
+    $("translateLang3").value = langs[2] || "";
+    // 前の段が「なし」なら次の段は選べない（並びに穴を空けない）
+    $("translateLang3").disabled = !langs[1];
+  }
+  function readTranslateLangs() {
+    const v = ["translateLang", "translateLang2", "translateLang3"].map(id => $(id).value).filter(Boolean);
+    return [...new Set(v)];
+  }
+  function syncTranslationRoute() {
+    const sv = cfg.asr_model === "sensevoice";
+    let src = sv && cfg.asr_lang && !["auto","ja"].includes(cfg.asr_lang) ? cfg.asr_lang : "ja";
+    if (src === "yue") src = "zh";
+    const names = {ja:"日本語",zh:"中国語",en:"英語",ko:"韓国語",id:"インドネシア語",
+      zh_tw:"中国語（台湾繁体字）",zh_hk:"中国語（香港繁体字）"};
+    const routeText = tgt => {
+      const regional = ["zh_tw", "zh_hk"].includes(tgt);
+      if (src === tgt) return `${names[tgt] || tgt}: 認識言語と同じため、翻訳はスキップされます`;
+      if (src === "zh" && regional) return `使用処理: OpenCC（中国語 → ${names[tgt]}）`;
+      let model = src === "ja" && tgt === "en" ? "FuguMT" : "M2M-100";
+      if (regional) model += " ＋ OpenCC";
+      return `使用モデル: ${model}（${names[src] || src} → ${names[tgt] || tgt}）`;
+    };
+    const el = $("translationRoute");
+    el.textContent = "";
+    for (const tgt of currentTranslateLangs()) {
+      const row = document.createElement("div");
+      row.textContent = routeText(tgt);
+      el.appendChild(row);
+    }
+  }
+  async function loadApps() {
+    if (cfg.collab_supported === false) return;   // 未対応OSではヒントを上書きしない
+    try {
+      const d = await api("/api/loopback-apps"), cur = cfg.collab_process || "", apps = d.apps || [];
+      $("collabProcess").innerHTML = '<option value="">（未選択）</option>' + apps.map(a => `<option value="${esc(a.name)}">${a.active ? "🔊 " : ""}${esc(a.name)}</option>`).join("");
+      if (cur && !apps.some(a => a.name === cur)) $("collabProcess").insertAdjacentHTML("beforeend", `<option value="${esc(cur)}">${esc(cur)}（未起動）</option>`);
+      $("collabProcess").value = cur;
+      $("collabHint").classList.remove("danger");
+      $("collabHint").textContent = "Discordなどを起動し、通話中に更新すると見つけやすくなります。";
+      if (d.supported === false) { $("collabHint").textContent = "このWindowsは1対1コラボに対応していません。"; $("collabHint").classList.add("danger"); }
+    } catch (e) { $("collabHint").textContent = "アプリ一覧を取得できませんでした。"; }
+  }
+  function bindRange(id, out, key, unit, fallback) {
+    const el=$(id), output=$(out); el.value = cfg[key] ?? fallback; output.value = el.value + unit;
+    el.addEventListener("input", () => output.value = el.value + unit);
+    el.addEventListener("change", () => save({[key]:+el.value}));
+  }
+  async function load() {
+    cfg = await api("/api/config");
+    try { running = (await api("/api/status")).state === "running"; } catch (e) {}
+    applyTheme(cfg.theme || "light");
+    if (window.MojicastI18n) window.MojicastI18n.applyLang(cfg.ui_lang || "ja");
+    const dv = await api("/api/devices");
+    $("device").innerHTML = `<option value="default">${esc(T("cp.mic_default","既定のマイク"))}</option>` + (dv.devices || []).map(d => `<option value="${d.index}">${esc(d.name)}${d.default ? esc(T("cp.default_suffix"," (既定)")) : ""}</option>`).join("");
+    $("device").value = cfg.device == null ? "default" : String(cfg.device);
+    $("asrModel").value = cfg.asr_model || "k2-ja"; $("asrLang").value = cfg.asr_lang || "auto"; syncAsrLanguage();
+    bindRange("silence","silenceOut","silence_ms","ms",300); bindRange("maxUtt","maxUttOut","max_utt","秒",12);
+    bindRange("interval","intervalOut","interval","秒",.4); bindRange("hotwordsScore","hotwordsOut","hotwords_score","",2);
+    $("useHotwords").checked = cfg.use_hotwords !== false; $("numArabic").checked = cfg.num_arabic !== false; $("highPrecision").checked = cfg.precision === "fp32";
+    $("finalOnly").checked = !!cfg.final_only; syncFinalOnly();
+    $("translate").checked = !!cfg.translate; buildExtraLangSelects(); setTranslateLangs();
+    $("collab").checked = !!cfg.collab; $("selfName").value = cfg.self_name || ""; $("guestName").value = cfg.guest_name || "";
+    if (cfg.collab_supported === false) {   // コラボ未対応OS（mac）: セクションごと無効化
+      $("collab").checked = false;
+      for (const id of ["collab", "collabProcess", "reloadApps", "selfName", "guestName"]) $(id).disabled = true;
+      $("collabHint").classList.add("danger");
+      $("collabHint").textContent = T("st.collab_unsupported", "macOS版では現在利用できません（Windows版の機能）");
+      const nav = document.querySelector('.nav button[data-section="collab"]');
+      nav.disabled = true;
+      const d = nav.querySelector("small");
+      d.removeAttribute("data-i18n");   // 言語切替で説明が復活しないよう固定
+      d.textContent = T("st.nav_collab_unsupported", "macOS版では利用できません");
+    }
+    $("vcEnabled").checked = !!cfg.vc_enabled; $("vcWake").value = (cfg.vc_wake || []).join("、");
+    loadVcCmds();   // カスタムコマンド（非同期・失敗しても他の設定表示は継続）
+    $("obsUrl").value = location.origin + "/"; $("port").value = cfg.port || 8765;
+    $("vrchatOn").checked = !!cfg.vrchat; $("vrchatSource").value = cfg.vrchat_source || "ja"; $("vrchatPort").value = cfg.vrchat_port || 9000;
+    if (cfg.vrchat_supported === false)   // VRChat 未対応OS（mac）: 欄ごと出さない
+      document.querySelector('.nav button[data-section="vrchat"]').style.display = "none";
+    $("punctuate").checked = cfg.punctuate !== false; $("saveLog").checked = cfg.save_log !== false; $("theme").value = cfg.theme || "light";
+    $("uiLang").value = cfg.ui_lang || "ja";
+    // 選択肢にない倍率（旧版・手書きconfig）は「自動」に見せる。保存し直すまで実効値はそのまま
+    $("uiScale").value = String(cfg.ui_scale ?? "auto");
+    if (!$("uiScale").value) $("uiScale").value = "auto";
+    syncScaleNote();
+    if (cfg.version) $("aboutVer").textContent = "Mojicast v" + cfg.version;
+    let sec = qs.get("section") || "hearing";
+    if (sec === "collab" && cfg.collab_supported === false) sec = "hearing";   // 未対応OSでは直リンクも逃がす
+    if (sec === "vrchat" && cfg.vrchat_supported === false) sec = "hearing";
+    syncTranslationRoute(); switchSection(sec);
+  }
+
+  $("btnCheckUpdate").addEventListener("click", async () => {
+    const btn = $("btnCheckUpdate");
+    btn.disabled = true;
+    try {
+      const d = await api("/api/update-check?force=1");
+      if (d.update_available) {
+        toast(T("st.update_found", "新しいバージョン v{v} があります").replace("{v}", d.latest));
+        if (d.url) openExternal(d.url);
+      } else {
+        toast(T("st.update_none", "最新版を使っています"));
+      }
+    } catch (e) {
+      toast(T("st.update_fail", "更新を確認できませんでした（ネット接続を確認）"), true);
+    }
+    btn.disabled = false;
+  });
+
+  $("device").addEventListener("change", e => save({device:e.target.value === "default" ? null : +e.target.value}));
+  $("asrModel").addEventListener("change", e => { cfg.asr_model=e.target.value; syncAsrLanguage(); syncTranslationRoute(); save({asr_model:e.target.value}); });
+  $("asrLang").addEventListener("change", e => { cfg.asr_lang=e.target.value; syncTranslationRoute(); save({asr_lang:e.target.value}); });
+  $("useHotwords").addEventListener("change", e => save({use_hotwords:e.target.checked}));
+  $("numArabic").addEventListener("change", e => save({num_arabic:e.target.checked}));
+  $("finalOnly").addEventListener("change", e => { save({final_only:e.target.checked}); syncFinalOnly(); });
+  $("highPrecision").addEventListener("change", e => save({precision:e.target.checked ? "fp32" : "int8-fp32"}));
+  $("translate").addEventListener("change", e => save({translate:e.target.checked},false));
+  ["translateLang", "translateLang2", "translateLang3"].forEach((id, i) =>
+    $(id).addEventListener("change", e => {
+      // 別の段で選択中の言語を選んだら、その段と入れ替える（消えないように）
+      const prev = currentTranslateLangs().slice(), v = e.target.value, j = prev.indexOf(v);
+      const langs = j >= 0 && j !== i && prev[i]
+        ? (() => { [prev[i], prev[j]] = [prev[j], prev[i]]; return prev; })()
+        : readTranslateLangs();
+      cfg.translate_langs = langs; cfg.translate_lang = langs[0];
+      setTranslateLangs(); syncTranslationRoute();
+      save({translate_langs: langs, translate_lang: langs[0]});
+    }));
+  $("collab").addEventListener("change", e => save({collab:e.target.checked}));
+  $("vcEnabled").addEventListener("change", e => save({vc_enabled:e.target.checked}));
+  $("vcWake").addEventListener("input", e => { clearTimeout(vcTimer); vcTimer = setTimeout(() => save({vc_wake:e.target.value.split(/[、,，]/).map(s => s.trim()).filter(Boolean)}), 400); });
+
+  // ---------- カスタムコマンド（言い回し → 動作） ----------
+  let vcCmds = [], vcCatalog = { scenes: [], boxes: [], presets: [] }, vcCmdTimer;
+  const VC_ACTIONS = [
+    ["scene", "シーンに切替"], ["preset", "デザインに切替"], ["box", "レイアウトに切替"],
+    ["random", "おまかせで切替"], ["translate_lang", "翻訳先を切替"],
+    ["translate_on", "翻訳オン"], ["translate_off", "翻訳オフ"], ["clear", "字幕クリア"],
+  ];
+  const VC_LANGS = [["en","英語"],["zh","中国語（簡体字）"],["zh_tw","中国語（繁体字）"],
+    ["zh_hk","広東語"],["id","インドネシア語"],["ja","日本語"],["ko","韓国語"]];
+  const VC_RANDOM_TARGETS = [["scene","シーン"],["preset","デザイン"],["box","レイアウト"]];
+
+  function vcTargetOptions(type, cur) {
+    const opt = (v, l) => `<option value="${esc(v)}"${v === cur ? " selected" : ""}>${esc(l)}</option>`;
+    if (type === "scene") return vcCatalog.scenes.map(s => opt(s.id, s.name)).join("");
+    if (type === "preset") return vcCatalog.presets.map(p => opt(p.id, p.name)).join("");
+    if (type === "box") return vcCatalog.boxes.map(b => opt(b.id, b.name)).join("");
+    if (type === "random") return VC_RANDOM_TARGETS.map(([v, l]) => opt(v, T("st.vct_" + v, l))).join("");
+    if (type === "translate_lang") return VC_LANGS.map(([v, l]) => opt(v, T("st.tl_" + v.replace("_",""), l))).join("");
+    return "";
+  }
+  function vcDefaultAction(type) {
+    if (type === "scene") return { type, id: (vcCatalog.scenes[0] || {}).id || "" };
+    if (type === "preset") return { type, id: (vcCatalog.presets[0] || {}).id || "" };
+    if (type === "box") return { type, id: (vcCatalog.boxes[0] || {}).id || "" };
+    if (type === "random") return { type, target: "scene" };
+    if (type === "translate_lang") return { type, lang: "en" };
+    return { type };
+  }
+  function vcTargetValue(a) { a = a || {}; return a.id || a.target || a.lang || ""; }
+  function vcSetTarget(a, v) {
+    if (a.type === "random") a.target = v;
+    else if (a.type === "translate_lang") a.lang = v;
+    else a.id = v;
+  }
+  function renderVcCmds() {
+    const wrap = $("vcCmdRows");
+    wrap.innerHTML = "";
+    vcCmds.forEach((c, i) => {
+      const type = (c.action || {}).type || "scene";
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;gap:6px;margin-bottom:6px;align-items:center";
+      const tOpts = vcTargetOptions(type, vcTargetValue(c.action));
+      row.innerHTML =
+        `<input type="text" maxlength="160" style="flex:2;min-width:0" value="${esc((c.phrases || []).join("、"))}" placeholder="${esc(T("st.vccmd_ph", "例：歌枠モード、うたわく"))}">` +
+        `<select style="flex:1.3">${VC_ACTIONS.map(([v, l]) =>
+          `<option value="${v}"${v === type ? " selected" : ""}>${esc(T("st.vca_" + v, l))}</option>`).join("")}</select>` +
+        `<select style="flex:1.3;min-width:0"${tOpts ? "" : " hidden"}>${tOpts}</select>` +
+        `<button style="flex:none" title="${esc(T("sy.delete", "削除"))}">🗑</button>`;
+      const [inp, selA, selT, del] = row.children;
+      inp.addEventListener("input", () => {
+        c.phrases = inp.value.split(/[、,，]/).map(s => s.trim()).filter(Boolean);
+        vcCmdSave();
+      });
+      selA.addEventListener("change", () => { c.action = vcDefaultAction(selA.value); renderVcCmds(); vcCmdSave(); });
+      selT.addEventListener("change", () => { vcSetTarget(c.action, selT.value); vcCmdSave(); });
+      del.addEventListener("click", () => { vcCmds.splice(i, 1); renderVcCmds(); vcCmdSave(); });
+      wrap.appendChild(row);
+    });
+  }
+  function vcCmdSave() {
+    clearTimeout(vcCmdTimer);
+    vcCmdTimer = setTimeout(async () => {
+      // 言い回しが空の行は編集途中とみなし、送信からは除外（画面には残す）
+      const valid = vcCmds.filter(c => (c.phrases || []).length && c.action && c.action.type);
+      try { await api("/api/vc-commands", { commands: valid }); toast(); }
+      catch (e) { toast(T("st.save_fail", "保存できませんでした"), true); }
+    }, 500);
+  }
+  $("vcCmdAdd").addEventListener("click", () => {
+    vcCmds.push({ id: "vcc-" + Date.now(), phrases: [], action: vcDefaultAction("scene") });
+    renderVcCmds();
+  });
+  async function loadVcCmds() {
+    const [sc, bx, pr, vc] = await Promise.all([
+      api("/api/scenes"), api("/api/boxes"), api("/api/presets"), api("/api/vc-commands")]);
+    vcCatalog = { scenes: sc.scenes || [], boxes: bx.boxes || [], presets: pr.presets || [] };
+    vcCmds = vc.commands || [];
+    renderVcCmds();
+  }
+  $("collabProcess").addEventListener("change", e => save({collab_process:e.target.value,collab_source:"process"}));
+  $("reloadApps").addEventListener("click", loadApps);
+  for (const id of ["selfName","guestName"]) $(id).addEventListener("input", e => { clearTimeout(nameTimer); nameTimer=setTimeout(() => save({[e.target.id === "selfName" ? "self_name" : "guest_name"]:e.target.value}),400); });
+  $("port").addEventListener("change", async e => { const v=Math.round(+e.target.value); if(v<1024||v>65535){e.target.value=cfg.port;return;} await save({port:v},false); toast(T("st.saved_port","✓ 保存しました。再起動後に反映されます")); });
+  $("copyObs").addEventListener("click", async () => { try { await navigator.clipboard.writeText($("obsUrl").value); } catch(e) { $("obsUrl").select(); document.execCommand("copy"); } toast(T("st.copied_obs","✓ OBS用URLをコピーしました")); });
+  $("vrchatOn").addEventListener("change", e => save({vrchat:e.target.checked},false));
+  $("vrchatSource").addEventListener("change", e => save({vrchat_source:e.target.value},false));
+  $("vrchatPort").addEventListener("change", async e => { const v=Math.round(+e.target.value); if(v<1024||v>65535){e.target.value=cfg.vrchat_port||9000;return;} await save({vrchat_port:v},false); });
+  $("punctuate").addEventListener("change", e => save({punctuate:e.target.checked},false));
+  $("saveLog").addEventListener("change", e => save({save_log:e.target.checked},false));
+  $("openLogs").addEventListener("click", async () => {
+    try {
+      const result = await api("/api/logs/open", {});
+      if (!result.ok) throw new Error(result.error || "open failed");
+      toast(T("st.logs_opened","✓ 字幕ログの保存フォルダを開きました"));
+    } catch (e) { toast(T("st.logs_fail","字幕ログの保存フォルダを開けませんでした"), true); }
+  });
+  $("theme").addEventListener("change", e => { applyTheme(e.target.value); save({theme:e.target.value},false); });
+  $("uiLang").addEventListener("change", e => { if (window.MojicastI18n) window.MojicastI18n.applyLang(e.target.value); save({ui_lang:e.target.value},false); });
+  // 保存すると全GUI窓へSSEで配られ、この窓自身も theme-sync.js 側で拡縮される
+  $("uiScale").addEventListener("change", e => {
+    const value = e.target.value === "auto" ? "auto" : parseFloat(e.target.value);
+    save({ui_scale:value},false).then(syncScaleNote);
+  });
+  load();
+</script>
+</body>
+</html>

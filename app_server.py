@@ -58,6 +58,9 @@ DEFAULT_CONFIG = {
     # GUI窓の拡大率。"auto"=起動モニタから自動判定 / 0.75〜1.5=利用者の明示指定。
     # overlayは対象外（OBSに映る字幕の大きさは変わらない）
     "ui_scale": "auto",
+    # GUI窓の版（"new"=新UI / "legacy"=旧UI）。旧UIは ui/legacy/ のスナップショットを
+    # 同じURLで配る（コックピット上部の切替ボタンでいつでも行き来できる）。overlayは対象外
+    "ui_variant": "new",
     # 窓ごとの大きさ・位置（閉じた時点の値を次回起動で復元）。
     # {"cockpit": {"x","y","w","h","scale"}, ...}。書き換えは save_window_geometry 経由
     "window_geometry": {},
@@ -244,6 +247,16 @@ def save_window_geometry(key, geom):
         store[str(key)] = geom
         cfg["window_geometry"] = normalize_window_geometry(store)
         save_config(cfg)
+
+
+def _ui_file(name):
+    """GUIファイルの実体パス。旧UIを選んでいて ui/legacy/ に同名があればそちらを返す
+    （無いもの＝共有の fx.js / theme-sync.js などは新旧共通の ui/ から配る）"""
+    if load_config().get("ui_variant") == "legacy":
+        legacy = os.path.join(BASE, "ui", "legacy", name)
+        if os.path.isfile(legacy):
+            return legacy
+    return os.path.join(BASE, "ui", name)
 
 
 def resolve_ui_scale(cfg=None):
@@ -1122,7 +1135,7 @@ class Handler(BaseHTTPRequestHandler):
             if os.path.splitext(name)[1] not in self._MIME:
                 self._send_body(404, b"not found", "text/plain")
                 return
-            self._file(os.path.join(BASE, "ui", name))
+            self._file(_ui_file(name))
         elif path.startswith("/soundfx/"):
             # 音イベント演出のユーザー画像（overlay が <img> で読む）。
             # 日本語ファイル名は encodeURIComponent で届くため復号してから検証する
@@ -1292,6 +1305,8 @@ class Handler(BaseHTTPRequestHandler):
                 body["ui_lang"] = "ja"    # 未知値は日本語へ（既定）
             if "ui_scale" in body:
                 body["ui_scale"] = normalize_ui_scale(body.get("ui_scale"))
+            if "ui_variant" in body and body.get("ui_variant") not in ("new", "legacy"):
+                body["ui_variant"] = "new"
             if "window_geometry" in body:
                 body["window_geometry"] = normalize_window_geometry(
                     body.get("window_geometry"))
@@ -1353,6 +1368,9 @@ class Handler(BaseHTTPRequestHandler):
                 broadcast({"type": "theme", "theme": cfg.get("theme", "light")})
             if "ui_lang" in body:
                 broadcast({"type": "ui_lang", "ui_lang": cfg.get("ui_lang", "ja")})
+            if "ui_variant" in body:
+                # 開いているGUI窓はこの合図で読み直し、選んだ版の画面に切り替わる
+                broadcast({"type": "ui_variant", "ui_variant": cfg.get("ui_variant", "new")})
             if body.get("final_only"):
                 # 「確定した字幕だけ表示」に切り替えた瞬間、表示中の薄文字を消す
                 # （次の発話が確定するまで残ってしまうのを防ぐ）

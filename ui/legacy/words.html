@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title data-i18n="wd.title">単語スタジオ</title>
+<script>
+  (function () {
+    const qs = new URLSearchParams(location.search);
+    // 埋め込み時は親スタジオ側のzoomで一緒に拡縮されるため、ここでは掛けない（二重適用の防止）
+    const s = qs.get("embed") === "1" ? NaN : parseFloat(qs.get("s"));
+    if (s > 0 && s !== 1) { document.documentElement.style.zoom = s; document.documentElement.style.setProperty("--ui-zoom", s); }
+    try {
+      const theme = qs.get("theme") || localStorage.getItem("mojicast-theme");
+      if (theme === "light") document.documentElement.dataset.theme = "light";
+      else if (theme === "dark") delete document.documentElement.dataset.theme;
+    } catch (e) {}
+    if (qs.get("embed") === "1") document.documentElement.classList.add("embed");
+    if (qs.get("single") === "1") document.documentElement.classList.add("single");
+  })();
+</script>
+<script src="/ui/i18n.js" defer></script>
+<script src="/ui/theme-sync.js" defer></script>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161c26; --panel2: #1c2432;
+    --line: #2a3547; --text: #dce6f5; --dim: #7d8ba1;
+    --accent: #00e5ff; --ok: #3dffa0; --err: #ff5c5c;
+  }
+  /* ライトテーマ（GUI窓のみ）。既定はダーク。 */
+  :root[data-theme="light"] {
+    --bg: #f7f9fc; --panel: #ffffff; --panel2: #eef2f8;
+    --line: #dbe2ec; --text: #16202e; --dim: #5c6b80;
+    --accent: #0499bd; --ok: #12a05f; --err: #d94141;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  /* 幅の補正は WebKit の埋め込み時のみ（高さと同じ機序で width:100% が縮む）。
+     --ui-zoom-w は theme-sync.js の fixEmbeddedViewport が実測して立てる */
+  html { width: calc(100% / var(--ui-zoom-w, 1)); }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'Yu Gothic UI', 'Meiryo', sans-serif; font-size: 15px;
+    height: calc(100vh / var(--ui-zoom, 1)); display: flex; flex-direction: column; overflow: hidden;
+  }
+  nav { display: flex; background: var(--panel); border-bottom: 1px solid var(--line); }
+  nav button {
+    background: none; border: none; color: var(--dim); padding: 12px 22px;
+    font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
+    border-bottom: 2px solid transparent;
+  }
+  nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
+  :root.single nav { display: none; }
+  :root.embed .pbar { padding-left: 18px; padding-right: 18px; }
+  .page { flex: 1; overflow-y: auto; padding: 14px; display: none; }
+  .page.show { display: block; }
+  .note { color: var(--dim); font-size: 12px; margin-bottom: 10px; line-height: 1.6; }
+  /* 英訳辞書: その行がどの翻訳に効くかを入力しながら見せる。
+     空でも高さを取り、折り返しも禁じる（打つたびに行が伸び縮みして表がガタつくため） */
+  .g-scope { display: block; margin-top: 4px; font-size: 11px; color: var(--dim);
+             min-height: 15px; line-height: 15px; white-space: nowrap;
+             overflow: hidden; text-overflow: ellipsis; }
+  .g-scope.multi { color: var(--accent); }
+  /* 右列だけバッジぶん背が高くなるので、左右の入力欄を上端で揃える */
+  #glossTable td { vertical-align: top; }
+  #glossTable .del { margin-top: 2px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { color: var(--dim); font-size: 11px; letter-spacing: .1em; text-align: left; padding: 4px 6px; }
+  td { padding: 3px; vertical-align: middle; }
+  input, select {
+    width: 100%; background: var(--panel2); color: var(--text);
+    border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px;
+    font-family: inherit; font-size: 13px;
+  }
+  input[type=color] { padding: 2px; height: 34px; cursor: pointer; }
+  .del { background: none; border: none; color: var(--dim); cursor: pointer; font-size: 16px; padding: 4px 8px; }
+  .del:hover { color: var(--err); }
+  footer { display: flex; gap: 10px; align-items: center; padding: 10px 14px; background: var(--panel); border-top: 1px solid var(--line); }
+  /* プロファイルバー */
+  [hidden] { display: none !important; }
+  .pbar {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    padding: 9px 14px; background: var(--panel2); border-bottom: 1px solid var(--line);
+    font-size: 12px; color: var(--dim);
+  }
+  .pbar select { width: auto; min-width: 170px; font-weight: 700; }
+  .pbar .btn { padding: 6px 12px; font-size: 12px; }
+  .pbar input { width: 160px; }
+  .pbHint { margin-left: auto; font-size: 11px; }
+  .pbErr { color: var(--err); font-size: 12px; }
+  .pbWarn { color: var(--warn, #ffb84d); font-size: 12px; font-weight: 700; }
+  /* 一括取り込み / 書き出し（認識させる単語タブ） */
+  .tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; font-size: 12px; color: var(--dim); }
+  .tools .btn { padding: 6px 12px; font-size: 12px; }
+  .tools input { width: 220px; }
+  .tools .cnt { font-weight: 700; color: var(--text); }
+  .impBox { background: var(--panel2); border: 1px solid var(--accent); border-radius: 8px; padding: 10px 14px; margin-bottom: 10px; font-size: 13px; }
+  .impBox label { display: block; margin: 4px 0; cursor: pointer; }
+  .impBox input[type=radio], .impBox input[type=checkbox] { width: auto; margin-right: 6px; }
+  .impBox .btn { margin-top: 6px; margin-right: 6px; }
+  #guardBar { background: rgba(255,184,77,.08); border-bottom: 1px solid var(--warn, #ffb84d); color: var(--text); }
+  .btn {
+    background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 9px 18px; cursor: pointer; font-family: inherit; font-weight: 700;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.save { border-color: var(--ok); color: var(--ok); }
+  #saved { color: var(--ok); font-size: 12px; opacity: 0; transition: opacity .3s; }
+  /* プレビュー */
+  .prevCell { text-align: center; }
+  .prev {
+    display: inline-block; font-weight: 900; font-size: 20px; cursor: pointer;
+    text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000;
+    white-space: nowrap;
+  }
+  .hintClick { color: var(--dim); font-size: 10px; display: block; }
+</style>
+<script src="/ui/fx.js"></script>
+</head>
+<body>
+  <!-- ========== プロファイルバー ========== -->
+  <div class="pbar">
+    <span data-i18n="wd.profile_label">編集する単語セット:</span>
+    <select id="profileSel" onchange="onProfileSelect(this.value)"></select>
+    <button class="btn" onclick="showNewProfile()" data-i18n="wd.profile_new">＋ 新しい単語セット</button>
+    <button class="btn" id="btnDelProf" onclick="askDeleteProfile()" data-i18n="wd.profile_delete">🗑 削除</button>
+    <span id="delConfirm" hidden>
+      <span data-i18n="wd.del_confirm">本当に削除？</span>
+      <button class="btn" onclick="doDeleteProfile()" data-i18n="wd.yes">はい</button>
+      <button class="btn" onclick="$('delConfirm').hidden = true" data-i18n="wd.no">いいえ</button>
+    </span>
+    <span class="pbWarn" id="inactiveHint" hidden data-i18n="wd.inactive_hint">⚠ この単語セットは今は使われていません（使う単語セットはコックピットの「単語セット」で選びます）</span>
+    <span class="pbHint" data-i18n="wd.pbar_hint">単語セットは「共通」に<b>加算</b>して使われます（同じ単語は単語セット優先）</span>
+    <span class="pbErr" id="loadErr"></span>
+    <button class="btn" id="retryLoad" hidden onclick="retryData()" data-i18n="wd.reload">再読み込み</button>
+  </div>
+  <div class="pbar" id="newProfBar" hidden>
+    <span data-i18n="wd.profile_name_label">単語セット名:</span>
+    <input id="newProfName" maxlength="40" placeholder="例: ゲーム実況" data-i18n-ph="wd.profile_name_ph"
+           onkeydown="if(event.key==='Enter')doCreateProfile()">
+    <span data-i18n="wd.start_content_label">開始内容:</span>
+    <select id="newProfCopy"></select>
+    <button class="btn" onclick="doCreateProfile()" data-i18n="wd.create">作成</button>
+    <button class="btn" onclick="$('newProfBar').hidden = true" data-i18n="wd.cancel">キャンセル</button>
+    <span class="pbErr" id="newProfErr"></span>
+  </div>
+  <div class="pbar" id="guardBar" hidden>
+    <span data-i18n="wd.guard_unsaved">⚠ 未保存の変更があります。切り替える前にどうしますか？</span>
+    <button class="btn" onclick="guardSave()" data-i18n="wd.guard_save">💾 保存して切替</button>
+    <button class="btn" onclick="guardDiscard()" data-i18n="wd.guard_discard">破棄して切替</button>
+    <button class="btn" onclick="guardCancel()" data-i18n="wd.cancel">キャンセル</button>
+  </div>
+
+  <nav>
+    <button id="tabHot" class="active" onclick="showTab('hot')" data-i18n="wd.tab_hotwords">🎤 認識させる単語</button>
+    <button id="tabFx" onclick="showTab('fx')" data-i18n="wd.tab_effects">✨ 強調する単語</button>
+    <button id="tabBanned" onclick="showTab('banned')" data-i18n="wd.tab_banned">🚫 伏せ字にする単語</button>
+    <button id="tabGloss" onclick="showTab('gloss')" data-i18n="wd.tab_gloss">🌐 英訳を固定する単語</button>
+  </nav>
+
+  <!-- ========== ホットワード ========== -->
+  <div class="page show" id="pageHot">
+    <div class="note" data-i18n="wd.hot_note">
+      認識を助ける単語です。<b>「読み」欄には、ひらがなの読みでも、実際に出てしまう別の言葉
+      （漢字でもOK）でも</b>入れられ、どちらも「表記」の形に直ります。<br>
+      例）<b>癒色えも ← いしきえも</b>（読みから）／ <b>癒色えも ← 一色えも</b>（誤変換を直す）<br>
+      間違われ方が複数あるときは<b>「／」区切り</b>で並記できます（例: <b>意識へモ／意識エモ</b>）。
+      認識モデルを切り替えると間違われ方も変わるので、モデルごとの形を並べておくと安心。<br>
+      「出やすさ」は強さの調整（空欄=標準、目安1.5〜4.0）。変更は<b>次回開始時</b>に反映されます。
+    </div>
+    <div class="tools">
+      <button class="btn" onclick="$('wordFile').click()" data-i18n="wd.import">📥 ファイルから取り込む（CSV / JSON）</button>
+      <input type="file" id="wordFile" accept=".csv,.txt,.json,.mojipack" hidden
+             onchange="previewWordImport(this.files[0])">
+      <button class="btn" onclick="exportWords()" data-i18n="wd.export">📤 CSVで書き出す</button>
+      <button class="btn" id="expOpenBtn" hidden onclick="openExportDir()" data-i18n="wd.open_export">📂 書き出し先を開く</button>
+      <input id="hotFilter" placeholder="絞り込み（表記・読み）" data-i18n-ph="wd.filter_ph" oninput="filterHot()">
+      <span class="cnt" id="hotCount"></span>
+      <span id="ioMsg"></span>
+    </div>
+    <div class="note" data-i18n="wd.imp_hint">
+      CSV の列は「<b>表記,読み,出やすさ,英訳</b>」（読み以降は省略可）。Excel で保存した Shift_JIS のファイルもそのまま読めます。
+      ゲームの技名など大量の登録向け。英訳の列があれば「英訳を固定する単語」にも同時に入ります。
+    </div>
+    <div class="impBox" id="impBox" hidden>
+      <div id="impStats" style="font-weight:700;margin-bottom:4px"></div>
+      <div id="impSkipped" class="note"></div>
+      <label><input type="radio" name="impMode" value="add" checked><span data-i18n="wd.imp_add">追加のみ（同じ表記があれば今のを残す）</span></label>
+      <label><input type="radio" name="impMode" value="overwrite"><span data-i18n="wd.imp_over">同じ表記は上書き</span></label>
+      <label id="impGlossLbl"><input type="checkbox" id="impGloss" checked><span data-i18n="wd.imp_gloss">英訳の列も「英訳を固定する単語」へ入れる</span></label>
+      <button class="btn save" onclick="doWordImport()" data-i18n="wd.imp_do">取り込む</button>
+      <button class="btn" onclick="cancelWordImport()" data-i18n="wd.cancel">キャンセル</button>
+    </div>
+    <table id="hotTable">
+      <thead><tr><th style="width:30%" data-i18n="wd.col_surface">表記（画面に出したい形）</th><th style="width:40%" data-i18n="wd.col_reading">読み／実際に出る形（誤変換もOK）</th><th style="width:15%" data-i18n="wd.col_score">出やすさ</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <button class="btn" style="margin-top:10px" onclick="addHotRow();filterHot()" data-i18n="wd.add_row">＋ 行を追加</button>
+  </div>
+
+  <!-- ========== エフェクト単語 ========== -->
+  <div class="page" id="pageFx">
+    <div class="note" data-i18n="wd.fx_note">
+      画面に出たときに<b>派手に装飾する単語</b>（認識とは別管理）。
+      「認識させる単語」に入れていなくても、ここの単語は標準で強調されます。
+      色・フォント・サイズ・アニメ・<b>飛ぶ絵文字</b>を個別指定でき、変更は<b>即反映</b>。
+      プレビューはクリックで再生🎬
+    </div>
+    <table id="fxTable">
+      <thead><tr>
+        <th style="width:17%" data-i18n="wd.col_word">単語</th><th style="width:9%" data-i18n="wd.col_color">色</th>
+        <th style="width:16%" data-i18n="wd.col_font">フォント</th><th style="width:11%" data-i18n="wd.col_size">サイズ</th>
+        <th style="width:14%" data-i18n="wd.col_anim">アニメ</th><th style="width:14%" data-i18n="wd.col_particle">パーティクル</th>
+        <th style="width:15%" data-i18n="wd.col_preview">プレビュー</th><th></th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+    <button class="btn" style="margin-top:10px" onclick="addFxRow()" data-i18n="wd.add_row">＋ 行を追加</button>
+  </div>
+
+  <!-- ========== 禁止ワード ========== -->
+  <div class="page" id="pageBanned">
+    <div class="note" data-i18n="wd.banned_note">
+      放送禁止ワードなどを<b>1行に1語</b>。ここの語は<b>認識中（薄文字）・確定字幕・ログ</b>の
+      すべてで伏せ字になります。伏せ字は下の文字を語の文字数ぶん繰り返します（例:「ばか」→「○○」）。
+      翻訳をONにしていても<b>伏せ字を含む行は訳さず、日本語のまま出します</b>
+      （翻訳すると伏せ字が別の語に化けてしまうため）。
+      変更は<b>次回開始時</b>に反映されます。
+    </div>
+    <div style="margin-bottom:10px">
+      <span data-i18n="wd.mask_label">伏せ字にする文字：</span>
+      <input id="maskChar" maxlength="2" placeholder="○"
+             style="width:64px;text-align:center;font-size:18px">
+      <span style="color:var(--dim,#7d8ba1);font-size:12px" data-i18n="wd.mask_hint">（1文字。既定「○」）</span>
+    </div>
+    <textarea id="bannedText" rows="14" spellcheck="false"
+      placeholder="1行に1語（例）&#10;ぴー&#10;NGワード" data-i18n-ph="wd.banned_ph"
+      style="width:100%;box-sizing:border-box;background:var(--panel2);color:var(--text);
+             border:1px solid var(--line);border-radius:8px;padding:10px;
+             font-family:inherit;font-size:15px;line-height:1.6;resize:vertical"></textarea>
+  </div>
+
+  <!-- ========== 英訳辞書 ========== -->
+  <div class="page" id="pageGloss">
+    <div class="note" data-i18n="wd.gloss_note">
+      <b>名前が翻訳で消えないように</b>訳を固定します（知らない名前は訳せず、
+      そこだけ抜け落ちた文になります）。<br>
+      例）<b>星野ひかり → Hikari Hoshino</b><br>
+      <b>英訳を大文字で始めると中国語・韓国語などの訳にも使われ</b>、
+      <b>히카리 호시노</b> のように読みへ置き換わって残ります。小文字で始めた語
+      （例: 文字起こし → transcription）は英訳だけ。変更は<b>次回開始時</b>に反映されます。
+    </div>
+    <div class="tools">
+      <button class="btn" onclick="$('glossFile').click()" data-i18n="wd.gloss_import">📥 ファイルから取り込む（CSV / JSON）</button>
+      <input type="file" id="glossFile" accept=".csv,.txt,.json,.mojipack" hidden
+             onchange="previewGlossImport(this.files[0])">
+      <button class="btn" onclick="exportGlossary()" data-i18n="wd.gloss_export">📤 CSVで書き出す</button>
+      <button class="btn" id="glossExpOpenBtn" hidden onclick="openExportDir()" data-i18n="wd.open_export">📂 書き出し先を開く</button>
+      <span id="glossIoMsg"></span>
+    </div>
+    <div class="note" data-i18n="wd.gloss_imp_hint">
+      CSV の列は「<b>日本語,英訳</b>」。Excel で保存した Shift_JIS のファイルもそのまま読めます。
+      JSON は {"glossary":[{"ja","en"}]}。
+    </div>
+    <div class="impBox" id="glossImpBox" hidden>
+      <div id="glossImpStats" style="font-weight:700;margin-bottom:4px"></div>
+      <div id="glossImpSkipped" class="note"></div>
+      <label><input type="radio" name="glossImpMode" value="add" checked><span data-i18n="wd.imp_add">追加のみ（同じ表記があれば今のを残す）</span></label>
+      <label><input type="radio" name="glossImpMode" value="overwrite"><span data-i18n="wd.imp_over">同じ表記は上書き</span></label>
+      <button class="btn save" onclick="doGlossImport()" data-i18n="wd.imp_do">取り込む</button>
+      <button class="btn" onclick="cancelGlossImport()" data-i18n="wd.cancel">キャンセル</button>
+    </div>
+    <table id="glossTable">
+      <thead><tr><th style="width:42%" data-i18n="wd.col_gloss_ja">字幕の表記（日本語）</th><th style="width:48%" data-i18n="wd.col_gloss_en">英訳（固定したい表記）</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <button class="btn" style="margin-top:10px" onclick="addGlossRow()" data-i18n="wd.add_row">＋ 行を追加</button>
+  </div>
+
+  <footer>
+    <button class="btn save" id="saveAllBtn" onclick="saveAll()" disabled data-i18n="wd.save">💾 保存</button>
+    <span id="saved" data-i18n="wd.saved">保存しました ✓</span>
+  </footer>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const T = (key, jaDefault) => window.MojicastI18n ? window.MojicastI18n.t(key, jaDefault) : jaDefault;
+  const SCALES = [["1", "標準"], ["1.15", "少し大きく"], ["1.3", "大きく"], ["1.5", "特大"]];
+
+  function opt(list, sel) {
+    return list.map(([v, l]) =>
+      `<option value="${v}" ${v === sel ? "selected" : ""}>${l}</option>`).join("");
+  }
+  function esc(s) { return String(s).replace(/"/g, "&quot;").replace(/</g, "&lt;"); }
+
+  function showTab(t) {
+    for (const k of ["hot", "fx", "banned", "gloss"]) {
+      $("tab" + k[0].toUpperCase() + k.slice(1)).className = t === k ? "active" : "";
+      $("page" + k[0].toUpperCase() + k.slice(1)).className =
+        "page" + (t === k ? " show" : "");
+    }
+  }
+
+  // ---------- ホットワード ----------
+  function addHotRow(e = {}) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><input class="h-surface" value="${esc(e.surface || "")}" placeholder="星野ひかり"></td>
+      <td><input class="h-reading" value="${esc(e.reading === e.surface ? "" : e.reading || "")}" placeholder="ほしのひかり"></td>
+      <td><input class="h-score" value="${esc(e.score || "")}" placeholder="2.0"></td>
+      <td><button class="del" onclick="this.closest('tr').remove()">✕</button></td>`;
+    $("hotTable").querySelector("tbody").appendChild(tr);
+  }
+
+  // 絞り込み（表記・読み）と件数表示。数千語を入れると表では探せないため
+  function filterHot() {
+    const q = $("hotFilter").value.trim().toLowerCase();
+    let shown = 0, total = 0;
+    for (const tr of $("hotTable").querySelectorAll("tbody tr")) {
+      const s = tr.querySelector(".h-surface").value.trim(), r = tr.querySelector(".h-reading").value;
+      const hit = !q || (s + " " + r).toLowerCase().includes(q);
+      tr.hidden = !hit;
+      if (s) { total++; if (hit) shown++; }   // 表記が空の行（追加直後の空行）は数えない
+    }
+    $("hotCount").textContent = (q ? `${shown} / ${total}` : `${total}`) + T("wd.count_unit", "語");
+  }
+
+  // ---------- 一括取り込み / 書き出し（CSV / JSON） ----------
+  // 取り込みはサーバ側で「保存済みの単語セット」へ合成する（wordimport.py）。
+  // そのため未保存の編集は先に保存し、確定後は表を読み直す。
+  let pendingImport = null;   // プレビュー済みファイルの base64（確定時に同じ内容を送る）
+  function ioMsg(text, ok) {
+    const el = $("ioMsg");
+    el.textContent = text;
+    el.style.color = ok ? "var(--ok)" : "var(--err)";
+  }
+  function fmt(key, ja, vars) {
+    let s = T(key, ja);
+    for (const k in vars) s = s.replace("{" + k + "}", vars[k]);
+    return s;
+  }
+  function toB64(buf) {
+    // 文字コード判別はサーバで行う（Excel の Shift_JIS 対応）ので生バイトを送る
+    const b = new Uint8Array(buf);
+    let s = "";
+    for (let i = 0; i < b.length; i += 0x8000)
+      s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000));
+    return btoa(s);
+  }
+  function skippedText(r) {
+    const n = r.skipped_total || 0;
+    if (!n) return "";
+    const jaReason = { empty: "表記が空", empty_en: "英訳が空", too_long: "長すぎる", comma: "「,」を含む",
+                       json: "JSONとして読めない", too_many: "上限超過" };
+    const items = (r.skipped || []).slice(0, 10).map(x =>
+      (x.line ? "#" + x.line + " " : "") + T("wd.imp_reason_" + x.reason, jaReason[x.reason] || x.reason)
+      + (x.text ? "「" + x.text + "」" : ""));
+    return fmt("wd.imp_skipped", "弾いた行 {n}件: ", { n }) + items.join(" / ") + (n > 10 ? " …" : "");
+  }
+  async function readyForIo() {
+    if (loadedProfile !== curProfile) {
+      ioMsg(T("wd.imp_need_load", "この単語セットを読み込んでから操作してください"), false);
+      return false;
+    }
+    return !dirty || await saveAll();
+  }
+  async function previewWordImport(file) {
+    if (!file) return;
+    $("wordFile").value = "";
+    cancelWordImport();
+    if (file.size > 3 * 1024 * 1024) {
+      ioMsg(T("wd.imp_too_big", "ファイルが大きすぎます（3MBまで）"), false);
+      return;
+    }
+    if (!(await readyForIo())) return;
+    const b64 = toB64(await file.arrayBuffer());
+    let r;
+    try {
+      r = await fetchJson("/api/words/import", { method: "POST",
+        body: JSON.stringify({ profile: curProfile, content_b64: b64, mode: "preview" }) });
+    } catch {
+      ioMsg(T("wd.imp_fail", "ファイルを読み込めませんでした"), false);
+      return;
+    }
+    const s = r.stats || {};
+    if (!s.total) {
+      ioMsg(T("wd.imp_none", "取り込める単語がありません") + " " + skippedText(r), false);
+      return;
+    }
+    pendingImport = b64;
+    $("impStats").textContent = fmt("wd.imp_stats",
+      "{total}語（新規 {new} / 既にある {exists}）・英訳あり {with_en}・ファイル内の重複 {dup}・読みなしの漢字語 {no_reading}",
+      { total: s.total, new: s.new, exists: s.exists, with_en: s.with_en,
+        dup: s.dup_in_file, no_reading: s.no_reading })
+      + (s.gloss_only ? fmt("wd.imp_gloss_only", "・英訳のみ {n}（認識辞書には入りません）",
+                            { n: s.gloss_only }) : "");
+    $("impSkipped").textContent = skippedText(r);
+    $("impGlossLbl").hidden = !s.with_en;
+    $("impBox").hidden = false;
+    ioMsg("", true);
+  }
+  async function doWordImport() {
+    if (!pendingImport) return;
+    const mode = document.querySelector('input[name="impMode"]:checked').value;
+    let r;
+    try {
+      r = await fetchJson("/api/words/import", { method: "POST",
+        body: JSON.stringify({ profile: curProfile, content_b64: pendingImport, mode,
+                               glossary: $("impGloss").checked }) });
+    } catch {
+      ioMsg(T("wd.imp_fail", "ファイルを読み込めませんでした"), false);
+      return;
+    }
+    cancelWordImport();
+    await reloadData();
+    ioMsg(fmt("wd.imp_done", "取り込みました（認識 {hot} / 英訳 {gl}）。次回開始時に反映されます",
+              { hot: r.hotwords, gl: r.glossary }), true);
+  }
+  function cancelWordImport() {
+    pendingImport = null;
+    $("impBox").hidden = true;
+  }
+  async function exportWords() {
+    if (!(await readyForIo())) return;
+    let r;
+    try {
+      r = await fetchJson("/api/words/export", { method: "POST",
+        body: JSON.stringify({ profile: curProfile }) });
+    } catch {
+      ioMsg(T("wd.imp_fail", "書き出せませんでした"), false);
+      return;
+    }
+    ioMsg(fmt("wd.exp_done", "書き出しました: {file}", { file: r.file }), true);
+    $("expOpenBtn").hidden = false;
+  }
+  function openExportDir() {
+    fetch("/api/mojipack/open", { method: "POST", body: "{}" });
+  }
+
+  // ---------- 英訳辞書 ----------
+  function addGlossRow(e = {}) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><input class="g-ja" value="${esc(e.ja || "")}" placeholder="星野ひかり"></td>
+      <td><input class="g-en" value="${esc(e.en || "")}" placeholder="Hikari Hoshino">
+          <span class="g-scope"></span></td>
+      <td><button class="del" onclick="this.closest('tr').remove()">✕</button></td>`;
+    $("glossTable").querySelector("tbody").appendChild(tr);
+    // 大文字始まり＝固有名詞とみなし、中国語・韓国語などの訳にも使う。
+    // 仕様が目に見えないと伝わらないので、入力しながら適用先を出す
+    const en = tr.querySelector(".g-en");
+    const scope = tr.querySelector(".g-scope");
+    const update = () => {
+      const v = en.value.trim();
+      const multi = /^[A-Z]/.test(v);
+      scope.textContent = !v ? ""
+        : multi ? T("wd.gloss_scope_multi", "🌐 全言語で使われます")
+                : T("wd.gloss_scope_en", "英訳のみ（大文字で全言語に）");
+      scope.className = "g-scope" + (multi ? " multi" : "");
+    };
+    en.addEventListener("input", update);
+    update();
+  }
+
+  // ---------- エフェクト ----------
+  let sysFonts = [];   // /api/fonts から取得（loadAllで先読み）
+
+  function addFxRow(e = {}) {
+    const tr = document.createElement("tr");
+    const rec = FX.FONTS.map(f =>
+      `<option value="${f.css.replace(/"/g, "&quot;")}" ${f.css === e.font ? "selected" : ""}>${f.label}</option>`).join("");
+    const sys = sysFonts.map(n => {
+      const v = `'${n}'`;
+      return `<option value="${v}" ${v === e.font ? "selected" : ""}>${n}</option>`;
+    }).join("");
+    const fontOpts = '<option value="">プリセット準拠</option>' +
+      `<optgroup label="おすすめ">${rec}</optgroup>` +
+      `<optgroup label="システムフォント (${sysFonts.length})">${sys}</optgroup>`;
+    const scaleOpts = SCALES.map(([v, l]) =>
+      `<option value="${v}" ${+v === +(e.scale || 1) ? "selected" : ""}>${l}</option>`).join("");
+    tr.innerHTML = `
+      <td><input class="f-word" value="${esc(e.word || "")}" placeholder="単語"></td>
+      <td><input type="color" class="f-color" value="${e.color || "#ffd400"}"></td>
+      <td><select class="f-font">${fontOpts}</select></td>
+      <td><select class="f-scale">${scaleOpts}</select></td>
+      <td><select class="f-anim">${opt(FX.WORD_ANIMS, e.anim || "pop")}</select></td>
+      <td><select class="f-particle">${opt(FX.PARTICLES, e.particle || "none")}</select></td>
+      <td class="prevCell"><span class="prev"></span><span class="hintClick">クリックで再生</span></td>
+      <td><button class="del" onclick="this.closest('tr').remove()">✕</button></td>`;
+    $("fxTable").querySelector("tbody").appendChild(tr);
+    const update = () => updatePreview(tr, true);
+    tr.querySelectorAll("input,select").forEach(el => el.addEventListener("input", update));
+    tr.querySelector(".prev").addEventListener("click", () => updatePreview(tr, true));
+    updatePreview(tr, false);
+  }
+
+  function rowFx(tr) {
+    return {
+      word: tr.querySelector(".f-word").value.trim(),
+      color: tr.querySelector(".f-color").value,
+      font: tr.querySelector(".f-font").value,
+      scale: +tr.querySelector(".f-scale").value,
+      anim: tr.querySelector(".f-anim").value,
+      particle: tr.querySelector(".f-particle").value,
+    };
+  }
+
+  function updatePreview(tr, replay) {
+    const fx = rowFx(tr);
+    const prev = tr.querySelector(".prev");
+    const word = fx.word || "サンプル";
+    // 本番（overlay）と同じ renderWords でプレビュー描画
+    // （要素を作り直すのでワンショット系アニメもクリックで再生される）
+    prev.style.fontSize = "20px";
+    FX.renderWords(prev, word, [[word, fx]],
+      { outlineWidth: 2, outlineColor: "#000000", hotColor: "#ffd400" });
+    if (replay && fx.particle !== "none")
+      FX.spawnParticles(prev, fx.particle, fx.color);
+  }
+
+  // ---------- プロファイル ----------
+  let curProfile = "";      // 編集中のスコープ（"" = 共通）
+  let dirty = false;        // 未保存の編集があるか
+  let pendingSwitch = null; // 切替待ちのプロファイル名
+  let profileNames = [];    // 既存プロファイル名（コピー元の選択肢用）
+  let loadedProfile = null; // 現在テーブルに表示できているスコープ
+  let reloadGeneration = 0; // 遅れて返った旧スコープの応答を無視する番号
+  let activeProfile = "";   // 認識に使われている単語セット（"" = 共通のみ）
+  const embedded = window.parent !== window;
+  const wordQuery = new URLSearchParams(location.search);
+
+  async function fetchJson(url, options = {}) {
+    const response = await fetch(url, { cache:"no-store", ...options });
+    if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
+    return response.json();
+  }
+  function retryData() {
+    return $("profileSel").options.length ? reloadData() : loadAll();
+  }
+
+  async function loadProfiles(select) {
+    const d = await fetchJson("/api/profiles");
+    const sel = $("profileSel");
+    const names = d.profiles || [];
+    profileNames = names;
+    activeProfile = d.active || "";
+    sel.innerHTML = `<option value="">${esc(T("wd.common_all","共通（すべての配信）"))}</option>` +
+      names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join("");
+    if (select !== undefined && (select === "" || names.includes(select)))
+      curProfile = select;
+    else if (!names.includes(curProfile)) curProfile = "";
+    sel.value = curProfile;
+    $("btnDelProf").disabled = !curProfile;
+    updateInactiveHint();
+  }
+
+  // 編集中のセットが認識に使われていなければ知らせる（保存しても効かない・
+  // 開き直すと使用中のセットが表示されて「消えた」ように見えるため）
+  function updateInactiveHint() {
+    $("inactiveHint").hidden = curProfile === activeProfile;
+  }
+
+  function onProfileSelect(v) {
+    if (v === curProfile) return;
+    if (dirty) {
+      pendingSwitch = v;
+      $("profileSel").value = curProfile;   // 表示は戻して確認を出す
+      $("guardBar").hidden = false;
+      return;
+    }
+    switchTo(v);
+  }
+
+  async function switchTo(v) {
+    curProfile = v;
+    pendingSwitch = null;
+    $("profileSel").value = v;
+    $("btnDelProf").disabled = !v;
+    $("delConfirm").hidden = true;
+    $("guardBar").hidden = true;
+    // スタジオ埋め込みでは外側の「編集する単語セット」と同じ値を保つ。外側は使用中の
+    // セットも兼ねていて、次に開くときはそちらの値で開くので、内側だけ切り替えると
+    // 保存した単語が開き直したときに見えず、認識にも使われない
+    if (embedded) {
+      window.parent.postMessage({ mojiProfileSelected: v }, location.origin);
+      activeProfile = v;
+    }
+    updateInactiveHint();
+    await reloadData();
+  }
+
+  async function guardSave()    { const next = pendingSwitch; $("guardBar").hidden = true; if (await saveAll()) await switchTo(next); }
+  async function guardDiscard() { $("guardBar").hidden = true; await switchTo(pendingSwitch); }
+  function guardCancel()        { pendingSwitch = null; $("guardBar").hidden = true; }
+
+  function showNewProfile() {
+    $("newProfErr").textContent = "";
+    $("newProfName").value = "";
+    // コピー元の選択肢（ゼロから / 既存プロファイル）。既定は編集中のプロファイル
+    $("newProfCopy").innerHTML = '<option value="">ゼロから（空）</option>' +
+      profileNames.map(n =>
+        `<option value="${esc(n)}">「${esc(n)}」をコピー</option>`).join("");
+    $("newProfCopy").value = curProfile || "";
+    $("newProfBar").hidden = false;
+    $("newProfName").focus();
+  }
+
+  async function doCreateProfile() {
+    const name = $("newProfName").value.trim();
+    const copy_from = $("newProfCopy").value;
+    const r = await (await fetch("/api/profiles", {
+      method: "POST",
+      body: JSON.stringify({ action: "create", name, copy_from }) })).json();
+    if (!r.ok) { $("newProfErr").textContent = r.error || "作成できません"; return; }
+    $("newProfBar").hidden = true;
+    await loadProfiles(curProfile);
+    notifyProfilesChanged();
+    onProfileSelect(name);               // 未保存編集があれば確認を挟んで切替
+  }
+
+  // スタジオに埋め込まれているとき、外側の「編集する単語セット」の一覧も作り直させる。
+  // スタジオは開いた時に一度しか一覧を読まないので、知らせないと削除した名前が残る
+  function notifyProfilesChanged() {
+    if (window.parent !== window)
+      window.parent.postMessage({ mojiProfilesChanged: true }, location.origin);
+  }
+
+  function askDeleteProfile() {
+    if (curProfile) $("delConfirm").hidden = false;
+  }
+
+  async function doDeleteProfile() {
+    await fetch("/api/profiles", {
+      method: "POST",
+      body: JSON.stringify({ action: "delete", name: curProfile }) });
+    dirty = false;                       // 消した対象の編集は破棄
+    await loadProfiles("");
+    notifyProfilesChanged();
+    await switchTo("");
+  }
+
+  // ---------- 読み書き ----------
+  function clearTables() {
+    for (const id of ["hotTable", "fxTable", "glossTable"])
+      $(id).querySelector("tbody").innerHTML = "";
+    $("bannedText").value = "";
+  }
+
+  async function reloadData() {
+    const generation = ++reloadGeneration;
+    const profile = curProfile;
+    const q = "?profile=" + encodeURIComponent(profile);
+    $("loadErr").textContent = "読み込み中…";
+    $("retryLoad").hidden = true;
+    $("saveAllBtn").disabled = true;
+    try {
+      // 全データが揃うまでは現在の表を残す。途中の通信失敗で空表示にしない。
+      const [hot, fx, banned, gloss] = await Promise.all([
+        fetchJson("/api/hotwords" + q), fetchJson("/api/effects" + q),
+        fetchJson("/api/banned" + q), fetchJson("/api/glossary" + q)
+      ]);
+      if (generation !== reloadGeneration || profile !== curProfile) return false;
+
+      clearTables();
+      for (const e of hot.entries || []) addHotRow(e);
+      if (!(hot.entries || []).length) addHotRow();
+      filterHot();
+      for (const e of fx.effects || []) addFxRow(e);
+      if (!(fx.effects || []).length) addFxRow();
+      $("bannedText").value = (banned.words || []).join("\n");
+      $("maskChar").value = banned.mask_char || "○";
+      for (const e of gloss.entries || []) addGlossRow(e);
+      if (!(gloss.entries || []).length) addGlossRow();
+
+      loadedProfile = profile;
+      dirty = false;
+      $("loadErr").textContent = "";
+      $("saveAllBtn").disabled = false;
+      return true;
+    } catch (e) {
+      if (generation !== reloadGeneration || profile !== curProfile) return false;
+      $("loadErr").textContent = "読み込みに失敗しました。前の表示を保持しています。";
+      $("retryLoad").hidden = false;
+      $("saveAllBtn").disabled = loadedProfile !== curProfile;
+      return false;
+    }
+  }
+
+  // テーマ適用（このページに切替UIは無い。cockpitの保存値／localStorageに従う）
+  function applyTheme(t) {
+    const r = document.documentElement;
+    if (t === "light") r.setAttribute("data-theme", "light");
+    else r.removeAttribute("data-theme");
+    try { localStorage.setItem("mojicast-theme", t === "light" ? "light" : "dark"); } catch (e) {}
+  }
+
+  async function loadAll() {
+    try {
+      const c = await (await fetch("/api/config")).json();
+      applyTheme(c.theme);   // 保存済みテーマを確定反映（先読みの上書き）
+    } catch (e) {}
+    try {
+      sysFonts = (await (await fetch("/api/fonts")).json()).fonts || [];
+    } catch (e) { sysFonts = []; }
+    // 初期スコープはコックピットで使用中のプロファイル
+    const d = await fetchJson("/api/profiles");
+    const names = d.profiles || [];
+    const requested = wordQuery.get("profile");
+    curProfile = wordQuery.has("profile") && (requested === "" || names.includes(requested))
+      ? requested : (names.includes(d.active) ? d.active : "");
+    await loadProfiles(curProfile);
+    await reloadData();
+  }
+
+  async function saveAll() {
+    const profile = curProfile;
+    if (loadedProfile !== profile) {
+      $("loadErr").textContent = "この単語セットを読み込んでから保存してください。";
+      $("retryLoad").hidden = false;
+      return false;
+    }
+    const entries = [...$("hotTable").querySelectorAll("tbody tr")].map(tr => ({
+      surface: tr.querySelector(".h-surface").value.trim(),
+      reading: tr.querySelector(".h-reading").value.trim(),
+      score: tr.querySelector(".h-score").value.trim(),
+    })).filter(e => e.surface);
+
+    const effects = [...$("fxTable").querySelectorAll("tbody tr")]
+      .map(rowFx).filter(e => e.word);
+
+    const words = $("bannedText").value.split("\n")
+      .map(s => s.trim()).filter(Boolean);
+    const mask_char = $("maskChar").value.trim() || "○";
+
+    const gloss = [...$("glossTable").querySelectorAll("tbody tr")].map(tr => ({
+      ja: tr.querySelector(".g-ja").value.trim(),
+      en: tr.querySelector(".g-en").value.trim(),
+    })).filter(e => e.ja && e.en);
+
+    try {
+      await Promise.all([
+        fetchJson("/api/hotwords", { method:"POST", body:JSON.stringify({ entries, profile }) }),
+        fetchJson("/api/effects", { method:"POST", body:JSON.stringify({ effects, profile }) }),
+        fetchJson("/api/banned", { method:"POST", body:JSON.stringify({ words, mask_char, profile }) }),
+        fetchJson("/api/glossary", { method:"POST", body:JSON.stringify({ entries:gloss, profile }) })
+      ]);
+      dirty = false;
+      $("loadErr").textContent = "";
+      const s = $("saved");
+      s.style.opacity = 1;
+      setTimeout(() => { s.style.opacity = 0; }, 1800);
+      return true;
+    } catch (e) {
+      $("loadErr").textContent = "保存に失敗しました。もう一度お試しください。";
+      return false;
+    }
+  }
+
+  // 未保存の編集を検知（入力・行削除）
+  for (const page of document.querySelectorAll(".page")) {
+    page.addEventListener("input", () => { dirty = true; });
+    page.addEventListener("click", (e) => {
+      if (e.target.classList.contains("del")) {
+        dirty = true;
+        if (page.id === "pageHot") filterHot();   // 行削除で件数を更新
+      }
+    });
+  }
+
+  // ---------- 英訳辞書の一括取り込み / 書き出し（CSV / JSON） ----------
+  let pendingGlossImport = null;
+  function glossIoMsg(text, ok) {
+    const el = $("glossIoMsg");
+    el.textContent = text;
+    el.style.color = ok ? "var(--ok)" : "var(--err)";
+  }
+  async function previewGlossImport(file) {
+    if (!file) return;
+    $("glossFile").value = "";
+    cancelGlossImport();
+    if (file.size > 3 * 1024 * 1024) {
+      glossIoMsg(T("wd.imp_too_big", "ファイルが大きすぎます（3MBまで）"), false);
+      return;
+    }
+    if (!(await readyForIo())) return;
+    const b64 = toB64(await file.arrayBuffer());
+    let r;
+    try {
+      r = await fetchJson("/api/glossary/import", { method: "POST",
+        body: JSON.stringify({ profile: curProfile, content_b64: b64, mode: "preview" }) });
+    } catch {
+      glossIoMsg(T("wd.imp_fail", "ファイルを読み込めませんでした"), false);
+      return;
+    }
+    const s = r.stats || {};
+    if (!s.total) {
+      glossIoMsg(T("wd.imp_none", "取り込める単語がありません") + " " + skippedText(r), false);
+      return;
+    }
+    pendingGlossImport = b64;
+    $("glossImpStats").textContent = fmt("wd.gloss_imp_stats",
+      "{total}語（新規 {new} / 既にある {exists}）・ファイル内の重複 {dup}",
+      { total: s.total, new: s.new, exists: s.exists, dup: s.dup_in_file });
+    $("glossImpSkipped").textContent = skippedText(r);
+    $("glossImpBox").hidden = false;
+    glossIoMsg("", true);
+  }
+  async function doGlossImport() {
+    if (!pendingGlossImport) return;
+    const mode = document.querySelector('input[name="glossImpMode"]:checked').value;
+    let r;
+    try {
+      r = await fetchJson("/api/glossary/import", { method: "POST",
+        body: JSON.stringify({ profile: curProfile, content_b64: pendingGlossImport, mode }) });
+    } catch {
+      glossIoMsg(T("wd.imp_fail", "ファイルを読み込めませんでした"), false);
+      return;
+    }
+    cancelGlossImport();
+    await reloadData();
+    glossIoMsg(fmt("wd.gloss_imp_done", "取り込みました（英訳 {gl}）。次回開始時に反映されます",
+              { gl: r.glossary }), true);
+  }
+  function cancelGlossImport() {
+    pendingGlossImport = null;
+    $("glossImpBox").hidden = true;
+  }
+  async function exportGlossary() {
+    if (!(await readyForIo())) return;
+    let r;
+    try {
+      r = await fetchJson("/api/glossary/export", { method: "POST",
+        body: JSON.stringify({ profile: curProfile }) });
+    } catch {
+      glossIoMsg(T("wd.imp_fail", "書き出せませんでした"), false);
+      return;
+    }
+    glossIoMsg(fmt("wd.exp_done", "書き出しました: {file}", { file: r.file }), true);
+    $("glossExpOpenBtn").hidden = false;
+  }
+
+  const initialTab = new URLSearchParams(location.search).get("tab");
+  if (["hot", "fx", "banned", "gloss"].includes(initialTab)) showTab(initialTab);
+  loadAll().catch(() => {
+    $("loadErr").textContent = "設定を読み込めませんでした。再度開き直してください。";
+    $("retryLoad").hidden = false;
+  });
+</script>
+</body>
+</html>

@@ -100,6 +100,9 @@
           applyLang(message.ui_lang);
         if ((message.type === "ui_scale" || message.type === "init") && message.ui_scale)
           applyScale(message.ui_scale);
+        // 新UI／旧UIの切替。同じURLのまま読み直すとサーバが選んだ版を返す
+        // （埋め込みiframeは親窓ごと読み直されるのでここには来ない）
+        if (message.type === "ui_variant") location.reload();
       } catch (e) {}
     };
     events.onerror = () => {
