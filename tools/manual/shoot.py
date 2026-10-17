@@ -9,8 +9,8 @@ SSE注入で「認識中」「コラボ中」の画面を演出する。
     → tools\\manual\\shots\\*.png が生成される。次に build_manual.py を実行。
 
 前提: pip install Pillow websocket-client（開発環境のみ）/ Google Chrome
-注意: ポート8765を使う（スクショにOBS用URLが正しく写るようにするため）。
-      Mojicast本体は閉じてから実行すること。
+注意: 本体（8765）とぶつからないよう 8766 で動かし、画面に写るOBS用URLだけ
+      既定の http://127.0.0.1:8765/ に書き換えて撮る（本体は起動したままでよい）。
 """
 import base64
 import json
@@ -32,7 +32,8 @@ TMP = os.path.join(tempfile.gettempdir(), "mojicast_manual_shoot")
 DATA = os.path.join(TMP, "data")
 PROFILE = os.path.join(TMP, "chrome_profile")
 CHROME = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
-PORT = 8765
+PORT = 8766
+SHOWN_URL = "http://127.0.0.1:8765/"   # 画面に写すOBS用URL（既定ポート）
 BASE = f"http://127.0.0.1:{PORT}"
 DBG = 9333
 
@@ -53,6 +54,10 @@ def post(path, body):
     req = urllib.request.Request(BASE + path, json.dumps(body).encode(),
                                  method="POST")
     return json.loads(urllib.request.urlopen(req, timeout=10).read())
+
+
+def get(path):
+    return json.loads(urllib.request.urlopen(BASE + path, timeout=10).read())
 
 
 B = app_server.broadcast
@@ -117,6 +122,11 @@ class Tab:
                  deviceScaleFactor=1, mobile=False)
         time.sleep(0.3)
 
+    def show_default_url(self):
+        """撮影用ポートのURLを、利用者の画面と同じ既定ポートの表記にする"""
+        self.js("document.querySelectorAll('#obsUrl').forEach(e => e.value = %s)"
+                % json.dumps(SHOWN_URL))
+
     def shot(self, name):
         data = self.cmd("Page.captureScreenshot", format="png")["data"]
         path = os.path.join(SHOTS, name + ".png")
@@ -139,12 +149,24 @@ def running_state():
 
 
 try:
-    # ============ 1) コックピット（ソロ・認識中） ============
-    post("/api/config", {"collab": False, "translate": False, "theme": "light"})
+    # 新しい場所への初回起動扱いになる（引き継ぎ案内が出る）ので消しておく
+    post("/api/config", {"migrate_offer": "", "setup_suggested": True, "theme": "light",
+                         "monitor_mode": "preview"})
+
+    # ============ 0) コックピット（初回起動・はじめの3ステップ） ============
+    post("/api/config", {"collab": False, "translate": False, "guide_dismissed": False})
     t = Tab(BASE + "/ui/cockpit?theme=light")
-    t.size(1160, 780)
-    time.sleep(1.5)          # loadAll完了待ち
+    t.size(1280, 800)
+    time.sleep(1.8)          # loadAll完了待ち
+    t.js("showGuideIfNew(true)")   # 案内は本当の初回起動（提案前）だけ出るので明示して出す
+    time.sleep(0.3)
+    t.show_default_url()
+    t.shot("cockpit_first")
+
+    # ============ 1) コックピット（ソロ・認識中・配信プレビュー） ============
     t.js("dismissGuide()")
+    post("/api/config", {"box": "lower", "preset": "standard"})
+    time.sleep(1.0)
     running_state()
     time.sleep(0.2)
     B({"type": "final", "text": "こんばんは、今日も配信はじめていきます", "id": 1,
@@ -153,11 +175,12 @@ try:
     B({"type": "final", "text": "字幕はこんな感じでリアルタイムに出ます", "id": 2,
        "speaker": ""})
     time.sleep(0.3)
-    B({"type": "partial", "text": "エフェクト単語も光ったりし", "speaker": ""})
-    time.sleep(0.8)
+    B({"type": "partial", "text": "話している途中は薄い文字で", "speaker": ""})
+    time.sleep(1.2)
+    t.show_default_url()
     t.shot("cockpit_solo")
 
-    # ============ 3) コックピット（コラボON・2行表示） ============
+    # ============ 2) コックピット（コラボON・2段表示） ============
     post("/api/config", {
         "collab": True, "collab_source": "process",
         "collab_process": "Discord.exe",
@@ -175,13 +198,16 @@ try:
        "speaker": "ゲスト"})
     time.sleep(0.3)
     B({"type": "partial", "text": "さっそくゲームはじめよっか", "speaker": "自分"})
-    time.sleep(0.8)
+    time.sleep(1.2)
+    t.js("$('restartHint').style.display = 'none'")   # 設定を変えた直後の「再起動で反映」の帯は写さない
+    t.show_default_url()
     t.shot("cockpit_collab")
     t.close()
 
-    # ============ 3) アプリ設定・声の聞き取り（旧AIモデル窓の後継） ============
+    # ============ 3) アプリ設定・声の聞き取り ============
     post("/api/config", {"collab": False, "asr_model": "k2-ja",
-                         "asr_lang": "auto", "translate_lang": "en"})
+                         "asr_lang": "auto", "translate_lang": "en",
+                         "box": "lower", "guest_box": ""})
     t = Tab(BASE + "/ui/settings?section=hearing&theme=light")
     t.size(1040, 760)
     time.sleep(1.2)
@@ -190,7 +216,7 @@ try:
     t.shot("settings_hearing")
     t.close()
 
-    # ============ 4) アプリ設定・コラボ音声（旧コラボ窓の後継） ============
+    # ============ 4) アプリ設定・1対1コラボ ============
     post("/api/config", {"collab": True, "collab_source": "process",
                          "collab_process": "Discord.exe",
                          "self_name": "自分", "guest_name": "ゲスト"})
@@ -203,17 +229,48 @@ try:
     t.close()
     post("/api/config", {"collab": False})
 
-    # ============ 5) スタジオ（文字スタイル / 単語） ============
+    # ============ 5) 字幕スタジオ（入口 / 単語） ============
     t = Tab(BASE + "/ui/studio?theme=light")
-    t.size(1120, 800)
+    t.size(1200, 800)
     time.sleep(1.8)
     t.shot("studio_style")
     t.close()
     t = Tab(BASE + "/ui/studio?tab=words&theme=light")
-    t.size(1120, 800)
+    t.size(1200, 800)
     time.sleep(1.8)
     t.shot("studio_words")
     t.close()
+
+    # ============ 6) レイアウトの編集（フォームとプレビューが横並び） ============
+    def edit_layout(box_id, name, after=""):
+        t = Tab(BASE + f"/ui/studio?detail=layout&box={box_id}&theme=light")
+        t.size(1280, 820)
+        time.sleep(2.2)
+        f = "document.getElementById('fStyle').contentWindow"
+        t.js(f + ".beginBoxEdit()")
+        time.sleep(0.6)
+        if after:
+            t.js(after.replace("W.", f + "."))
+            time.sleep(1.5)
+        t.shot(name)
+        t.close()
+
+    edit_layout("lower", "studio_layout")
+    # 吹き出し: 3つ積み重ねた状態を、吹き出しの項目が見える位置で撮る
+    # （ポイントに散らすと番号の印が文字に重なって読みにくいので、積み重ねで見せる）
+    boxes = get("/api/boxes")["boxes"]
+    for b in boxes:
+        if b["id"] == "bubble":
+            b.update(bubbleArrange="stack", bubbleHistory=3)
+    post("/api/boxes", {"boxes": boxes})
+    edit_layout("bubble", "studio_bubble",
+                "(() => { const d = W.document;"
+                " const h = [...d.querySelectorAll('*')].find(e => e.children.length <= 2 &&"
+                " /💬 吹き出し/.test(e.textContent) && e.offsetParent);"
+                " if (h) h.scrollIntoView({block: 'start'});"
+                " const add = [...d.querySelectorAll('button')].find(b => /行を追加/.test(b.textContent));"
+                " if (add) { add.click(); add.click(); add.click(); }"
+                " return true; })()")
 
     print("ALL SHOTS DONE →", SHOTS)
 finally:
