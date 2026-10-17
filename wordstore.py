@@ -181,12 +181,19 @@ def load_hotwords(profile=""):
 def save_hotwords(entries, profile=""):
     lines = ["# 表記,読み,スコア  （読み・スコアは省略可 / #行はコメント）",
              "# 漢字を含む語は「読み」を必ず書く（読みで認識を誘導し、表記へ置換する）"]
+    from vocab import _is_score
     for e in entries:
-        surface = (e.get("surface") or "").strip()
+        # この保存形式は「,」区切り。読みに「,」を入れると列がずれて強さの欄に読みが入り、
+        # 認識モデルのロードが失敗していた。読みの「,」「，」は複数形の区切り「／」に、
+        # 表記の「,」は全角の「，」に置き換え、強さは数値のときだけ残す
+        surface = (e.get("surface") or "").strip().replace(",", "，")
         if not surface:
             continue
-        reading = (e.get("reading") or "").strip()
+        reading = "／".join(r.strip() for r in
+                            (e.get("reading") or "").replace("，", ",").split(",") if r.strip())
         score = str(e.get("score") or "").strip()
+        if not _is_score(score):
+            score = ""
         line = surface
         if reading and reading != surface:
             line += f",{reading}"

@@ -33,8 +33,22 @@ def _split_readings(reading: str):
     return [r.strip() for r in re.split(r"[／/]", reading or "") if r.strip()]
 
 
+def _is_score(s) -> bool:
+    """強さ（出やすさ）として使える数値か。sherpa-onnx は数値でないと
+    「invalid stof argument」でモデルのロードごと失敗するため、書き出す前に必ず通す"""
+    try:
+        v = float(str(s).strip())
+    except (TypeError, ValueError):
+        return False
+    return v == v and v not in (float("inf"), float("-inf"))
+
+
 def parse_vocab(path: str):
-    """語彙ファイルを (表記, 読み, スコア) のリストに読み込む"""
+    """語彙ファイルを (表記, 読み, スコア) のリストに読み込む
+
+    読み欄に「,」を入れて保存された行（例: 癒色えも,意識エモ,意識えも）は列がずれて
+    3列目に読みが入る。数値でない3列目以降は読みの続きとして「／」でつなぎ、
+    最後の列が数値ならそれを強さとして使う（壊れた既存ファイルもそのまま読める）。"""
     entries = []
     with open(path, encoding="utf-8") as f:
         for line in f:
@@ -43,8 +57,14 @@ def parse_vocab(path: str):
                 continue
             parts = [p.strip() for p in line.split(",")]
             surface = parts[0]
-            reading = parts[1] if len(parts) > 1 and parts[1] else surface
-            score = parts[2] if len(parts) > 2 and parts[2] else None
+            rest = parts[1:]
+            score = None
+            if len(rest) >= 2 and _is_score(rest[-1]):
+                score = rest.pop()
+            elif len(rest) >= 2 and not rest[-1]:
+                rest.pop()                      # 「表記,読み,」の空の強さ
+            readings = [r for r in rest if r]
+            reading = "／".join(readings) if readings else surface
             entries.append((surface, reading, score))
     return entries
 
@@ -58,8 +78,8 @@ def write_hotwords(entries, out_path: str | None = None) -> str:
         for _surface, reading, score in entries:
             for r in _split_readings(reading):
                 line = r
-                if score:
-                    line += f" :{score}"
+                if score and _is_score(score):   # 数値でない強さはロード失敗の元なので書かない
+                    line += f" :{float(score):g}"
                 f.write(line + "\n")
     return out_path
 
