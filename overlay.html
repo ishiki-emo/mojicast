@@ -89,12 +89,15 @@
   const panes = new Map();       // 話者名 → ペイン（"" = ソロ/既定）
   panes.set("", makePane());
 
-  // 未知の話者は既定ペインへ。コラボ中（既定は非表示）は先頭話者のペインへ
+  // 未知の話者は既定ペインへ。コラボ中（既定は非表示）は先頭話者（自分）のペインへ。
+  // 話者名の無い発話もコラボ中は自分のペインへ: コラボONでも相手の音声（アプリ・機器）が
+  // 未選択だとエンジンは話者名なしの1本で動くが、表示側は話者ペインに切り替わって既定ペインを
+  // 隠しているため、既定ペインへ出すと自分の字幕が見えなくなる
   function paneFor(spk) {
     spk = spk || "";
-    if (panes.has(spk)) return panes.get(spk);
-    if (speakerNames.length) return panes.get(speakerNames[0]);
-    return panes.get("");
+    if (speakerNames.length && (spk === "" || !panes.has(spk)))
+      return panes.get(speakerNames[0]);
+    return panes.get(spk) || panes.get("");
   }
 
   function applyPane(p) {

@@ -373,6 +373,20 @@ class BubbleOverlayTests(unittest.TestCase):
         self.assertGreater(tails["自分の発話"], 0)    # 自分のアバターは右
         self.assertLess(tails["相手の発話"], 0)       # 相手のアバターは左
 
+    def test_collab_without_guest_source_still_shows_own_captions(self):
+        # コラボONでも相手の音声が未選択だと、エンジンは話者名なしの1本で動く。
+        # 表示側は話者ペインに切り替わり既定ペインを隠すので、話者名なしは自分のペインへ出す
+        for box in (DEFAULT_BOXES["bubble"], DEFAULT_BOXES["lower"]):
+            sp = {"自分": {"style": STYLE, "box": box},
+                  "ゲスト": {"style": STYLE, "box": DEFAULT_BOXES["lower"]}}
+            self.page.evaluate("sp => { handle({type:'clear'}); updatePanes({ style: sp['自分'].style, "
+                               "box: sp['自分'].box, speakers: sp, effects: [], hotwords: [] }); }", sp)
+            self._send({"type": "partial", "text": "話者名なし"})
+            self._send({"type": "final", "text": "話者名なしの確定", "id": 70})
+            visible = self.page.evaluate("""() => [...document.querySelectorAll('.pane')]
+              .filter(p => p.style.display !== 'none').map(p => p.innerText).join('|')""")
+            self.assertIn("話者名なしの確定", visible, box["id"])
+
     def test_collab_different_layouts_stay_separate(self):
         sp = {"自分": {"style": STYLE, "box": DEFAULT_BOXES["bubble"]},
               "ゲスト": {"style": STYLE, "box": DEFAULT_BOXES["bubble-tate"]}}
