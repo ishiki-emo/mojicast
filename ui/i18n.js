@@ -14,6 +14,12 @@
   const DICT = {
     zh: {
       // 新UI（feat/new-ui）で追加
+      "cp.pick_empty": "没有显示中的功能（可从「选择显示项」恢复）",
+      "cp.pick_hidden": "隐藏",
+      "cp.pick_shown": "显示",
+      "cp.pick_done": "完成",
+      "cp.pick_t": "选择在此列表中显示的功能",
+      "cp.pick": "选择显示项",
       "sy.bsec_frame": "🖼 框的外观",
       "sy.bsec_lyric": "🎤 歌词演出",
       "sy.bsec_flow": "🎞 行的滚动方式",
@@ -414,6 +420,12 @@
     },
     en: {
       // 新UI（feat/new-ui）で追加
+      "cp.pick_empty": "No features shown (bring them back with \"Choose items\")",
+      "cp.pick_hidden": "Hidden",
+      "cp.pick_shown": "Shown",
+      "cp.pick_done": "Done",
+      "cp.pick_t": "Choose which features appear in this list",
+      "cp.pick": "Choose items",
       "sy.bsec_frame": "🖼 Frame look",
       "sy.bsec_lyric": "🎤 Lyric effects",
       "sy.bsec_flow": "🎞 How lines flow",

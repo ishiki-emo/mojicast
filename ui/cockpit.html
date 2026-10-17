@@ -292,6 +292,23 @@
   .feature-edit { border: 0; background: transparent; color: var(--accent); padding: 4px;
     font-size: 12px; font-weight: 800; }
   .feature-row.unsupported { opacity: .55; }
+  /* 「表示を選ぶ」: 使わない機能を一覧から外す（オンの間は外さない。消すと切れなくなるため） */
+  .feature-row.pref-hidden { display: none; }
+  .feature-row .vis { display: none; padding: 4px 10px; font-size: 11.5px; font-weight: 700;
+    border-radius: 7px; white-space: nowrap; }
+  .feature-list.picking .feature-row { display: grid; }
+  .feature-list.picking .feature-row .feature-edit,
+  .feature-list.picking .feature-row input[type=checkbox] { display: none; }
+  .feature-list.picking .feature-row .vis { display: inline-block; }
+  .feature-list.picking .feature-row.pref-off .feature-copy,
+  .feature-list.picking .feature-row.pref-off .feature-icon { opacity: .4; }
+  .feature-row .vis { color: var(--dim); background: transparent; }
+  .feature-row .vis.on { color: #061117; background: var(--accent); border-color: var(--accent); }
+  .feature-list.picking #collabSummary { display: none !important; }
+  /* mac で使えない VRChat は選ぶ画面でも出さない */
+  .feature-list .feature-row.unavailable { display: none !important; }
+  .feature-empty { padding: 8px 0 2px; }
+  #collabSummary.pref-hidden { display: none !important; }
   .feature-row.unsupported .feature-edit { color: var(--dim); cursor: default; }
   .quick-today { flex: none; padding: 11px 12px; overflow: visible; }
   .quick-today .today-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
@@ -539,8 +556,9 @@
             <div class="gtitle" data-i18n="cp.add_title">字幕に追加する</div>
             <div class="gdesc" data-i18n="cp.add_sub">必要なものだけオン</div>
           </div>
+          <button class="gedit" id="pickFeatures" onclick="togglePickFeatures()" title="この一覧に出す機能を選びます" data-i18n-title="cp.pick_t" data-i18n="cp.pick">表示を選ぶ</button>
         </div>
-        <div class="feature-list">
+        <div class="feature-list" id="featureList">
           <div class="feature-row">
             <span class="feature-icon">💥</span>
             <span class="feature-copy"><b data-i18n="cp.fx">ワード演出</b><span data-i18n="cp.fx_d">好きな言葉を派手にする</span></span>
@@ -578,6 +596,7 @@
             <input type="checkbox" id="collabOn">
           </div>
           <div class="hint" id="collabSummary" style="display:none"></div>
+          <div class="hint feature-empty" id="featureEmpty" hidden data-i18n="cp.pick_empty">表示中の機能はありません（「表示を選ぶ」から戻せます）</div>
         </div>
       </div>
 
@@ -961,8 +980,56 @@
     $("vcOn").checked = !!cfg.vc_enabled;
     // VRChat は mac にクライアントが無く送信先が存在しないため、欄ごと出さない
     // （コラボのグレーアウトと違い将来対応の予定も無い）
-    $("vrchatOn").closest(".feature-row").style.display =
-      cfg.vrchat_supported === false ? "none" : "";
+    $("vrchatOn").closest(".feature-row").classList.toggle("unavailable", cfg.vrchat_supported === false);
+    applyFeatureVisibility();
+  }
+
+  // ---------- 「字幕に追加する」に出す機能を選ぶ ----------
+  // config.cockpit_hidden_features に外した機能の名前を持つ（起動し直しても残す）。
+  // 外していてもオンの間は出す（ほかの窓・ボイスコマンドでオンになったときに切れなくなるため）
+  const FEATURE_ROWS = { word_fx: "wordFx", translate: "translateOn", sound_fx: "soundFxOn",
+    voice: "vcOn", vrchat: "vrchatOn", collab: "collabOn" };
+  let pickingFeatures = false;
+  function hiddenFeatures() {
+    return Array.isArray(cfg.cockpit_hidden_features) ? cfg.cockpit_hidden_features : [];
+  }
+  function applyFeatureVisibility() {
+    const hidden = new Set(hiddenFeatures());
+    let shown = 0;
+    for (const [key, id] of Object.entries(FEATURE_ROWS)) {
+      const row = $(id).closest(".feature-row");
+      row.dataset.feature = key;
+      const off = hidden.has(key);
+      row.classList.toggle("pref-off", off);
+      row.classList.toggle("pref-hidden", off && !$(id).checked);
+      let vis = row.querySelector(".vis");
+      if (!vis) {
+        vis = document.createElement("button");
+        vis.className = "vis";
+        vis.onclick = () => toggleFeatureShown(key);
+        row.appendChild(vis);
+      }
+      vis.classList.toggle("on", !off);
+      vis.textContent = off ? T("cp.pick_hidden", "非表示") : T("cp.pick_shown", "表示");
+      if (!row.classList.contains("pref-hidden") && !row.classList.contains("unavailable")) shown++;
+    }
+    // コラボ欄を外したら、その下の1行サマリも一緒に隠す
+    const collabRow = $("collabOn").closest(".feature-row");
+    $("collabSummary").classList.toggle("pref-hidden", collabRow.classList.contains("pref-hidden"));
+    $("featureEmpty").hidden = pickingFeatures || shown > 0;
+  }
+  function toggleFeatureShown(key) {
+    const hidden = new Set(hiddenFeatures());
+    if (hidden.has(key)) hidden.delete(key); else hidden.add(key);
+    cfg.cockpit_hidden_features = [...hidden];
+    api("/api/config", { cockpit_hidden_features: cfg.cockpit_hidden_features });   // 表示だけ（再起動不要）
+    applyFeatureVisibility();
+  }
+  function togglePickFeatures() {
+    pickingFeatures = !pickingFeatures;
+    $("featureList").classList.toggle("picking", pickingFeatures);
+    $("pickFeatures").textContent = pickingFeatures ? T("cp.pick_done", "完了") : T("cp.pick", "表示を選ぶ");
+    applyFeatureVisibility();
   }
   $("wordFx").addEventListener("change", e => { cfg.word_fx = e.target.checked; saveCfg("word_fx"); });
   $("translateOn").addEventListener("change", e => { cfg.translate = e.target.checked; saveCfg("translate"); });
@@ -973,6 +1040,9 @@
     if (cfg.vc_enabled && !(cfg.vc_wake || []).length) openSettings("voice");
   });
   $("vrchatOn").addEventListener("change", e => { cfg.vrchat = e.target.checked; saveCfg("vrchat"); });
+  // 外した機能をオフにしたら、その場で一覧から消す
+  for (const id of ["wordFx", "translateOn", "soundFxOn", "vcOn", "vrchatOn", "collabOn"])
+    $(id).addEventListener("change", () => applyFeatureVisibility());
 
   $("device").addEventListener("change", e => {
     cfg.device = e.target.value === "default" ? null : +e.target.value; saveCfg("device");
@@ -1000,6 +1070,7 @@
       return;
     }
     $("collabOn").checked = !!cfg.collab;
+    applyFeatureVisibility();
     if (!cfg.collab) { s.style.display = "none"; return; }
     // 仮想ケーブル表示はUI非公開の保険設定（config直編集）のときだけ
     const src = (cfg.collab_source || "process") === "process"

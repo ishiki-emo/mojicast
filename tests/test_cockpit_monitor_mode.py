@@ -116,6 +116,42 @@ class CockpitMonitorModeTests(unittest.TestCase):
             page.wait_for_selector("#updateBar", state="visible")
             ctx.close()
 
+    def _row_visible(self, page, key):
+        return page.eval_on_selector(
+            f'.feature-row[data-feature="{key}"]',
+            "e => getComputedStyle(e).display !== 'none'")
+
+    def test_hidden_features_are_remembered_but_shown_while_on(self):
+        ctx, page = self._launch()
+        page.wait_for_function("() => document.querySelector('.feature-row[data-feature=\"vrchat\"]')")
+        page.click("#pickFeatures")
+        page.click('.feature-row[data-feature="sound_fx"] .vis')
+        page.click('.feature-row[data-feature="vrchat"] .vis')
+        self.assertTrue(self._row_visible(page, "vrchat"))     # 選んでいる間は全部見える
+        page.click("#pickFeatures")
+        self.assertFalse(self._row_visible(page, "vrchat"))
+        self.assertFalse(self._row_visible(page, "sound_fx"))
+        self.assertTrue(self._row_visible(page, "translate"))
+        for _ in range(30):
+            if app_server.load_config().get("cockpit_hidden_features") == ["sound_fx", "vrchat"]:
+                break
+            page.wait_for_timeout(100)
+        self.assertEqual(app_server.load_config().get("cockpit_hidden_features"),
+                         ["sound_fx", "vrchat"])
+        ctx.close()
+
+        # 起動し直しても外したまま。ただしオンになっている機能は外していても出す
+        cfg = app_server.load_config()
+        cfg["vrchat"] = True
+        app_server.save_config(cfg)
+        ctx, page = self._launch()
+        page.wait_for_function("() => document.querySelector('.feature-row[data-feature=\"vrchat\"]')")
+        self.assertFalse(self._row_visible(page, "sound_fx"))
+        self.assertTrue(self._row_visible(page, "vrchat"))
+        page.uncheck("#vrchatOn")                               # オフにしたらその場で消える
+        self.assertFalse(self._row_visible(page, "vrchat"))
+        ctx.close()
+
     def test_guide_shows_on_first_launch_only(self):
         ctx, page = self._launch()
         page.wait_for_selector("#guide", state="visible")   # 配信プレビューでも案内は出る

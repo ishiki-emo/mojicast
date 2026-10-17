@@ -69,6 +69,8 @@ DEFAULT_CONFIG = {
     # 字幕スタジオで最後に編集していた単語セット（None=未記録→配信で使うセットで開く）。
     # 配信で使うセット（word_profile）とは別。消えたセット名なら画面側で使用中に戻す
     "studio_edit_profile": None,
+    # コックピット「字幕に追加する」から外した機能（word_fx/translate/sound_fx/voice/vrchat/collab）
+    "cockpit_hidden_features": [],
     # 窓ごとの大きさ・位置（閉じた時点の値を次回起動で復元）。
     # {"cockpit": {"x","y","w","h","scale"}, ...}。書き換えは save_window_geometry 経由
     "window_geometry": {},
@@ -1327,6 +1329,10 @@ class Handler(BaseHTTPRequestHandler):
                 body["update_dismissed"] = ""
             if "studio_edit_profile" in body and not isinstance(body.get("studio_edit_profile"), str):
                 body["studio_edit_profile"] = None
+            if "cockpit_hidden_features" in body:
+                v = body.get("cockpit_hidden_features")
+                body["cockpit_hidden_features"] = sorted(
+                    {x for x in v if isinstance(x, str) and len(x) <= 32} if isinstance(v, list) else set())
             if "window_geometry" in body:
                 body["window_geometry"] = normalize_window_geometry(
                     body.get("window_geometry"))
