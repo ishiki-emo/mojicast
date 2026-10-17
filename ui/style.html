@@ -135,6 +135,39 @@
   #stageScroll { position: absolute; left: 0; right: 0; bottom: 0; }
   #stage .line { word-break: break-word; line-height: 1.35; }
   .stageBtns { display: flex; gap: 6px; margin-top: 6px; }
+  /* 編集中（カスタマイズ）: 一覧を畳み、フォーム（左・ここだけスクロール）と
+     プレビュー（右・固定）を横に並べる。縦に積むと「もっと細かく調整」で項目が
+     増えたとき、縮まないプレビューにフォームの高さを奪われて数行しか見えなくなるため */
+  .page.show.editing { grid-template-columns: 1fr; }
+  .page.editing > .panel:first-child { display: none; }
+  .page.editing .editor { display: grid; overflow: hidden; column-gap: 14px;
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 46%);
+    grid-template-rows: auto auto auto minmax(0, 1fr); }
+  .page.editing .editor > h2, .page.editing .editor-actions,
+  .page.editing .edit-tools { grid-column: 1 / -1; }
+  .page.editing .form { grid-column: 1; grid-row: 4; min-height: 0; align-content: start;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); padding-right: 4px; }
+  .page.editing #previewBox, .page.editing #stageWrap { grid-column: 2; grid-row: 4;
+    align-self: start; margin-top: 0; max-width: none; }
+  .page.editing #customizePresetBtn, .page.editing #customizeBoxBtn { display: none; }
+  /* 狭い窓では縦並びに戻し、プレビューは窓の高さの3割までに抑える */
+  @media (max-width: 560px) {
+    .page.editing .editor { display: flex; }
+    .page.editing .form { flex: 1; }
+    .page.editing #stageWrap { max-width: calc(30vh * 16 / 9); }
+    .page.editing #previewBox { max-height: 30vh; overflow: hidden; }
+  }
+  /* レイアウトのプレビュー上で字幕の枠を直接動かす取っ手（編集中のみ） */
+  #stageHandle { position: absolute; z-index: 3; display: none; box-sizing: border-box;
+    border: 2px dashed var(--accent); border-radius: 4px; cursor: move; touch-action: none;
+    background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  .page.editing #stageHandle { display: block; }
+  #stageHandle .grip { position: absolute; right: 2px; bottom: 2px; width: 14px; height: 14px;
+    border-radius: 3px; background: var(--accent); border: 2px solid #fff; cursor: nwse-resize; }
+  #stageHandle .geo { position: absolute; left: 4px; top: 3px; padding: 1px 6px; border-radius: 4px;
+    font-size: 10px; font-weight: 800; color: #061117; background: var(--accent); white-space: nowrap;
+    pointer-events: none; opacity: 0; transition: opacity .12s; }
+  #stageHandle.dragging .geo, #stageHandle:hover .geo { opacity: 1; }
   footer { display: flex; gap: 10px; align-items: center; padding: 10px 14px; background: var(--panel); border-top: 1px solid var(--line); }
   #saved { color: var(--ok); font-size: 12px; opacity: 0; transition: opacity .3s; }
   [hidden] { display: none !important; }
@@ -171,6 +204,7 @@
         <button class="btn save" id="customizePresetBtn" onclick="beginPresetEdit()">カスタマイズ</button>
       </div>
       <div class="edit-tools" id="styleEditTools" hidden>
+        <button class="btn small" onclick="closePresetEdit(); loadForm()" data-i18n="sy.back_to_list">← 一覧に戻る</button>
         <span data-i18n="sy.basic_only_note">まずは、よく使う項目だけ表示しています</span>
         <span style="flex:1"></span>
         <button class="btn small" id="styleAdvancedBtn" onclick="toggleStyleAdvanced()">もっと細かく調整</button>
@@ -255,7 +289,8 @@
         <button class="btn save" id="customizeBoxBtn" onclick="beginBoxEdit()">カスタマイズ</button>
       </div>
       <div class="edit-tools" id="boxEditTools" hidden>
-        <span data-i18n="sy.adjust_pos_size">位置と大きさを調整できます</span><span style="flex:1"></span>
+        <button class="btn small" onclick="closeBoxEdit(); loadBoxForm()" data-i18n="sy.back_to_list">← 一覧に戻る</button>
+        <span data-i18n="sy.adjust_pos_size">プレビューの枠はドラッグで移動、右下の角で大きさを変えられます</span><span style="flex:1"></span>
         <button class="btn small" id="boxAdvancedBtn" onclick="toggleBoxAdvanced()">もっと細かく調整</button>
         <button class="btn small" id="manageBoxBtn" onclick="manageBox()">初期状態に戻す</button>
       </div>
@@ -300,6 +335,7 @@
       <div id="stageWrap">
         <div id="stage">
           <div class="ptag"><span data-i18n="sy.layout_preview">レイアウトプレビュー（1920×1080の縮小）</span><span id="stageStyleName" style="margin-left:10px;color:rgba(255,255,255,.55)"></span></div>
+          <div id="stageHandle" title="ドラッグで移動・右下の角で大きさを変更" data-i18n-title="sy.handle_t"><span class="geo" id="stageGeo"></span><span class="grip"></span></div>
           <div id="stageInner">
             <div id="stageBox"><div id="stageClip"><div id="stageScroll"></div></div></div>
           </div>
@@ -494,6 +530,7 @@
   function isBuiltinPreset(p) { return !!p && defaultPresets.some(x => x.id === p.id); }
   function closePresetEdit() {
     presetEditing = false;
+    $("pageStyle").classList.remove("editing");
     $("form").classList.add("locked");
     $("styleEditTools").hidden = true;
     $("styleEditor").classList.remove("advanced-open");
@@ -501,6 +538,7 @@
   }
   function beginPresetEdit() {
     presetEditing = true;
+    $("pageStyle").classList.add("editing");
     $("form").classList.remove("locked");
     $("styleEditTools").hidden = false;
     const builtin = isBuiltinPreset(presets[cur]);
@@ -767,6 +805,7 @@
   function isBuiltinBox(b) { return !!b && defaultBoxes.some(x => x.id === b.id); }
   function closeBoxEdit() {
     boxEditing = false;
+    $("pageBox").classList.remove("editing");
     $("bform").classList.add("locked");
     $("boxEditTools").hidden = true;
     $("boxEditor").classList.remove("advanced-open");
@@ -774,6 +813,8 @@
   }
   function beginBoxEdit() {
     boxEditing = true;
+    $("pageBox").classList.add("editing");
+    syncStageHandle();
     $("bform").classList.remove("locked");
     $("boxEditTools").hidden = false;
     const builtin = isBuiltinBox(boxes[curBox]);
@@ -831,11 +872,74 @@
   }
   new ResizeObserver(updateStageScale).observe(document.getElementById("stage"));
 
+  // ---- プレビュー上の直接操作（枠のドラッグで移動・右下の角で大きさ） ----
+  // 位置・大きさは画面に対する％（スライダーと同じ単位・同じ範囲）。取っ手はステージ
+  // （縮小表示）の上に％で重ねるので、縮小率に関係なくそのまま対応する
+  const GEO = { x: [0, 90], y: [0, 90], w: [10, 100], h: [8, 100] };
+  const clampGeo = (k, v) => Math.round(Math.min(GEO[k][1], Math.max(GEO[k][0], v)));
+  function syncStageHandle() {
+    const b = boxes[curBox];
+    if (!b) return;
+    const g = { x: +(b.x ?? 0), y: +(b.y ?? 0), w: +(b.w ?? 100), h: +(b.h ?? 100) };
+    const el = $("stageHandle");
+    el.style.left = g.x + "%"; el.style.top = g.y + "%";
+    el.style.width = Math.min(g.w, 100 - g.x) + "%"; el.style.height = Math.min(g.h, 100 - g.y) + "%";
+    $("stageGeo").textContent = `X ${g.x}%  Y ${g.y}%  ${T("sy.width","幅")} ${g.w}%  ${T("sy.height","高さ")} ${g.h}%`;
+  }
+  // ドラッグ結果をスライダーへ書き戻し、スライダーで動かしたときと同じ経路で反映する
+  function applyStageGeo(g) {
+    const fmt = v => v + "%";
+    for (const [k, id, out] of [["x","b_x","o_bx"],["y","b_y","o_by"],["w","b_w","o_bw"],["h","b_h","o_bh"]]) {
+      if (g[k] === undefined) continue;
+      $(id).value = g[k]; $(out).textContent = fmt($(id).value);
+    }
+    collectBox(); styleDirty = true;
+    stageApply();
+  }
+  (function bindStageHandle() {
+    const el = $("stageHandle");
+    el.addEventListener("pointerdown", e => {
+      if (!boxEditing) return;
+      e.preventDefault();
+      const stage = $("stage").getBoundingClientRect();
+      const b = boxes[curBox];
+      const start = { px: e.clientX, py: e.clientY,
+        x: +(b.x ?? 0), y: +(b.y ?? 0), w: +(b.w ?? 100), h: +(b.h ?? 100) };
+      const resize = e.target.classList.contains("grip");
+      el.setPointerCapture(e.pointerId);
+      el.classList.add("dragging");
+      const move = ev => {
+        const dx = (ev.clientX - start.px) / stage.width * 100;
+        const dy = (ev.clientY - start.py) / stage.height * 100;
+        if (resize) {
+          applyStageGeo({ w: clampGeo("w", Math.min(start.w + dx, 100 - start.x)),
+                          h: clampGeo("h", Math.min(start.h + dy, 100 - start.y)) });
+        } else {
+          // 画面の外へははみ出させない（幅が広いときは動ける範囲も狭くなる）
+          applyStageGeo({ x: clampGeo("x", Math.min(start.x + dx, 100 - Math.min(start.w, 100))),
+                          y: clampGeo("y", Math.min(start.y + dy, 100 - Math.min(start.h, 100))) });
+        }
+      };
+      const up = () => {
+        el.classList.remove("dragging");
+        el.removeEventListener("pointermove", move);
+        el.removeEventListener("pointerup", up);
+        el.removeEventListener("pointercancel", up);
+        renderBoxList();
+        stageClear(); stageAdd(); stageAdd();   // 新しい枠で行の流れを見せ直す
+      };
+      el.addEventListener("pointermove", move);
+      el.addEventListener("pointerup", up);
+      el.addEventListener("pointercancel", up);
+    });
+  })();
+
   function stageApply() {
     const b = boxes[curBox];
     // 中身は本物の1920×1080座標系なので、box定義をそのまま適用（縮小はscaleが担う）
     FX.applyBox($("stageBox"), $("stageScroll"), b, $("stageClip"));
     updateStageScale();
+    syncStageHandle();
   }
 
   // ステージ用フォールバック（使用中プリセットが見つからない場合のみ）

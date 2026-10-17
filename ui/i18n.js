@@ -14,6 +14,8 @@
   const DICT = {
     zh: {
       // 新UI（feat/new-ui）で追加
+      "sy.handle_t": "拖动移动·拖右下角调整大小",
+      "sy.back_to_list": "← 返回列表",
       "cp.clear_t": "OBS 中显示的字幕也会被清除",
       "cp.trans_cfg_t": "翻译目标语言（外观与固定译法在字幕工作室）",
       "cp.soundfx": "反应特效",
@@ -365,7 +367,7 @@
       "sy.en_color_on": "使用专用颜色（关=同正文）", "sy.color": "颜色", "sy.en_deco": "使用专用描边·辉光（关=同正文）",
       "sy.preview_click_play": "预览 ▶ 点击播放",
       "sy.choose_position": "选择布局", "sy.new_layout": "＋ 新建布局", "sy.new_from_free": "以自由（无框）为基础创建",
-      "sy.adjust_pos_size": "可调整位置和大小", "sy.box_name": "布局名", "sy.display_mode": "显示方式",
+      "sy.adjust_pos_size": "预览中的框可拖动移动，拖右下角可调整大小", "sy.box_name": "布局名", "sy.display_mode": "显示方式",
       "sy.mode_flow": "普通（堆叠·滚动）", "sy.mode_vertical": "竖排（从右到左）", "sy.mode_lyric": "歌词视频风字幕",
       "sy.pos_x": "横位置 X", "sy.pos_y": "纵位置 Y", "sy.width": "宽", "sy.height": "高",
       "sy.bg_color": "背景色", "sy.bg_opacity": "背景浓度", "sy.zero_transparent": "（0为透明）",
@@ -404,6 +406,8 @@
     },
     en: {
       // 新UI（feat/new-ui）で追加
+      "sy.handle_t": "Drag to move · drag the bottom-right corner to resize",
+      "sy.back_to_list": "← Back to list",
       "cp.clear_t": "Also clears the captions shown in OBS",
       "cp.trans_cfg_t": "Target languages (look & fixed translations are in Caption Studio)",
       "cp.soundfx": "Reaction FX",
@@ -751,7 +755,7 @@
       "sy.en_color_on": "Use a dedicated color (off = same as body)", "sy.color": "Color", "sy.en_deco": "Use dedicated outline/glow (off = same as body)",
       "sy.preview_click_play": "Preview ▶ click to play",
       "sy.choose_position": "Choose a layout", "sy.new_layout": "＋ New layout", "sy.new_from_free": "Create from Free (no frame)",
-      "sy.adjust_pos_size": "Adjust position and size", "sy.box_name": "Layout name", "sy.display_mode": "Display mode",
+      "sy.adjust_pos_size": "Drag the frame in the preview to move it; use the bottom-right corner to resize", "sy.box_name": "Layout name", "sy.display_mode": "Display mode",
       "sy.mode_flow": "Normal (stack · scroll)", "sy.mode_vertical": "Vertical (right to left)", "sy.mode_lyric": "Lyric-video style",
       "sy.pos_x": "Position X", "sy.pos_y": "Position Y", "sy.width": "Width", "sy.height": "Height",
       "sy.bg_color": "Background color", "sy.bg_opacity": "Background opacity", "sy.zero_transparent": "(0 = transparent)",
