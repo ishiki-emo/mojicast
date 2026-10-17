@@ -14,6 +14,7 @@
   const DICT = {
     zh: {
       // 新UI（feat/new-ui）で追加
+      "sy.adv_count": "（+{n}项）",
       "sy.handle_t": "拖动移动·拖右下角调整大小",
       "sy.back_to_list": "← 返回列表",
       "cp.clear_t": "OBS 中显示的字幕也会被清除",
@@ -406,6 +407,7 @@
     },
     en: {
       // 新UI（feat/new-ui）で追加
+      "sy.adv_count": " (+{n})",
       "sy.handle_t": "Drag to move · drag the bottom-right corner to resize",
       "sy.back_to_list": "← Back to list",
       "cp.clear_t": "Also clears the captions shown in OBS",

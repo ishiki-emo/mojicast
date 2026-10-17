@@ -76,9 +76,17 @@
   .editor:not(.advanced-open) .advanced-only { display: none !important; }
   #translationFields { display: contents; }
   :root.translation-focus #form > :not(#translationFields) { display: none !important; }
-  :root.translation-focus #translationFields { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; }
-  :root.translation-focus #translationFields .advanced-only { display: block !important; }
-  :root.translation-focus #translationFields .chk { display: flex !important; }
+  :root.translation-focus #translationFields { grid-column: 1 / -1; display: grid; gap: 8px 16px;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+  /* 翻訳の見た目だけを出す画面では詳細項目も常に出す（ただし状況で隠す行は hidden で隠す） */
+  :root.translation-focus #translationFields .advanced-only:not([hidden]) { display: block !important; }
+  :root.translation-focus #translationFields .chk:not([hidden]) { display: flex !important; }
+  :root.translation-focus #styleAdvancedBtn, :root.translation-focus .adv-more,
+  :root.translation-focus #styleEditTools .basic-note,
+  :root.translation-focus #styleEditTools .tools-sep { display: none !important; }
+  /* 併記用の項目は包み枠ごとフォームの格子に流し込む（枠が1マスに収まり片側へ寄らないように） */
+  #enBothFields { display: contents; }
+  #r_enOnlyNote, #r_trSubNote { grid-column: 1 / -1; }
   .editor-actions { display: flex; align-items: center; flex-wrap:wrap; gap: 8px; padding: 10px;
     margin-bottom: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel2); }
   .editor-actions .copy { flex: 1; min-width: 0; }
@@ -86,6 +94,14 @@
   .editor-actions .copy span { display: block; color: var(--dim); font-size: 11px; margin-top: 2px; }
   .edit-tools { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
   .edit-tools span { color: var(--dim); font-size: 11px; }
+  /* 「もっと細かく調整／基本項目に戻す」は見落とされやすいので、隠れている項目数つきで目立たせる */
+  .btn.adv-toggle { color: var(--accent); border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 10%, var(--panel2)); }
+  .btn.adv-toggle:hover { background: color-mix(in srgb, var(--accent) 18%, var(--panel2)); }
+  /* フォーム末尾にも同じ切替を置く（基本項目を見終えた視線の先・長い一覧の下端） */
+  .form .adv-more { grid-column: 1 / -1; justify-self: stretch; margin-top: 10px; padding: 10px;
+    border-style: dashed; }
+  .edit-tools .tools-sep { width: 1px; height: 20px; background: var(--line); }
   /* フォーム内のセクション見出し（2カラムを全幅でまたぐ） */
   .fsec {
     grid-column: 1 / -1; display: flex; align-items: baseline; gap: 8px;
@@ -205,9 +221,10 @@
       </div>
       <div class="edit-tools" id="styleEditTools" hidden>
         <button class="btn small" onclick="closePresetEdit(); loadForm()" data-i18n="sy.back_to_list">← 一覧に戻る</button>
-        <span data-i18n="sy.basic_only_note">まずは、よく使う項目だけ表示しています</span>
+        <span class="basic-note" data-i18n="sy.basic_only_note">まずは、よく使う項目だけ表示しています</span>
         <span style="flex:1"></span>
-        <button class="btn small" id="styleAdvancedBtn" onclick="toggleStyleAdvanced()">もっと細かく調整</button>
+        <button class="btn small adv-toggle" id="styleAdvancedBtn" onclick="toggleStyleAdvanced()">もっと細かく調整</button>
+        <span class="tools-sep"></span>
         <button class="btn small" id="managePresetBtn" onclick="managePreset()">初期状態に戻す</button>
       </div>
       <div class="form locked" id="form">
@@ -266,6 +283,7 @@
         <div class="fr advanced-only"><label><span data-i18n="sy.glow_size">グロー強さ</span> <output id="o_enGlowSize"></output><span data-i18n="sy.zero_none">（0でなし）</span></label><input type="range" id="f_enGlowSize" min="0" max="30" step="2"></div>
         </div>
         </div>
+        <button class="btn adv-toggle adv-more" onclick="toggleStyleAdvanced()"></button>
       </div>
       <div id="previewBox">
         <div class="ptag" data-i18n="sy.preview_click_play">プレビュー ▶ クリックで再生</div>
@@ -291,7 +309,8 @@
       <div class="edit-tools" id="boxEditTools" hidden>
         <button class="btn small" onclick="closeBoxEdit(); loadBoxForm()" data-i18n="sy.back_to_list">← 一覧に戻る</button>
         <span data-i18n="sy.adjust_pos_size">プレビューの枠はドラッグで移動、右下の角で大きさを変えられます</span><span style="flex:1"></span>
-        <button class="btn small" id="boxAdvancedBtn" onclick="toggleBoxAdvanced()">もっと細かく調整</button>
+        <button class="btn small adv-toggle" id="boxAdvancedBtn" onclick="toggleBoxAdvanced()">もっと細かく調整</button>
+        <span class="tools-sep"></span>
         <button class="btn small" id="manageBoxBtn" onclick="manageBox()">初期状態に戻す</button>
       </div>
       <div class="form locked" id="bform">
@@ -331,6 +350,7 @@
         <div class="fr only-lyric advanced-only"><label><span data-i18n="sy.display_time">表示時間</span> <output id="o_blife"></output></label><input type="range" id="b_lifeSec" min="2" max="15" step="1"></div>
         <div class="fr only-lyric advanced-only"><label><span data-i18n="sy.overlap_count">重ねる字幕数</span> <output id="o_bmc"></output></label><input type="range" id="b_lyricMaxScenes" min="1" max="3" step="1"></div>
         <div class="fr chk only-lyric advanced-only"><input type="checkbox" id="b_lyricPartial"><span data-i18n="sy.show_partial">認識途中も表示する</span></div>
+        <button class="btn adv-toggle adv-more" onclick="toggleBoxAdvanced()"></button>
       </div>
       <div id="stageWrap">
         <div id="stage">
@@ -377,6 +397,7 @@
       if (currentTopTab === "box") { renderBoxList(); loadBoxForm(); }
       else { renderList(); loadForm(); }
       updateFooterActions();
+      syncAdvLabel("styleEditor", "styleAdvancedBtn"); syncAdvLabel("boxEditor", "boxAdvancedBtn");
     } catch (e) {}
   });
   let presets = [], boxes = [], defaultPresets = [], defaultBoxes = [];
@@ -527,6 +548,16 @@
     updateFooterActions();
   }
 
+  // 詳細項目の開閉ボタン。閉じているときは隠れている項目の数も添える
+  function syncAdvLabel(editorId, btnId) {
+    const editor = $(editorId), open = editor.classList.contains("advanced-open");
+    const n = [...editor.querySelectorAll(".fr.advanced-only")]
+      .filter(el => !el.hidden && el.style.display !== "none" && el.querySelector("input,select")).length;
+    const label = open ? "▴ " + T("sy.basic_only","基本項目だけに戻す")
+      : "▾ " + T("sy.adjust_more","もっと細かく調整") + T("sy.adv_count","（+{n}項目）").replace("{n}", n);
+    $(btnId).textContent = label;
+    editor.querySelectorAll(".adv-more").forEach(b => { b.textContent = label; });
+  }
   function isBuiltinPreset(p) { return !!p && defaultPresets.some(x => x.id === p.id); }
   function closePresetEdit() {
     presetEditing = false;
@@ -534,7 +565,7 @@
     $("form").classList.add("locked");
     $("styleEditTools").hidden = true;
     $("styleEditor").classList.remove("advanced-open");
-    $("styleAdvancedBtn").textContent = T("sy.adjust_more","もっと細かく調整");
+    syncAdvLabel("styleEditor", "styleAdvancedBtn");
   }
   function beginPresetEdit() {
     presetEditing = true;
@@ -549,7 +580,7 @@
   }
   function toggleStyleAdvanced() {
     const open = $("styleEditor").classList.toggle("advanced-open");
-    $("styleAdvancedBtn").textContent = open ? T("sy.basic_only","基本項目だけに戻す") : T("sy.adjust_more","もっと細かく調整");
+    syncAdvLabel("styleEditor", "styleAdvancedBtn");
   }
   function collect() {
     const p = presets[cur];
@@ -603,7 +634,7 @@
     const own = !!(trLang && p.trStyles && p.trStyles[trLang]);
     $("f_trLang").value = trLang;
     $("f_trOverride").checked = own;
-    $("r_trOverride").style.display = trLang ? "" : "none";
+    $("r_trOverride").hidden = !trLang;
     // 言語を選んでいて上書きOFF＝共通の値を表示するだけ（触れない）
     for (const id of TR_FIELDS) $(id).disabled = !!trLang && !own;
   }
@@ -751,8 +782,8 @@
   // 翻訳のみでも、2つ目以降の翻訳先は主言語の下に訳文の書式で付くので調整項目は残す
   function updateTranslationRows() {
     const en = $("f_displayMode").value === "en";
-    $("r_enOnlyNote").style.display = en ? "" : "none";
-    $("r_trSubNote").style.display = en ? "" : "none";
+    $("r_enOnlyNote").hidden = !en;
+    $("r_trSubNote").hidden = !en;
   }
 
   function updateModeRows() {
@@ -764,6 +795,7 @@
     // 自動消去の秒数はチェックONのときだけ出す
     if (!lyric && !$("b_autoClear").checked)
       $("r_clearSec").style.display = "none";
+    syncAdvLabel("boxEditor", "boxAdvancedBtn");   // 表示のしかたで隠れる項目数が変わる
   }
 
   function loadBoxForm() {
@@ -809,7 +841,7 @@
     $("bform").classList.add("locked");
     $("boxEditTools").hidden = true;
     $("boxEditor").classList.remove("advanced-open");
-    $("boxAdvancedBtn").textContent = T("sy.adjust_more","もっと細かく調整");
+    syncAdvLabel("boxEditor", "boxAdvancedBtn");
   }
   function beginBoxEdit() {
     boxEditing = true;
@@ -825,7 +857,7 @@
   }
   function toggleBoxAdvanced() {
     const open = $("boxEditor").classList.toggle("advanced-open");
-    $("boxAdvancedBtn").textContent = open ? T("sy.basic_only","基本項目だけに戻す") : T("sy.adjust_more","もっと細かく調整");
+    syncAdvLabel("boxEditor", "boxAdvancedBtn");
     updateModeRows();
   }
   function collectBox() {
