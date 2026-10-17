@@ -61,6 +61,10 @@ DEFAULT_CONFIG = {
     # GUI窓の版（"new"=新UI / "legacy"=旧UI）。旧UIは ui/legacy/ のスナップショットを
     # 同じURLで配る（コックピット上部の切替ボタンでいつでも行き来できる）。overlayは対象外
     "ui_variant": "new",
+    # コックピットの字幕モニタの表示方法（"preview"=配信プレビュー / "log"=簡易ログ）。
+    # GUI窓はプライベートモードで localStorage が起動ごとに消えるため、記憶は config に持つ
+    "monitor_mode": "preview",
+    "guide_dismissed": False,   # 「はじめの3ステップ」を閉じた（または字幕が出た）か
     # 窓ごとの大きさ・位置（閉じた時点の値を次回起動で復元）。
     # {"cockpit": {"x","y","w","h","scale"}, ...}。書き換えは save_window_geometry 経由
     "window_geometry": {},
@@ -1313,6 +1317,8 @@ class Handler(BaseHTTPRequestHandler):
                 body["ui_scale"] = normalize_ui_scale(body.get("ui_scale"))
             if "ui_variant" in body and body.get("ui_variant") not in ("new", "legacy"):
                 body["ui_variant"] = "new"
+            if "monitor_mode" in body and body.get("monitor_mode") not in ("preview", "log"):
+                body["monitor_mode"] = "preview"
             if "window_geometry" in body:
                 body["window_geometry"] = normalize_window_geometry(
                     body.get("window_geometry"))

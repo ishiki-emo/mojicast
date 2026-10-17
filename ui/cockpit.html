@@ -469,8 +469,8 @@
         <h2 id="monitorTitle" style="margin:0;border:0;padding:0" data-i18n="cp.monitor_title">字幕ログ</h2>
         <span class="rec" id="rec">● REC</span>
         <div class="mode-switch" role="group" aria-label="字幕モニタの表示方法">
-          <button id="modeLog" class="active" aria-pressed="true" onclick="setMonitorMode('log')" data-i18n="cp.mode_log">簡易ログ</button>
-          <button id="modePreview" aria-pressed="false" onclick="setMonitorMode('preview')" data-i18n="cp.mode_preview">配信プレビュー</button>
+          <button id="modeLog" aria-pressed="false" onclick="setMonitorMode('log')" data-i18n="cp.mode_log">簡易ログ</button>
+          <button id="modePreview" class="active" aria-pressed="true" onclick="setMonitorMode('preview')" data-i18n="cp.mode_preview">配信プレビュー</button>
         </div>
       </div>
       <div id="suggestBar" style="display:none">
@@ -1039,6 +1039,8 @@
     if (cfg.save_log === undefined) cfg.save_log = true;
     syncModelCard();
     syncMovedToggles();  // 高精度/漢数字/単語エフェクト（各カード・詳細へ移動）を反映
+    showGuideIfNew(!cfg.setup_suggested);
+    setMonitorMode(cfg.monitor_mode || "preview", false);   // 前回の表示方法で開く
     if (!cfg.setup_suggested) initSuggest();   // 初回のみ: 環境に合わせた提案
     $("obsUrl").value = location.origin + "/";
     const dv = await api("/api/devices");
@@ -1326,18 +1328,24 @@
   function openStyle(query) { openStudio(query || ""); }
 
   // ---------- はじめの3ステップ（初回のみ） ----------
+  // 一度閉じた（字幕が出た）ことは config に残す。localStorage は起動ごとに消えるため
   function dismissGuide() {
     const g = $("guide");
     if (g) g.style.display = "none";
-    try { localStorage.setItem("mojicast-onboarded", "1"); } catch (e) {}
+    if (!cfg.guide_dismissed) {
+      cfg.guide_dismissed = true;
+      api("/api/config", { guide_dismissed: true });
+    }
   }
-  (function initGuide() {
-    try {
-      if (localStorage.getItem("mojicast-onboarded") === "1") {
-        const g = $("guide"); if (g) g.style.display = "none";
-      }
-    } catch (e) {}
-  })();
+  // 設定を読むまでは出さない（毎回ちらっと見えるのを防ぐ）。loadAll で判断する
+  (function initGuide() { const g = $("guide"); if (g) g.style.display = "none"; })();
+  function showGuideIfNew(firstLaunch) {
+    const g = $("guide");
+    if (!g) return;
+    // 案内を閉じた記録が無くても、2回目以降の起動（初回の提案を済ませた）なら出さない
+    // （この記録を持つ前の版から更新した人に、今さら出さないため）
+    g.style.display = !cfg.guide_dismissed && firstLaunch ? "flex" : "none";
+  }
 
   // ---------- 静的スタイルプレビュー ----------
   // 本番の文字スタイル（フォント/色/縁取り/グロー/単語ハイライト）を各行へ適用。
@@ -1399,8 +1407,9 @@
     canvas.style.top = Math.max(0, (stage.clientHeight - height) / 2) + "px";
     canvas.style.transform = `scale(${scale})`;
   }
-  function setMonitorMode(mode) {
-    monitorMode = mode === "preview" ? "preview" : "log";
+  // save=false は起動時の復元（保存済みの値を当てるだけ）
+  function setMonitorMode(mode, save = true) {
+    monitorMode = mode === "log" ? "log" : "preview";
     const preview = monitorMode === "preview";
     monitor.style.display = preview ? "none" : "flex";
     $("previewStage").classList.toggle("active", preview);
@@ -1410,19 +1419,16 @@
     $("modeLog").setAttribute("aria-pressed", String(!preview));
     $("modePreview").setAttribute("aria-pressed", String(preview));
     $("monitorTitle").textContent = preview ? T("cp.mode_preview", "配信プレビュー") : T("cp.monitor_title", "字幕ログ");
-    if (preview) {
-      const guide = $("guide"); if (guide) guide.style.display = "none";
-      requestAnimationFrame(sizePreviewCanvas);
-    } else {
-      try {
-        const guide = $("guide");
-        if (guide) guide.style.display = localStorage.getItem("mojicast-onboarded") === "1" ? "none" : "flex";
-      } catch (e) {}
-    }
+    if (preview) requestAnimationFrame(sizePreviewCanvas);
+    // 起動ごとに消える localStorage は読み込み直後のちらつき防止だけに使い、記憶は config に持つ
     try { localStorage.setItem("mojicast-monitor-mode", monitorMode); } catch (e) {}
+    if (save && cfg.monitor_mode !== monitorMode) {
+      cfg.monitor_mode = monitorMode;
+      api("/api/config", { monitor_mode: monitorMode });   // 表示だけの設定（再起動不要）
+    }
   }
-  try { monitorMode = localStorage.getItem("mojicast-monitor-mode") || "log"; } catch (e) {}
-  setMonitorMode(monitorMode);
+  try { monitorMode = localStorage.getItem("mojicast-monitor-mode") || "preview"; } catch (e) {}
+  setMonitorMode(monitorMode, false);
   if (window.ResizeObserver) new ResizeObserver(sizePreviewCanvas).observe($("previewStage"));
   else window.addEventListener("resize", sizePreviewCanvas);
 
@@ -1520,7 +1526,7 @@
       else if (m.type === "theme") { cfg.theme = m.theme; applyTheme(m.theme); }
       else if (m.type === "ui_variant") location.reload();   // 新UI／旧UIの切替
       else if (m.type === "ui_scale") applyScale(m.ui_scale);
-      else if (m.type === "ui_lang") { cfg.ui_lang = m.ui_lang; if (window.MojicastI18n) { window.MojicastI18n.applyLang(m.ui_lang); setState(lastState); syncModelCard(); } }
+      else if (m.type === "ui_lang") { cfg.ui_lang = m.ui_lang; if (window.MojicastI18n) { window.MojicastI18n.applyLang(m.ui_lang); setState(lastState); syncModelCard(); setMonitorMode(monitorMode, false); } }
     };
     es.onerror = () => { es.close(); setTimeout(connect, 1000); };
   }
