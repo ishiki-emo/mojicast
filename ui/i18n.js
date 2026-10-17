@@ -14,6 +14,13 @@
   const DICT = {
     zh: {
       // 新UI（feat/new-ui）で追加
+      "sy.bsec_frame": "🖼 框的外观",
+      "sy.bsec_lyric": "🎤 歌词演出",
+      "sy.bsec_flow": "🎞 行的滚动方式",
+      "sy.bsec_mode": "🧾 显示",
+      "sy.bsec_geo_d": "也可以拖动预览中的框来调整",
+      "sy.bsec_geo": "📐 位置与大小",
+      "sy.bsec_name": "📛 名称",
       "sy.adv_count": "（+{n}项）",
       "sy.handle_t": "拖动移动·拖右下角调整大小",
       "sy.back_to_list": "← 返回列表",
@@ -407,6 +414,13 @@
     },
     en: {
       // 新UI（feat/new-ui）で追加
+      "sy.bsec_frame": "🖼 Frame look",
+      "sy.bsec_lyric": "🎤 Lyric effects",
+      "sy.bsec_flow": "🎞 How lines flow",
+      "sy.bsec_mode": "🧾 Display",
+      "sy.bsec_geo_d": "You can also drag the frame in the preview",
+      "sy.bsec_geo": "📐 Position & size",
+      "sy.bsec_name": "📛 Name",
       "sy.adv_count": " (+{n})",
       "sy.handle_t": "Drag to move · drag the bottom-right corner to resize",
       "sy.back_to_list": "← Back to list",

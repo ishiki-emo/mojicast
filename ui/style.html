@@ -314,32 +314,35 @@
         <button class="btn small" id="manageBoxBtn" onclick="manageBox()">初期状態に戻す</button>
       </div>
       <div class="form locked" id="bform">
+        <div class="fsec" data-i18n="sy.bsec_name">📛 名前</div>
         <div class="fr"><label data-i18n="sy.box_name">レイアウト名</label><input type="text" id="b_name"></div>
         <div class="fr"><label data-i18n="sy.desc">説明</label><input type="text" id="b_desc"></div>
+
+        <div class="fsec"><span data-i18n="sy.bsec_geo">📐 位置と大きさ</span> <small data-i18n="sy.bsec_geo_d">プレビューの枠をドラッグしても変えられます</small></div>
+        <div class="fr"><label><span data-i18n="sy.pos_x">横位置 X</span> <output id="o_bx"></output></label><input type="range" id="b_x" min="0" max="90" step="1"></div>
+        <div class="fr"><label><span data-i18n="sy.pos_y">縦位置 Y</span> <output id="o_by"></output></label><input type="range" id="b_y" min="0" max="90" step="1"></div>
+        <div class="fr"><label><span data-i18n="sy.width">幅</span> <output id="o_bw"></output></label><input type="range" id="b_w" min="10" max="100" step="1"></div>
+        <div class="fr"><label><span data-i18n="sy.height">高さ</span> <output id="o_bh"></output></label><input type="range" id="b_h" min="8" max="100" step="1"></div>
+
+        <div class="fsec advanced-only" data-i18n="sy.bsec_mode">🧾 表示</div>
         <div class="fr advanced-only"><label data-i18n="sy.display_mode">表示のしかた</label>
           <select id="b_mode">
             <option value="flow" data-i18n="sy.mode_flow">通常（積み上げ・スクロール）</option>
             <option value="vertical" data-i18n="sy.mode_vertical">縦書き（右から左へ）</option>
             <option value="lyric" data-i18n="sy.mode_lyric">リリックビデオ風字幕</option>
           </select></div>
-        <div class="fr advanced-only"></div>
-        <div class="fr"><label><span data-i18n="sy.pos_x">横位置 X</span> <output id="o_bx"></output></label><input type="range" id="b_x" min="0" max="90" step="1"></div>
-        <div class="fr"><label><span data-i18n="sy.pos_y">縦位置 Y</span> <output id="o_by"></output></label><input type="range" id="b_y" min="0" max="90" step="1"></div>
-        <div class="fr"><label><span data-i18n="sy.width">幅</span> <output id="o_bw"></output></label><input type="range" id="b_w" min="10" max="100" step="1"></div>
-        <div class="fr"><label><span data-i18n="sy.height">高さ</span> <output id="o_bh"></output></label><input type="range" id="b_h" min="8" max="100" step="1"></div>
-        <div class="fr advanced-only"><label data-i18n="sy.bg_color">背景色</label><input type="color" id="b_bg"></div>
-        <div class="fr advanced-only"><label><span data-i18n="sy.bg_opacity">背景の濃さ</span> <output id="o_bop"></output><span data-i18n="sy.zero_transparent">（0で透明）</span></label><input type="range" id="b_bgOpacity" min="0" max="1" step="0.05"></div>
-        <div class="fr advanced-only"><label><span data-i18n="sy.radius">角丸</span> <output id="o_brad"></output></label><input type="range" id="b_radius" min="0" max="40" step="2"></div>
-        <div class="fr advanced-only"><label><span data-i18n="sy.padding">内側余白</span> <output id="o_bpad"></output></label><input type="range" id="b_padding" min="0" max="48" step="2"></div>
-        <div class="fr advanced-only"><label data-i18n="sy.border_color">枠線色</label><input type="color" id="b_borderColor"></div>
-        <div class="fr advanced-only"><label><span data-i18n="sy.border_width">枠線太さ</span> <output id="o_bbw"></output><span data-i18n="sy.zero_none">（0でなし）</span></label><input type="range" id="b_borderWidth" min="0" max="6" step="1"></div>
         <div class="fr only-flow advanced-only"><label data-i18n="sy.text_align">文字揃え</label>
           <select id="b_align"><option value="left" data-i18n="sy.align_left">左揃え</option><option value="center" data-i18n="sy.align_center">中央</option><option value="right" data-i18n="sy.align_right">右揃え</option></select></div>
+
+        <div class="fsec only-flow advanced-only" data-i18n="sy.bsec_flow">🎞 行の流れ方</div>
         <div class="fr only-flow advanced-only"><label><span data-i18n="sy.max_lines">保持する行数</span> <output id="o_bml"></output></label><input type="range" id="b_maxLines" min="2" max="40" step="1"></div>
+        <div class="fr only-flow advanced-only"></div>
         <div class="fr chk only-flow advanced-only"><input type="checkbox" id="b_smooth"><span data-i18n="sy.smooth_scroll">スムーズスクロール</span></div>
         <div class="fr only-flow advanced-only"><label><span data-i18n="sy.scroll_speed">スクロール速度</span> <output id="o_bsm"></output></label><input type="range" id="b_smoothMs" min="100" max="600" step="50"></div>
         <div class="fr chk only-flow advanced-only"><input type="checkbox" id="b_autoClear"><span data-i18n="sy.auto_clear">一定時間で字幕を消す</span></div>
         <div class="fr only-flow advanced-only" id="r_clearSec"><label><span data-i18n="sy.clear_after">消えるまでの時間</span> <output id="o_bclear"></output></label><input type="range" id="b_clearSec" min="2" max="30" step="1"></div>
+
+        <div class="fsec only-lyric advanced-only" data-i18n="sy.bsec_lyric">🎤 リリック演出</div>
         <div class="fr only-lyric advanced-only"><label data-i18n="sy.lyric_mood">演出の雰囲気</label>
           <select id="b_lyricMood">
             <option value="auto" data-i18n="sy.mood_auto">おまかせ</option>
@@ -350,6 +353,14 @@
         <div class="fr only-lyric advanced-only"><label><span data-i18n="sy.display_time">表示時間</span> <output id="o_blife"></output></label><input type="range" id="b_lifeSec" min="2" max="15" step="1"></div>
         <div class="fr only-lyric advanced-only"><label><span data-i18n="sy.overlap_count">重ねる字幕数</span> <output id="o_bmc"></output></label><input type="range" id="b_lyricMaxScenes" min="1" max="3" step="1"></div>
         <div class="fr chk only-lyric advanced-only"><input type="checkbox" id="b_lyricPartial"><span data-i18n="sy.show_partial">認識途中も表示する</span></div>
+
+        <div class="fsec advanced-only" data-i18n="sy.bsec_frame">🖼 枠の見た目</div>
+        <div class="fr advanced-only"><label data-i18n="sy.bg_color">背景色</label><input type="color" id="b_bg"></div>
+        <div class="fr advanced-only"><label><span data-i18n="sy.bg_opacity">背景の濃さ</span> <output id="o_bop"></output><span data-i18n="sy.zero_transparent">（0で透明）</span></label><input type="range" id="b_bgOpacity" min="0" max="1" step="0.05"></div>
+        <div class="fr advanced-only"><label data-i18n="sy.border_color">枠線色</label><input type="color" id="b_borderColor"></div>
+        <div class="fr advanced-only"><label><span data-i18n="sy.border_width">枠線太さ</span> <output id="o_bbw"></output><span data-i18n="sy.zero_none">（0でなし）</span></label><input type="range" id="b_borderWidth" min="0" max="6" step="1"></div>
+        <div class="fr advanced-only"><label><span data-i18n="sy.radius">角丸</span> <output id="o_brad"></output></label><input type="range" id="b_radius" min="0" max="40" step="2"></div>
+        <div class="fr advanced-only"><label><span data-i18n="sy.padding">内側余白</span> <output id="o_bpad"></output></label><input type="range" id="b_padding" min="0" max="48" step="2"></div>
         <button class="btn adv-toggle adv-more" onclick="toggleBoxAdvanced()"></button>
       </div>
       <div id="stageWrap">
