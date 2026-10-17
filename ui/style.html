@@ -393,7 +393,7 @@
             <option value="center"></option>
             <option value="end"></option>
           </select></div>
-        <div class="fr only-bubble"></div>
+        <div class="fr only-bubble"><label><span data-i18n="sy.bub_history">表示する数</span> <output id="o_bhist"></output><span data-i18n="sy.bub_history_d">（新しいものほど手前）</span></label><input type="range" id="b_bubbleHistory" min="1" max="6" step="1"></div>
         <div class="fr only-bubble"><label><span data-i18n="sy.bub_tail_x">アバター位置 X</span> <output id="o_btx"></output></label><input type="range" id="b_tailX" min="0" max="100" step="1"></div>
         <div class="fr only-bubble"><label><span data-i18n="sy.bub_tail_y">アバター位置 Y</span> <output id="o_bty"></output></label><input type="range" id="b_tailY" min="0" max="100" step="1"></div>
         <div class="fr chk only-bubble"><input type="checkbox" id="b_tailOn"><span data-i18n="sy.bub_tail_on">尻尾をアバターへ向ける</span></div>
@@ -921,6 +921,7 @@
     $("b_bubbleDir").value = b.bubbleDir === "v" ? "v" : "h";
     $("b_bubbleAlign").value = ["start", "end"].includes(b.bubbleAlign) ? b.bubbleAlign : "center";
     syncBubbleAlignLabels();
+    setR("b_bubbleHistory", "o_bhist", b.bubbleHistory ?? 1, v => T("sy.bub_history_n", "{n}個").replace("{n}", v));
     setR("b_tailX", "o_btx", b.tailX ?? 85, v => v + "%");
     setR("b_tailY", "o_bty", b.tailY ?? 85, v => v + "%");
     $("b_tailOn").checked = b.tailOn !== false;
@@ -928,7 +929,7 @@
     setR("b_bubbleScale", "o_bbs", b.bubbleScale ?? 1, v => "×" + v);
     setR("b_bubbleMinScale", "o_bbm", b.bubbleMinScale ?? 0.5, v => "×" + v);
     $("b_bubbleFill").value = b.bubbleFill || "#ffffff";
-    setR("b_bubbleFillOpacity", "o_bfo", b.bubbleFillOpacity ?? 0.95, v => v);
+    setR("b_bubbleFillOpacity", "o_bfo", b.bubbleFillOpacity ?? 1, v => v);
     $("b_bubbleStroke").value = b.bubbleStroke || "#1a1a1a";
     setR("b_bubbleStrokeWidth", "o_bsw", b.bubbleStrokeWidth ?? 4, v => v + "px");
     $("b_bubbleInkOn").checked = b.bubbleInkOn !== false;
@@ -997,6 +998,7 @@
     b.bubbleShape = $("b_bubbleShape").value;
     b.bubbleDir = $("b_bubbleDir").value;
     b.bubbleAlign = $("b_bubbleAlign").value;
+    b.bubbleHistory = +$("b_bubbleHistory").value;
     b.tailX = +$("b_tailX").value; b.tailY = +$("b_tailY").value;
     b.tailOn = $("b_tailOn").checked;
     b.tailLen = +$("b_tailLen").value;
@@ -1308,6 +1310,7 @@
       b_tailLen: ["o_btl", v => v + "px"], b_bubbleScale: ["o_bbs", v => "×" + v],
       b_bubbleMinScale: ["o_bbm", v => "×" + v], b_bubbleFillOpacity: ["o_bfo", v => v],
       b_bubbleStrokeWidth: ["o_bsw", v => v + "px"],
+      b_bubbleHistory: ["o_bhist", v => T("sy.bub_history_n", "{n}個").replace("{n}", v)],
       b_bubbleLife: ["o_bbl", v => +v ? v + "秒" : T("sy.bub_life_keep", "次の発話まで")],
     };
     for (const el of document.querySelectorAll("#bform input, #bform select")) {

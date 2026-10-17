@@ -14,6 +14,9 @@
   const DICT = {
     zh: {
       // 新UI（feat/new-ui）で追加
+      "sy.bub_history": "显示数量",
+      "sy.bub_history_d": "（越新越靠前）",
+      "sy.bub_history_n": "{n} 个",
       "sy.bub_align": "文字对齐",
       "sy.bub_al_left": "左对齐",
       "sy.bub_al_right": "右对齐",
@@ -550,6 +553,9 @@
     },
     en: {
       // 新UI（feat/new-ui）で追加
+      "sy.bub_history": "Bubbles shown",
+      "sy.bub_history_d": " (newest in front)",
+      "sy.bub_history_n": "{n}",
       "sy.bub_align": "Text alignment",
       "sy.bub_al_left": "Left",
       "sy.bub_al_right": "Right",

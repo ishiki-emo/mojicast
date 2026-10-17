@@ -232,6 +232,59 @@ class BubbleOverlayTests(unittest.TestCase):
         self._send({"type": "final", "text": PHRASE, "id": 8})
         self.assertEqual(self.page.eval_on_selector(".bub-text", "e => getComputedStyle(e).textAlign"), "start")
 
+    def _bubbles(self):
+        """新しい順に [{z, opacity, top, bottom, left, right, tail}]（top 等は本体の外接矩形）"""
+        self.page.wait_for_timeout(400)   # 押し出された古い吹き出しの移動アニメ（0.28秒）を待つ
+        return self.page.evaluate("""() => {
+          const pane = [...document.querySelectorAll('.pane')].find(p => p.querySelector('.bub-wrap'));
+          return [...pane.querySelectorAll('.bub-wrap')].map(w => {
+            const fill = w.querySelector('.bub-svg > g:last-child');
+            const r = fill.firstElementChild.getBoundingClientRect();
+            const t = w.querySelector('.bub-text');
+            return { z: +w.style.zIndex, opacity: +(t.style.opacity || 1), text: w.innerText,
+                     top: r.top, bottom: r.bottom, left: r.left, right: r.right,
+                     tail: !!fill.querySelector('path, circle + circle') };
+          }).sort((a, b) => b.z - a.z);
+        }""")
+
+    def test_default_keeps_only_the_latest_bubble(self):
+        self._use()
+        for i, t in enumerate(["ひとつめ", "ふたつめ", "みっつめ"]):
+            self._send({"type": "final", "text": t, "id": 20 + i})
+        self.assertEqual(self._wraps(), 1)
+        self.assertEqual(self.page.inner_text(".bub-main"), "みっつめ")
+
+    def test_history_stacks_older_bubbles_behind_and_away_from_avatar(self):
+        self._use(bubbleHistory=3)   # アバターは右下（tailY=72）→ 古いものは上へ積む
+        for i, t in enumerate(["いちばん古い", "まんなか", "ふたつ前", "最新の発話"]):
+            self._send({"type": "final", "text": t, "id": 30 + i})
+        b = self._bubbles()
+        self.assertEqual(len(b), 3)                         # 表示する数を超えた古いものは消える
+        self.assertIn("最新の発話", b[0]["text"])
+        self.assertIn("まんなか", b[2]["text"])
+        self.assertTrue(b[0]["tail"])                       # 尻尾は最新だけ
+        self.assertFalse(b[1]["tail"])
+        self.assertGreater(b[0]["opacity"], b[1]["opacity"])   # 奥ほど文字が薄い
+        self.assertLess(b[1]["top"], b[0]["top"])           # 古いものはアバターと反対側（上）
+        self.assertLess(b[2]["top"], b[1]["top"])
+        self.assertLess(b[1]["bottom"], b[0]["bottom"])
+        self.assertGreater(b[1]["bottom"], b[0]["top"])     # 少し重なる（手前が新しい）
+        # 訳は、まだ出ている古い吹き出しにも付けられる
+        self._send({"type": "translation", "id": 32, "text": "two ago", "order": 0, "lang": "en"})
+        self.assertIn("two ago", self._bubbles()[1]["text"])
+        # 表示する数を減らすと、その場で古いものから消える
+        self._use(bubbleHistory=1)
+        self.assertEqual(self._wraps(), 1)
+        self.assertIn("最新の発話", self.page.inner_text(".bub-wrap"))
+
+    def test_vertical_history_lines_up_sideways(self):
+        self._use(**dict(DEFAULT_BOXES["bubble-tate"], bubbleHistory=2, w=40))
+        for i, t in enumerate(["前の発話", "今の発話"]):
+            self._send({"type": "final", "text": t, "id": 40 + i})
+        b = self._bubbles()
+        self.assertEqual(len(b), 2)
+        self.assertLess(b[1]["left"], b[0]["left"])         # アバターは右 → 古いものは左へ
+
     def test_switching_mode_away_clears_the_bubble(self):
         self._use()
         self._send({"type": "final", "text": "こんにちは", "id": 5})

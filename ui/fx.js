@@ -1028,7 +1028,7 @@
 
   FX.injectCss();
   // ================= 吹き出し（レイアウトの表示のしかた mode="bubble"） =================
-  // 最新の発話1つを漫画の吹き出しで出す。レイアウトの枠（x/y/w/h）が吹き出しの広がってよい
+  // 発話を漫画の吹き出しで出す（既定は最新の1つ。bubbleHistory で数個まで並べる）。レイアウトの枠（x/y/w/h）が吹き出しの広がってよい
   // 最大範囲で、文の長さに合わせて吹き出しが伸び縮みし、収まらなければ文字を縮め、
   // それでも収まらなければ古い側を「…」で省く。尻尾はアバター位置（tailX/tailY＝画面に
   // 対する％）へ向く。枠の外へは尻尾だけがはみ出してよい。
@@ -1048,10 +1048,8 @@
   }
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
-  // 吹き出しの状態は container（レイアウトの枠の要素）に持たせる
+  // 吹き出し1つぶんの状態。container（レイアウトの枠の要素）の _bubs に新しい順で持つ
   function bubState(container) {
-    let st = container._bub;
-    if (st && st.wrap.isConnected) return st;
     const wrap = document.createElement("div");
     wrap.className = "bub-wrap";
     const svg = document.createElementNS(SVGNS, "svg");
@@ -1063,9 +1061,8 @@
     text.appendChild(main);
     wrap.append(svg, text);
     container.appendChild(wrap);
-    st = container._bub = { wrap, svg, text, main, raw: "", partial: false, fid: null,
-                            tr: new Map(), style: null, table: [], box: null, timer: 0 };
-    return st;
+    return { wrap, svg, text, main, raw: "", partial: false, fid: null,
+             tr: new Map(), style: null, table: [], box: null, timer: 0 };
   }
 
   // 本文・訳の中身を、指定の文字サイズで描く（大きさの測り直しのたびに呼ぶ）
@@ -1182,29 +1179,22 @@
     return out;
   }
 
-  // 大きさを決めて描く。container の大きさ・アバター位置・本文が変わるたびに呼ぶ
-  function bubLayout(container) {
-    const st = container._bub;
-    if (!st || !st.box || !st.wrap.isConnected) return;
+  // ---- 1つの吹き出しの大きさを決める（文字サイズ→省略の順で maxW×maxH に収める） ----
+  // scale: 奥の（古い）吹き出しほど小さく描くための倍率（文字サイズに掛ける）
+  function bubMeasure(st, maxW, maxH, margin, scale = 1) {
     const { box } = st;
-    const boxW = container.clientWidth, boxH = container.clientHeight;
-    if (!boxW || !boxH) return;
     const shape = BUB_K[box.bubbleShape] ? box.bubbleShape : "round";
     const K = BUB_K[shape];
     const vertical = box.bubbleDir === "v";
-    const sw = Math.max(0, +(box.bubbleStrokeWidth ?? 4));
-    const margin = sw + 4;
-    const baseF = (st.style.size || 40) * (box.bubbleScale ?? 1);
+    const baseF = (st.style.size || 40) * (box.bubbleScale ?? 1) * scale;
     const minF = baseF * clamp(box.bubbleMinScale ?? 0.5, 0.2, 1);
     const t = st.text;
-
-    // 文字サイズを下げながら収まる大きさを探す。下限でも収まらなければ古い側を省く
     let f = baseF, cut = 0, text = st.raw, pad = 0, tw = 0, th = 0;
     for (let iter = 0; iter < 60; iter++) {
       bubContent(st, text, f);
       pad = f * (shape === "round" ? 0.75 : 0.3);
-      const availW = Math.max(f * 2, (boxW - 2 * margin) / K - 2 * pad);
-      const availH = Math.max(f * 2, (boxH - 2 * margin) / K - 2 * pad);
+      const availW = Math.max(f * 2, (maxW - 2 * margin) / K - 2 * pad);
+      const availH = Math.max(f * 2, (maxH - 2 * margin) / K - 2 * pad);
       t.style.maxWidth = vertical ? "none" : availW + "px";
       t.style.maxHeight = vertical ? availH + "px" : "none";
       tw = t.offsetWidth; th = t.offsetHeight;
@@ -1216,33 +1206,22 @@
     }
     let W = (tw + 2 * pad) * K, H = (th + 2 * pad) * K;
     // 1文字だけでも潰れた形にならないよう、短辺の下限を持つ
-    W = Math.min(Math.max(W, H * 0.9), boxW - 2 * margin);
-    H = Math.min(Math.max(H, f * 1.9), boxH - 2 * margin);
+    W = Math.min(Math.max(W, H * 0.9), maxW - 2 * margin);
+    H = Math.min(Math.max(H, f * 1.9), maxH - 2 * margin);
+    return { shape, W, H, f, tw, th };
+  }
 
-    // 位置: 枠の中で、アバターにいちばん近いところへ寄せる（文が伸びると反対側へ育つ）
-    const par = container.offsetParent || container.parentElement;
-    const parW = (par && par.clientWidth) || 1920, parH = (par && par.clientHeight) || 1080;
-    const ax = (box.tailX ?? 85) / 100 * parW - container.offsetLeft;
-    const ay = (box.tailY ?? 85) / 100 * parH - container.offsetTop;
-    const cx = boxW - 2 * margin <= W ? boxW / 2 : clamp(ax, margin + W / 2, boxW - margin - W / 2);
-    const cy = boxH - 2 * margin <= H ? boxH / 2 : clamp(ay, margin + H / 2, boxH - margin - H / 2);
-
-    // 尻尾: アバターの方向へ。アバターが吹き出しの中や真横すぎるときは出さない
-    let tail = null;
-    if (box.tailOn !== false) {
-      const dx = ax - cx, dy = ay - cy, dist = Math.hypot(dx, dy);
-      const R = bubEdge(shape, W, H, dx, dy);
-      const L = Math.min(+(box.tailLen ?? 140), dist - R - 6);
-      if (dist > 1 && L > f * 0.4) tail = { ux: dx / dist, uy: dy / dist, R, L };
-    }
-
+  // ---- 1つの吹き出しを (cx, cy) に描く ----
+  function bubDraw(st, g, cx, cy, tail, boxW, boxH) {
+    const { box } = st;
+    const sw = Math.max(0, +(box.bubbleStrokeWidth ?? 4));
     // SVG（枠いっぱい・はみ出し可）。線の層は塗りの層の形で穴を空け、外周だけ見せる
     const svg = st.svg;
     svg.textContent = "";
     svg.setAttribute("width", boxW);
     svg.setAttribute("height", boxH);
     svg.setAttribute("viewBox", `0 0 ${boxW} ${boxH}`);
-    const shapes = bubShapes(shape, cx, cy, W, H, f, tail);
+    const shapes = bubShapes(g.shape, cx, cy, g.W, g.H, g.f, tail);
     const id = "bubm" + (st.maskId || (st.maskId = ++bubSeq));
     const defs = svgEl("defs", {});
     const mask = svgEl("mask", { id, maskUnits: "userSpaceOnUse", x: -20000, y: -20000, width: 40000, height: 40000 });
@@ -1254,36 +1233,129 @@
     svg.appendChild(defs);
     const stroke = box.bubbleStroke || "#1a1a1a";
     if (sw > 0) {
-      const g = svgEl("g", { fill: stroke, stroke, "stroke-width": sw * 2, "stroke-linejoin": "round", mask: `url(#${id})` });
-      for (const [tag, a] of shapes) g.appendChild(svgEl(tag, a));
-      svg.appendChild(g);
+      const gs = svgEl("g", { fill: stroke, stroke, "stroke-width": sw * 2, "stroke-linejoin": "round", mask: `url(#${id})` });
+      for (const [tag, a] of shapes) gs.appendChild(svgEl(tag, a));
+      svg.appendChild(gs);
     }
     // 濃さは図形ごとでなく層まとめて掛ける（尻尾と本体・もくもくの丸が重なる所だけ濃くならないように）
-    const fill = svgEl("g", { fill: box.bubbleFill || "#ffffff", opacity: box.bubbleFillOpacity ?? 0.95 });
+    const fill = svgEl("g", { fill: box.bubbleFill || "#ffffff", opacity: box.bubbleFillOpacity ?? 1 });
     for (const [tag, a] of shapes) fill.appendChild(svgEl(tag, a));
     svg.appendChild(fill);
-
-    t.style.left = (cx - tw / 2) + "px";
-    t.style.top = (cy - th / 2) + "px";
+    st.text.style.left = (cx - g.tw / 2) + "px";
+    st.text.style.top = (cy - g.th / 2) + "px";
     st.wrap.style.transformOrigin = `${cx}px ${cy}px`;
+  }
+
+  // ---- 枠の中の吹き出し全部を並べ直す ----
+  // 最新（[0]）がいちばん手前で、アバターに近い側へ寄る。古いものはアバターと反対側へ、
+  // 少し重ねて奥に並べる（横書き=縦に積む／縦書き=横に並べる）。枠に入りきらない古いものは消す。
+  // 履歴が2つ以上のときは、1つの吹き出しが枠の主軸の6割までに収まるよう縮める
+  // （最新の長文が枠を占領して、ほかの吹き出しが1つも見えなくならないように）
+  const BUB_OVERLAP = 0.26;
+  function bubLayoutAll(container) {
+    const list = bubList(container);
+    if (!list.length) return;
+    const box = list[0].box;
+    if (!box) return;
+    const boxW = container.clientWidth, boxH = container.clientHeight;
+    if (!boxW || !boxH) return;
+    const keep = clamp(Math.round(+(box.bubbleHistory || 1)), 1, 6);
+    while (list.length > keep) bubRemove(container, list.pop());   // 古いものから消す
+    const vertical = box.bubbleDir === "v";
+    const sw = Math.max(0, +(box.bubbleStrokeWidth ?? 4));
+    const margin = sw + 4;
+    const par = container.offsetParent || container.parentElement;
+    const parW = (par && par.clientWidth) || 1920, parH = (par && par.clientHeight) || 1080;
+    const ax = (box.tailX ?? 85) / 100 * parW - container.offsetLeft;
+    const ay = (box.tailY ?? 85) / 100 * parH - container.offsetTop;
+    const multi = keep > 1;
+    const maxW = multi && vertical ? boxW * 0.6 : boxW;
+    const maxH = multi && !vertical ? boxH * 0.6 : boxH;
+
+    let prev = null, dir = 0;
+    for (let i = 0; i < list.length; i++) {
+      const st = list[i];
+      st.box = box;
+      // 奥ほど少し小さく（奥行きが出て、限られた枠にも並べやすい）
+      const scale = Math.pow(0.88, i);
+      const g = bubMeasure(st, vertical ? maxW * scale : maxW, vertical ? maxH : maxH * scale, margin, scale);
+      // 主軸（積む向き）と交差軸。交差軸は全員アバター寄りにそろえる
+      const crossC = vertical
+        ? (boxH - 2 * margin <= g.H ? boxH / 2 : clamp(ay, margin + g.H / 2, boxH - margin - g.H / 2))
+        : (boxW - 2 * margin <= g.W ? boxW / 2 : clamp(ax, margin + g.W / 2, boxW - margin - g.W / 2));
+      const len = vertical ? g.W : g.H, boxLen = vertical ? boxW : boxH;
+      let mainC;
+      if (!prev) {
+        const a = vertical ? ax : ay;
+        mainC = boxLen - 2 * margin <= len ? boxLen / 2 : clamp(a, margin + len / 2, boxLen - margin - len / 2);
+        dir = a >= mainC ? -1 : 1;   // 古いものはアバターと反対側へ
+      } else {
+        const overlap = BUB_OVERLAP * Math.min(prev.len, len);
+        mainC = prev.mainC + dir * (prev.len / 2 + len / 2 - overlap);
+        const lo = mainC - len / 2, hi = mainC + len / 2;
+        if (lo < margin - 0.5 || hi > boxLen - margin + 0.5) {   // 入りきらない古いものは消す
+          for (const old of list.slice(i)) bubRemove(container, old);
+          break;
+        }
+      }
+      const cx = vertical ? mainC : crossC, cy = vertical ? crossC : mainC;
+      // 尻尾は最新の吹き出しだけ（古いものまで尻尾を出すと、アバターの周りが混み合う）
+      let tail = null;
+      if (i === 0 && box.tailOn !== false) {
+        const dx = ax - cx, dy = ay - cy, dist = Math.hypot(dx, dy);
+        const R = bubEdge(g.shape, g.W, g.H, dx, dy);
+        const L = Math.min(+(box.tailLen ?? 140), dist - R - 6);
+        if (dist > 1 && L > g.f * 0.4) tail = { ux: dx / dist, uy: dy / dist, R, L };
+      }
+      bubDraw(st, g, cx, cy, tail, boxW, boxH);
+      // 手前ほど上に重ね、奥ほど少し沈ませる。吹き出しごと透かすと、重なった所で奥の
+      // 吹き出しが透けて縞に見えるので、塗りは不透明のまま暗くし、文字だけ薄くする
+      st.wrap.style.zIndex = String(10 - i);
+      st.svg.style.filter = i ? `brightness(${Math.max(0.6, 1 - 0.09 * i)})` : "";
+      st.text.style.opacity = i ? String(Math.max(0.5, 1 - 0.14 * i)) : "";
+      // 押し出された古い吹き出しは、前の位置からすっと動かす
+      if (i > 0 && st.cx !== undefined && (st.cx !== cx || st.cy !== cy)) {
+        const w = st.wrap;
+        w.style.transition = "none";
+        w.style.transform = `translate(${st.cx - cx}px, ${st.cy - cy}px)`;
+        void w.offsetWidth;
+        w.style.transition = "transform .28s ease-out, opacity .28s";
+        w.style.transform = "";
+      }
+      st.cx = cx; st.cy = cy;
+      prev = { mainC, len };
+    }
+  }
+
+  function bubList(container) {
+    const list = (container._bubs || []).filter(st => st.wrap.isConnected);
+    container._bubs = list;
+    return list;
+  }
+  function bubRemove(container, st) {
+    clearTimeout(st.timer);
+    st.wrap.remove();
+    container._bubs = (container._bubs || []).filter(x => x !== st);
   }
 
   /**
    * 吹き出しの本文を更新する。partial=true は認識途中（薄文字で伸びる）。
-   * 前の発話が確定したあとに次の発話が来たら、新しい吹き出しへ差し替える（最新の1つだけ）
+   * 前の発話が確定したあとに次の発話が来たら、新しい吹き出しを手前に足す
+   * （表示する数 bubbleHistory を超えた古いものから消える。既定は1＝差し替え）
    */
   FX.bubbleUpdate = function (container, opts) {
-    const prev = container._bub && container._bub.wrap.isConnected ? container._bub : null;
-    const fresh = !prev || (!prev.partial && prev.raw) || prev.fading;
-    if (fresh && prev) { clearTimeout(prev.timer); prev.wrap.remove(); container._bub = null; }
-    const st = bubState(container);
+    const list = bubList(container);
+    const newest = list[0];
+    const fresh = !newest || (!newest.partial && newest.raw) || newest.fading;
+    const st = fresh ? bubState(container) : newest;
+    if (fresh) list.unshift(st);
+    container._bubs = list;
     clearTimeout(st.timer);
     st.style = opts.style; st.table = opts.table || []; st.box = opts.box;
     st.raw = opts.text || "";
     st.partial = !!opts.partial;
     if (!opts.partial) st.fid = opts.fid ?? null;
-    if (fresh) st.tr.clear();
-    bubLayout(container);
+    bubLayoutAll(container);
     if (fresh) {
       st.wrap.classList.remove("bub-pop");
       void st.wrap.offsetWidth;
@@ -1295,45 +1367,50 @@
       if (life > 0) st.timer = setTimeout(() => {
         st.fading = true;
         st.wrap.classList.add("bub-fade");
-        setTimeout(() => { if (container._bub === st) { st.wrap.remove(); container._bub = null; } }, 450);
+        setTimeout(() => { bubRemove(container, st); bubLayoutAll(container); }, 450);
       }, life * 1000);
     }
   };
 
   // 認識途中の吹き出しを取り消す（空の途中経過・「確定だけ表示」への切替）
   FX.bubbleDropPartial = function (container) {
-    const st = container._bub;
-    if (st && st.partial && st.wrap.isConnected) { st.wrap.remove(); container._bub = null; }
+    const list = bubList(container);
+    if (list[0] && list[0].partial) { bubRemove(container, list[0]); bubLayoutAll(container); }
   };
 
-  // 確定した吹き出し（fid）に訳を併記する。出ていなければ false
+  // 確定した吹き出し（fid）に訳を併記する。もう出ていなければ false
   FX.bubbleTranslate = function (container, fid, text, style, order = 0, lang = "") {
-    const st = container._bub;
-    if (!st || !st.wrap.isConnected || st.partial || st.fid !== fid) return false;
+    const st = bubList(container).find(x => !x.partial && x.fid === fid);
+    if (!st) return false;
     st.tr.set(order, { text, lang });
     if (style) st.style = style;
-    bubLayout(container);
+    bubLayoutAll(container);
     return true;
   };
 
-  // 設定（形・アバター位置・デザイン）が変わったら、出ている吹き出しを描き直す
+  // 設定（形・アバター位置・表示する数・デザイン）が変わったら、出ている吹き出しを描き直す
   FX.bubbleRelayout = function (container, box, style) {
-    const st = container._bub;
-    if (!st || !st.wrap.isConnected) return;
-    if (box) st.box = box;
-    if (style) st.style = style;
-    bubLayout(container);
+    const list = bubList(container);
+    if (!list.length) return;
+    for (const st of list) {
+      if (box) st.box = box;
+      if (style) st.style = style;
+    }
+    bubLayoutAll(container);
   };
 
   FX.bubbleClear = function (container) {
-    const st = container._bub;
-    if (st) { clearTimeout(st.timer); st.wrap.remove(); }
-    container._bub = null;
+    for (const st of container._bubs || []) { clearTimeout(st.timer); st.wrap.remove(); }
+    container._bubs = [];
   };
   // フォントの読み込みが終わると文字の幅が変わるので、出ている吹き出しを測り直す
   if (document.fonts && document.fonts.ready)
     document.fonts.ready.then(() => {
-      document.querySelectorAll(".bub-wrap").forEach(w => w.parentElement && bubLayout(w.parentElement));
+      const seen = new Set();
+      document.querySelectorAll(".bub-wrap").forEach(w => {
+        const c = w.parentElement;
+        if (c && !seen.has(c)) { seen.add(c); bubLayoutAll(c); }
+      });
     });
 
   // ---------------- GUIの選択肢の表示名（設定画面用） ----------------
