@@ -327,6 +327,61 @@ class BubbleOverlayTests(unittest.TestCase):
             for v, w in zip(x["rect"], before[x["text"]]):
                 self.assertAlmostEqual(v, w, delta=2)
 
+    # ---- コラボ: 2人が同じ吹き出しレイアウト → 1つの枠にまとめる ----
+    def _collab(self, box):
+        sp = {"自分": {"style": STYLE, "box": box}, "ゲスト": {"style": STYLE, "box": box}}
+        self.page.evaluate("sp => updatePanes({ style: sp['自分'].style, box: sp['自分'].box, "
+                           "speakers: sp, effects: [], hotwords: [] })", sp)
+
+    def _pane_wraps(self):
+        return self.page.evaluate("""() => [...document.querySelectorAll('.pane')]
+          .filter(p => p.style.display !== 'none').map(p => p.querySelectorAll('.bub-wrap').length)""")
+
+    def test_collab_same_layout_shares_one_set_of_bubbles(self):
+        self._collab(dict(DEFAULT_BOXES["bubble"], bubbleHistory=3))
+        self._send({"type": "final", "speaker": "自分", "text": "こんばんは", "id": 60})
+        self._send({"type": "final", "speaker": "ゲスト", "text": "よろしく", "id": 61})
+        self.assertEqual(sorted(self._pane_wraps()), [0, 2])   # 自分の枠に2人分、相手の枠は空
+        b = self._bubbles()
+        self.assertIn("よろしく", b[0]["text"])               # 新しいほうが手前
+        self.assertLess(b[1]["bottom"], b[0]["bottom"])        # 重ねて隠さず、積み重ねる
+
+    def test_collab_partials_of_two_speakers_do_not_mix(self):
+        self._collab(dict(DEFAULT_BOXES["bubble"], bubbleHistory=3))
+        self._send({"type": "partial", "speaker": "自分", "text": "わたしは"})
+        self._send({"type": "partial", "speaker": "ゲスト", "text": "ぼくは"})
+        self._send({"type": "partial", "speaker": "自分", "text": "わたしはね"})
+        texts = sorted(x["text"] for x in self._bubbles())
+        self.assertEqual(texts, ["ぼくは", "わたしはね"])
+        self._send({"type": "partial", "speaker": "ゲスト", "text": ""})   # 相手の途中経過だけ消す
+        self.assertEqual([x["text"] for x in self._bubbles()], ["わたしはね"])
+
+    def test_collab_guest_tail_points_to_guest_avatar(self):
+        spots = [{"x": 30, "y": 20}, {"x": 70, "y": 20}]
+        self._collab(dict(DEFAULT_BOXES["bubble"], bubbleArrange="scatter", bubbleSpots=spots,
+                          bubbleHistory=2, tailX=90, tailY=85, guestTailX=10, guestTailY=85))
+        self._send({"type": "final", "speaker": "自分", "text": "自分の発話", "id": 62})
+        self._send({"type": "final", "speaker": "ゲスト", "text": "相手の発話", "id": 63})
+        tails = self.page.evaluate("""() => {
+          const pane = [...document.querySelectorAll('.pane')].find(p => p.querySelector('.bub-wrap'));
+          return Object.fromEntries([...pane.querySelectorAll('.bub-wrap')].map(w => {
+            const body = w.querySelector('.bub-svg > g:last-child').firstElementChild.getBoundingClientRect();
+            const t = w.querySelector('.bub-svg > g:last-child path').getBoundingClientRect();
+            return [w.innerText, (t.left + t.right) / 2 - (body.left + body.right) / 2];
+          }));
+        }""")
+        self.assertGreater(tails["自分の発話"], 0)    # 自分のアバターは右
+        self.assertLess(tails["相手の発話"], 0)       # 相手のアバターは左
+
+    def test_collab_different_layouts_stay_separate(self):
+        sp = {"自分": {"style": STYLE, "box": DEFAULT_BOXES["bubble"]},
+              "ゲスト": {"style": STYLE, "box": DEFAULT_BOXES["bubble-tate"]}}
+        self.page.evaluate("sp => updatePanes({ style: sp['自分'].style, box: sp['自分'].box, "
+                           "speakers: sp, effects: [], hotwords: [] })", sp)
+        self._send({"type": "final", "speaker": "自分", "text": "こんばんは", "id": 64})
+        self._send({"type": "final", "speaker": "ゲスト", "text": "よろしく", "id": 65})
+        self.assertEqual(sorted(self._pane_wraps()), [1, 1])   # それぞれの枠に1つずつ
+
     def test_switching_mode_away_clears_the_bubble(self):
         self._use()
         self._send({"type": "final", "text": "こんにちは", "id": 5})

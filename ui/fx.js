@@ -1266,10 +1266,16 @@
     const margin = sw + 4;
     const par = container.offsetParent || container.parentElement;
     const parW = (par && par.clientWidth) || 1920, parH = (par && par.clientHeight) || 1080;
-    const ax = (box.tailX ?? 85) / 100 * parW - container.offsetLeft;
-    const ay = (box.tailY ?? 85) / 100 * parH - container.offsetTop;
+    // アバター位置（container 内の px）。吹き出しごとに target（コラボの相手など）があればそちら。
+    // 積み重ねの寄せ先・向きは最新の吹き出しの話者で決める
+    const avatarOf = st => {
+      const t = st && st.target;
+      return { x: (t ? t.x : (box.tailX ?? 85)) / 100 * parW - container.offsetLeft,
+               y: (t ? t.y : (box.tailY ?? 85)) / 100 * parH - container.offsetTop };
+    };
+    const { x: ax, y: ay } = avatarOf(list[0]);
     if (box.bubbleArrange === "scatter") {
-      bubLayoutScatter(container, box, { boxW, boxH, margin, parW, parH, ax, ay, keep });
+      bubLayoutScatter(container, box, { boxW, boxH, margin, parW, parH, avatarOf, keep });
       return;
     }
     const multi = keep > 1;
@@ -1344,7 +1350,7 @@
     return spots.length ? spots : [{ x: (box.x ?? 0) + (box.w ?? 100) / 2, y: (box.y ?? 0) + (box.h ?? 100) / 2 }];
   }
   function bubLayoutScatter(container, box, c) {
-    const { margin, parW, parH, ax, ay } = c;
+    const { margin, parW, parH, avatarOf } = c;
     const spots = bubSpotsOf(box);
     const offX = container.offsetLeft, offY = container.offsetTop;
     const maxW = clamp(+(box.bubbleSpotW ?? 32), 5, 100) / 100 * parW;
@@ -1384,6 +1390,7 @@
       const cy = clamp(p.y, -offY + margin + g.H / 2, parH - offY - margin - g.H / 2);
       let tail = null;
       if (box.tailOn !== false) {
+        const { x: ax, y: ay } = avatarOf(st);   // 尻尾はその吹き出しの話者のアバターへ
         const dx = ax - cx, dy = ay - cy, dist = Math.hypot(dx, dy);
         const R = bubEdge(g.shape, g.W, g.H, dx, dy);
         const L = Math.min(+(box.tailLen ?? 140), dist - R - 6);
@@ -1417,12 +1424,16 @@
    * 前の発話が確定したあとに次の発話が来たら、新しい吹き出しを手前に足す
    * （表示する数 bubbleHistory を超えた古いものから消える。既定は1＝差し替え）
    */
+  // opts.speaker: 話者の名前（コラボで1つの枠を2人が共有するとき）。opts.target: その話者の
+  // アバター位置 {x, y}（画面の％・無ければレイアウトのアバター位置）
   FX.bubbleUpdate = function (container, opts) {
     const list = bubList(container);
-    const newest = list[0];
-    const fresh = !newest || (!newest.partial && newest.raw) || newest.fading;
-    const st = fresh ? bubState(container) : newest;
-    if (fresh) { st.spot = null; list.unshift(st); }
+    const spk = opts.speaker || "";
+    const mine = list.find(x => (x.spk || "") === spk);   // この話者のいちばん新しい吹き出し
+    const fresh = !mine || (!mine.partial && mine.raw) || mine.fading;
+    const st = fresh ? bubState(container) : mine;
+    if (fresh) { st.spot = null; st.spk = spk; list.unshift(st); }
+    st.target = opts.target || null;
     container._bubs = list;
     clearTimeout(st.timer);
     st.style = opts.style; st.table = opts.table || []; st.box = opts.box;
@@ -1447,10 +1458,14 @@
     }
   };
 
-  // 認識途中の吹き出しを取り消す（空の途中経過・「確定だけ表示」への切替）
-  FX.bubbleDropPartial = function (container) {
-    const list = bubList(container);
-    if (list[0] && list[0].partial) { bubRemove(container, list[0]); bubLayoutAll(container); }
+  // 認識途中の吹き出しを取り消す（空の途中経過・「確定だけ表示」への切替）。
+  // speaker を渡すとその話者の分だけ（省くと全員の途中経過）
+  FX.bubbleDropPartial = function (container, speaker) {
+    const drop = bubList(container).filter(x => x.partial &&
+      (speaker === undefined || (x.spk || "") === (speaker || "")));
+    if (!drop.length) return;
+    for (const st of drop) bubRemove(container, st);
+    bubLayoutAll(container);
   };
 
   // 確定した吹き出し（fid）に訳を併記する。もう出ていなければ false
@@ -1463,13 +1478,16 @@
     return true;
   };
 
-  // 設定（形・アバター位置・表示する数・デザイン）が変わったら、出ている吹き出しを描き直す
-  FX.bubbleRelayout = function (container, box, style) {
+  // 設定（形・アバター位置・表示する数・デザイン）が変わったら、出ている吹き出しを描き直す。
+  // speaker を渡すと、デザインと target はその話者の吹き出しにだけ当てる（コラボの共有枠）
+  FX.bubbleRelayout = function (container, box, style, speaker, target) {
     const list = bubList(container);
     if (!list.length) return;
     for (const st of list) {
       if (box) st.box = box;
-      if (style) st.style = style;
+      const own = speaker === undefined || (st.spk || "") === (speaker || "");
+      if (own && style) st.style = style;
+      if (own && speaker !== undefined) st.target = target || null;
     }
     bubLayoutAll(container);
   };

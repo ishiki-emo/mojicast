@@ -14,6 +14,11 @@
   const DICT = {
     zh: {
       // 新UI（feat/new-ui）で追加
+      "sy.bub_guest_hint": "联动时对方也使用此布局，会把两人的气泡合在一起排列。对方气泡的尾巴指向下方的位置",
+      "sy.bub_gtail_x": "对方头像位置 X",
+      "sy.bub_gtail_y": "对方头像位置 Y",
+      "sy.guest_avatar": "对方",
+      "sy.guest_avatar_t": "联动对方的尾巴指向的位置（可拖动）",
       "sy.bub_arrange": "排列方式",
       "sy.bub_arr_stack": "堆叠（靠近头像）",
       "sy.bub_arr_scatter": "分散到各点",
@@ -559,6 +564,11 @@
     },
     en: {
       // 新UI（feat/new-ui）で追加
+      "sy.bub_guest_hint": "When your collab partner also uses this layout, both people's bubbles are arranged together. The partner's tails point to the position below",
+      "sy.bub_gtail_x": "Partner avatar X",
+      "sy.bub_gtail_y": "Partner avatar Y",
+      "sy.guest_avatar": "Partner",
+      "sy.guest_avatar_t": "Where the partner's tail points (drag to move)",
       "sy.bub_arrange": "Arrangement",
       "sy.bub_arr_stack": "Stack (near the avatar)",
       "sy.bub_arr_scatter": "Scatter to points",

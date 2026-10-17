@@ -131,7 +131,11 @@
       ((isLyric(p.box) && !p.box.lyricPartial) || isBubble(p.box)) ? "none" : "";
     p.table = FX.buildTable(hotwords, effects, p.style);
     // 形・アバター位置・デザインを変えたら、出ている吹き出しをその場で描き直す
-    if (isBubble(p.box)) FX.bubbleRelayout(p.boxEl, p.box, p.style);
+    // （共有枠では、この話者の吹き出しにだけこの話者のデザインと相手のアバター位置を当てる）
+    if (isBubble(p.box)) {
+      const host = p._bubHost || p;
+      FX.bubbleRelayout(host.boxEl, host.box, p.style, p._bubSpk || "", p._bubTarget);
+    }
   }
 
   // style/init イベントからペイン構成を更新する。
@@ -167,7 +171,28 @@
       speakerNames = [];
       def.boxEl.style.display = "";
     }
+    shareBubbles();
     for (const p of panes.values()) applyPane(p);
+  }
+
+  // コラボで2人とも同じ吹き出しレイアウトのときは、相手の吹き出しも自分の枠にまとめる。
+  // 別々の枠のままだと同じ場所・同じアバターへ重なって描かれ、相手の吹き出しが自分の
+  // 吹き出しを隠す（散らすでも互いの吹き出しを知らずに同じポイントへ出る）。
+  // まとめると積み重ね・散らす・表示する数が2人の発話を通して効き、相手の吹き出しの
+  // 尻尾はレイアウトの「相手のアバター位置」（未設定なら左右反転の位置）を向く
+  function shareBubbles() {
+    for (const p of panes.values()) {
+      p._bubHost = p; p._bubSpk = ""; p._bubTarget = null;
+    }
+    if (speakerNames.length < 2) return;
+    const [a, b] = speakerNames;
+    const pa = panes.get(a), pb = panes.get(b);
+    pa._bubSpk = a; pb._bubSpk = b;
+    if (!(isBubble(pa.box) && isBubble(pb.box) && pa.box.id && pa.box.id === pb.box.id)) return;
+    const box = pa.box;
+    pb._bubHost = pa;
+    pb._bubTarget = { x: box.guestTailX ?? (100 - (box.tailX ?? 85)), y: box.guestTailY ?? (box.tailY ?? 85) };
+    FX.bubbleClear(pb.boxEl);   // 別々の枠だったときに相手の枠へ出ていた吹き出しは片付ける
   }
 
   // ---------------- 字幕の描画 ----------------
@@ -198,8 +223,11 @@
 
   // 吹き出しへ本文を出す（partial=true は認識途中）
   function bubble(p, text, id, partial, style = p.style) {
-    FX.bubbleUpdate(p.boxEl, { text, fid: id, partial, style, table: p.table, box: p.box });
+    const host = p._bubHost || p;   // コラボで枠を共有していれば自分（先頭話者）の枠へ
+    FX.bubbleUpdate(host.boxEl, { text, fid: id, partial, style, table: p.table, box: host.box,
+                                  speaker: p._bubSpk || "", target: p._bubTarget || null });
   }
+  const dropBubblePartial = p => FX.bubbleDropPartial((p._bubHost || p).boxEl, p._bubSpk || "");
 
   function addFinal(p, text, id) {
     if (enOnly(p) && isBubble(p.box)) {
@@ -210,7 +238,7 @@
           pendingEn.delete(pendingEn.keys().next().value);
         bubble(p, "…", null, true);
         clearTimeout(p._enWait);
-        p._enWait = setTimeout(() => FX.bubbleDropPartial(p.boxEl), PENDING_HIDE_MS);
+        p._enWait = setTimeout(() => dropBubblePartial(p), PENDING_HIDE_MS);
       }
       return;
     }
@@ -263,7 +291,7 @@
   function setPartial(p, text) {
     if (isBubble(p.box)) {
       // 認識途中: 吹き出しが薄文字で伸びていく（設定でオフ可）。空は「途中経過を消す」合図
-      if (!text) { FX.bubbleDropPartial(p.boxEl); return; }
+      if (!text) { dropBubblePartial(p); return; }
       if (p.box.bubblePartial === false) return;
       bubble(p, enOnly(p) ? "…" : text, null, true);
       return;

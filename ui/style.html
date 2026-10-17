@@ -194,6 +194,15 @@
     transform: translateX(-50%); padding: 1px 6px; border-radius: 4px; white-space: nowrap;
     font-size: 10px; font-weight: 800; color: #fff; background: rgba(0,0,0,.6); }
   #stage.bubble-mode #stageAvatar { display: block; }
+  /* コラボ時: 相手のアバター（同じ吹き出しレイアウトを2人で使うとき、相手の尻尾が向く先） */
+  #stageGuestAvatar { position: absolute; z-index: 4; display: none; width: 26px; height: 26px;
+    margin: -13px 0 0 -13px; border-radius: 50%; border: 2px solid #fff; touch-action: none;
+    background: var(--ok, #3dffa0); box-shadow: 0 0 0 3px rgba(0,0,0,.35); }
+  #stageGuestAvatar::after { content: attr(data-label); position: absolute; left: 50%; top: 30px;
+    transform: translateX(-50%); padding: 1px 6px; border-radius: 4px; white-space: nowrap;
+    font-size: 10px; font-weight: 800; color: #fff; background: rgba(0,0,0,.6); }
+  #stage.bubble-mode.collab-mode #stageGuestAvatar { display: block; }
+  .page.editing #stage.bubble-mode #stageGuestAvatar { cursor: grab; }
   .page.editing #stage.bubble-mode #stageAvatar { cursor: grab; }
   #frameFields, #geoFields { display: contents; }
   /* 吹き出しを散らすポイント（中心の印＋1つの大きさの上限の枠）。編集中はドラッグで動かす */
@@ -417,6 +426,9 @@
         <div class="fr only-bubble only-scatter"><label><span data-i18n="sy.bub_spot_h">1つの大きさの上限 高さ</span> <output id="o_bsph"></output></label><input type="range" id="b_bubbleSpotH" min="8" max="80" step="1"></div>
         <div class="fr only-bubble"><label><span data-i18n="sy.bub_tail_x">アバター位置 X</span> <output id="o_btx"></output></label><input type="range" id="b_tailX" min="0" max="100" step="1"></div>
         <div class="fr only-bubble"><label><span data-i18n="sy.bub_tail_y">アバター位置 Y</span> <output id="o_bty"></output></label><input type="range" id="b_tailY" min="0" max="100" step="1"></div>
+        <div class="fr only-bubble only-collab" style="grid-column:1/-1"><small data-i18n="sy.bub_guest_hint">コラボで相手もこのレイアウトを使うと、2人の吹き出しを1つにまとめて並べます。相手の吹き出しの尻尾は下の位置を向きます</small></div>
+        <div class="fr only-bubble only-collab"><label><span data-i18n="sy.bub_gtail_x">相手のアバター位置 X</span> <output id="o_bgtx"></output></label><input type="range" id="b_guestTailX" min="0" max="100" step="1"></div>
+        <div class="fr only-bubble only-collab"><label><span data-i18n="sy.bub_gtail_y">相手のアバター位置 Y</span> <output id="o_bgty"></output></label><input type="range" id="b_guestTailY" min="0" max="100" step="1"></div>
         <div class="fr chk only-bubble"><input type="checkbox" id="b_tailOn"><span data-i18n="sy.bub_tail_on">尻尾をアバターへ向ける</span></div>
         <div class="fr only-bubble" id="r_tailLen"><label><span data-i18n="sy.bub_tail_len">尻尾の長さ</span> <output id="o_btl"></output></label><input type="range" id="b_tailLen" min="20" max="300" step="10"></div>
         <div class="fr only-bubble"><label><span data-i18n="sy.bub_scale">文字の大きさ</span> <output id="o_bbs"></output><span data-i18n="sy.bub_scale_d">（デザイン比・最大）</span></label><input type="range" id="b_bubbleScale" min="0.5" max="2" step="0.05"></div>
@@ -445,6 +457,7 @@
         <div id="stage">
           <div class="ptag"><span data-i18n="sy.layout_preview">レイアウトプレビュー（1920×1080の縮小）</span><span id="stageStyleName" style="margin-left:10px;color:rgba(255,255,255,.55)"></span></div>
           <div id="stageSpots"></div>
+          <div id="stageGuestAvatar" data-label="相手" title="コラボ相手の尻尾が向く先（ドラッグで移動）" data-i18n-title="sy.guest_avatar_t"></div>
           <div id="stageAvatar" data-label="アバター" title="尻尾が向く先（ドラッグで移動）" data-i18n-title="sy.avatar_t"></div>
           <div id="stageHandle" title="ドラッグで移動・右下の角で大きさを変更" data-i18n-title="sy.handle_t"><span class="geo" id="stageGeo"></span><span class="grip"></span></div>
           <div id="stageInner">
@@ -497,6 +510,7 @@
   let effects = [], hotwords = [], sysFonts = [];
   let activePresetId = "", activeBoxId = "";
   let presetEditing = false, boxEditing = false;
+  let collabOn = false;
   const styleQuery = new URLSearchParams(location.search);
   const requestedTopTab = styleQuery.get("tab") === "box" ? "box" : "style";
   let currentTopTab = requestedTopTab;
@@ -534,6 +548,7 @@
     defaultBoxes = dj.boxes || [];
     activePresetId = cj.preset || "";
     activeBoxId = cj.box || "";
+    collabOn = !!cj.collab;   // コラボ中だけ「相手のアバター位置」を出す
     applyTheme(cj.theme);   // 保存済みテーマを確定反映（先読みの上書き）
 
     // フォント選択: おすすめ + システムフォント全部
@@ -903,6 +918,9 @@
     $("frameFields").style.display = bubble ? "none" : "contents";
     $("stage").classList.toggle("bubble-mode", bubble);
     const scatter = bubble && $("b_bubbleArrange").value === "scatter";
+    $("stage").classList.toggle("collab-mode", bubble && collabOn);
+    for (const el of document.querySelectorAll(".only-collab"))
+      el.style.display = bubble && collabOn ? "" : "none";
     $("stage").classList.toggle("scatter-mode", scatter);
     for (const el of document.querySelectorAll(".only-scatter"))
       el.style.display = scatter ? "" : "none";
@@ -955,6 +973,9 @@
     setR("b_bubbleHistory", "o_bhist", b.bubbleHistory ?? 1, v => T("sy.bub_history_n", "{n}個").replace("{n}", v));
     setR("b_tailX", "o_btx", b.tailX ?? 85, v => v + "%");
     setR("b_tailY", "o_bty", b.tailY ?? 85, v => v + "%");
+    // 相手のアバター位置。未設定なら左右反転の位置（overlay 側の既定と同じ）
+    setR("b_guestTailX", "o_bgtx", b.guestTailX ?? (100 - (b.tailX ?? 85)), v => v + "%");
+    setR("b_guestTailY", "o_bgty", b.guestTailY ?? (b.tailY ?? 85), v => v + "%");
     $("b_tailOn").checked = b.tailOn !== false;
     setR("b_tailLen", "o_btl", b.tailLen ?? 140, v => v + "px");
     setR("b_bubbleScale", "o_bbs", b.bubbleScale ?? 1, v => "×" + v);
@@ -1034,6 +1055,7 @@
     b.bubbleSpotW = +$("b_bubbleSpotW").value;
     b.bubbleSpotH = +$("b_bubbleSpotH").value;
     b.tailX = +$("b_tailX").value; b.tailY = +$("b_tailY").value;
+    b.guestTailX = +$("b_guestTailX").value; b.guestTailY = +$("b_guestTailY").value;
     b.tailOn = $("b_tailOn").checked;
     b.tailLen = +$("b_tailLen").value;
     b.bubbleScale = +$("b_bubbleScale").value;
@@ -1145,7 +1167,7 @@
   $("stage").addEventListener("click", e => {
     const b = boxes[curBox];
     if (!boxEditing || !b || b.mode !== "bubble" || b.bubbleArrange !== "scatter") return;
-    if (e.target.closest(".spot-dot, #stageAvatar, .stageBtns")) return;
+    if (e.target.closest(".spot-dot, #stageAvatar, #stageGuestAvatar, .stageBtns")) return;
     b.bubbleSpots = b.bubbleSpots || [];
     if (b.bubbleSpots.length >= 8) return;
     b.bubbleSpots.push(stagePercent(e));
@@ -1153,6 +1175,9 @@
   });
 
   // ---- アバター位置（吹き出しの尻尾が向く先）のドラッグ ----
+  function guestTarget(b) {
+    return { x: b.guestTailX ?? (100 - (b.tailX ?? 85)), y: b.guestTailY ?? (b.tailY ?? 85) };
+  }
   function syncStageAvatar() {
     const b = boxes[curBox];
     if (!b) return;
@@ -1160,9 +1185,14 @@
     el.style.left = (b.tailX ?? 85) + "%";
     el.style.top = (b.tailY ?? 85) + "%";
     el.dataset.label = T("sy.avatar", "アバター");
+    const g = $("stageGuestAvatar"), t = guestTarget(b);
+    g.style.left = t.x + "%"; g.style.top = t.y + "%";
+    g.dataset.label = T("sy.guest_avatar", "相手");
   }
-  (function bindStageAvatar() {
-    const el = $("stageAvatar");
+  bindAvatarDrag("stageAvatar", "b_tailX", "b_tailY", "o_btx", "o_bty");
+  bindAvatarDrag("stageGuestAvatar", "b_guestTailX", "b_guestTailY", "o_bgtx", "o_bgty");
+  function bindAvatarDrag(elId, xId, yId, oxId, oyId) {
+    const el = $(elId);
     el.addEventListener("pointerdown", e => {
       if (!boxEditing) return;
       e.preventDefault();
@@ -1171,8 +1201,8 @@
       const move = ev => {
         const x = Math.round(clampGeo01((ev.clientX - stage.left) / stage.width) * 100);
         const y = Math.round(clampGeo01((ev.clientY - stage.top) / stage.height) * 100);
-        $("b_tailX").value = x; $("o_btx").textContent = x + "%";
-        $("b_tailY").value = y; $("o_bty").textContent = y + "%";
+        $(xId).value = x; $(oxId).textContent = x + "%";
+        $(yId).value = y; $(oyId).textContent = y + "%";
         collectBox(); setStyleDirty(true);
         stageApply();
       };
@@ -1185,7 +1215,7 @@
       el.addEventListener("pointerup", up);
       el.addEventListener("pointercancel", up);
     });
-  })();
+  }
   const clampGeo01 = v => Math.min(1, Math.max(0, v));
 
   // ---- プレビュー上の直接操作（枠のドラッグで移動・右下の角で大きさ） ----
@@ -1258,7 +1288,10 @@
     FX.applyBox($("stageBox"), $("stageScroll"), b, $("stageClip"));
     updateStageScale();
     syncStageHandle();
-    if (b.mode === "bubble") FX.bubbleRelayout($("stageBox"), b, stageStyle());
+    if (b.mode === "bubble") {
+      FX.bubbleRelayout($("stageBox"), b, stageStyle());
+      if (collabOn) FX.bubbleRelayout($("stageBox"), b, stageStyle(), "guest", guestTarget(b));
+    }
   }
 
   // ステージ用フォールバック（使用中プリセットが見つからない場合のみ）
@@ -1280,8 +1313,11 @@
     $("stageStyleName").textContent = p.name ? T("sy.stage_design","デザイン: ") + p.name : "";
     if (b.mode === "bubble") {
       // 長さの違う文を順に出し、吹き出しの伸び縮みと文字の縮み方を確かめられるようにする
+      // コラボ中は自分と相手を交互に（相手の吹き出しの尻尾は相手のアバターへ）
+      const guest = collabOn && stageN % 2 === 1;
       FX.bubbleUpdate($("stageBox"), { text: BUBBLE_LINES[stageN++ % BUBBLE_LINES.length],
-                                       partial: false, style: p, table, box: b });
+                                       partial: false, style: p, table, box: b,
+                                       speaker: guest ? "guest" : "", target: guest ? guestTarget(b) : null });
       return;
     }
     if ((b.mode || "flow") === "lyric") {
@@ -1420,6 +1456,7 @@
       b_lyricScale: ["o_bscale", v => "×" + v],
       b_lifeSec: ["o_blife", v => v + "秒"], b_lyricMaxScenes: ["o_bmc", v => v + "文"],
       b_tailX: ["o_btx", v => v + "%"], b_tailY: ["o_bty", v => v + "%"],
+      b_guestTailX: ["o_bgtx", v => v + "%"], b_guestTailY: ["o_bgty", v => v + "%"],
       b_tailLen: ["o_btl", v => v + "px"], b_bubbleScale: ["o_bbs", v => "×" + v],
       b_bubbleMinScale: ["o_bbm", v => "×" + v], b_bubbleFillOpacity: ["o_bfo", v => v],
       b_bubbleStrokeWidth: ["o_bsw", v => v + "px"],
