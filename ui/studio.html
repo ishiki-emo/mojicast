@@ -115,10 +115,11 @@
   .feature-master div { flex:1; }
   .feature-master strong { display:block; }
   .feature-master small { color:var(--dim); font-size:12px; }
-  .switch { width:42px; height:24px; border:0; border-radius:999px; padding:3px; background:#344157; cursor:pointer; }
-  .switch i { display:block; width:18px; height:18px; border-radius:50%; background:#8b99ad; transition:.16s; }
+  /* オン・オフのスイッチ（コックピット・アプリ設定・リアクション演出と同じ見た目） */
+  .switch { flex:none; width:39px; height:22px; border:0; border-radius:999px; padding:3px; background:#344157; cursor:pointer; transition:.16s; }
+  .switch i { display:block; width:16px; height:16px; border-radius:50%; background:#8b99ad; transition:.16s; }
   .switch[aria-pressed="true"] { background:color-mix(in srgb,var(--accent) 36%,#344157); }
-  .switch[aria-pressed="true"] i { transform:translateX(18px); background:var(--accent); }
+  .switch[aria-pressed="true"] i { transform:translateX(17px); background:var(--accent); }
   .detail { flex-direction:column; }
   .pane.detail.active { display:flex; }
   .backbar { height:50px; flex:none; display:flex; align-items:center; gap:12px; padding:0 18px;

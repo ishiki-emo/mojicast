@@ -187,6 +187,11 @@
     pointer-events: none; opacity: 0; transition: opacity .12s; }
   #stageHandle.dragging .geo, #stageHandle:hover .geo { opacity: 1; }
   footer { display: flex; gap: 10px; align-items: center; padding: 10px 14px; background: var(--panel); border-top: 1px solid var(--line); }
+  /* 保存ボタン式の画面: 未保存のあいだだけ目印を出し、保存ボタンを強める
+     （配信に映る見た目・単語は、いじっている途中で本番へ出ないよう保存ボタン式のまま） */
+  .unsaved-mark { color: var(--warn, #ffb84d); font-size: 12px; font-weight: 800; }
+  .unsaved-mark[hidden] { display: none; }
+  .btn.need-save { color: #061117; background: var(--ok); border-color: var(--ok); }
   #saved { color: var(--ok); font-size: 12px; opacity: 0; transition: opacity .3s; }
   [hidden] { display: none !important; }
   .expbar {
@@ -392,6 +397,7 @@
   <footer>
     <button class="btn" id="saveOnlyBtn" onclick="saveOnly()" data-i18n="sy.save">💾 保存</button>
     <button class="btn save" id="switchUseBtn" onclick="saveAndUse()">このデザインに切り替える</button>
+    <span class="unsaved-mark" id="unsavedMark" hidden data-i18n="sy.unsaved_mark">● 未保存の変更があります</span>
     <span id="saved">保存しました ✓</span>
     <span style="flex:1"></span>
     <span id="ioMsg"></span>
@@ -730,7 +736,7 @@
   }
 
   function addPresetFrom(source, name) {
-    styleDirty = true;
+    setStyleDirty(true);
     if (!source) return;
     const p = JSON.parse(JSON.stringify(source));
     p.id = uniqueId("custom-", presets);
@@ -758,7 +764,7 @@
     const original = defaultPresets.find(p => p.id === presets[cur].id);
     if (!original || !confirm(T("sy.confirm_reset","「{name}」を初期状態に戻しますか？").replace("{name}", presets[cur].name))) return;
     presets[cur] = JSON.parse(JSON.stringify(original));
-    styleDirty = true;
+    setStyleDirty(true);
     renderList(); loadForm(); beginPresetEdit();
     $("styleActionDesc").textContent = T("sy.reset_done","初期状態に戻しました。下の「保存」で確定します");
   }
@@ -767,7 +773,7 @@
     if (presets.length <= 1) { alert(T("sy.cant_delete_last","最後の1つは削除できません")); return; }
     if (!confirm(T("sy.confirm_delete","「{name}」を削除しますか？").replace("{name}", presets[cur].name))) return;
     presets.splice(cur, 1);
-    styleDirty = true;
+    setStyleDirty(true);
     cur = Math.max(0, cur - 1);
     closePresetEdit(); renderList(); loadForm();
   }
@@ -938,7 +944,7 @@
       if (g[k] === undefined) continue;
       $(id).value = g[k]; $(out).textContent = fmt($(id).value);
     }
-    collectBox(); styleDirty = true;
+    collectBox(); setStyleDirty(true);
     stageApply();
   }
   (function bindStageHandle() {
@@ -1030,7 +1036,7 @@
   }
 
   function addBoxFrom(source, name) {
-    styleDirty = true;
+    setStyleDirty(true);
     if (!source) return;
     const b = JSON.parse(JSON.stringify(source));
     b.id = uniqueId("box-", boxes);
@@ -1058,7 +1064,7 @@
     const original = defaultBoxes.find(b => b.id === boxes[curBox].id);
     if (!original || !confirm(T("sy.confirm_reset","「{name}」を初期状態に戻しますか？").replace("{name}", boxes[curBox].name))) return;
     boxes[curBox] = JSON.parse(JSON.stringify(original));
-    styleDirty = true;
+    setStyleDirty(true);
     renderBoxList(); loadBoxForm(); beginBoxEdit();
     $("boxActionDesc").textContent = "初期状態に戻しました。下の「保存」で確定します";
   }
@@ -1087,7 +1093,7 @@
     if (boxes.length <= 1) { alert(T("sy.cant_delete_last","最後の1つは削除できません")); return; }
     if (!confirm(T("sy.confirm_delete","「{name}」を削除しますか？").replace("{name}", boxes[curBox].name))) return;
     boxes.splice(curBox, 1);
-    styleDirty = true;
+    setStyleDirty(true);
     curBox = Math.max(0, curBox - 1);
     closeBoxEdit(); renderBoxList(); loadBoxForm();
   }
@@ -1142,7 +1148,7 @@
     for (const el of document.querySelectorAll("#bform input, #bform select")) {
       el.addEventListener("input", () => {
         if (bouts[el.id]) $(bouts[el.id][0]).textContent = bouts[el.id][1](el.value);
-        collectBox(); styleDirty = true;
+        collectBox(); setStyleDirty(true);
         $("editBoxName").textContent = boxes[curBox].name;
         renderBoxList();
         if (el.id === "b_mode") { updateModeRows(); stageClear(); stageAdd(); }
@@ -1154,7 +1160,7 @@
   }
 
   function onEdit() {
-    styleDirty = true;
+    setStyleDirty(true);
     collect();
     $("editName").textContent = presets[cur].name;
     renderList();
@@ -1177,11 +1183,16 @@
       postJson("/api/presets", { presets }),
       postJson("/api/boxes", { boxes })
     ]);
-    styleDirty = false;
+    setStyleDirty(false);
   }
 
   // 未保存の編集（デザイン・レイアウト）。スタジオ（親窓）が閉じる前に確かめる窓口
-  let styleDirty = false;
+  let styleDirty = false;   // 変えるときは setStyleDirty を通す
+  function setStyleDirty(v) {
+    styleDirty = !!v;
+    $("unsavedMark").hidden = !styleDirty;
+    $("saveOnlyBtn").classList.toggle("need-save", styleDirty);
+  }
   window.mojiIsDirty = () => styleDirty;
   window.mojiSave = async () => { try { await persistAll(); return true; } catch (e) { return false; } };
 

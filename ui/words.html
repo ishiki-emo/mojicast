@@ -105,6 +105,11 @@
   }
   .btn:hover { border-color: var(--accent); color: var(--accent); }
   .btn.save { border-color: var(--ok); color: var(--ok); }
+  /* 保存ボタン式の画面: 未保存のあいだだけ目印を出し、保存ボタンを強める
+     （配信に映る見た目・単語は、いじっている途中で本番へ出ないよう保存ボタン式のまま） */
+  .unsaved-mark { color: var(--warn, #ffb84d); font-size: 12px; font-weight: 800; }
+  .unsaved-mark[hidden] { display: none; }
+  .btn.need-save { color: #061117; background: var(--ok); border-color: var(--ok); }
   #saved { color: var(--ok); font-size: 12px; opacity: 0; transition: opacity .3s; }
   /* プレビュー */
   .prevCell { text-align: center; }
@@ -203,7 +208,7 @@
     <div class="note" data-i18n="wd.fx_note">
       画面に出たときに<b>派手に装飾する単語</b>（認識とは別管理）。
       「認識させる単語」に入れていなくても、ここの単語は標準で強調されます。
-      色・フォント・サイズ・アニメ・<b>飛ぶ絵文字</b>を個別指定でき、変更は<b>即反映</b>。
+      色・フォント・サイズ・アニメ・<b>飛ぶ絵文字</b>を個別指定でき、<b>保存するとすぐ反映</b>されます（▶開始し直す必要はありません）。
       プレビューはクリックで再生🎬
     </div>
     <table id="fxTable">
@@ -279,6 +284,7 @@
 
   <footer>
     <button class="btn save" id="saveAllBtn" onclick="saveAll()" disabled data-i18n="wd.save">💾 保存</button>
+    <span class="unsaved-mark" id="unsavedMark" hidden data-i18n="wd.unsaved_mark">● 未保存の変更があります</span>
     <span id="saved" data-i18n="wd.saved">保存しました ✓</span>
   </footer>
 
@@ -520,7 +526,12 @@
 
   // ---------- プロファイル ----------
   let curProfile = "";      // 編集中のスコープ（"" = 共通）
-  let dirty = false;        // 未保存の編集があるか
+  let dirty = false;        // 未保存の編集があるか（変えるときは setDirty を通す）
+  function setDirty(v) {
+    dirty = !!v;
+    $("unsavedMark").hidden = !dirty;
+    $("saveAllBtn").classList.toggle("need-save", dirty);
+  }
   let pendingSwitch = null; // 切替待ちのプロファイル名
   let profileNames = [];    // 既存プロファイル名（コピー元の選択肢用）
   let loadedProfile = null; // 現在テーブルに表示できているスコープ
@@ -629,7 +640,7 @@
     await fetch("/api/profiles", {
       method: "POST",
       body: JSON.stringify({ action: "delete", name: curProfile }) });
-    dirty = false;                       // 消した対象の編集は破棄
+    setDirty(false);                       // 消した対象の編集は破棄
     await loadProfiles("");
     notifyProfilesChanged();
     await switchTo("");
@@ -669,7 +680,7 @@
       if (!(gloss.entries || []).length) addGlossRow();
 
       loadedProfile = profile;
-      dirty = false;
+      setDirty(false);
       $("loadErr").textContent = "";
       $("saveAllBtn").disabled = false;
       return true;
@@ -745,7 +756,7 @@
     const kinds = singleTab ? [singleTab] : Object.keys(posts);
     try {
       await Promise.all(kinds.map(k => posts[k]()));
-      dirty = false;
+      setDirty(false);
       $("loadErr").textContent = "";
       const s = $("saved");
       s.style.opacity = 1;
@@ -763,10 +774,10 @@
 
   // 未保存の編集を検知（入力・行削除）
   for (const page of document.querySelectorAll(".page")) {
-    page.addEventListener("input", () => { dirty = true; });
+    page.addEventListener("input", () => { setDirty(true); });
     page.addEventListener("click", (e) => {
       if (e.target.classList.contains("del")) {
-        dirty = true;
+        setDirty(true);
         if (page.id === "pageHot") filterHot();   // 行削除で件数を更新
       }
     });

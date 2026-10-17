@@ -41,12 +41,12 @@
     padding: 12px 18px; background: var(--panel); border-bottom: 1px solid var(--line); }
   header .t { font-weight: 900; letter-spacing: .06em; }
   header .d { color: var(--dim); font-size: 12px; flex: 1; }
-  .switch { width: 46px; height: 26px; border-radius: 13px; border: 1px solid var(--line);
-    background: var(--panel2); position: relative; cursor: pointer; flex: none; }
-  .switch i { position: absolute; top: 2px; left: 2px; width: 20px; height: 20px;
-    border-radius: 50%; background: var(--dim); transition: .15s; }
-  .switch[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); }
-  .switch[aria-pressed="true"] i { left: 22px; background: #fff; }
+  /* オン・オフのスイッチ（コックピット・スタジオ・アプリ設定と同じ見た目） */
+  .switch { flex: none; width: 39px; height: 22px; border: 0; border-radius: 999px; padding: 3px;
+    background: #344157; cursor: pointer; transition: .16s; }
+  .switch i { display: block; width: 16px; height: 16px; border-radius: 50%; background: #8b99ad; transition: .16s; }
+  .switch[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 36%, #344157); }
+  .switch[aria-pressed="true"] i { transform: translateX(17px); background: var(--accent); }
   main { flex: 1; display: flex; gap: 14px; padding: 14px 18px; overflow-y: auto; }
   .groups { width: 240px; flex: none; }
   .grow { display: flex; align-items: center; gap: 9px; width: 100%;

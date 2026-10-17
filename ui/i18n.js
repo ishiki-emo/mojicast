@@ -14,6 +14,11 @@
   const DICT = {
     zh: {
       // 新UI（feat/new-ui）で追加
+      "sy.unsaved_mark": "● 有尚未保存的更改",
+      "wd.unsaved_mark": "● 有尚未保存的更改",
+      "st.meter_live": "识别中的麦克风",
+      "st.meter_idle": "▶ 开始后才会动",
+      "st.f_level": "输入音量",
       "cp.pick_empty": "没有显示中的功能（可从「选择显示项」恢复）",
       "cp.pick_hidden": "隐藏",
       "cp.pick_shown": "显示",
@@ -350,7 +355,7 @@
       "wd.gloss_imp_stats": "{total} 个词（新增 {new} / 已存在 {exists}）· 文件内重复 {dup}",
       "wd.gloss_imp_done": "已导入（英译 {gl}）。下次开始时生效",
       "wd.imp_gloss_only": " · 仅英译 {n}（不加入识别词典）",
-      "wd.fx_note": "出现在画面时华丽装饰的词（与识别分开管理）。即使没放进「要识别的词」，这里的词也会默认被强调。可单独指定颜色·字体·大小·动画·飞出的表情，更改即时生效。预览点击播放🎬",
+      "wd.fx_note": "出现在画面时华丽装饰的词（与识别分开管理）。即使没放进「要识别的词」，这里的词也会默认被强调。可单独指定颜色·字体·大小·动画·飞出的表情，保存后立即生效（无需重新开始）。预览点击播放🎬",
       "wd.col_word": "词", "wd.col_color": "颜色", "wd.col_font": "字体", "wd.col_size": "大小",
       "wd.col_anim": "动画", "wd.col_particle": "粒子", "wd.col_preview": "预览",
       "wd.banned_note": "把禁播词等每行一个。这里的词在识别中（浅字）·确定字幕·日志中都会打码。打码用下方字符按词的字数重复（例:「ばか」→「○○」）。即使开启翻译，含打码的行也不翻译、按日语原文显示（翻译会让打码变成别的词）。更改在下次开始时生效。",
@@ -420,6 +425,11 @@
     },
     en: {
       // 新UI（feat/new-ui）で追加
+      "sy.unsaved_mark": "● Unsaved changes",
+      "wd.unsaved_mark": "● Unsaved changes",
+      "st.meter_live": "Mic in use",
+      "st.meter_idle": "Moves while ▶ Start is running",
+      "st.f_level": "Input level",
       "cp.pick_empty": "No features shown (bring them back with \"Choose items\")",
       "cp.pick_hidden": "Hidden",
       "cp.pick_shown": "Shown",
@@ -752,7 +762,7 @@
       "wd.gloss_imp_stats": "{total} words (new {new} / already present {exists}) · duplicates in file {dup}",
       "wd.gloss_imp_done": "Imported (English {gl}). Applies on the next start",
       "wd.imp_gloss_only": " · English only {n} (not added to recognition)",
-      "wd.fx_note": "Words decorated flashily when shown (managed separately from recognition). Even if not in \"Recognized words\", these are emphasized by default. Set color, font, size, animation and flying emoji per word; changes apply instantly. Click the preview to play🎬",
+      "wd.fx_note": "Words decorated flashily when shown (managed separately from recognition). Even if not in \"Recognized words\", these are emphasized by default. Set color, font, size, animation and flying emoji per word; changes apply as soon as you save (no restart needed). Click the preview to play🎬",
       "wd.col_word": "Word", "wd.col_color": "Color", "wd.col_font": "Font", "wd.col_size": "Size",
       "wd.col_anim": "Animation", "wd.col_particle": "Particles", "wd.col_preview": "Preview",
       "wd.banned_note": "One banned word per line. These are masked in interim (faint) text, final captions and logs. The mask repeats the character below for the word's length (e.g. \"ばか\" → \"○○\"). Even with translation on, lines containing a mask are left untranslated and shown in Japanese, because translating them replaces the mask with an unrelated word. Changes apply on the next start.",
