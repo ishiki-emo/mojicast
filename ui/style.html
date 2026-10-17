@@ -103,13 +103,15 @@
     border-style: dashed; }
   .edit-tools .tools-sep { width: 1px; height: 20px; background: var(--line); }
   /* フォーム内のセクション見出し（2カラムを全幅でまたぐ） */
+  /* 区分けの見出し。項目名（12〜13px）より一段大きく、上に余白と色付きの下線で区切りを立てる */
   .fsec {
-    grid-column: 1 / -1; display: flex; align-items: baseline; gap: 8px;
-    margin-top: 14px; padding-bottom: 5px; border-bottom: 1px solid var(--line);
-    font-size: 11px; font-weight: 800; letter-spacing: .12em; color: var(--accent);
+    grid-column: 1 / -1; display: flex; align-items: baseline; gap: 10px;
+    margin-top: 22px; padding-bottom: 6px;
+    border-bottom: 2px solid color-mix(in srgb, currentColor 35%, var(--line));
+    font-size: 14.5px; font-weight: 800; letter-spacing: .06em; color: var(--accent);
   }
-  .fsec:first-child { margin-top: 0; }
-  .fsec small { font-weight: 400; letter-spacing: 0; color: var(--dim); }
+  .fsec:first-child { margin-top: 2px; }
+  .fsec small { font-size: 11px; font-weight: 400; letter-spacing: 0; color: var(--dim); }
   .fsec.en { color: #ff7ac2; }
   .fr label { display: flex; justify-content: space-between; color: var(--dim); margin-bottom: 3px; }
   .fr label output { color: var(--accent); font-weight: 700; }
