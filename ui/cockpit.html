@@ -652,8 +652,8 @@
       const d = await api("/api/update-check");
       _updateInfo = d;
       if (!d || !d.update_available) return;
-      // 同じ新バージョンを「閉じる」した後は再表示しない
-      if (localStorage.getItem("mojicast_update_dismissed") === d.latest) return;
+      // 同じ新バージョンを「閉じる」した後は再表示しない（記憶は config。localStorage は起動ごとに消える）
+      if (cfg.update_dismissed === d.latest) return;
       const msg = T("cp.update_msg", "新しいバージョン {v} があります")
         .replace("{v}", "v" + d.latest);
       $("updateMsg").textContent = d.notes ? `${msg}｜${d.notes}` : msg;
@@ -664,8 +664,10 @@
     } catch (e) { /* オフライン等は無視 */ }
   }
   function dismissUpdate() {
-    if (_updateInfo && _updateInfo.latest)
-      localStorage.setItem("mojicast_update_dismissed", _updateInfo.latest);
+    if (_updateInfo && _updateInfo.latest) {
+      cfg.update_dismissed = _updateInfo.latest;
+      api("/api/config", { update_dismissed: _updateInfo.latest });
+    }
     $("updateBar").style.display = "none";
   }
 

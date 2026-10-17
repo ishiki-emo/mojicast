@@ -10,6 +10,7 @@ import os
 import tempfile
 import threading
 import unittest
+from unittest import mock
 
 try:
     from playwright.sync_api import sync_playwright
@@ -91,6 +92,29 @@ class CockpitMonitorModeTests(unittest.TestCase):
         ctx, page = self._launch()
         page.wait_for_function("() => document.getElementById('modePreview').classList.contains('active')")
         ctx.close()
+
+    def test_dismissed_update_stays_hidden_after_restart(self):
+        info = {"update_available": True, "latest": "9.9.9", "url": "", "notes": ""}
+        with mock.patch.object(app_server, "_check_update", return_value=info):
+            ctx, page = self._launch()
+            page.wait_for_selector("#updateBar", state="visible")
+            page.click("#updateBar .ub-x")
+            for _ in range(30):
+                if app_server.load_config().get("update_dismissed") == "9.9.9":
+                    break
+                page.wait_for_timeout(100)
+            self.assertEqual(app_server.load_config().get("update_dismissed"), "9.9.9")
+            ctx.close()
+            ctx, page = self._launch()
+            page.wait_for_timeout(500)
+            self.assertFalse(page.is_visible("#updateBar"))
+            ctx.close()
+        # さらに新しい版が出たら、また知らせる
+        info = dict(info, latest="10.0.0")
+        with mock.patch.object(app_server, "_check_update", return_value=info):
+            ctx, page = self._launch()
+            page.wait_for_selector("#updateBar", state="visible")
+            ctx.close()
 
     def test_guide_shows_on_first_launch_only(self):
         ctx, page = self._launch()

@@ -65,6 +65,10 @@ DEFAULT_CONFIG = {
     # GUI窓はプライベートモードで localStorage が起動ごとに消えるため、記憶は config に持つ
     "monitor_mode": "preview",
     "guide_dismissed": False,   # 「はじめの3ステップ」を閉じた（または字幕が出た）か
+    "update_dismissed": "",     # 更新のお知らせを閉じたバージョン（同じ版は再表示しない）
+    # 字幕スタジオで最後に編集していた単語セット（None=未記録→配信で使うセットで開く）。
+    # 配信で使うセット（word_profile）とは別。消えたセット名なら画面側で使用中に戻す
+    "studio_edit_profile": None,
     # 窓ごとの大きさ・位置（閉じた時点の値を次回起動で復元）。
     # {"cockpit": {"x","y","w","h","scale"}, ...}。書き換えは save_window_geometry 経由
     "window_geometry": {},
@@ -1319,6 +1323,10 @@ class Handler(BaseHTTPRequestHandler):
                 body["ui_variant"] = "new"
             if "monitor_mode" in body and body.get("monitor_mode") not in ("preview", "log"):
                 body["monitor_mode"] = "preview"
+            if "update_dismissed" in body and not isinstance(body.get("update_dismissed"), str):
+                body["update_dismissed"] = ""
+            if "studio_edit_profile" in body and not isinstance(body.get("studio_edit_profile"), str):
+                body["studio_edit_profile"] = None
             if "window_geometry" in body:
                 body["window_geometry"] = normalize_window_geometry(
                     body.get("window_geometry"))

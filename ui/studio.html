@@ -241,7 +241,6 @@
   // 編集する単語セット（"" = 共通）。配信で使う単語セット（cfg.word_profile）とは別に持つ。
   // 次の配信用のセットを準備しているだけで、配信中の認識辞書が切り替わらないようにする
   let editProfile = null;
-  const EDIT_PROFILE_KEY = "mojicast-studio-edit-profile";
 
   function applyTheme(theme) {
     if (theme === "light") document.documentElement.dataset.theme = "light";
@@ -396,10 +395,10 @@
   async function loadProfiles() {
     const d = await api("/api/profiles"); profiles = d.profiles || [];
     if (editProfile === null) {
-      // 前回編集していたセットで開く（開き直したら保存した単語が見えない、を防ぐ）
-      let last = null;
-      try { last = localStorage.getItem(EDIT_PROFILE_KEY); } catch (e) {}
-      editProfile = last !== null && (last === "" || profiles.includes(last)) ? last : activeProfile();
+      // 前回編集していたセットで開く（開き直したら保存した単語が見えない、を防ぐ）。
+      // アプリを起動し直しても残るよう config に持つ（localStorage は起動ごとに消える）
+      const last = cfg.studio_edit_profile;
+      editProfile = typeof last === "string" && (last === "" || profiles.includes(last)) ? last : activeProfile();
     }
     if (editProfile && !profiles.includes(editProfile)) editProfile = activeProfile();
     const active = activeProfile();
@@ -449,7 +448,10 @@
   // except: 切り替えを知らせてきた iframe。自分で読み直し済みなので開き直さない
   async function setEditProfile(value, except) {
     editProfile = value;
-    try { localStorage.setItem(EDIT_PROFILE_KEY, value); } catch (e) {}
+    if (cfg.studio_edit_profile !== value) {
+      cfg.studio_edit_profile = value;
+      api("/api/config", { studio_edit_profile: value });
+    }
     $("profileScope").value = value;
     for (const [id,tab] of [["fWords","hot"],["fEffects","fx"],["fGlossary","gloss"],["fBanned","banned"]])
       if ($(id).getAttribute("src") && $(id).contentWindow !== except) setSrc(id, wordUrl(tab), true);

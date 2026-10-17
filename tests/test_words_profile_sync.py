@@ -57,6 +57,9 @@ class WordsProfileSyncTests(unittest.TestCase):
 
     def tearDown(self):
         self.page.close()
+        if getattr(self, "ctx", None):
+            self.ctx.close()
+            self.ctx = None
         self.tmp.cleanup()
 
     def _config(self):
@@ -100,7 +103,11 @@ class WordsProfileSyncTests(unittest.TestCase):
         frame.wait_for_function("() => document.getElementById('saved').style.opacity === '1'")
         self.assertEqual([e["surface"] for e in wordstore.load_hotwords("ゲーム")], ["癒色えも"])
 
-        # 開き直しても前回編集していたセットで開き、保存した単語が見える
+        # アプリを起動し直しても（＝localStorage が空の新しい文脈でも）前回編集していた
+        # セットで開き、保存した単語が見える
+        self.page.close()
+        self.ctx = self.browser.new_context(viewport={"width": 1120, "height": 840})
+        self.page = self.ctx.new_page()
         frame = self._open_studio_words()
         self._wait_outer("ゲーム")
         self.assertEqual(frame.eval_on_selector(
