@@ -285,6 +285,48 @@ class BubbleOverlayTests(unittest.TestCase):
         self.assertEqual(len(b), 2)
         self.assertLess(b[1]["left"], b[0]["left"])         # アバターは右 → 古いものは左へ
 
+    def _scatter_state(self):
+        self.page.wait_for_timeout(300)
+        return self.page.evaluate("""() => {
+          const pane = [...document.querySelectorAll('.pane')].find(p => p.querySelector('.bub-wrap'));
+          return [...pane.querySelectorAll('.bub-wrap')].map(w => {
+            const fill = w.querySelector('.bub-svg > g:last-child');
+            const r = fill.firstElementChild.getBoundingClientRect();
+            return { z: +w.style.zIndex, opacity: +(w.style.opacity || 1), text: w.innerText,
+                     rect: [r.left, r.top, r.right, r.bottom], tail: !!fill.querySelector('path') };
+          }).sort((a, b) => b.z - a.z);
+        }""")
+
+    def test_scatter_places_bubbles_on_free_points_without_overlap(self):
+        spots = [{"x": 15, "y": 20}, {"x": 50, "y": 20}, {"x": 85, "y": 20}]
+        self._use(bubbleArrange="scatter", bubbleSpots=spots, bubbleHistory=3,
+                  bubbleSpotW=26, bubbleSpotH=24, tailX=50, tailY=85)
+        for i, t in enumerate(["ひとつめ", "ふたつめ", "みっつめ"]):
+            self._send({"type": "final", "text": t, "id": 50 + i})
+        b = self._scatter_state()
+        self.assertEqual(len(b), 3)
+        for i in range(3):                                    # 重ならない
+            for j in range(i + 1, 3):
+                r1, r2 = b[i]["rect"], b[j]["rect"]
+                self.assertFalse(r1[0] < r2[2] and r2[0] < r1[2] and r1[1] < r2[3] and r2[1] < r1[3])
+        self.assertTrue(all(x["tail"] for x in b))            # 尻尾は全部に
+        self.assertGreater(b[0]["opacity"], b[1]["opacity"])  # 古いほど薄い
+        self.assertGreater(b[1]["opacity"], b[2]["opacity"])
+        centers = sorted(round((x["rect"][0] + x["rect"][2]) / 2 / 1920 * 100) for x in b)
+        self.assertEqual(centers, [15, 50, 85])               # 各ポイントに1つずつ
+        # 4つ目: 表示する数を超えたいちばん古いものが消え、その場所を使う（ほかは動かない）
+        before = {x["text"]: x["rect"] for x in b}
+        self._send({"type": "final", "text": "よっつめ", "id": 53})
+        b = self._scatter_state()
+        self.assertEqual(len(b), 3)
+        self.assertIn("よっつめ", b[0]["text"])
+        self.assertFalse(any("ひとつめ" in x["text"] for x in b))
+        center = lambda r: (round((r[0] + r[2]) / 2), round((r[1] + r[3]) / 2))
+        self.assertEqual(center(b[0]["rect"]), center(before["ひとつめ"]))   # 同じポイントに出る
+        for x in b[1:]:                                       # 残った吹き出しは動かない
+            for v, w in zip(x["rect"], before[x["text"]]):
+                self.assertAlmostEqual(v, w, delta=2)
+
     def test_switching_mode_away_clears_the_bubble(self):
         self._use()
         self._send({"type": "final", "text": "こんにちは", "id": 5})

@@ -195,7 +195,18 @@
     font-size: 10px; font-weight: 800; color: #fff; background: rgba(0,0,0,.6); }
   #stage.bubble-mode #stageAvatar { display: block; }
   .page.editing #stage.bubble-mode #stageAvatar { cursor: grab; }
-  #frameFields { display: contents; }
+  #frameFields, #geoFields { display: contents; }
+  /* 吹き出しを散らすポイント（中心の印＋1つの大きさの上限の枠）。編集中はドラッグで動かす */
+  #stageSpots { position: absolute; inset: 0; z-index: 3; display: none; pointer-events: none; }
+  #stage.scatter-mode #stageSpots { display: block; }
+  #stage.scatter-mode #stageHandle { display: none !important; }
+  .page.editing #stage.scatter-mode { cursor: copy; }
+  .spot-area { position: absolute; border: 1.5px dashed rgba(255,255,255,.55); border-radius: 8px;
+    transform: translate(-50%, -50%); pointer-events: none; }
+  .spot-dot { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%;
+    display: grid; place-items: center; font-size: 11px; font-weight: 900; color: #061117;
+    background: var(--accent); border: 2px solid #fff; pointer-events: auto; touch-action: none; }
+  .page.editing .spot-dot { cursor: grab; }
   footer { display: flex; gap: 10px; align-items: center; padding: 10px 14px; background: var(--panel); border-top: 1px solid var(--line); }
   /* 保存ボタン式の画面: 未保存のあいだだけ目印を出し、保存ボタンを強める
      （配信に映る見た目・単語は、いじっている途中で本番へ出ないよう保存ボタン式のまま） */
@@ -337,11 +348,13 @@
         <div class="fr"><label data-i18n="sy.box_name">レイアウト名</label><input type="text" id="b_name"></div>
         <div class="fr"><label data-i18n="sy.desc">説明</label><input type="text" id="b_desc"></div>
 
+        <div id="geoFields">
         <div class="fsec"><span data-i18n="sy.bsec_geo">📐 位置と大きさ</span> <small data-i18n="sy.bsec_geo_d">プレビューの枠をドラッグしても変えられます</small></div>
         <div class="fr"><label><span data-i18n="sy.pos_x">横位置 X</span> <output id="o_bx"></output></label><input type="range" id="b_x" min="0" max="90" step="1"></div>
         <div class="fr"><label><span data-i18n="sy.pos_y">縦位置 Y</span> <output id="o_by"></output></label><input type="range" id="b_y" min="0" max="90" step="1"></div>
         <div class="fr"><label><span data-i18n="sy.width">幅</span> <output id="o_bw"></output></label><input type="range" id="b_w" min="10" max="100" step="1"></div>
         <div class="fr"><label><span data-i18n="sy.height">高さ</span> <output id="o_bh"></output></label><input type="range" id="b_h" min="8" max="100" step="1"></div>
+        </div>
 
         <div class="fsec advanced-only" data-i18n="sy.bsec_mode">🧾 表示</div>
         <div class="fr advanced-only"><label data-i18n="sy.display_mode">表示のしかた</label>
@@ -393,7 +406,15 @@
             <option value="center"></option>
             <option value="end"></option>
           </select></div>
-        <div class="fr only-bubble"><label><span data-i18n="sy.bub_history">表示する数</span> <output id="o_bhist"></output><span data-i18n="sy.bub_history_d">（新しいものほど手前）</span></label><input type="range" id="b_bubbleHistory" min="1" max="6" step="1"></div>
+        <div class="fr only-bubble"><label data-i18n="sy.bub_arrange">並べ方</label>
+          <select id="b_bubbleArrange">
+            <option value="stack" data-i18n="sy.bub_arr_stack">積み重ね（アバター寄り）</option>
+            <option value="scatter" data-i18n="sy.bub_arr_scatter">ポイントに散らす</option>
+          </select></div>
+        <div class="fr only-bubble"><label><span data-i18n="sy.bub_history">表示する数</span> <output id="o_bhist"></output></label><input type="range" id="b_bubbleHistory" min="1" max="6" step="1"></div>
+        <div class="fr only-bubble only-scatter" style="grid-column:1/-1"><small class="spot-hint" data-i18n="sy.bub_spot_hint">プレビューをクリックでポイントを追加、ドラッグで移動、ダブルクリックで削除（最大8か所）。新しい発話は、ほかと重ならない空きポイントにランダムで出ます</small></div>
+        <div class="fr only-bubble only-scatter"><label><span data-i18n="sy.bub_spot_w">1つの大きさの上限 幅</span> <output id="o_bspw"></output></label><input type="range" id="b_bubbleSpotW" min="8" max="80" step="1"></div>
+        <div class="fr only-bubble only-scatter"><label><span data-i18n="sy.bub_spot_h">1つの大きさの上限 高さ</span> <output id="o_bsph"></output></label><input type="range" id="b_bubbleSpotH" min="8" max="80" step="1"></div>
         <div class="fr only-bubble"><label><span data-i18n="sy.bub_tail_x">アバター位置 X</span> <output id="o_btx"></output></label><input type="range" id="b_tailX" min="0" max="100" step="1"></div>
         <div class="fr only-bubble"><label><span data-i18n="sy.bub_tail_y">アバター位置 Y</span> <output id="o_bty"></output></label><input type="range" id="b_tailY" min="0" max="100" step="1"></div>
         <div class="fr chk only-bubble"><input type="checkbox" id="b_tailOn"><span data-i18n="sy.bub_tail_on">尻尾をアバターへ向ける</span></div>
@@ -423,6 +444,7 @@
       <div id="stageWrap">
         <div id="stage">
           <div class="ptag"><span data-i18n="sy.layout_preview">レイアウトプレビュー（1920×1080の縮小）</span><span id="stageStyleName" style="margin-left:10px;color:rgba(255,255,255,.55)"></span></div>
+          <div id="stageSpots"></div>
           <div id="stageAvatar" data-label="アバター" title="尻尾が向く先（ドラッグで移動）" data-i18n-title="sy.avatar_t"></div>
           <div id="stageHandle" title="ドラッグで移動・右下の角で大きさを変更" data-i18n-title="sy.handle_t"><span class="geo" id="stageGeo"></span><span class="grip"></span></div>
           <div id="stageInner">
@@ -880,6 +902,12 @@
     // 吹き出しは自分で枠を描くので、レイアウトの背景・枠線は使わない
     $("frameFields").style.display = bubble ? "none" : "contents";
     $("stage").classList.toggle("bubble-mode", bubble);
+    const scatter = bubble && $("b_bubbleArrange").value === "scatter";
+    $("stage").classList.toggle("scatter-mode", scatter);
+    for (const el of document.querySelectorAll(".only-scatter"))
+      el.style.display = scatter ? "" : "none";
+    // 散らすときは吹き出しの位置をポイントで決めるので、枠の位置と大きさは使わない
+    $("geoFields").style.display = scatter ? "none" : "contents";
     if (bubble) {
       if (!$("b_tailOn").checked) $("r_tailLen").style.display = "none";
       if (!$("b_bubbleInkOn").checked) $("r_bubbleInk").style.display = "none";
@@ -921,6 +949,9 @@
     $("b_bubbleDir").value = b.bubbleDir === "v" ? "v" : "h";
     $("b_bubbleAlign").value = ["start", "end"].includes(b.bubbleAlign) ? b.bubbleAlign : "center";
     syncBubbleAlignLabels();
+    $("b_bubbleArrange").value = b.bubbleArrange === "scatter" ? "scatter" : "stack";
+    setR("b_bubbleSpotW", "o_bspw", b.bubbleSpotW ?? 32, v => v + "%");
+    setR("b_bubbleSpotH", "o_bsph", b.bubbleSpotH ?? 24, v => v + "%");
     setR("b_bubbleHistory", "o_bhist", b.bubbleHistory ?? 1, v => T("sy.bub_history_n", "{n}個").replace("{n}", v));
     setR("b_tailX", "o_btx", b.tailX ?? 85, v => v + "%");
     setR("b_tailY", "o_bty", b.tailY ?? 85, v => v + "%");
@@ -999,6 +1030,9 @@
     b.bubbleDir = $("b_bubbleDir").value;
     b.bubbleAlign = $("b_bubbleAlign").value;
     b.bubbleHistory = +$("b_bubbleHistory").value;
+    b.bubbleArrange = $("b_bubbleArrange").value;
+    b.bubbleSpotW = +$("b_bubbleSpotW").value;
+    b.bubbleSpotH = +$("b_bubbleSpotH").value;
     b.tailX = +$("b_tailX").value; b.tailY = +$("b_tailY").value;
     b.tailOn = $("b_tailOn").checked;
     b.tailLen = +$("b_tailLen").value;
@@ -1039,6 +1073,84 @@
     "コメントもどんどん読んでいきますね、いつもありがとう！",
     "えっ、ちょっと待って、いま何が起きたの！？　見間違いじゃないよね、すごすぎない？　もう一回やってみるから見てて！",
   ];
+
+  // ---- 吹き出しを散らすポイント（中心の印＋上限の大きさの枠） ----
+  // 印は数が変わったときだけ作り直し、ほかは位置・大きさだけ書き換える。作り直すと
+  // ダブルクリックの2回目が別の要素に当たる・ドラッグ中に印が差し替わる、が起きるため
+  function syncStageSpots() {
+    const b = boxes[curBox], wrap = $("stageSpots");
+    const spots = b && b.mode === "bubble" && b.bubbleArrange === "scatter" ? (b.bubbleSpots || []) : [];
+    if (wrap.querySelectorAll(".spot-dot").length !== spots.length) {
+      wrap.textContent = "";
+      spots.forEach((_, i) => {
+        const area = document.createElement("div");
+        area.className = "spot-area";
+        const dot = document.createElement("div");
+        dot.className = "spot-dot";
+        dot.dataset.i = i;
+        dot.addEventListener("pointerdown", e => dragSpot(e, +dot.dataset.i, dot, area));
+        dot.addEventListener("dblclick", e => { e.stopPropagation(); removeSpot(+dot.dataset.i); });
+        wrap.append(area, dot);
+      });
+    }
+    const dots = wrap.querySelectorAll(".spot-dot"), areas = wrap.querySelectorAll(".spot-area");
+    spots.forEach((p, i) => {
+      const dot = dots[i], area = areas[i];
+      dot.textContent = i + 1;
+      for (const el of [dot, area]) { el.style.left = p.x + "%"; el.style.top = p.y + "%"; }
+      area.style.width = (b.bubbleSpotW ?? 32) + "%"; area.style.height = (b.bubbleSpotH ?? 24) + "%";
+    });
+  }
+  function stagePercent(e) {
+    const r = $("stage").getBoundingClientRect();
+    return { x: Math.round(clampGeo01((e.clientX - r.left) / r.width) * 100),
+             y: Math.round(clampGeo01((e.clientY - r.top) / r.height) * 100) };
+  }
+  function spotsChanged() {
+    setStyleDirty(true);
+    syncStageSpots();
+    FX.bubbleClear($("stageBox")); stageAdd(); stageAdd();   // 新しいポイントで出し直す
+  }
+  function dragSpot(e, i, dot, area) {
+    if (!boxEditing) return;
+    e.preventDefault(); e.stopPropagation();
+    dot.setPointerCapture(e.pointerId);
+    const b = boxes[curBox];
+    const sx = e.clientX, sy = e.clientY;
+    let moved = false;
+    const move = ev => {
+      if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) < 3) return;   // クリックはドラッグにしない
+      moved = true;
+      const p = stagePercent(ev);
+      b.bubbleSpots[i] = p;
+      for (const el of [dot, area]) { el.style.left = p.x + "%"; el.style.top = p.y + "%"; }
+    };
+    const up = () => {
+      dot.removeEventListener("pointermove", move);
+      dot.removeEventListener("pointerup", up);
+      dot.removeEventListener("pointercancel", up);
+      if (moved) spotsChanged();
+    };
+    dot.addEventListener("pointermove", move);
+    dot.addEventListener("pointerup", up);
+    dot.addEventListener("pointercancel", up);
+  }
+  function removeSpot(i) {
+    const b = boxes[curBox];
+    if (!boxEditing || (b.bubbleSpots || []).length <= 1) return;   // 最後の1か所は残す
+    b.bubbleSpots.splice(i, 1);
+    spotsChanged();
+  }
+  // 空いている所をクリックするとポイントを足す（印・アバター・枠の取っ手の上は除く）
+  $("stage").addEventListener("click", e => {
+    const b = boxes[curBox];
+    if (!boxEditing || !b || b.mode !== "bubble" || b.bubbleArrange !== "scatter") return;
+    if (e.target.closest(".spot-dot, #stageAvatar, .stageBtns")) return;
+    b.bubbleSpots = b.bubbleSpots || [];
+    if (b.bubbleSpots.length >= 8) return;
+    b.bubbleSpots.push(stagePercent(e));
+    spotsChanged();
+  });
 
   // ---- アバター位置（吹き出しの尻尾が向く先）のドラッグ ----
   function syncStageAvatar() {
@@ -1089,6 +1201,7 @@
     el.style.left = g.x + "%"; el.style.top = g.y + "%";
     el.style.width = Math.min(g.w, 100 - g.x) + "%"; el.style.height = Math.min(g.h, 100 - g.y) + "%";
     syncStageAvatar();
+    syncStageSpots();
     $("stageGeo").textContent = `X ${g.x}%  Y ${g.y}%  ${T("sy.width","幅")} ${g.w}%  ${T("sy.height","高さ")} ${g.h}%`;
   }
   // ドラッグ結果をスライダーへ書き戻し、スライダーで動かしたときと同じ経路で反映する
@@ -1310,6 +1423,7 @@
       b_tailLen: ["o_btl", v => v + "px"], b_bubbleScale: ["o_bbs", v => "×" + v],
       b_bubbleMinScale: ["o_bbm", v => "×" + v], b_bubbleFillOpacity: ["o_bfo", v => v],
       b_bubbleStrokeWidth: ["o_bsw", v => v + "px"],
+      b_bubbleSpotW: ["o_bspw", v => v + "%"], b_bubbleSpotH: ["o_bsph", v => v + "%"],
       b_bubbleHistory: ["o_bhist", v => T("sy.bub_history_n", "{n}個").replace("{n}", v)],
       b_bubbleLife: ["o_bbl", v => +v ? v + "秒" : T("sy.bub_life_keep", "次の発話まで")],
     };
@@ -1322,6 +1436,22 @@
         if (el.id === "b_mode") { updateModeRows(); stageClear(); stageAdd(); }
         else if (el.id === "b_autoClear" || el.id === "b_tailOn" || el.id === "b_bubbleInkOn") updateModeRows();
         else if (el.id === "b_bubbleDir") syncBubbleAlignLabels();
+        else if (el.id === "b_bubbleArrange") {
+          // 初めて散らすときは、画面の上側に4か所の初期ポイントを置く（アバターから遠い順に
+          // 左右へ散らす。あとでドラッグで動かす前提の、重なりにくい出発点）
+          const bx = boxes[curBox];
+          if (el.value === "scatter" && !(bx.bubbleSpots || []).length) {
+            const left = (bx.tailX ?? 85) > 50;   // アバターが右なら左寄りに、左なら右寄りに
+            bx.bubbleSpots = [[20, 16], [54, 13], [24, 44], [58, 41]]
+              .map(([x, y]) => ({ x: left ? x : 100 - x, y }));
+            // 1つだけだと散らす意味が無いので、表示する数もポイントの数に合わせる
+            if (+$("b_bubbleHistory").value <= 1) {
+              setR("b_bubbleHistory", "o_bhist", bx.bubbleSpots.length, v => T("sy.bub_history_n", "{n}個").replace("{n}", v));
+              collectBox();
+            }
+          }
+          updateModeRows(); syncStageSpots(); stageClear(); stageAdd(); stageAdd();
+        }
         clearTimeout(bt);
         bt = setTimeout(stageApply, 120);
       });

@@ -102,6 +102,37 @@ class LayoutEditorTests(unittest.TestCase):
         self.assertEqual((x2, y2), (x, y))                    # 大きさ変更では位置は動かない
         self.assertGreater(w2, 40); self.assertGreater(h2, 30)
 
+    def test_scatter_points_can_be_added_moved_and_removed(self):
+        page = self.page
+        page.click("#boxEditTools >> text=← 一覧に戻る")
+        page.click("#blist .pitem:has-text('吹き出し')")
+        page.click("#customizeBoxBtn")
+        page.select_option("#b_bubbleArrange", "scatter")
+        spots = lambda: page.evaluate("boxes[curBox].bubbleSpots.length")
+        self.assertEqual(spots(), 4)                                  # 初期ポイント
+        self.assertEqual(page.eval_on_selector("#b_bubbleHistory", "e => e.value"), "4")
+        self.assertFalse(page.is_visible("#b_x"))                     # 枠の位置と大きさは使わない
+        self.assertEqual(page.eval_on_selector_all(".spot-dot", "e => e.length"), 4)
+        st = page.locator("#stage").bounding_box()
+        page.mouse.click(st["x"] + st["width"] * 0.1, st["y"] + st["height"] * 0.85)
+        self.assertEqual(spots(), 5)                                  # クリックで追加
+        dot = page.locator(".spot-dot").nth(0).bounding_box()
+        before = page.evaluate("boxes[curBox].bubbleSpots[0]")
+        page.mouse.move(dot["x"] + 11, dot["y"] + 11)
+        page.mouse.down()
+        page.mouse.move(dot["x"] + 60, dot["y"] + 30, steps=5)
+        page.mouse.up()
+        after = page.evaluate("boxes[curBox].bubbleSpots[0]")
+        self.assertGreater(after["x"], before["x"])                   # ドラッグで移動
+        page.locator(".spot-dot").nth(1).dblclick()
+        self.assertEqual(spots(), 4)                                  # ダブルクリックで削除
+        self.assertTrue(page.evaluate("mojiIsDirty()"))
+        page.click("#saveOnlyBtn")
+        page.wait_for_selector("#unsavedMark", state="hidden")
+        saved = [b for b in app_server._read_json(app_server._boxes_path(), {})["boxes"] if b["id"] == "bubble"][0]
+        self.assertEqual(saved["bubbleArrange"], "scatter")
+        self.assertEqual(len(saved["bubbleSpots"]), 4)
+
     def test_drag_never_leaves_the_screen(self):
         self._set("#b_w", 50); self._set("#b_h", 40)
         box = self.page.locator("#stageHandle").bounding_box()

@@ -14,6 +14,12 @@
   const DICT = {
     zh: {
       // 新UI（feat/new-ui）で追加
+      "sy.bub_arrange": "排列方式",
+      "sy.bub_arr_stack": "堆叠（靠近头像）",
+      "sy.bub_arr_scatter": "分散到各点",
+      "sy.bub_spot_hint": "点击预览添加点，拖动移动，双击删除（最多8个）。新的发言会随机出现在不与其他气泡重叠的空点上",
+      "sy.bub_spot_w": "单个气泡的最大宽度",
+      "sy.bub_spot_h": "单个气泡的最大高度",
       "sy.bub_history": "显示数量",
       "sy.bub_history_d": "（越新越靠前）",
       "sy.bub_history_n": "{n} 个",
@@ -553,6 +559,12 @@
     },
     en: {
       // 新UI（feat/new-ui）で追加
+      "sy.bub_arrange": "Arrangement",
+      "sy.bub_arr_stack": "Stack (near the avatar)",
+      "sy.bub_arr_scatter": "Scatter to points",
+      "sy.bub_spot_hint": "Click the preview to add a point, drag to move, double-click to delete (up to 8). Each new line appears at a random free point that doesn't overlap other bubbles",
+      "sy.bub_spot_w": "Max width per bubble",
+      "sy.bub_spot_h": "Max height per bubble",
       "sy.bub_history": "Bubbles shown",
       "sy.bub_history_d": " (newest in front)",
       "sy.bub_history_n": "{n}",

@@ -1268,6 +1268,10 @@
     const parW = (par && par.clientWidth) || 1920, parH = (par && par.clientHeight) || 1080;
     const ax = (box.tailX ?? 85) / 100 * parW - container.offsetLeft;
     const ay = (box.tailY ?? 85) / 100 * parH - container.offsetTop;
+    if (box.bubbleArrange === "scatter") {
+      bubLayoutScatter(container, box, { boxW, boxH, margin, parW, parH, ax, ay, keep });
+      return;
+    }
     const multi = keep > 1;
     const maxW = multi && vertical ? boxW * 0.6 : boxW;
     const maxH = multi && !vertical ? boxH * 0.6 : boxH;
@@ -1311,6 +1315,7 @@
       // 手前ほど上に重ね、奥ほど少し沈ませる。吹き出しごと透かすと、重なった所で奥の
       // 吹き出しが透けて縞に見えるので、塗りは不透明のまま暗くし、文字だけ薄くする
       st.wrap.style.zIndex = String(10 - i);
+      st.wrap.style.opacity = "";
       st.svg.style.filter = i ? `brightness(${Math.max(0.6, 1 - 0.09 * i)})` : "";
       st.text.style.opacity = i ? String(Math.max(0.5, 1 - 0.14 * i)) : "";
       // 押し出された古い吹き出しは、前の位置からすっと動かす
@@ -1325,6 +1330,75 @@
       st.cx = cx; st.cy = cy;
       prev = { mainC, len };
     }
+  }
+
+  // ---- 並べ方「ポイントに散らす」 ----
+  // box.bubbleSpots = [{x, y}]（画面に対する％・吹き出しの中心）。新しい発話は、ほかの
+  // 吹き出しと重ならない空きポイントからランダムに選ぶ。空きが無ければいちばん古い吹き出しを
+  // 消してその場所を使う。吹き出しは出た場所から動かない。1つの大きさの上限は
+  // bubbleSpotW×bubbleSpotH（画面に対する％）。重ならないので、古いものほど全体を薄くする。
+  // 尻尾は全部の吹き出しからアバターへ（散らしても誰のセリフか分かるように）
+  function bubSpotsOf(box) {
+    const spots = Array.isArray(box.bubbleSpots) ? box.bubbleSpots.filter(
+      p => p && Number.isFinite(+p.x) && Number.isFinite(+p.y)) : [];
+    return spots.length ? spots : [{ x: (box.x ?? 0) + (box.w ?? 100) / 2, y: (box.y ?? 0) + (box.h ?? 100) / 2 }];
+  }
+  function bubLayoutScatter(container, box, c) {
+    const { margin, parW, parH, ax, ay } = c;
+    const spots = bubSpotsOf(box);
+    const offX = container.offsetLeft, offY = container.offsetTop;
+    const maxW = clamp(+(box.bubbleSpotW ?? 32), 5, 100) / 100 * parW;
+    const maxH = clamp(+(box.bubbleSpotH ?? 24), 5, 100) / 100 * parH;
+    const spotPx = i => ({ x: spots[i].x / 100 * parW - offX, y: spots[i].y / 100 * parH - offY });
+    const hits = (a, b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+    let list = bubList(container);
+    for (const st of list) if (st.spot != null && st.spot >= spots.length) st.spot = null;
+    // まだ場所の無い吹き出し（＝新しい発話）に場所を割り当てる
+    for (const st of [...list]) {
+      if (st.spot != null || !st.wrap.isConnected) continue;
+      const others = () => bubList(container).filter(o => o !== st);
+      const used = new Set(others().filter(o => o.spot != null).map(o => o.spot));
+      let free = spots.map((_, i) => i).filter(i => !used.has(i));
+      if (!free.length) {   // 空きが無い → いちばん古い吹き出しの場所を譲ってもらう
+        const oldest = others().reverse().find(o => o.spot != null);
+        if (oldest) { st.spot = oldest.spot; bubRemove(container, oldest); }
+        else st.spot = 0;
+        continue;
+      }
+      // 上限の大きさで置いても、出ている吹き出しに重ならない空きを優先する
+      const clear = free.filter(i => {
+        const p = spotPx(i);
+        const r = [p.x - maxW / 2, p.y - maxH / 2, p.x + maxW / 2, p.y + maxH / 2];
+        return !others().some(o => o.rect && hits(r, o.rect));
+      });
+      const pool = clear.length ? clear : free;
+      st.spot = pool[Math.floor(Math.random() * pool.length)];
+    }
+    list = bubList(container);
+    list.forEach((st, i) => {
+      st.box = box;
+      const g = bubMeasure(st, maxW, maxH, margin);
+      const p = spotPx(st.spot ?? 0);
+      // 画面の外へは出さない（ポイントが端にあっても吹き出しは画面内に収める）
+      const cx = clamp(p.x, -offX + margin + g.W / 2, parW - offX - margin - g.W / 2);
+      const cy = clamp(p.y, -offY + margin + g.H / 2, parH - offY - margin - g.H / 2);
+      let tail = null;
+      if (box.tailOn !== false) {
+        const dx = ax - cx, dy = ay - cy, dist = Math.hypot(dx, dy);
+        const R = bubEdge(g.shape, g.W, g.H, dx, dy);
+        const L = Math.min(+(box.tailLen ?? 140), dist - R - 6);
+        if (dist > 1 && L > g.f * 0.4) tail = { ux: dx / dist, uy: dy / dist, R, L };
+      }
+      bubDraw(st, g, cx, cy, tail, c.boxW, c.boxH);
+      st.wrap.style.zIndex = String(10 - i);
+      st.wrap.style.transform = "";
+      st.svg.style.filter = "";
+      st.text.style.opacity = "";
+      // 古いものほど薄く（重ならないので吹き出しごと透かしてよい）
+      st.wrap.style.opacity = st.fading ? "" : String(Math.max(0.25, 1 - 0.22 * i));
+      st.rect = [cx - g.W / 2, cy - g.H / 2, cx + g.W / 2, cy + g.H / 2];
+      st.cx = cx; st.cy = cy;
+    });
   }
 
   function bubList(container) {
@@ -1348,7 +1422,7 @@
     const newest = list[0];
     const fresh = !newest || (!newest.partial && newest.raw) || newest.fading;
     const st = fresh ? bubState(container) : newest;
-    if (fresh) list.unshift(st);
+    if (fresh) { st.spot = null; list.unshift(st); }
     container._bubs = list;
     clearTimeout(st.timer);
     st.style = opts.style; st.table = opts.table || []; st.box = opts.box;
@@ -1366,6 +1440,7 @@
       const life = +(opts.box.bubbleLife || 0);
       if (life > 0) st.timer = setTimeout(() => {
         st.fading = true;
+        st.wrap.style.opacity = "";
         st.wrap.classList.add("bub-fade");
         setTimeout(() => { bubRemove(container, st); bubLayoutAll(container); }, 450);
       }, life * 1000);
