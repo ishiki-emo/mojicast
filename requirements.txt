@@ -26,6 +26,9 @@ pywebview==6.2.1
 # mac では pywebview が pyobjc/WKWebView を自動使用するため不要）
 pythonnet==3.1.0; sys_platform == "win32"
 sounddevice==0.5.5
+# certifi: HF/GitHub への HTTPS 検証に使う（huggingface_hub 経由で exe に同梱される）。
+# 2026.10.19 未満は鍵が漏えいした emSign ECC Root CA - G3 を信頼してしまうため下限を固定（2026-10-23）
+certifi>=2026.10.19
 
 # パッケージング（配布用exeを作る場合のみ）
 # pyinstaller==6.21.0
