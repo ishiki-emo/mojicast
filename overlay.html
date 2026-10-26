@@ -45,6 +45,11 @@
   let hotwords = [];
   let speakerNames = [];   // コラボ中の話者名（空=ソロ）
   let translateOn = false; // 翻訳ON/OFF（styleイベントに同梱）。英訳のみ表示の成立条件
+  // 手元に当てている style の版（サーバの broadcast_style が進める）。final に載る版と
+  // 違えば style を取りこぼしているので取り直す（取りこぼしたままだと字幕は出るのに
+  // 見た目だけ古いまま、OBS のリロードまで戻らない）
+  let styleRev = null;
+  let resyncing = false;
 
   const isLyric = (box) => (box.mode || "flow") === "lyric";
   // 吹き出し: 最新の発話1つを漫画の吹き出しで出す（描画は fx.js の FX.bubble*）
@@ -390,11 +395,15 @@
     switch (msg.type) {
       case "init":
       case "style":
+        if (msg.rev != null) styleRev = msg.rev;
         updatePanes(msg);
         if ("sound_rules" in msg) SFX.setRules(msg.sound_rules);
         break;
       case "sound":   SFX.play(msg.group, msg.score); break;
-      case "final":   addFinal(paneFor(msg.speaker), msg.text, msg.id); break;
+      case "final":
+        if (msg.rev != null && styleRev != null && msg.rev !== styleRev) resyncStyle();
+        addFinal(paneFor(msg.speaker), msg.text, msg.id);
+        break;
       case "translation": addTranslation(msg.id, msg.text, msg.fallback, msg.order || 0, msg.lang || ""); break;
       case "partial": setPartial(paneFor(msg.speaker), msg.text); break;
       case "clear_partial":   // 「確定した字幕だけ表示」に切り替えた合図
@@ -416,8 +425,24 @@
     }
   }
 
+  // 最新の style を取り直して当てる。失敗しても次の final でまた試す
+  async function resyncStyle() {
+    if (resyncing) return;
+    resyncing = true;
+    try {
+      const msg = await (await fetch("/api/style", { cache: "no-store" })).json();
+      // 取り直しの間に新しい style が届いていたら、古い方で上書きしない
+      if (msg.rev != null && (styleRev == null || msg.rev > styleRev)) handle(msg);
+    } catch (e) {
+      console.warn("style resync failed", e);
+    } finally {
+      resyncing = false;
+    }
+  }
+
   function connect() {
-    const es = new EventSource("/events");
+    // overlay=1: overlay が使わないイベント（マイクのレベル表示）を送らせない
+    const es = new EventSource("/events?overlay=1");
     es.onmessage = (e) => handle(JSON.parse(e.data));
     es.onerror = () => { es.close(); setTimeout(connect, 1000); };
   }
