@@ -592,6 +592,49 @@ def _pick(items, key, wanted):
                 items[0] if items else {})
 
 
+# 字幕ログを返すときの上限（1回の配信が長くても応答を膨らませすぎない）
+RECENT_LOGS_MAX_SESSIONS = 10
+RECENT_LOGS_MAX_LINES = 3000
+
+
+def recent_logs(sessions="1"):
+    """新しい順に sessions 回ぶんの字幕ログ（logs/日付/日付時刻.log）を返す。
+
+    1回分が長いときは末尾の RECENT_LOGS_MAX_LINES 行だけ返す（truncated で知らせる）
+    """
+    try:
+        n = max(1, min(RECENT_LOGS_MAX_SESSIONS, int(sessions)))
+    except (TypeError, ValueError):
+        n = 1
+    root = os.path.join(DATA_BASE, "logs")
+    files = []
+    try:
+        days = sorted((d for d in os.listdir(root)
+                       if os.path.isdir(os.path.join(root, d))), reverse=True)
+    except OSError:
+        days = []
+    for d in days:
+        try:
+            names = sorted((f for f in os.listdir(os.path.join(root, d))
+                            if f.endswith(".log")), reverse=True)
+        except OSError:
+            continue
+        files += [os.path.join(d, f) for f in names]
+        if len(files) >= n:
+            break
+    out = []
+    for rel in files[:n]:
+        try:
+            with open(os.path.join(root, rel), encoding="utf-8", errors="replace") as f:
+                lines = [ln.rstrip("\r\n") for ln in f if ln.strip()]
+        except OSError:
+            continue
+        out.append({"file": rel.replace(os.sep, "/"),
+                    "lines": lines[-RECENT_LOGS_MAX_LINES:],
+                    "truncated": len(lines) > RECENT_LOGS_MAX_LINES})
+    return out
+
+
 def _translating(cfg):
     """「実際に翻訳が動いているか」。エンジン稼働中はエンジンの実態を優先する。
 
@@ -1357,6 +1400,9 @@ class Handler(BaseHTTPRequestHandler):
             if offer and query.get("job") != "1":
                 out["candidates"] = migrate.find_candidates(DATA_BASE)
             self._json(out)
+        elif path == "/api/logs/recent":
+            # 最近の配信の字幕ログ（MCP が誤認識の候補を探すのに使う）
+            self._json({"logs": recent_logs(query.get("sessions", "1"))})
         elif path == "/api/perf":
             # リモート切り分け用: デコード回数・平均所要時間（今セッション累計）
             p = getattr(_engine, "perf", None) if _engine else None

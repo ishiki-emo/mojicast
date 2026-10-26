@@ -22,6 +22,7 @@ import json
 import os
 import re
 import urllib.error
+import urllib.parse
 import urllib.request
 
 from mcp.server.fastmcp import FastMCP
@@ -185,16 +186,21 @@ def _find(items, wanted, label):
     raise ValueError(f"{label}「{wanted}」が見つかりません。候補: {names}")
 
 
-# 直前の状態（undo 用）。サーバの起動中だけ保持する
+# 直前の状態（undo 用）。元に戻すための保存リクエストを順に持つ。サーバの起動中だけ保持する
 _history = []
 HISTORY_MAX = 30
 
 
-def _remember(label, cfg, presets, boxes):
-    _history.append({"label": label, "presets": json.loads(json.dumps(presets)),
-                     "boxes": json.loads(json.dumps(boxes)),
-                     "preset": cfg.get("preset"), "box": cfg.get("box")})
+def _remember_posts(label, posts):
+    """posts: [(path, body)]。undo でこの順に送り直す"""
+    _history.append({"label": label, "posts": json.loads(json.dumps(posts))})
     del _history[:-HISTORY_MAX]
+
+
+def _remember(label, cfg, presets, boxes):
+    _remember_posts(label, [("/api/presets", {"presets": presets}),
+                            ("/api/boxes", {"boxes": boxes}),
+                            ("/api/config", {"preset": cfg.get("preset"), "box": cfg.get("box")})])
 
 
 def _summary(item):
@@ -379,15 +385,236 @@ def clear_captions() -> dict:
     return _api("/api/clear", {})
 
 
+# ---------------- 単語（認識辞書・伏せ字・固定訳・エフェクト） ----------------
+
+WORD_ANIMS = ["pop", "bounce", "rainbow", "shine", "neon", "wave", "heartbeat", "float",
+              "glitch", "glowpulse", "shake", "spin", "flash", "none"]
+PARTICLES = ["none", "spark", "confetti", "heart", "burst", "sakura", "note"]
+
+# kind → (API, 本文のキー, 1件を識別する項目。None=文字列そのもの)
+WORD_KINDS = {
+    "recognition": ("/api/hotwords", "entries", "surface"),
+    "translation": ("/api/glossary", "entries", "ja"),
+    "banned": ("/api/banned", "words", None),
+}
+EFFECT_API = ("/api/effects", "effects", "word")
+
+
+def _scoped(path, profile):
+    return path + ("?profile=" + urllib.parse.quote(profile) if profile else "")
+
+
+def _read_words(api, profile):
+    path, key, _ = api
+    return _api(_scoped(path, profile))[key]
+
+
+def _save_words(api, profile, items):
+    path, key, _ = api
+    body = {key: items}
+    if profile:
+        body["profile"] = profile
+    _api(path, body)
+
+
+def _ident(api, item):
+    return item if api[2] is None else (item.get(api[2]) or "").strip()
+
+
+def _engine_running():
+    try:
+        return _api("/api/status").get("state") == "running"
+    except RuntimeError:
+        return False
+
+
+def _check_profile(profile):
+    if profile:
+        known = _api("/api/profiles").get("profiles", [])
+        if profile not in known:
+            raise ValueError(f"プロファイル「{profile}」がありません。候補: {known or '（なし）'}")
+
+
+@mcp.tool()
+def get_words(profile: str = "") -> dict:
+    """登録済みの単語を読む: 認識辞書・伏せ字・固定訳（英訳辞書）・単語エフェクト。
+
+    profile は辞書セットの名前（ゲーム別など）。"" は全配信共通。実際に効くのは
+    共通＋使用中プロファイル（active_profile）の合成で、同じ語はプロファイルが優先。
+    どこに足すか迷ったら、ユーザーに「共通」か「使用中のプロファイル」かを聞く。
+    """
+    _check_profile(profile)
+    prof = _api("/api/profiles")
+    return {
+        "scope": profile or "（共通）",
+        "active_profile": prof.get("active") or "（共通のみ）",
+        "profiles": prof.get("profiles", []),
+        "recognition": _read_words(WORD_KINDS["recognition"], profile),
+        "banned": _read_words(WORD_KINDS["banned"], profile),
+        "translation": _read_words(WORD_KINDS["translation"], profile),
+        "effects": _read_words(EFFECT_API, profile),
+        "effect_options": {"anim": WORD_ANIMS, "particle": PARTICLES,
+                           "scale": "1=標準 / 1.15=少し大きく / 1.3=大きく / 1.5=特大（0.5〜3）"},
+    }
+
+
+@mcp.tool()
+def set_word_effect(word: str, color: str = "", scale: float = 0, anim: str = "",
+                    particle: str = "", font: str = "", profile: str = "") -> dict:
+    """単語に見た目の演出を付ける（字幕にその語が出るたびに効く。配信画面へ即反映）。
+
+    既に登録があれば、渡した項目だけ変える（省いた項目は今の値のまま）。新規なら
+    省いた項目は 色=#ffd400 / 大きさ=1.3 / 動き=pop / パーティクル=none。
+    anim: pop bounce rainbow shine neon wave heartbeat float glitch glowpulse shake spin flash none
+    particle: none spark(キラキラ) confetti(紙吹雪) heart burst(光の粒) sakura note(音符)
+    「派手に」なら rainbow/neon/glitch + spark/confetti + 1.3〜1.5 のように組み合わせる。
+    日本語は部分一致で効く（「えも」は「さえもん」にも効く）ので、短い語は注意を伝える。
+    付けたら show_sample_caption でその語を含む文を出し、OBS のスクリーンショットで確かめる。
+    """
+    word = word.strip()
+    if not word:
+        raise ValueError("word が空です")
+    _check_profile(profile)
+    if color and not HEX.match(color):
+        raise ValueError(f"color: #rrggbb 形式で指定してください（{color!r}）")
+    if scale and not 0.5 <= scale <= 3:
+        raise ValueError("scale: 0.5〜3 の範囲で指定してください")
+    if anim and anim not in WORD_ANIMS:
+        raise ValueError(f"anim: {WORD_ANIMS} のどれかで指定してください")
+    if particle and particle not in PARTICLES:
+        raise ValueError(f"particle: {PARTICLES} のどれかで指定してください")
+    items = _read_words(EFFECT_API, profile)
+    cur = next((e for e in items if _ident(EFFECT_API, e) == word), None)
+    before = dict(cur) if cur else None
+    _remember_posts(f"「{word}」のエフェクト", [(EFFECT_API[0], {"effects": items, **({"profile": profile} if profile else {})})])
+    if cur is None:
+        cur = {"word": word, "color": "#ffd400", "font": "", "scale": 1.3,
+               "anim": "pop", "particle": "none"}
+        items.append(cur)
+    for k, v in (("color", color.lower()), ("scale", scale), ("anim", anim),
+                 ("particle", particle), ("font", font)):
+        if v:
+            cur[k] = v
+    _save_words(EFFECT_API, profile, items)
+    note = "短い語は他の言葉の一部にも効きます" if len(word) <= 2 else ""
+    return {"ok": True, "before": before, "after": cur, "live": True, "note": note}
+
+
+@mcp.tool()
+def remove_word_effect(word: str, profile: str = "") -> dict:
+    """単語のエフェクトを外す（配信画面へ即反映）"""
+    _check_profile(profile)
+    items = _read_words(EFFECT_API, profile)
+    left = [e for e in items if _ident(EFFECT_API, e) != word.strip()]
+    if len(left) == len(items):
+        return {"ok": False, "message": f"「{word}」のエフェクトは登録されていません"
+                                        f"（{profile or '共通'}）"}
+    _remember_posts(f"「{word}」のエフェクト削除", [(EFFECT_API[0], {"effects": items, **({"profile": profile} if profile else {})})])
+    _save_words(EFFECT_API, profile, left)
+    return {"ok": True, "removed": word}
+
+
+@mcp.tool()
+def add_words(kind: str, entries: list, profile: str = "") -> dict:
+    """認識辞書・伏せ字・固定訳に単語を足す（同じ語があれば上書き。他の登録は消さない）。
+
+    kind:
+      "recognition": 誤認識を直す認識辞書。entries=[{"surface": "癒色えも", "reading": "いしきえも"}]
+         漢字を含む語は reading（ひらがな）が必須。誤認識の形を「／」区切りで足すと、
+         その形も表記へ置き換わる（例 "いしきえも／意識エモ"）。強さ score は省略可（1〜5 程度）
+      "translation": 英訳を固定する。entries=[{"ja": "癒色えも", "en": "ISHIKI Emo"}]
+      "banned": 伏せ字にする語。entries=["語1", "語2"]
+    読みは推測で決めず、自信がなければユーザーに確かめてから登録する。
+    これらは認識の開始時に読むので、認識中なら再起動するまで効かない（restart_needed）。
+    再起動はこのツールではしない。配信中に止めてよいかをユーザーに確かめること。
+    """
+    if kind not in WORD_KINDS:
+        raise ValueError(f"kind は {list(WORD_KINDS)} のどれか")
+    _check_profile(profile)
+    api = WORD_KINDS[kind]
+    clean = []
+    for e in entries:
+        if api[2] is None:
+            if not isinstance(e, str) or not e.strip():
+                raise ValueError("banned の entries は文字列のリストです")
+            clean.append(e.strip())
+            continue
+        if not isinstance(e, dict) or not (e.get(api[2]) or "").strip():
+            raise ValueError(f"各 entry に {api[2]} が必要です: {e!r}")
+        if kind == "recognition":
+            surface = e["surface"].strip()
+            if re.search(r"[一-鿿]", surface) and not (e.get("reading") or "").strip():
+                raise ValueError(f"「{surface}」は漢字を含むので reading（読み）が必要です")
+            score = e.get("score", "")
+            if score not in ("", None) and not (isinstance(score, (int, float)) and 0 < score <= 10):
+                raise ValueError("score は 0〜10 の数値で指定してください")
+            clean.append({"surface": surface, "reading": (e.get("reading") or "").strip(),
+                          "score": "" if score in ("", None) else score})
+        else:
+            if not (e.get("en") or "").strip():
+                raise ValueError(f"「{e['ja']}」の en（英訳）が空です")
+            clean.append({"ja": e["ja"].strip(), "en": e["en"].strip()})
+    items = _read_words(api, profile)
+    _remember_posts(f"{kind} への追加", [(api[0], {api[1]: items, **({"profile": profile} if profile else {})})])
+    added, updated = [], []
+    for new in clean:
+        key = _ident(api, new)
+        i = next((j for j, x in enumerate(items) if _ident(api, x) == key), None)
+        if i is None:
+            items.append(new)
+            added.append(key)
+        elif items[i] != new:
+            items[i] = new
+            updated.append(key)
+    _save_words(api, profile, items)
+    return {"ok": True, "added": added, "updated": updated, "scope": profile or "（共通）",
+            "restart_needed": _engine_running()}
+
+
+@mcp.tool()
+def remove_words(kind: str, words: list, profile: str = "") -> dict:
+    """認識辞書・伏せ字・固定訳から語を外す。kind は add_words と同じ。words は語のリスト"""
+    if kind not in WORD_KINDS:
+        raise ValueError(f"kind は {list(WORD_KINDS)} のどれか")
+    _check_profile(profile)
+    api = WORD_KINDS[kind]
+    targets = {str(w).strip() for w in words}
+    items = _read_words(api, profile)
+    left = [x for x in items if _ident(api, x) not in targets]
+    removed = sorted(targets & {_ident(api, x) for x in items})
+    if not removed:
+        return {"ok": False, "message": "該当する登録がありません", "scope": profile or "（共通）"}
+    _remember_posts(f"{kind} からの削除", [(api[0], {api[1]: items, **({"profile": profile} if profile else {})})])
+    _save_words(api, profile, left)
+    return {"ok": True, "removed": removed, "restart_needed": _engine_running()}
+
+
+@mcp.tool()
+def read_recent_logs(sessions: int = 1) -> dict:
+    """最近の配信の字幕ログ（確定した字幕）を新しい順に読む。sessions は何回分か（1〜10）。
+
+    誤認識を探すときに使う: 登録済みの名前・固有名詞が別の字（同じ音のひらがな・
+    カタカナ・別の漢字）で出ている所や、文脈から明らかに聞き間違えた語を探し、
+    「この形 → この表記」を候補として示す。候補はユーザーに確かめてから add_words で
+    登録する（誤認識の形は reading に「／」区切りで足すと置き換わる）。
+    推測で語を作らず、ログに実際に出た形だけを根拠にする。
+    """
+    logs = _api(f"/api/logs/recent?sessions={int(sessions)}")["logs"]
+    if not logs:
+        return {"logs": [], "message": "字幕ログがありません（設定で『ログを保存』が"
+                                        "オフか、まだ認識を開始していません）"}
+    return {"logs": logs}
+
+
 @mcp.tool()
 def undo() -> dict:
-    """直前の変更（update_* / use_* / duplicate）を1つ取り消す。このサーバの起動中だけ有効"""
+    """直前の変更（デザイン・レイアウト・単語の追加/削除・エフェクト）を1つ取り消す。
+    このサーバの起動中だけ有効"""
     if not _history:
         return {"ok": False, "message": "取り消せる変更がありません"}
     snap = _history.pop()
-    _api("/api/presets", {"presets": snap["presets"]})
-    _api("/api/boxes", {"boxes": snap["boxes"]})
-    _api("/api/config", {"preset": snap["preset"], "box": snap["box"]})
+    for path, body in snap["posts"]:
+        _api(path, body)
     return {"ok": True, "undone": snap["label"], "remaining": len(_history)}
 
 

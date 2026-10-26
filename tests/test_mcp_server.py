@@ -150,6 +150,85 @@ class McpToolTests(unittest.TestCase):
         self.assertEqual((f["text"], f["sample"]), ("テストです", True))
         self.assertEqual((t["id"], t["text"]), (f["id"], "This is a test."))
 
+    # ---------------- 単語 ----------------
+
+    def test_word_effect_is_live_merges_and_undoes(self):
+        res = self.m.set_word_effect("癒色えも", anim="rainbow", particle="spark", scale=1.5)
+        self.assertIsNone(res["before"])
+        eff = next(e for e in self.events("style")[-1]["effects"] if e["word"] == "癒色えも")
+        self.assertEqual((eff["anim"], eff["particle"], eff["scale"]), ("rainbow", "spark", 1.5))
+        # 2回目は渡した項目だけ変わる
+        self.m.set_word_effect("癒色えも", color="#FF00AA")
+        cur = next(e for e in self.m.get_words()["effects"] if e["word"] == "癒色えも")
+        self.assertEqual((cur["color"], cur["anim"]), ("#ff00aa", "rainbow"))
+        self.m.undo()
+        self.m.undo()
+        self.assertFalse(any(e["word"] == "癒色えも" for e in self.m.get_words()["effects"]))
+
+    def test_word_effect_rejects_unknown_options(self):
+        for kw in ({"anim": "explode"}, {"particle": "fire"}, {"scale": 9}, {"color": "pink"}):
+            with self.subTest(kw=kw), self.assertRaises(ValueError):
+                self.m.set_word_effect("テスト", **kw)
+        self.assertEqual(self.m._history, [])
+
+    def test_add_words_keeps_existing_entries(self):
+        before = self.m.get_words()["recognition"]
+        res = self.m.add_words("recognition", [{"surface": "癒色えも", "reading": "いしきえも／意識エモ"}])
+        self.assertEqual(res["added"], ["癒色えも"])
+        self.assertFalse(res["restart_needed"])   # 認識は動いていない
+        after = self.m.get_words()["recognition"]
+        self.assertEqual(len(after), len(before) + 1)
+        self.assertEqual(after[-1]["reading"], "いしきえも／意識エモ")
+        res = self.m.add_words("recognition", [{"surface": "癒色えも", "reading": "いしきえも"}])
+        self.assertEqual((res["added"], res["updated"]), ([], ["癒色えも"]))
+        self.m.undo()
+        self.m.undo()
+        self.assertEqual(self.m.get_words()["recognition"], before)
+
+    def test_kanji_word_needs_a_reading(self):
+        with self.assertRaisesRegex(ValueError, "reading"):
+            self.m.add_words("recognition", [{"surface": "癒色"}])
+
+    def test_translation_and_banned_round_trip(self):
+        self.m.add_words("translation", [{"ja": "癒色えも", "en": "ISHIKI Emo"}])
+        self.m.add_words("banned", ["ひみつ"])
+        w = self.m.get_words()
+        self.assertIn({"ja": "癒色えも", "en": "ISHIKI Emo"}, w["translation"])
+        self.assertIn("ひみつ", w["banned"])
+        self.assertEqual(self.m.remove_words("banned", ["ひみつ"])["removed"], ["ひみつ"])
+        self.assertFalse(self.m.remove_words("banned", ["ひみつ"])["ok"])
+
+    def test_profile_scope_is_separate_and_checked(self):
+        wordstore.create_profile("ゲームA")
+        try:
+            self.m.add_words("banned", ["ネタバレ"], profile="ゲームA")
+            self.assertIn("ネタバレ", self.m.get_words("ゲームA")["banned"])
+            self.assertNotIn("ネタバレ", self.m.get_words()["banned"])
+            with self.assertRaisesRegex(ValueError, "プロファイル"):
+                self.m.add_words("banned", ["x"], profile="存在しない")
+        finally:
+            wordstore.delete_profile("ゲームA")
+
+    def test_recent_logs_newest_first(self):
+        saved = app_server.DATA_BASE
+        app_server.DATA_BASE = self.tmp.name
+        try:
+            self.assertEqual(self.m.read_recent_logs()["logs"], [])
+            for day, name, line in (
+                    ("2026-10-24", "2026-10-24_200000.log", "[2026-10-24 20:00:01] 前の配信"),
+                    ("2026-10-25", "2026-10-25_210000.log", "[2026-10-25 21:00:01] いしきえもです")):
+                d = os.path.join(self.tmp.name, "logs", day)
+                os.makedirs(d, exist_ok=True)
+                with open(os.path.join(d, name), "w", encoding="utf-8") as f:
+                    f.write(line + "\n\n")
+            logs = self.m.read_recent_logs(5)["logs"]
+            self.assertEqual([x["file"] for x in logs],
+                             ["2026-10-25/2026-10-25_210000.log", "2026-10-24/2026-10-24_200000.log"])
+            self.assertEqual(logs[0]["lines"], ["[2026-10-25 21:00:01] いしきえもです"])
+            self.assertEqual(len(self.m.read_recent_logs(1)["logs"]), 1)
+        finally:
+            app_server.DATA_BASE = saved
+
     @unittest.skipIf(sync_playwright is None, "playwright 未導入のためスキップ")
     def test_sample_caption_is_drawn_with_the_new_design(self):
         """MCP で変えたデザインが、試し表示の行にそのまま当たって描かれる"""
@@ -165,6 +244,24 @@ class McpToolTests(unittest.TestCase):
                 line.wait_for(timeout=3000)
                 css = line.evaluate("el => [getComputedStyle(el).fontSize, getComputedStyle(el).color]")
                 self.assertEqual(css, ["57px", "rgb(18, 171, 52)"])
+            finally:
+                browser.close()
+                self.m.undo()
+
+    @unittest.skipIf(sync_playwright is None, "playwright 未導入のためスキップ")
+    def test_word_effect_is_drawn_on_the_sample_caption(self):
+        """MCP で付けたエフェクトが、試し表示の行のその語に当たる"""
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch()
+            try:
+                page = browser.new_page()
+                page.goto(f"http://127.0.0.1:{self.port}/overlay")
+                page.wait_for_function("() => styleRev !== null")
+                self.m.set_word_effect("癒色えも", anim="rainbow", particle="spark")
+                self.m.show_sample_caption("癒色えもがお送りしています")
+                span = page.locator(".line .fx", has_text="癒色えも")
+                span.wait_for(timeout=3000)
+                self.assertIn("fx-rainbow", span.get_attribute("class"))
             finally:
                 browser.close()
                 self.m.undo()
