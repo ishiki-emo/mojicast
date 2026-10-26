@@ -732,6 +732,8 @@ def broadcast(event: dict):
 # overlay は final の版が手元の版と違えば /api/style で取り直す。style を
 # 何らかの理由で取りこぼしても、次の字幕で自力で最新の見た目へ戻れる
 _style_rev = 0
+# 試し表示（/api/sample-caption）の行番号。エンジンの行番号とぶつからない帯を使う
+_sample_fid = 10 ** 9
 _style_lock = threading.Lock()
 
 
@@ -1706,8 +1708,32 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/clear":
             broadcast({"type": "clear"})
             self._json({"ok": True})
+        elif path == "/api/sample-caption":
+            self._post_sample_caption(body)
         else:
             self._send_body(404, b"not found", "text/plain")
+
+    def _post_sample_caption(self, body):
+        """見た目確認用の字幕を1行出す（話さずに OBS 上の表示を確かめる。MCP から使う）。
+
+        エンジンを通さず overlay へ直接送るだけなので、ログ・VRChat・翻訳には流れない。
+        translation を渡すと訳文の併記も出す（翻訳のみ表示の確認用）
+        """
+        global _sample_fid
+        text = str(body.get("text") or "").strip()[:200]
+        if not text:
+            self._json({"ok": False, "error": "text is required"}, 400)
+            return
+        _sample_fid += 1
+        fid = _sample_fid
+        broadcast({"type": "final", "text": text, "id": fid, "speaker": "",
+                   "rev": _style_rev, "sample": True})
+        tr = str(body.get("translation") or "").strip()[:300]
+        if tr:
+            broadcast({"type": "translation", "id": fid, "text": tr,
+                       "fallback": False, "lang": str(body.get("lang") or "en")[:8],
+                       "order": 0, "sample": True})
+        self._json({"ok": True, "id": fid})
 
     def _post_words_import(self, body):
         """単語の一括取り込み（CSV / JSON）。
