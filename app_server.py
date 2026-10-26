@@ -17,6 +17,7 @@ import base64
 import queue
 import random
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs, unquote
 
@@ -176,8 +177,19 @@ def _read_json(path, fallback):
 
 
 def _write_json(path, data):
-    with open(path, "w", encoding="utf-8") as f:
+    """一時ファイルへ書いてから差し替える。直接上書きすると、書き込み途中を
+    別スレッド（style の配信など）が読んで壊れた JSON＝空扱いにしてしまう"""
+    tmp = f"{path}.{threading.get_ident()}.tmp"   # 同じファイルの同時保存でぶつからない
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+    # Windows は読み取り中のファイルへの差し替えが一時的に失敗することがある
+    for _ in range(20):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError:
+            time.sleep(0.01)
+    os.replace(tmp, path)
 
 
 def load_config():
@@ -406,9 +418,7 @@ def _after_migrate():
         cfg["migrate_offer"] = "done"
         save_config(cfg)
     vrcchat.configure(cfg)
-    ev = {"type": "style"}
-    ev.update(resolve_style(cfg))
-    broadcast(ev)
+    broadcast_style()
     broadcast({"type": "theme", "theme": cfg.get("theme", "light")})
     broadcast({"type": "ui_lang", "ui_lang": cfg.get("ui_lang", "ja")})
 
@@ -651,30 +661,107 @@ def list_system_fonts():
 
 # ---------------- SSE ----------------
 
+# 送信待ちが溢れたとき先に捨てるイベント（次の値ですぐ置き換わる流れもの）
+_SSE_DROP_FIRST = ("level", "partial")
+# 溢れても捨てないイベント。style を捨てると字幕は届くのに見た目だけ古いまま
+# 止まり、clear を捨てると消したはずの字幕が残る（どちらもリロードまで戻らない）
+_SSE_NEVER_DROP = ("style", "clear")
+# overlay（OBS）の接続へは送らないイベント。レベル表示は約100ms間隔で流れ、
+# overlay は使わないのに送信待ちを埋める
+_SSE_OVERLAY_SKIP = ("level",)
+
+
+def _sse_kind(data):
+    try:
+        return json.loads(data).get("type")
+    except (ValueError, AttributeError):
+        return None
+
+
+def _sse_trim(q):
+    """溢れた送信待ちを SSE_QUEUE_RECOVER_ITEMS 件まで減らす。
+
+    レベル表示・認識途中から古い順に捨て、それでも多ければ残りを古い順に捨てる。
+    style は最新の1件だけ残す（毎回全部入りなので最新があれば古いのは要らない）。
+    """
+    items = []
+    while True:
+        try:
+            items.append(q.get_nowait())
+        except queue.Empty:
+            break
+    kinds = [_sse_kind(d) for d in items]
+    last_style = max((i for i, k in enumerate(kinds) if k == "style"), default=-1)
+    keep = [k != "style" or i == last_style for i, k in enumerate(kinds)]
+    excess = sum(keep) - SSE_QUEUE_RECOVER_ITEMS
+    for drop_first in (True, False):
+        for i, k in enumerate(kinds):
+            if excess <= 0:
+                break
+            if keep[i] and k not in _SSE_NEVER_DROP and (k in _SSE_DROP_FIRST) == drop_first:
+                keep[i] = False
+                excess -= 1
+    for d, k in zip(items, keep):
+        if k:
+            try:
+                q.put_nowait(d)
+            except queue.Full:
+                pass
+
+
 def broadcast(event: dict):
     data = json.dumps(event, ensure_ascii=False)
+    kind = event.get("type")
     with _clients_lock:
         for q in list(_clients):
+            if kind in getattr(q, "skip", ()):
+                continue
             try:
                 q.put_nowait(data)
             except queue.Full:
                 # 切断寸前の遅いクライアントへ古い字幕を溜め続けず、
                 # 半分まで整理して最新状態へ追いつけるようにする。
-                while q.qsize() > SSE_QUEUE_RECOVER_ITEMS:
-                    try:
-                        q.get_nowait()
-                    except queue.Empty:
-                        break
+                _sse_trim(q)
                 try:
                     q.put_nowait(data)
                 except queue.Full:
                     pass
 
 
+# style の版番号。style を送るたびに進め、確定字幕（final）にも載せる。
+# overlay は final の版が手元の版と違えば /api/style で取り直す。style を
+# 何らかの理由で取りこぼしても、次の字幕で自力で最新の見た目へ戻れる
+_style_rev = 0
+_style_lock = threading.Lock()
+
+
+def _style_snapshot():
+    """_style_lock 内で呼ぶ。現在のファイルから作った style 一式＋版番号"""
+    ev = resolve_style(load_config())
+    ev["rev"] = _style_rev
+    return ev
+
+
+def broadcast_style():
+    """保存後の見た目を全画面へ配る。
+
+    作成から送信までを排他する。プリセットとレイアウトの同時保存のように
+    並行する保存がそれぞれ両方のファイルを読み直して送るため、排他しないと
+    先に作った古い一式が後から届き、表示側が古い見た目で止まることがある
+    """
+    global _style_rev
+    with _style_lock:
+        _style_rev += 1
+        ev = {"type": "style"}
+        ev.update(_style_snapshot())
+        broadcast(ev)
+
+
 def _init_event():
     cfg = load_config()
     ev = {"type": "init"}
-    ev.update(resolve_style(cfg))
+    with _style_lock:
+        ev.update(_style_snapshot())
     with _engine_state_lock:
         ev["state"] = dict(_engine_state)
     # 新しく開いたGUI窓がlocalStorageや次の変更イベントに依存せず、
@@ -871,9 +958,7 @@ def _try_voice_command(text, spk=""):
             cfg["preset"] = s["preset"]
             cfg["box"] = s["box"]
             save_config(cfg)
-        ev = {"type": "style"}
-        ev.update(resolve_style(load_config()))
-        broadcast(ev)
+        broadcast_style()
         broadcast({"type": "vc", "ok": True,
                    "message": f"シーン「{cmd['name']}」に切り替えました{suffix}"})
     elif cmd["action"] in ("box", "preset"):
@@ -883,9 +968,7 @@ def _try_voice_command(text, spk=""):
             cfg = load_config()
             cfg[key] = cmd["id"]
             save_config(cfg)
-        ev = {"type": "style"}
-        ev.update(resolve_style(load_config()))
-        broadcast(ev)
+        broadcast_style()
         broadcast({"type": "vc", "ok": True,
                    "message": f"{label}を「{cmd['name']}」に切り替えました{suffix}"})
     elif cmd["action"] in ("translate_on", "translate_off", "translate_lang"):
@@ -919,9 +1002,7 @@ def _try_voice_command(text, spk=""):
             broadcast({"type": "vc", "ok": True,
                        "message": "翻訳はすでにその設定です"})
             return True
-        ev = {"type": "style"}
-        ev.update(resolve_style(load_config()))
-        broadcast(ev)
+        broadcast_style()
         if _engine is not None and _engine.running:
             msg += "（反映のため再起動しています…）"
             _restart_engine_async()
@@ -956,7 +1037,9 @@ def _engine_on_final(text, fid, spk=""):
         # コマンド発話は字幕に出さず、発話中に見えていた薄文字だけ消す
         _engine_on_partial("", spk)
         return
-    broadcast({"type": "final", "text": text, "id": fid, "speaker": spk})
+    # rev: overlay が見た目の取りこぼしに気づいて取り直すための版番号（broadcast_style）
+    broadcast({"type": "final", "text": text, "id": fid, "speaker": spk,
+               "rev": _style_rev})
     vrcchat.on_final(text, fid, spk)
 
 
@@ -1146,7 +1229,7 @@ class Handler(BaseHTTPRequestHandler):
             self._file(os.path.join(BASE, "CREDITS.md"),
                        "text/plain; charset=utf-8")
         elif path == "/events":
-            self._events()
+            self._events(overlay=query.get("overlay") == "1")
         elif path.startswith("/ui/"):
             name = os.path.basename(path[4:]) or "cockpit"
             if "." not in name:
@@ -1231,6 +1314,12 @@ class Handler(BaseHTTPRequestHandler):
                 "boxes": _read_json(os.path.join(BASE, "defaults", "boxes.json"),
                                     {"boxes": []}).get("boxes", []),
             })
+        elif path == "/api/style":
+            # overlay が style の取りこぼしに気づいたときの取り直し（final の rev 参照）
+            with _style_lock:
+                ev = {"type": "style"}
+                ev.update(_style_snapshot())
+            self._json(ev)
         elif path == "/api/fonts":
             try:
                 self._json({"fonts": list_system_fonts()})
@@ -1396,9 +1485,7 @@ class Handler(BaseHTTPRequestHandler):
                 save_config(cfg)
             vrcchat.configure(cfg)   # VRChat転送は再起動なしで即反映
             # プリセット・プロファイル変更は表示側へ即反映
-            ev = {"type": "style"}
-            ev.update(resolve_style(cfg))
-            broadcast(ev)
+            broadcast_style()
             # GUIテーマは開いている全ウインドウへ即時反映する。
             # overlay.html はこのイベントを購読しないためOBS字幕には影響しない。
             if "theme" in body:
@@ -1434,9 +1521,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             wordstore.save_hotwords(body.get("entries", []), p)
             _notify_words_saved(p)
-            ev = {"type": "style"}
-            ev.update(resolve_style(load_config()))
-            broadcast(ev)
+            broadcast_style()
             self._json({"ok": True})
         elif path == "/api/banned":
             p = self._profile_arg(body.get("profile"))
@@ -1462,9 +1547,7 @@ class Handler(BaseHTTPRequestHandler):
             if p is None:
                 return
             wordstore.save_effects(body.get("effects", []), p)
-            ev = {"type": "style"}
-            ev.update(resolve_style(load_config()))
-            broadcast(ev)
+            broadcast_style()
             self._json({"ok": True})
         elif path == "/api/soundfx/test":
             # 設定UIの［テスト発火］。本物と同じ形の SSE を流すので、
@@ -1526,9 +1609,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not any(p["id"] == cfg.get("preset") for p in presets):
                     cfg["preset"] = presets[0]["id"]   # 使用中プリセットが消えたら先頭へ
                     save_config(cfg)
-            ev = {"type": "style"}
-            ev.update(resolve_style(cfg))
-            broadcast(ev)
+            broadcast_style()
             self._json({"ok": True})
         elif path == "/api/vc-commands":
             commands = body.get("commands", [])
@@ -1564,9 +1645,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not any(b["id"] == cfg.get("box") for b in boxes):
                     cfg["box"] = boxes[0]["id"]
                     save_config(cfg)
-            ev = {"type": "style"}
-            ev.update(resolve_style(cfg))
-            broadcast(ev)
+            broadcast_style()
             self._json({"ok": True})
         elif path == "/api/engine":
             action = body.get("action")
@@ -1604,9 +1683,7 @@ class Handler(BaseHTTPRequestHandler):
             if err:
                 self._json({"ok": False, "error": err}, 400)
                 return
-            ev = {"type": "style"}
-            ev.update(resolve_style(load_config()))
-            broadcast(ev)
+            broadcast_style()
             self._json({"ok": True, **result})
         elif path == "/api/mojipack/open":
             d = wordstore.data_path(EXPORT_DIR_NAME)
@@ -1675,9 +1752,7 @@ class Handler(BaseHTTPRequestHandler):
         if counts["glossary"]:
             wordstore.save_glossary(new_gl, p)
         _notify_words_saved(p)
-        ev = {"type": "style"}
-        ev.update(resolve_style(load_config()))
-        broadcast(ev)
+        broadcast_style()
         self._json({"ok": True, **counts, "stats": stats})
 
     def _post_words_export(self, body):
@@ -1766,9 +1841,7 @@ class Handler(BaseHTTPRequestHandler):
         new_gl, counts = wordimport.apply_import_glossary(uniq, gloss, mode)
         wordstore.save_glossary(new_gl, p)
         _notify_words_saved(p)
-        ev = {"type": "style"}
-        ev.update(resolve_style(load_config()))
-        broadcast(ev)
+        broadcast_style()
         self._json({"ok": True, **counts, "stats": stats})
 
     def _post_glossary_export(self, body):
@@ -1819,14 +1892,14 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"ok": False, "error": "unknown action"}, 400)
             return
         # プロファイル一覧・合成結果の変化を全画面へ反映
-        ev = {"type": "style"}
-        ev.update(resolve_style(load_config()))
-        broadcast(ev)
+        broadcast_style()
         self._json({"ok": True, "profiles": wordstore.list_profiles()})
 
     # --- SSE ---
-    def _events(self):
+    def _events(self, overlay=False):
         q: "queue.Queue[str]" = queue.Queue(maxsize=SSE_QUEUE_MAX_ITEMS)
+        if overlay:
+            q.skip = _SSE_OVERLAY_SKIP
         with _clients_lock:
             too_many = len(_clients) >= MAX_SSE_CLIENTS
             if not too_many:
