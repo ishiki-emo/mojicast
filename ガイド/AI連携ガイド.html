@@ -75,8 +75,8 @@
 <nav class="toc"><b>もくじ</b>
 <ol>
   <li><a href="#what">できること</a></li>
-  <li><a href="#prep">準備（どのAIでも共通）</a></li>
-  <li><a href="#easy">いちばん簡単：AIに設定してもらう</a></li>
+  <li><a href="#easy">いちばん簡単：Mojicast を起動したまま、AIに頼む</a></li>
+  <li><a href="#prep">自分で設定する場合の準備</a></li>
   <li><a href="#claude">Claude デスクトップで使う</a></li>
   <li><a href="#codex">ChatGPT（Codex）で使う</a></li>
   <li><a href="#antigravity">Gemini（Antigravity）で使う</a></li>
@@ -113,10 +113,24 @@ Mojicast の MCP は、あなたのパソコンの中で動く Mojicast につ�
   <tr><td><b>Gemini（Antigravity）</b></td><td>設定ファイルに書く</td><td>Google の Antigravity アプリで使います</td></tr>
 </table>
 
-<h2 id="prep">2. 準備（どのAIでも共通）</h2>
+<h2 id="easy">2. いちばん簡単：Mojicast を起動したまま、AIに頼む</h2>
+<p>登録の作業そのものをAIに任せられます。<b>Mojicast を起動した状態で</b>、パソコンのファイル編集やコマンド実行ができるAI
+（Codex の Work モード、Claude Code など）にこう頼んでください。</p>
+<pre>Mojicast を起動しているので、Mojicast の MCP を設定して。
+Mojicast は 8765 ポートで動いています。つないで見てみて。</pre>
+<ol>
+  <li>AIが Mojicast の MCP サーバ（<code>mcp\mojicast_mcp.py</code>）を探して、そのアプリに登録します。
+      uv が入っていなければ、入れてよいか聞いてくることがあります。</li>
+  <li>設定ファイルの書き換えなどの許可を求められたら、内容を読んで、よければ許可します。</li>
+  <li>終わったら<b>AIアプリを起動し直します</b>。そのあと「字幕を左下にまとめて」などと頼めば、そのまま使えます。</li>
+</ol>
+<p class="tip">AIが mojicast_mcp.py を見つけられないときは、「mojicast_mcp.py は（場所）にあります」と1行足してください。場所は次の「準備③」を見てください。</p>
+<p>うまくいかないときや、自分で確かめながら設定したいときは、このあとの「準備」と各アプリの手順（4〜6）を見てください。</p>
+
+<h2 id="prep">3. 自分で設定する場合の準備（どのAIでも共通）</h2>
 
 <h3>① Mojicast を起動しておく</h3>
-<p>AIは起動中の Mojicast に話しかけます。使うときは Mojicast を起動しておいてください（認識は止まっていても大丈夫です）。</p>
+<p>AIは起動中の Mojicast に話しかけます。設定するときも使うときも、Mojicast を起動しておいてください（認識は止まっていても大丈夫です）。</p>
 
 <h3>② uv を入れる（最初の1回だけ）</h3>
 <p>Mojicast の MCP は <b>uv</b> という小さなツールで動きます。スタートメニューで「PowerShell」を開き、次の1行を貼り付けて Enter を押してください。</p>
@@ -131,18 +145,6 @@ Mojicast の MCP は、あなたのパソコンの中で動く Mojicast につ�
   <tr><td>Zip版</td><td>Zip を展開したフォルダの <code>Mojicast\mcp\mojicast_mcp.py</code></td></tr>
 </table>
 <p class="tip">エクスプローラーで <code>mojicast_mcp.py</code> を右クリック →「パスのコピー」で、場所をそのままコピーできます。</p>
-
-<h2 id="easy">3. いちばん簡単：AIに設定してもらう</h2>
-<p>準備①（Mojicast の起動）ができていれば、<b>登録の作業そのものをAIに頼めます。</b>
-パソコンのファイル編集やコマンド実行ができるモード（Codex の Work モード、Claude Code など）で、こう話しかけてみてください。</p>
-<pre>Mojicast の MCP を設定できる？
-Mojicast は 8765 ポートで立ち上がっているはずなので、つないで見てみて。
-mojicast_mcp.py は（mojicast_mcp.py の場所）にあります。</pre>
-<ul>
-  <li>AIが設定ファイルを書き換えたり、uv を入れたりしてよいか確認してくることがあります。内容を読んで、よければ許可してください。</li>
-  <li>登録が終わったら、<b>AIアプリを起動し直す</b>と Mojicast の道具が使えるようになります（AIに「起動し直して」と言われることもあります）。</li>
-  <li>うまくいかないときや、自分で確かめながら設定したいときは、このあとの手順（4〜6）を見てください。</li>
-</ul>
 
 <h2 id="claude">4. Claude デスクトップで使う（自分で設定する場合）</h2>
 
