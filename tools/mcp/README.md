@@ -21,8 +21,10 @@ Claude Code などの AI から、Mojicast の字幕デザインとレイアウ�
 [uv](https://docs.astral.sh/uv/) が必要です。依存（`mcp<2`）は uv が自動で用意します。
 
 ```
-claude mcp add mojicast -s user -- uv run --script E:\AIProject\ReazonSpeech\tools\mcp\mojicast_mcp.py
+claude mcp add mojicast -s user -- uv run --script <Mojicast のフォルダ>\mcp\mojicast_mcp.py
 ```
+
+`<Mojicast のフォルダ>` は Mojicast.exe があるフォルダです（開発版では `tools\mcp\mojicast_mcp.py`）。
 
 Mojicast のポートを 8765 から変えている場合は、`-e MOJICAST_PORT=ポート番号` を付けてください。
 登録後は Claude Code を開き直すと使えます。
