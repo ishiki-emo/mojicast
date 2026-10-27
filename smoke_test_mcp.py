@@ -254,9 +254,12 @@ def run(mcp, sse):
     check("固定訳に登録される", gl.get("煙太郎") == "Kemutaro", r)
     mcp.ok("add_words", kind="banned", entries=["スモーク伏せ字"])
     check("伏せ字に登録される", "スモーク伏せ字" in http("/api/banned")["words"])
-    r = mcp.ok("remove_words", kind="banned", words=["スモーク伏せ字"])
-    check("remove_words で外れる",
-          r["removed"] == ["スモーク伏せ字"] and "スモーク伏せ字" not in http("/api/banned")["words"], r)
+    err, val = mcp.call("remove_words", kind="banned", words=["スモーク伏せ字"])
+    check("伏せ字は AI から外せない",
+          err and "スモーク伏せ字" in http("/api/banned")["words"], val)
+    r = mcp.ok("remove_words", kind="translation", words=["煙太郎"])
+    check("remove_words で固定訳が外れる",
+          r["removed"] == ["煙太郎"] and all(x["ja"] != "煙太郎" for x in http("/api/glossary")["entries"]), r)
     err, _ = mcp.call("get_words", profile="存在しないセット")
     check("無いプロファイルを断る", err)
 
@@ -278,7 +281,8 @@ def run(mcp, sse):
             break
     hw = {x["surface"] for x in http("/api/hotwords")["entries"]}
     gl = {x["ja"] for x in http("/api/glossary")["entries"]}
-    check("undo を重ねると辞書の追加も消える", "煙太郎" not in hw and "煙太郎" not in gl)
+    check("undo を重ねると辞書の追加も消える", "煙太郎" not in hw and "煙太郎" not in gl
+          and "スモーク伏せ字" not in http("/api/banned")["words"])
     check("取り消すものが無くなると ok=false", mcp.ok("undo")["ok"] is False)
 
 
@@ -286,8 +290,9 @@ def main():
     if not os.path.exists(os.path.join(APP, "Mojicast.exe")):
         sys.exit("dist\\Mojicast\\Mojicast.exe がありません。先に pyinstaller → build_bundle.ps1 を実行してください")
     script = os.path.join(APP, "mcp", "mojicast_mcp.py")
-    if not os.path.exists(script):
-        sys.exit("dist\\Mojicast\\mcp\\mojicast_mcp.py がありません（build_bundle.ps1 の同梱漏れ）")
+    for f in (script, script + ".lock"):
+        if not os.path.exists(f):
+            sys.exit(f"{f} がありません（build_bundle.ps1 の同梱漏れ）")
     if server_up():
         sys.exit(f"ポート {PORT} で Mojicast が動いています。本物の設定を触らないよう、閉じてから実行してください")
     for d in ("data", "logs"):

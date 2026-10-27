@@ -39,10 +39,11 @@ foreach ($f in @("README_TESTER.txt", "マニュアル.html", "ブロック解�
 Remove-Item (Join-Path $app "ガイド") -Recurse -Force -EA SilentlyContinue
 Copy-Item (Join-Path $root "ガイド") (Join-Path $app "ガイド") -Recurse -Force
 Write-Host "  doc   : ガイド\  (スタイルガイド / エフェクトガイド)"
-# MCP サーバ（AI から字幕を調整する・試作）。本体には組み込まず uv で別に起動する
+# MCP サーバ（AI から字幕を調整する・試作）。本体には組み込まず uv で別に起動する。
+# .lock は依存の版とハッシュを固定するもの（uv が隣にあれば自動で使う）
 Remove-Item (Join-Path $app "mcp") -Recurse -Force -EA SilentlyContinue
 New-Item -ItemType Directory (Join-Path $app "mcp") | Out-Null
-foreach ($f in @("mojicast_mcp.py", "README.md")) {
+foreach ($f in @("mojicast_mcp.py", "mojicast_mcp.py.lock", "README.md")) {
     Copy-Item (Join-Path $root "tools\mcp\$f") (Join-Path $app "mcp\$f") -Force
 }
 Write-Host "  tool  : mcp\  (MCP サーバ・試作)"

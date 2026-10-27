@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["mcp>=1.2,<2"]   # 2.x は FastMCP が MCPServer に改名され API も変わった
+# dependencies = ["mcp==1.30.0"]   # 版を固定し、同じフォルダの .lock（ハッシュ付き）で中身も固定する。2.x は API が違う
 # ///
 """Mojicast の字幕デザイン・レイアウトを AI から調整する MCP サーバ（試作）
 
@@ -197,6 +197,12 @@ def _remember_posts(label, posts):
     del _history[:-HISTORY_MAX]
 
 
+def _remember_revert(label, fn):
+    """丸ごと書き戻すと人が後から足した分まで消える操作用。undo で fn() を呼ぶ"""
+    _history.append({"label": label, "revert": fn})
+    del _history[:-HISTORY_MAX]
+
+
 def _remember(label, cfg, presets, boxes):
     _remember_posts(label, [("/api/presets", {"presets": presets}),
                             ("/api/boxes", {"boxes": boxes}),
@@ -374,7 +380,13 @@ def show_sample_caption(text: str = "", translation: str = "") -> dict:
     調整のあとにこれを呼び、OBS MCP のスクリーンショットで仕上がりを見る。
     行数・折り返しを確かめたいときは、長めの文を何回か送る。translation を渡すと
     訳文の併記も出る。
+    認識中（配信中の可能性が高い）は出さない。AI が指示した文がそのまま配信画面に
+    載る事故を防ぐため。そのときはユーザーに、認識を止めてから試すか、実際に
+    話して確かめるよう伝える。
     """
+    if _engine_running():
+        raise ValueError("認識中は試し表示を出しません（配信画面にそのまま出るため）。"
+                         "認識を止めてから試すか、実際に話して見た目を確かめてください")
     text = text or "みなさんこんばんは！今日もゆったり配信していきます。"
     return _api("/api/sample-caption", {"text": text, "translation": translation})
 
@@ -555,7 +567,6 @@ def add_words(kind: str, entries: list, profile: str = "") -> dict:
                 raise ValueError(f"「{e['ja']}」の en（英訳）が空です")
             clean.append({"ja": e["ja"].strip(), "en": e["en"].strip()})
     items = _read_words(api, profile)
-    _remember_posts(f"{kind} への追加", [(api[0], {api[1]: items, **({"profile": profile} if profile else {})})])
     added, updated = [], []
     for new in clean:
         key = _ident(api, new)
@@ -566,6 +577,16 @@ def add_words(kind: str, entries: list, profile: str = "") -> dict:
         elif items[i] != new:
             items[i] = new
             updated.append(key)
+    if kind == "banned":
+        # 伏せ字の undo は「足した語だけ外す」。一覧ごと書き戻すと、その間に
+        # 人が Mojicast の画面で足した伏せ字まで消えてしまう
+        def revert(words=tuple(added)):
+            cur = _read_words(api, profile)
+            _save_words(api, profile, [w for w in cur if w not in words])
+        _remember_revert(f"{kind} への追加", revert)
+    else:
+        _remember_posts(f"{kind} への追加", [(api[0], {api[1]: _read_words(api, profile),
+                                                    **({"profile": profile} if profile else {})})])
     _save_words(api, profile, items)
     return {"ok": True, "added": added, "updated": updated, "scope": profile or "（共通）",
             "restart_needed": _engine_running()}
@@ -573,7 +594,14 @@ def add_words(kind: str, entries: list, profile: str = "") -> dict:
 
 @mcp.tool()
 def remove_words(kind: str, words: list, profile: str = "") -> dict:
-    """認識辞書・伏せ字・固定訳から語を外す。kind は add_words と同じ。words は語のリスト"""
+    """認識辞書・固定訳から語を外す。kind は "recognition" か "translation"。words は語のリスト
+
+    伏せ字（banned）は AI からは外せない。外したい語があれば、Mojicast の「単語」画面で
+    外すようユーザーに伝える（ログなどに紛れた指示で伏せ字が外れ、配信に NG ワードが
+    出る事故を防ぐため）。
+    """
+    if kind == "banned":
+        raise ValueError("伏せ字は AI からは外せません。Mojicast の「単語」画面で外してください")
     if kind not in WORD_KINDS:
         raise ValueError(f"kind は {list(WORD_KINDS)} のどれか")
     _check_profile(profile)
@@ -613,7 +641,9 @@ def undo() -> dict:
     if not _history:
         return {"ok": False, "message": "取り消せる変更がありません"}
     snap = _history.pop()
-    for path, body in snap["posts"]:
+    if "revert" in snap:
+        snap["revert"]()
+    for path, body in snap.get("posts", []):
         _api(path, body)
     return {"ok": True, "undone": snap["label"], "remaining": len(_history)}
 

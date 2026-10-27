@@ -195,8 +195,34 @@ class McpToolTests(unittest.TestCase):
         w = self.m.get_words()
         self.assertIn({"ja": "癒色えも", "en": "ISHIKI Emo"}, w["translation"])
         self.assertIn("ひみつ", w["banned"])
-        self.assertEqual(self.m.remove_words("banned", ["ひみつ"])["removed"], ["ひみつ"])
-        self.assertFalse(self.m.remove_words("banned", ["ひみつ"])["ok"])
+        self.assertEqual(self.m.remove_words("translation", ["癒色えも"])["removed"], ["癒色えも"])
+        self.assertFalse(self.m.remove_words("translation", ["癒色えも"])["ok"])
+
+    def test_banned_words_cannot_be_removed_by_ai(self):
+        self.m.add_words("banned", ["ないしょ"])
+        with self.assertRaisesRegex(ValueError, "単語"):
+            self.m.remove_words("banned", ["ないしょ"])
+        self.assertIn("ないしょ", self.m.get_words()["banned"])
+
+    def test_banned_undo_keeps_words_added_by_hand(self):
+        self.m.add_words("banned", ["AIが足した語"])
+        # AI の操作のあとに、人が Mojicast の画面で伏せ字を足した
+        cur = self.m.get_words()["banned"]
+        self.m._api("/api/banned", {"words": cur + ["人が足した語"]})
+        self.m.undo()
+        banned = self.m.get_words()["banned"]
+        self.assertNotIn("AIが足した語", banned)
+        self.assertIn("人が足した語", banned)
+
+    def test_sample_caption_is_refused_while_recognizing(self):
+        orig = self.m._engine_running
+        self.m._engine_running = lambda: True
+        try:
+            with self.assertRaisesRegex(ValueError, "認識中"):
+                self.m.show_sample_caption("配信に出したくない文")
+        finally:
+            self.m._engine_running = orig
+        self.assertEqual(self.events("final"), [])
 
     def test_profile_scope_is_separate_and_checked(self):
         wordstore.create_profile("ゲームA")
