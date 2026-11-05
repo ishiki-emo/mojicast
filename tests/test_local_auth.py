@@ -215,3 +215,28 @@ class AuthBrowserTests(AuthFixture, unittest.TestCase):
                         page.close()
             finally:
                 browser.close()
+
+
+class TestUiTokenEnvTests(unittest.TestCase):
+    """Release smoke tests pass a known UI secret through the environment."""
+
+    def make(self, value):
+        with tempfile.TemporaryDirectory() as d, patch.dict(os.environ, {local_auth.TEST_UI_TOKEN_ENV: value}):
+            auth = local_auth.LocalAuth(os.path.join(d, "api_auth.json"))
+            leaked = local_auth.TEST_UI_TOKEN_ENV in os.environ
+        return auth, leaked
+
+    def test_valid_value_becomes_ui_token_and_is_removed_from_environment(self):
+        token = "a" * 20 + "B-_9" * 4
+        auth, leaked = self.make(token)
+        self.assertEqual(auth.ui_token, token)
+        self.assertEqual(auth.role(token), "ui")
+        self.assertFalse(leaked)
+
+    def test_short_or_unsafe_values_are_ignored(self):
+        for value in ("", "short", "x" * 31, "x" * 40 + " ", "x" * 40 + "#y", "x" * 257):
+            with self.subTest(value=value[:12]):
+                auth, leaked = self.make(value)
+                self.assertNotEqual(auth.ui_token, value)
+                self.assertGreaterEqual(len(auth.ui_token), 32)
+                self.assertFalse(leaked)

@@ -23,11 +23,19 @@ MCP_POST_FIELDS = {
     "/api/clear": frozenset(),
 }
 MCP_CONFIG_READ = ("preset", "box", "collab", "translate", "word_profile")
+# Release smoke tests launch the frozen app with a known UI secret. Only a process that can
+# already set this process's environment (the same OS user) can use it, so no boundary moves.
+TEST_UI_TOKEN_ENV = "MOJICAST_TEST_UI_TOKEN"
+
+
+def _test_ui_token():
+    value = os.environ.pop(TEST_UI_TOKEN_ENV, "")  # Do not leak it to child processes.
+    return value if re.fullmatch(r"[A-Za-z0-9_-]{32,256}", value) else None
 
 
 class LocalAuth:
     def __init__(self, path):
-        self.ui_token = secrets.token_urlsafe(32)
+        self.ui_token = _test_ui_token() or secrets.token_urlsafe(32)
         self.path = path
         self._lock = threading.RLock()
         self._digest = None

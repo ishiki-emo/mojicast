@@ -12,6 +12,7 @@ smoke_test.ps1 と同じく dist\\Mojicast の data\\ と logs\\ を作り直す
 """
 import json
 import os
+import secrets
 import shutil
 import subprocess
 import sys
@@ -24,6 +25,8 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 APP = os.path.join(ROOT, "dist", "Mojicast")
 PORT = 8765
 BASE_URL = f"http://127.0.0.1:{PORT}"
+# v1.1〜 ローカルAPIは認証必須。テスト用の画面キーを環境変数で渡して起動する
+UI_TOKEN = secrets.token_urlsafe(32)
 UV = shutil.which("uv") or os.path.expanduser(r"~\.local\bin\uv.exe")
 
 EXPECTED_TOOLS = {
@@ -44,7 +47,8 @@ def check(name, ok, detail=""):
 def http(path, body=None):
     data = None if body is None else json.dumps(body).encode()
     req = urllib.request.Request(BASE_URL + path, data=data,
-                                 headers={"Content-Type": "application/json"})
+                                 headers={"Content-Type": "application/json",
+                                          "Authorization": "Bearer " + UI_TOKEN})
     with urllib.request.urlopen(req, timeout=10) as r:
         return json.loads(r.read())
 
@@ -52,8 +56,8 @@ def http(path, body=None):
 class Mcp:
     """MCP（stdio・改行区切り JSON-RPC）の最小クライアント"""
 
-    def __init__(self, script):
-        env = {**os.environ, "MOJICAST_PORT": str(PORT)}
+    def __init__(self, script, token):
+        env = {**os.environ, "MOJICAST_PORT": str(PORT), "MOJICAST_TOKEN": token}
         self.p = subprocess.Popen([UV, "run", "--script", script], stdin=subprocess.PIPE,
                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                   env=env, text=True, encoding="utf-8")
@@ -141,6 +145,8 @@ def server_up():
     try:
         http("/api/config")
         return True
+    except urllib.error.HTTPError:
+        return True  # 401 などでも、ポートで何かが応答している
     except (urllib.error.URLError, OSError):
         return False
 
@@ -264,6 +270,9 @@ def run(mcp, sse):
     check("無いプロファイルを断る", err)
 
     print("配信ログ")
+    err, _ = mcp.call("read_recent_logs")
+    check("ログ読み取りの許可がOFFなら断る", err)
+    http("/api/config", {"mcp_allow_logs": True})
     r = mcp.ok("read_recent_logs")
     check("ログが無いときは案内を返す", r["logs"] == [] and r.get("message"), r)
     day = os.path.join(APP, "logs", "2026-10-26")
@@ -299,7 +308,8 @@ def main():
         shutil.rmtree(os.path.join(APP, d), ignore_errors=True)
 
     print("Mojicast.exe を起動中...")
-    exe = subprocess.Popen([os.path.join(APP, "Mojicast.exe")], cwd=APP)
+    exe = subprocess.Popen([os.path.join(APP, "Mojicast.exe")], cwd=APP,
+                           env={**os.environ, "MOJICAST_TEST_UI_TOKEN": UI_TOKEN})
     mcp = None
     try:
         for _ in range(120):
@@ -308,8 +318,10 @@ def main():
             time.sleep(0.5)
         else:
             sys.exit("Mojicast.exe のサーバが応答しません")
+        if http("/api/config").get("mcp_allow_logs") is not False:
+            sys.exit("テスト用の画面キーで認証できません（MOJICAST_TEST_UI_TOKEN 非対応のビルド？）")
         sse = Sse()
-        mcp = Mcp(script)
+        mcp = Mcp(script, http("/api/auth/mcp", {"action": "rotate"})["token"])
         check("MCP サーバが uv で起動して応答する", mcp.info.get("serverInfo"), mcp.info)
         run(mcp, sse)
     except Exception as e:  # 途中で落ちても結果をまとめて出す

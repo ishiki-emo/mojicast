@@ -51,7 +51,12 @@ if ($Fresh) {
 
 # --- 起動 → サーバ応答 ---
 Note "起動中..."
+# v1.1〜 ローカルAPIは認証必須。テスト用の画面キーを環境変数で渡し、全 API 呼び出しに付ける
+$uiToken = [guid]::NewGuid().ToString("N") + [guid]::NewGuid().ToString("N")
+$PSDefaultParameterValues["Invoke-RestMethod:Headers"] = @{ Authorization = "Bearer $uiToken" }
+$env:MOJICAST_TEST_UI_TOKEN = $uiToken
 Start-Process "$app\Mojicast.exe" -WorkingDirectory $app
+Remove-Item Env:MOJICAST_TEST_UI_TOKEN
 $server = $false
 foreach ($i in 1..30) {
     Start-Sleep -Seconds 1
