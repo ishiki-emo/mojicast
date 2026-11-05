@@ -385,11 +385,11 @@
   };
 
   FX.spawnParticles = function (target, type, color) {
-    const def = PARTICLE_DEFS[type];
+    const def = Object.hasOwn(PARTICLE_DEFS, type) ? PARTICLE_DEFS[type] : null;
     if (!def) return;
     const rect = target.getBoundingClientRect();
     if (!rect.width) return;
-    color = color || "#ffd400";
+    color = typeof color === "string" && /^#[0-9a-fA-F]{6}$/.test(color) ? color : "#ffd400";
     const lay = getLayer();
     const fontPx = parseFloat(getComputedStyle(target).fontSize) || 32;
 
@@ -402,14 +402,14 @@
       const y = rect.top + rect.height * (0.3 + Math.random() * 0.4);
       const size = fontPx * (0.18 + Math.random() * 0.22);
 
+      Object.assign(p.style, {position: "fixed", left: `${x}px`, top: `${y}px`});
       if (def.rect) {
-        p.style.cssText = `position:fixed;left:${x}px;top:${y}px;` +
-          `width:${size * 0.8}px;height:${size * 0.5}px;background:${c};border-radius:1px;`;
+        Object.assign(p.style, {width: `${size * 0.8}px`, height: `${size * 0.5}px`,
+                               backgroundColor: c, borderRadius: "1px"});
       } else {
         p.textContent = def.chars[Math.floor(Math.random() * def.chars.length)];
-        p.style.cssText = `position:fixed;left:${x}px;top:${y}px;` +
-          `font-size:${size * 1.6}px;color:${c};line-height:1;` +
-          `text-shadow:0 0 6px ${c};`;
+        Object.assign(p.style, {fontSize: `${size * 1.6}px`, color: c,
+                               lineHeight: "1", textShadow: `0 0 6px ${c}`});
       }
       lay.appendChild(p);
 

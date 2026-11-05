@@ -17,6 +17,7 @@ import base64
 import queue
 import random
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs, unquote
 
@@ -25,8 +26,10 @@ import migrate
 import platform_compat
 import vrcchat
 import wordstore
+import local_auth
+import math
 
-APP_VERSION = "1.0.1"
+APP_VERSION = "1.1.0"
 
 # 更新チェック用のマニフェスト（GitHub raw）。リリース時に latest.json を更新する。
 # 中身: {"version": "0.5.1", "url": "<配布ページ>", "notes": "<一行紹介>"}
@@ -41,6 +44,7 @@ _update_cache_at = 0.0    # time.monotonic() ベースの取得時刻
 
 DEFAULT_CONFIG = {
     "silence_ms": 300, "interval": 0.4, "max_utt": 12.0,
+    "min_speech_ms": 150,  # 短い発話の拾いやすさ（250/150/100/75/50ms）
     "final_only": False,    # 途中経過（薄文字）を出さず確定字幕だけ表示する
     "device": None, "precision": "int8-fp32", "punctuate": True,
     "asr_model": "k2-ja",   # 認識モデル（k2-ja=日本語特化 / sensevoice=多言語）
@@ -52,7 +56,7 @@ DEFAULT_CONFIG = {
     # 非保証の追加翻訳先（M2M-100 の言語コード。例 ["th", "vi"]）。画面には無い裏口で、
     # ここに書くと設定画面の翻訳先に「（非保証）」付きで並ぶ。品質は測っていない
     "translate_extra_langs": [],
-    "save_log": True, "mask_char": "○", "num_arabic": True,
+    "mcp_allow_logs": False, "save_log": True, "mask_char": "○", "num_arabic": True,
     "word_fx": True,        # 単語エフェクトの表示（OFFでも認識誘導・置換は有効）
     "preset": "standard", "box": "none", "port": 8765,
     "word_profile": "",     # 使用中の単語プロファイル（"" = 共通のみ）
@@ -98,6 +102,43 @@ DEFAULT_CONFIG = {
     # "" = 対象外 / "pending" = 初回起動で案内中 / "done" = 引き継いだ / "dismissed" = 断った
     "migrate_offer": "",
 }
+
+def _validate_config_patch(body):
+    unknown = set(body) - set(DEFAULT_CONFIG)
+    if unknown:
+        raise ValueError("未知の設定項目です")
+    ranges = {"silence_ms": (50, 5000), "interval": (0.1, 5), "max_utt": (1, 120),
+              "hotwords_score": (0, 20), "port": (1024, 65535), "vrchat_port": (1024, 65535)}
+    for key, value in body.items():
+        default = DEFAULT_CONFIG[key]
+        if isinstance(default, bool) and type(value) is not bool:
+            raise ValueError(f"{key} must be a boolean")
+        if key in ranges:
+            lo, hi = ranges[key]
+            if type(value) not in (int, float) or not lo <= value <= hi or not math.isfinite(value):
+                raise ValueError(f"{key}: {lo}〜{hi} の数値で指定してください")
+            if key in ("port", "vrchat_port", "silence_ms") and int(value) != value:
+                raise ValueError(f"{key}: 整数で指定してください")
+        if key == "min_speech_ms" and (type(value) is not int or value not in (50, 75, 100, 150, 250)):
+            raise ValueError("min_speech_ms: 50/75/100/150/250で指定してください")
+        if key == "ui_scale":
+            continue  # normalize_ui_scale keeps the established UI fallback/clamp behavior.
+        if isinstance(default, str) and (not isinstance(value, str) or len(value) > 1024):
+            raise ValueError(f"{key}: 1024文字以内の文字列で指定してください")
+        if isinstance(default, list) and (not isinstance(value, list) or len(value) > 100
+                                         or not all(isinstance(v, str) and len(v) <= 256 for v in value)):
+            raise ValueError(f"{key}: 文字列の配列で指定してください")
+        if isinstance(default, dict) and not isinstance(value, dict):
+            raise ValueError(f"{key}: オブジェクトで指定してください")
+        if key in ("device", "collab_device") and value is not None and (type(value) is not int or value < 0):
+            raise ValueError(f"{key}: デバイス番号かnullで指定してください")
+        if key == "studio_edit_profile" and value is not None and (not isinstance(value, str) or len(value) > 256):
+            raise ValueError("studio_edit_profile: プロファイル名で指定してください")
+    for key, choices in {"precision": ("int8-fp32", "fp32"), "asr_model": ("k2-ja", "sensevoice"),
+                         "asr_lang": ("auto", "ja", "zh", "en", "ko", "yue")}.items():
+        if key in body and body[key] not in choices:
+            raise ValueError(f"{key}: 対応する選択肢で指定してください")
+
 
 _clients = []
 _clients_lock = threading.Lock()
@@ -176,8 +217,19 @@ def _read_json(path, fallback):
 
 
 def _write_json(path, data):
-    with open(path, "w", encoding="utf-8") as f:
+    """一時ファイルへ書いてから差し替える。直接上書きすると、書き込み途中を
+    別スレッド（style の配信など）が読んで壊れた JSON＝空扱いにしてしまう"""
+    tmp = f"{path}.{threading.get_ident()}.tmp"   # 同じファイルの同時保存でぶつからない
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+    # Windows は読み取り中のファイルへの差し替えが一時的に失敗することがある
+    for _ in range(20):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError:
+            time.sleep(0.01)
+    os.replace(tmp, path)
 
 
 def load_config():
@@ -406,9 +458,7 @@ def _after_migrate():
         cfg["migrate_offer"] = "done"
         save_config(cfg)
     vrcchat.configure(cfg)
-    ev = {"type": "style"}
-    ev.update(resolve_style(cfg))
-    broadcast(ev)
+    broadcast_style()
     broadcast({"type": "theme", "theme": cfg.get("theme", "light")})
     broadcast({"type": "ui_lang", "ui_lang": cfg.get("ui_lang", "ja")})
 
@@ -582,6 +632,49 @@ def _pick(items, key, wanted):
                 items[0] if items else {})
 
 
+# 字幕ログを返すときの上限（1回の配信が長くても応答を膨らませすぎない）
+RECENT_LOGS_MAX_SESSIONS = 10
+RECENT_LOGS_MAX_LINES = 3000
+
+
+def recent_logs(sessions="1"):
+    """新しい順に sessions 回ぶんの字幕ログ（logs/日付/日付時刻.log）を返す。
+
+    1回分が長いときは末尾の RECENT_LOGS_MAX_LINES 行だけ返す（truncated で知らせる）
+    """
+    try:
+        n = max(1, min(RECENT_LOGS_MAX_SESSIONS, int(sessions)))
+    except (TypeError, ValueError):
+        n = 1
+    root = os.path.join(DATA_BASE, "logs")
+    files = []
+    try:
+        days = sorted((d for d in os.listdir(root)
+                       if os.path.isdir(os.path.join(root, d))), reverse=True)
+    except OSError:
+        days = []
+    for d in days:
+        try:
+            names = sorted((f for f in os.listdir(os.path.join(root, d))
+                            if f.endswith(".log")), reverse=True)
+        except OSError:
+            continue
+        files += [os.path.join(d, f) for f in names]
+        if len(files) >= n:
+            break
+    out = []
+    for rel in files[:n]:
+        try:
+            with open(os.path.join(root, rel), encoding="utf-8", errors="replace") as f:
+                lines = [ln.rstrip("\r\n") for ln in f if ln.strip()]
+        except OSError:
+            continue
+        out.append({"file": rel.replace(os.sep, "/"),
+                    "lines": lines[-RECENT_LOGS_MAX_LINES:],
+                    "truncated": len(lines) > RECENT_LOGS_MAX_LINES})
+    return out
+
+
 def _translating(cfg):
     """「実際に翻訳が動いているか」。エンジン稼働中はエンジンの実態を優先する。
 
@@ -651,30 +744,109 @@ def list_system_fonts():
 
 # ---------------- SSE ----------------
 
+# 送信待ちが溢れたとき先に捨てるイベント（次の値ですぐ置き換わる流れもの）
+_SSE_DROP_FIRST = ("level", "partial")
+# 溢れても捨てないイベント。style を捨てると字幕は届くのに見た目だけ古いまま
+# 止まり、clear を捨てると消したはずの字幕が残る（どちらもリロードまで戻らない）
+_SSE_NEVER_DROP = ("style", "clear")
+# overlay（OBS）の接続へは送らないイベント。レベル表示は約100ms間隔で流れ、
+# overlay は使わないのに送信待ちを埋める
+_SSE_OVERLAY_SKIP = ("level",)
+
+
+def _sse_kind(data):
+    try:
+        return json.loads(data).get("type")
+    except (ValueError, AttributeError):
+        return None
+
+
+def _sse_trim(q):
+    """溢れた送信待ちを SSE_QUEUE_RECOVER_ITEMS 件まで減らす。
+
+    レベル表示・認識途中から古い順に捨て、それでも多ければ残りを古い順に捨てる。
+    style は最新の1件だけ残す（毎回全部入りなので最新があれば古いのは要らない）。
+    """
+    items = []
+    while True:
+        try:
+            items.append(q.get_nowait())
+        except queue.Empty:
+            break
+    kinds = [_sse_kind(d) for d in items]
+    last_style = max((i for i, k in enumerate(kinds) if k == "style"), default=-1)
+    keep = [k != "style" or i == last_style for i, k in enumerate(kinds)]
+    excess = sum(keep) - SSE_QUEUE_RECOVER_ITEMS
+    for drop_first in (True, False):
+        for i, k in enumerate(kinds):
+            if excess <= 0:
+                break
+            if keep[i] and k not in _SSE_NEVER_DROP and (k in _SSE_DROP_FIRST) == drop_first:
+                keep[i] = False
+                excess -= 1
+    for d, k in zip(items, keep):
+        if k:
+            try:
+                q.put_nowait(d)
+            except queue.Full:
+                pass
+
+
 def broadcast(event: dict):
     data = json.dumps(event, ensure_ascii=False)
+    kind = event.get("type")
     with _clients_lock:
         for q in list(_clients):
+            if kind in getattr(q, "skip", ()):
+                continue
             try:
                 q.put_nowait(data)
             except queue.Full:
                 # 切断寸前の遅いクライアントへ古い字幕を溜め続けず、
                 # 半分まで整理して最新状態へ追いつけるようにする。
-                while q.qsize() > SSE_QUEUE_RECOVER_ITEMS:
-                    try:
-                        q.get_nowait()
-                    except queue.Empty:
-                        break
+                _sse_trim(q)
                 try:
                     q.put_nowait(data)
                 except queue.Full:
                     pass
 
 
+# style の版番号。style を送るたびに進め、確定字幕（final）にも載せる。
+# overlay は final の版が手元の版と違えば /api/style で取り直す。style を
+# 何らかの理由で取りこぼしても、次の字幕で自力で最新の見た目へ戻れる
+_style_rev = 0
+# 試し表示（/api/sample-caption）の行番号。エンジンの行番号とぶつからない帯を使う
+_sample_fid = 10 ** 9
+_style_lock = threading.Lock()
+
+
+def _style_snapshot():
+    """_style_lock 内で呼ぶ。現在のファイルから作った style 一式＋版番号"""
+    ev = resolve_style(load_config())
+    ev["rev"] = _style_rev
+    return ev
+
+
+def broadcast_style():
+    """保存後の見た目を全画面へ配る。
+
+    作成から送信までを排他する。プリセットとレイアウトの同時保存のように
+    並行する保存がそれぞれ両方のファイルを読み直して送るため、排他しないと
+    先に作った古い一式が後から届き、表示側が古い見た目で止まることがある
+    """
+    global _style_rev
+    with _style_lock:
+        _style_rev += 1
+        ev = {"type": "style"}
+        ev.update(_style_snapshot())
+        broadcast(ev)
+
+
 def _init_event():
     cfg = load_config()
     ev = {"type": "init"}
-    ev.update(resolve_style(cfg))
+    with _style_lock:
+        ev.update(_style_snapshot())
     with _engine_state_lock:
         ev["state"] = dict(_engine_state)
     # 新しく開いたGUI窓がlocalStorageや次の変更イベントに依存せず、
@@ -871,9 +1043,7 @@ def _try_voice_command(text, spk=""):
             cfg["preset"] = s["preset"]
             cfg["box"] = s["box"]
             save_config(cfg)
-        ev = {"type": "style"}
-        ev.update(resolve_style(load_config()))
-        broadcast(ev)
+        broadcast_style()
         broadcast({"type": "vc", "ok": True,
                    "message": f"シーン「{cmd['name']}」に切り替えました{suffix}"})
     elif cmd["action"] in ("box", "preset"):
@@ -883,9 +1053,7 @@ def _try_voice_command(text, spk=""):
             cfg = load_config()
             cfg[key] = cmd["id"]
             save_config(cfg)
-        ev = {"type": "style"}
-        ev.update(resolve_style(load_config()))
-        broadcast(ev)
+        broadcast_style()
         broadcast({"type": "vc", "ok": True,
                    "message": f"{label}を「{cmd['name']}」に切り替えました{suffix}"})
     elif cmd["action"] in ("translate_on", "translate_off", "translate_lang"):
@@ -919,9 +1087,7 @@ def _try_voice_command(text, spk=""):
             broadcast({"type": "vc", "ok": True,
                        "message": "翻訳はすでにその設定です"})
             return True
-        ev = {"type": "style"}
-        ev.update(resolve_style(load_config()))
-        broadcast(ev)
+        broadcast_style()
         if _engine is not None and _engine.running:
             msg += "（反映のため再起動しています…）"
             _restart_engine_async()
@@ -956,7 +1122,9 @@ def _engine_on_final(text, fid, spk=""):
         # コマンド発話は字幕に出さず、発話中に見えていた薄文字だけ消す
         _engine_on_partial("", spk)
         return
-    broadcast({"type": "final", "text": text, "id": fid, "speaker": spk})
+    # rev: overlay が見た目の取りこぼしに気づいて取り直すための版番号（broadcast_style）
+    broadcast({"type": "final", "text": text, "id": fid, "speaker": spk,
+               "rev": _style_rev})
     vrcchat.on_final(text, fid, spk)
 
 
@@ -1032,7 +1200,7 @@ class Handler(BaseHTTPRequestHandler):
         """ローカル利用を保ったまま、外部OriginとDNSリバインディングを拒否する。
 
         - WebView/OBS: http://127.0.0.1:<port> と http://localhost:<port> を許可
-        - curl/PowerShell等: Originなしの直接アクセスを許可
+        - 設定画面とMCP: 専用Bearerトークンを必須とし、権限を分離
         - 外部Webページ: OriginまたはSec-Fetch-Siteで拒否
         - DNSリバインディング: Hostがloopback名でなければ拒否
         """
@@ -1054,12 +1222,37 @@ class Handler(BaseHTTPRequestHandler):
             self._send_body(403, b"cross-site request blocked",
                             "text/plain; charset=utf-8")
             return False
+        query = parse_qs(urlparse(self.path).query)
+        header = self.headers.get("Authorization", "")
+        token = header[7:] if header.startswith("Bearer ") else ""
+        # EventSource cannot attach headers. Query credentials work only for UI SSE.
+        if not token and path == "/events":
+            candidate = query.get("ui_session", [""])[0]
+            if self.server.auth.role(candidate) == "ui":
+                token = candidate
+        self.auth_role = self.server.auth.role(token)
+        public = not state_changing and (
+            (not path.startswith("/api/") and path != "/events")
+            or path == "/api/style"
+            or (path == "/events" and query.get("overlay") == ["1"]))
+        if public:
+            return True
+        if self.auth_role is None:
+            self._json({"error": "認証が必要です。設定画面はMojicastアプリから開いてください。MCPは専用トークンを設定してください。"}, 401)
+            return False
+        if self.auth_role == "mcp":
+            allowed = local_auth.MCP_POST_FIELDS if state_changing else local_auth.MCP_GET
+            if path not in allowed:
+                self._json({"error": "この操作はMCPに許可されていません"}, 403)
+                return False
         return True
 
     def _send_body(self, code, body: bytes, ctype: str):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("X-Frame-Options", "SAMEORIGIN")
         # GUIは開発中に同じURLで頻繁に更新される。WebView2の復元キャッシュも含め、
         # 古いHTML/JSを再利用させない。
         self.send_header("Cache-Control", "no-store, max-age=0")
@@ -1076,12 +1269,15 @@ class Handler(BaseHTTPRequestHandler):
              ".js": "text/javascript; charset=utf-8",
              ".css": "text/css; charset=utf-8"}
 
-    def _file(self, path, ctype=None):
+    def _file(self, path, ctype=None, ui=False):
         ext = os.path.splitext(path)[1]
         ctype = ctype or self._MIME.get(ext, "application/octet-stream")
         try:
             with open(path, "rb") as f:
-                self._send_body(200, f.read(), ctype)
+                content = f.read()
+                if ui and ext == ".html":
+                    content = content.replace(b"<head>", b'<head><script src="/ui/auth.js"></script>', 1)
+                self._send_body(200, content, ctype)
         except OSError:
             self._send_body(404, b"not found", "text/plain")
 
@@ -1146,7 +1342,7 @@ class Handler(BaseHTTPRequestHandler):
             self._file(os.path.join(BASE, "CREDITS.md"),
                        "text/plain; charset=utf-8")
         elif path == "/events":
-            self._events()
+            self._events(overlay=query.get("overlay") == "1")
         elif path.startswith("/ui/"):
             name = os.path.basename(path[4:]) or "cockpit"
             if "." not in name:
@@ -1154,7 +1350,7 @@ class Handler(BaseHTTPRequestHandler):
             if os.path.splitext(name)[1] not in self._MIME:
                 self._send_body(404, b"not found", "text/plain")
                 return
-            self._file(_ui_file(name))
+            self._file(_ui_file(name), ui=True)
         elif path.startswith("/soundfx/"):
             # 音イベント演出のユーザー画像（overlay が <img> で読む）。
             # 日本語ファイル名は encodeURIComponent で届くため復号してから検証する
@@ -1172,8 +1368,13 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/soundfx/groups":
             import soundfx
             self._json({"groups": list(soundfx.GROUPS)})
+        elif path == "/api/auth/mcp":
+            self._json({"enabled": self.server.auth.enabled()})
         elif path == "/api/config":
             cfg = load_config()
+            if self.auth_role == "mcp":
+                self._json({k: cfg.get(k) for k in local_auth.MCP_CONFIG_READ})
+                return
             cfg["version"] = APP_VERSION   # 表示用（保存はされない: POSTでは既知キーのみ更新）
             # OS能力（表示用）。UIはこれでコラボ欄をグレーアウトする
             cfg["collab_supported"] = platform_compat.collab_supported()
@@ -1231,6 +1432,12 @@ class Handler(BaseHTTPRequestHandler):
                 "boxes": _read_json(os.path.join(BASE, "defaults", "boxes.json"),
                                     {"boxes": []}).get("boxes", []),
             })
+        elif path == "/api/style":
+            # overlay が style の取りこぼしに気づいたときの取り直し（final の rev 参照）
+            with _style_lock:
+                ev = {"type": "style"}
+                ev.update(_style_snapshot())
+            self._json(ev)
         elif path == "/api/fonts":
             try:
                 self._json({"fonts": list_system_fonts()})
@@ -1266,6 +1473,14 @@ class Handler(BaseHTTPRequestHandler):
             if offer and query.get("job") != "1":
                 out["candidates"] = migrate.find_candidates(DATA_BASE)
             self._json(out)
+        elif path == "/api/logs/recent":
+            # Permission applies to every client of this endpoint, not just MCP.
+            if load_config().get("mcp_allow_logs") is not True:
+                self._json({"error": "ログの読み取りは許可されていません。Mojicast の設定 → AI連携で「AIに保存済みログの読み取りを許可する」をONにしてください。",
+                            "code": "log_access_denied"}, 403)
+                return
+            # 最近の配信の字幕ログ（MCP が誤認識の候補を探すのに使う）
+            self._json({"logs": recent_logs(query.get("sessions", "1"))})
         elif path == "/api/perf":
             # リモート切り分け用: デコード回数・平均所要時間（今セッション累計）
             p = getattr(_engine, "perf", None) if _engine else None
@@ -1302,7 +1517,37 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"ok": False, "error": "bad json"}, 400)
             return
 
+        if not isinstance(body, dict):
+            self._json({"error": "JSON object required"}, 400)
+            return
+        if self.auth_role == "mcp":
+            if set(body) - local_auth.MCP_POST_FIELDS[path]:
+                self._json({"error": "この設定項目はMCPから変更できません"}, 403)
+                return
+        if path == "/api/auth/mcp":
+            action = body.get("action")
+            if action not in ("rotate", "revoke"):
+                self._json({"error": "unknown credential action"}, 400)
+                return
+            try:
+                token = self.server.auth.rotate(revoke=action == "revoke")
+            except OSError:
+                self._json({"error": "認証設定を保存できませんでした"}, 500)
+                return
+            result = {"enabled": token is not None}
+            if token:
+                result["token"] = token  # Shown only at issuance, never returned by GET.
+            self._json(result)
+            return
         if path == "/api/config":
+            try:
+                _validate_config_patch(body)
+            except ValueError as e:
+                self._json({"error": str(e)}, 400)
+                return
+            if "mcp_allow_logs" in body and type(body["mcp_allow_logs"]) is not bool:
+                self._json({"ok": False, "error": "mcp_allow_logs must be a boolean"}, 400)
+                return
             if "word_profile" in body:
                 p = self._profile_arg(body.get("word_profile"))
                 if p is None:
@@ -1396,9 +1641,7 @@ class Handler(BaseHTTPRequestHandler):
                 save_config(cfg)
             vrcchat.configure(cfg)   # VRChat転送は再起動なしで即反映
             # プリセット・プロファイル変更は表示側へ即反映
-            ev = {"type": "style"}
-            ev.update(resolve_style(cfg))
-            broadcast(ev)
+            broadcast_style()
             # GUIテーマは開いている全ウインドウへ即時反映する。
             # overlay.html はこのイベントを購読しないためOBS字幕には影響しない。
             if "theme" in body:
@@ -1417,7 +1660,9 @@ class Handler(BaseHTTPRequestHandler):
             # ピクセルサイズは起動時に決まるため次回起動から反映される。
             if "ui_scale" in body:
                 broadcast({"type": "ui_scale", "ui_scale": resolve_ui_scale(cfg)})
-            self._json({"ok": True, "config": cfg})
+            visible = ({k: cfg.get(k) for k in local_auth.MCP_CONFIG_READ}
+                       if self.auth_role == "mcp" else cfg)
+            self._json({"ok": True, "config": visible})
         elif path == "/api/profiles":
             self._post_profiles(body)
         elif path == "/api/words/import":
@@ -1434,15 +1679,27 @@ class Handler(BaseHTTPRequestHandler):
                 return
             wordstore.save_hotwords(body.get("entries", []), p)
             _notify_words_saved(p)
-            ev = {"type": "style"}
-            ev.update(resolve_style(load_config()))
-            broadcast(ev)
+            broadcast_style()
             self._json({"ok": True})
         elif path == "/api/banned":
             p = self._profile_arg(body.get("profile"))
             if p is None:
                 return
-            wordstore.save_banned(body.get("words", []), p)
+            words = body.get("words", [])
+            if not isinstance(words, list) or not all(isinstance(w, str) for w in words):
+                self._json({"error": "words must be a string list"}, 400)
+                return
+            with self.server.auth._lock:
+                before = set(wordstore.load_banned(p))
+                after = {w.strip() for w in words if w.strip() and not w.strip().startswith("#")}
+                owned = self.server.auth.banned_added.setdefault(p, set())
+                if self.auth_role == "mcp" and (before - after) - owned:
+                    self._json({"error": "MCPから既存の伏せ字は削除できません"}, 403)
+                    return
+                wordstore.save_banned(words, p)
+                owned.intersection_update(after)
+                if self.auth_role == "mcp":
+                    owned.update(after - before)
             _notify_words_saved(p)
             if "mask_char" in body:      # 伏せ字文字は全体設定（プロファイル外）
                 with _config_lock:
@@ -1461,10 +1718,12 @@ class Handler(BaseHTTPRequestHandler):
             p = self._profile_arg(body.get("profile"))
             if p is None:
                 return
-            wordstore.save_effects(body.get("effects", []), p)
-            ev = {"type": "style"}
-            ev.update(resolve_style(load_config()))
-            broadcast(ev)
+            try:
+                wordstore.save_effects(body.get("effects"), p)
+            except ValueError as e:
+                self._json({"ok": False, "error": str(e)}, 400)
+                return
+            broadcast_style()
             self._json({"ok": True})
         elif path == "/api/soundfx/test":
             # 設定UIの［テスト発火］。本物と同じ形の SSE を流すので、
@@ -1526,9 +1785,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not any(p["id"] == cfg.get("preset") for p in presets):
                     cfg["preset"] = presets[0]["id"]   # 使用中プリセットが消えたら先頭へ
                     save_config(cfg)
-            ev = {"type": "style"}
-            ev.update(resolve_style(cfg))
-            broadcast(ev)
+            broadcast_style()
             self._json({"ok": True})
         elif path == "/api/vc-commands":
             commands = body.get("commands", [])
@@ -1564,9 +1821,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not any(b["id"] == cfg.get("box") for b in boxes):
                     cfg["box"] = boxes[0]["id"]
                     save_config(cfg)
-            ev = {"type": "style"}
-            ev.update(resolve_style(cfg))
-            broadcast(ev)
+            broadcast_style()
             self._json({"ok": True})
         elif path == "/api/engine":
             action = body.get("action")
@@ -1604,9 +1859,7 @@ class Handler(BaseHTTPRequestHandler):
             if err:
                 self._json({"ok": False, "error": err}, 400)
                 return
-            ev = {"type": "style"}
-            ev.update(resolve_style(load_config()))
-            broadcast(ev)
+            broadcast_style()
             self._json({"ok": True, **result})
         elif path == "/api/mojipack/open":
             d = wordstore.data_path(EXPORT_DIR_NAME)
@@ -1629,8 +1882,32 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/clear":
             broadcast({"type": "clear"})
             self._json({"ok": True})
+        elif path == "/api/sample-caption":
+            self._post_sample_caption(body)
         else:
             self._send_body(404, b"not found", "text/plain")
+
+    def _post_sample_caption(self, body):
+        """見た目確認用の字幕を1行出す（話さずに OBS 上の表示を確かめる。MCP から使う）。
+
+        エンジンを通さず overlay へ直接送るだけなので、ログ・VRChat・翻訳には流れない。
+        translation を渡すと訳文の併記も出す（翻訳のみ表示の確認用）
+        """
+        global _sample_fid
+        text = str(body.get("text") or "").strip()[:200]
+        if not text:
+            self._json({"ok": False, "error": "text is required"}, 400)
+            return
+        _sample_fid += 1
+        fid = _sample_fid
+        broadcast({"type": "final", "text": text, "id": fid, "speaker": "",
+                   "rev": _style_rev, "sample": True})
+        tr = str(body.get("translation") or "").strip()[:300]
+        if tr:
+            broadcast({"type": "translation", "id": fid, "text": tr,
+                       "fallback": False, "lang": str(body.get("lang") or "en")[:8],
+                       "order": 0, "sample": True})
+        self._json({"ok": True, "id": fid})
 
     def _post_words_import(self, body):
         """単語の一括取り込み（CSV / JSON）。
@@ -1675,9 +1952,7 @@ class Handler(BaseHTTPRequestHandler):
         if counts["glossary"]:
             wordstore.save_glossary(new_gl, p)
         _notify_words_saved(p)
-        ev = {"type": "style"}
-        ev.update(resolve_style(load_config()))
-        broadcast(ev)
+        broadcast_style()
         self._json({"ok": True, **counts, "stats": stats})
 
     def _post_words_export(self, body):
@@ -1766,9 +2041,7 @@ class Handler(BaseHTTPRequestHandler):
         new_gl, counts = wordimport.apply_import_glossary(uniq, gloss, mode)
         wordstore.save_glossary(new_gl, p)
         _notify_words_saved(p)
-        ev = {"type": "style"}
-        ev.update(resolve_style(load_config()))
-        broadcast(ev)
+        broadcast_style()
         self._json({"ok": True, **counts, "stats": stats})
 
     def _post_glossary_export(self, body):
@@ -1819,14 +2092,14 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"ok": False, "error": "unknown action"}, 400)
             return
         # プロファイル一覧・合成結果の変化を全画面へ反映
-        ev = {"type": "style"}
-        ev.update(resolve_style(load_config()))
-        broadcast(ev)
+        broadcast_style()
         self._json({"ok": True, "profiles": wordstore.list_profiles()})
 
     # --- SSE ---
-    def _events(self):
+    def _events(self, overlay=False):
         q: "queue.Queue[str]" = queue.Queue(maxsize=SSE_QUEUE_MAX_ITEMS)
+        if overlay:
+            q.skip = _SSE_OVERLAY_SKIP
         with _clients_lock:
             too_many = len(_clients) >= MAX_SSE_CLIENTS
             if not too_many:
@@ -1871,6 +2144,10 @@ class _QuietHTTPServer(ThreadingHTTPServer):
     出る。動作には影響しないため、これらの切断だけ握りつぶし、他の例外は従来通り。
     """
 
+    def __init__(self, *args, **kwargs):
+        self.auth = local_auth.LocalAuth(wordstore.data_path("api_auth.json"))
+        super().__init__(*args, **kwargs)
+
     def handle_error(self, request, client_address):
         exc = sys.exc_info()[1]
         if isinstance(exc, (ConnectionAbortedError, ConnectionResetError,
@@ -1879,7 +2156,17 @@ class _QuietHTTPServer(ThreadingHTTPServer):
         super().handle_error(request, client_address)
 
 
+_active_server = None
+
+
+def authenticated_ui_url(url):
+    if _active_server is None:
+        raise RuntimeError("Mojicast server has not started")
+    return url.split("#", 1)[0] + "#mojicast_session=" + _active_server.auth.ui_token
+
+
 def start(port: int = 8765):
+    global _active_server
     wordstore.ensure_data()   # data/ 作成・旧配置からの移行・既定データの複製
     _seed_style_defaults()    # 後から増えた既定スタイルを既存環境へ一度だけ追加
     if wordstore.fresh_install and sys.platform == "win32":
@@ -1891,5 +2178,6 @@ def start(port: int = 8765):
             save_config(cfg)
     vrcchat.configure(load_config())   # VRChat転送の設定スナップショット
     server = _QuietHTTPServer(("127.0.0.1", port), Handler)
+    _active_server = server
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server

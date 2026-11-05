@@ -58,7 +58,7 @@ class CockpitMonitorModeTests(unittest.TestCase):
 
     def _launch(self):
         """起動し直しに相当（新しい文脈＝localStorage も空）"""
-        ctx = self.browser.new_context(viewport={"width": 1160, "height": 780})
+        ctx = self.browser.new_context(extra_http_headers={"Authorization": "Bearer " + self.server.auth.ui_token}, viewport={"width": 1160, "height": 780})
         page = ctx.new_page()
         page.goto(f"http://127.0.0.1:{self.port}/ui/cockpit")
         page.wait_for_function("() => document.getElementById('device').options.length > 0")

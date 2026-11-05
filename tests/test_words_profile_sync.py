@@ -53,7 +53,7 @@ class WordsProfileSyncTests(unittest.TestCase):
         wordstore.PROFILES_DIR = os.path.join(self.tmp.name, "profiles")
         os.makedirs(wordstore.PROFILES_DIR)
         wordstore._ready = True
-        self.page = self.browser.new_page(viewport={"width": 1120, "height": 840})
+        self.page = self.browser.new_page(extra_http_headers={"Authorization": "Bearer " + self.server.auth.ui_token}, viewport={"width": 1120, "height": 840})
 
     def tearDown(self):
         self.page.close()
@@ -106,7 +106,7 @@ class WordsProfileSyncTests(unittest.TestCase):
         # アプリを起動し直しても（＝localStorage が空の新しい文脈でも）前回編集していた
         # セットで開き、保存した単語が見える
         self.page.close()
-        self.ctx = self.browser.new_context(viewport={"width": 1120, "height": 840})
+        self.ctx = self.browser.new_context(extra_http_headers={"Authorization": "Bearer " + self.server.auth.ui_token}, viewport={"width": 1120, "height": 840})
         self.page = self.ctx.new_page()
         frame = self._open_studio_words()
         self._wait_outer("ゲーム")

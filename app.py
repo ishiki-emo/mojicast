@@ -151,6 +151,7 @@ class JsApi:
         background = "#f7f9fc" if theme == "light" else "#0d1117"
         url = (f"http://127.0.0.1:{port}{path}{sep}s={self._scale}&v={UI_SESSION}"
                f"&theme={theme}")
+        url = app_server.authenticated_ui_url(url)
         existing = self._windows.get(key)
         if existing is not None:
             # 同じ設定窓が開いていても、コックピットで押した入口へ切り替える。
@@ -324,7 +325,7 @@ def main():
     min_w, min_h = _fit(900, 600, scale, work)
     window = webview.create_window(
         "Mojicast",
-        (f"http://127.0.0.1:{port}/ui/cockpit?s={scale}&v={UI_SESSION}"
+        app_server.authenticated_ui_url(f"http://127.0.0.1:{port}/ui/cockpit?s={scale}&v={UI_SESSION}"
          f"&theme={cfg.get('theme', 'light')}"),
         width=win_w, height=win_h, x=win_x, y=win_y,
         min_size=(min_w, min_h),

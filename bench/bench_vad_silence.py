@@ -24,6 +24,7 @@ ROOT = os.path.dirname(BENCH)
 sys.path.insert(0, ROOT)
 
 import sherpa_onnx
+from engine import VAD_MIN_SPEECH_SEC
 
 VAD_MODEL = os.path.join(ROOT, "silero_vad.onnx")
 SAMPLE_RATE = 16000
@@ -51,7 +52,7 @@ def build_vad(min_silence_ms, max_utt=12.0):
     c.silero_vad.model = VAD_MODEL
     c.silero_vad.threshold = 0.5
     c.silero_vad.min_silence_duration = min_silence_ms / 1000.0
-    c.silero_vad.min_speech_duration = 0.25
+    c.silero_vad.min_speech_duration = VAD_MIN_SPEECH_SEC
     c.silero_vad.window_size = WINDOW_SIZE
     c.sample_rate = SAMPLE_RATE
     return sherpa_onnx.VoiceActivityDetector(c, buffer_size_in_seconds=max_utt + 5)

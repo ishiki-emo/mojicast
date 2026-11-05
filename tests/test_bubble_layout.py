@@ -108,11 +108,11 @@ class BubbleOverlayTests(unittest.TestCase):
         cls.tmp.cleanup()
 
     def setUp(self):
-        self.page = self.browser.new_page(viewport={"width": 1920, "height": 1080})
+        self.page = self.browser.new_page(extra_http_headers={"Authorization": "Bearer " + self.server.auth.ui_token}, viewport={"width": 1920, "height": 1080})
         # サーバからの style/init（実際の設定＝通常表示のレイアウト）が後から届くと、
         # 表示のしかたが変わったとして吹き出しが消える（本番では正しい動き）。テストでは
         # 吹き出しのレイアウトを自分で当てるので、SSE は止めておく
-        self.page.route("**/events", lambda route: route.abort())
+        self.page.route("**/events*", lambda route: route.abort())   # ?overlay=1 付きも
         self.page.goto(f"http://127.0.0.1:{self.port}/overlay")
         self.page.wait_for_function("() => typeof handle === 'function' && window.FX")
 

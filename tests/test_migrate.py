@@ -174,7 +174,7 @@ class ServerMigrateTests(unittest.TestCase):
     def _req(self, method, path, body=None):
         conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
         conn.request(method, path, json.dumps(body) if body is not None else None,
-                     {"Content-Type": "application/json", "Host": f"127.0.0.1:{self.port}"})
+                     {"Authorization": "Bearer " + self.server.auth.ui_token, "Content-Type": "application/json", "Host": f"127.0.0.1:{self.port}"})
         res = conn.getresponse()
         data = json.loads(res.read())
         conn.close()

@@ -27,7 +27,7 @@ class LocalOriginGuardTests(unittest.TestCase):
 
     def request(self, method, path, *, host=None, origin=None,
                 fetch_site=None, body=None):
-        headers = {}
+        headers = {"Authorization": "Bearer " + self.server.auth.ui_token}
         if host is not None:
             headers["Host"] = host
         if origin is not None:
@@ -260,6 +260,7 @@ class LocalOriginGuardTests(unittest.TestCase):
         conn.putrequest("POST", "/api/clear", skip_host=True)
         conn.putheader("Host", f"127.0.0.1:{self.port}")
         conn.putheader("Origin", f"http://127.0.0.1:{self.port}")
+        conn.putheader("Authorization", "Bearer " + self.server.auth.ui_token)
         conn.putheader("Content-Type", "application/json")
         conn.putheader(
             "Content-Length", str(app_server.MAX_REQUEST_BODY_BYTES + 1)

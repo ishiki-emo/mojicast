@@ -17,6 +17,9 @@
 import os
 import json
 import shutil
+import math
+import re
+import logging
 
 from apppaths import BASE, DATA_BASE
 
@@ -234,13 +237,61 @@ def merged_hotwords(profile=""):
 
 # ---------------- エフェクト単語 ----------------
 
+EFFECT_ANIMS = frozenset(("pop", "bounce", "rainbow", "shine", "neon", "wave",
+                          "heartbeat", "float", "glitch", "glowpulse", "shake",
+                          "spin", "flash", "none"))
+EFFECT_PARTICLES = frozenset(("none", "spark", "confetti", "heart", "burst", "sakura", "note"))
+EFFECT_FIELDS = frozenset(("word", "color", "font", "scale", "anim", "particle"))
+
+
+def validate_effect(effect):
+    """Validate one record without coercing types or interpreting CSS."""
+    if not isinstance(effect, dict) or set(effect) - EFFECT_FIELDS:
+        raise ValueError("演出は対応する項目だけを持つオブジェクトで指定してください")
+    word = effect.get("word")
+    if not isinstance(word, str) or not word.strip() or len(word) > 256 or any(ord(c) < 32 for c in word):
+        raise ValueError("演出の単語は空白・制御文字を除く1〜256文字で指定してください")
+    color = effect.get("color", "")
+    if not isinstance(color, str) or (color and not re.fullmatch(r"#[0-9a-fA-F]{6}", color)):
+        raise ValueError("演出の色は #rrggbb 形式で指定してください（空欄は継承）")
+    font = effect.get("font", "")
+    # Permit local family names and comma-separated fallback lists, never CSS functions/declarations.
+    if not isinstance(font, str) or len(font) > 512 or re.search(r"[;:{}()<>\\\x00-\x1f\x7f]", font):
+        raise ValueError("演出のフォントには512文字以内のフォント名を指定してください")
+    scale = effect.get("scale", 1)
+    if type(scale) not in (int, float) or not 0.5 <= scale <= 3 or not math.isfinite(scale):
+        raise ValueError("演出の倍率は0.5〜3の有限の数値で指定してください")
+    for field, choices, default in (("anim", EFFECT_ANIMS, "pop"), ("particle", EFFECT_PARTICLES, "none")):
+        value = effect.get(field, default)
+        if not isinstance(value, str) or value not in choices:
+            raise ValueError(f"演出の {field} は対応する種類から選択してください")
+    return dict(effect)
+
+
+def validate_effects(effects):
+    if not isinstance(effects, list) or len(effects) > 5000:
+        raise ValueError("演出は5000件以内の配列で指定してください")
+    return [validate_effect(e) for e in effects]
+
+
 def load_effects(profile=""):
-    """スコープ単体の effects.json → [dict]"""
-    return _read_json(_scope_path(profile, "effects.json"),
-                      {"effects": []}).get("effects", [])
+    """Ignore invalid legacy/imported records without overwriting the original file."""
+    data = _read_json(_scope_path(profile, "effects.json"), {"effects": []})
+    rows = data.get("effects", []) if isinstance(data, dict) else None
+    if not isinstance(rows, list) or len(rows) > 5000:
+        logging.getLogger(__name__).warning("Invalid effects collection ignored")
+        return []
+    safe = []
+    for row in rows:
+        try:
+            safe.append(validate_effect(row))
+        except ValueError:
+            logging.getLogger(__name__).warning("Invalid effect record ignored")
+    return safe
 
 
 def save_effects(effects, profile=""):
+    effects = validate_effects(effects)  # Validate the entire batch before touching disk.
     def write(path):
         with open(path, "w", encoding="utf-8") as f:
             json.dump({"effects": effects}, f, ensure_ascii=False, indent=2)
