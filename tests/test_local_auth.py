@@ -112,6 +112,68 @@ class LocalAuthTests(AuthFixture, unittest.TestCase):
         self.assertTrue(self.server.auth.role(fresh) is None)
         self.assertFalse(local_auth.LocalAuth(self.server.auth.path).enabled())
 
+    def test_deck_key_reaches_only_deck_endpoints(self):
+        deck = self.server.auth.rotate(kind="deck")
+        self.assertEqual(self.server.auth.role(deck), "deck")
+        self.assertEqual(self.server.auth.role(self.mcp), "mcp")  # 別の鍵は残る
+        for method, path, body in (("GET", "/api/config", None),
+                                   ("GET", "/api/logs/recent", None),
+                                   ("GET", "/events", None),
+                                   ("POST", "/api/config", {"preset": "standard"}),
+                                   ("POST", "/api/sample-caption", {"text": "x"}),
+                                   ("POST", "/api/banned", {"words": []}),
+                                   ("POST", "/api/engine", {"action": "start"}),
+                                   ("POST", "/api/auth/deck", {"action": "rotate"}),
+                                   ("GET", "/api/auth/deck", None)):
+            with self.subTest(method=method, path=path):
+                self.assertEqual(self.request(method, path, body, deck)[0], 403)
+        # MCPの鍵では外部操作の窓口に届かない
+        self.assertEqual(self.request("GET", "/api/deck/state", token=self.mcp)[0], 403)
+        self.assertEqual(self.request("POST", "/api/deck/action", {"action": "clear"}, self.mcp)[0], 403)
+        status, data = self.request("GET", "/api/deck/state", token=deck)
+        self.assertEqual(status, 200)
+        state = json.loads(data)
+        self.assertEqual(state["engine"], "stopped")
+        self.assertNotIn("mcp_allow_logs", state)
+        status, data = self.request("POST", "/api/deck/action", {"action": "clear"}, deck)
+        self.assertEqual(status, 200)
+        self.assertTrue(json.loads(data)["ok"])
+        self.assertEqual(self.request("POST", "/api/deck/action", {"action": "nope"}, deck)[0], 400)
+
+    def test_deck_actions_switch_settings(self):
+        deck = self.server.auth.rotate(kind="deck")
+        act = lambda body: self.request("POST", "/api/deck/action", body, deck)
+        state = json.loads(self.request("GET", "/api/deck/state", token=deck)[1])
+        target = next(p for p in state["presets"] if p["id"] != state["preset"])
+        self.assertEqual(act({"action": "preset", "id": target["id"]})[0], 200)
+        self.assertEqual(app_server.load_config()["preset"], target["id"])
+        self.assertEqual(act({"action": "preset", "id": "no-such"})[0], 400)
+        self.assertEqual(act({"action": "word_fx", "op": "toggle"})[0], 200)
+        self.assertIs(app_server.load_config()["word_fx"], False)
+        self.assertEqual(act({"action": "word_fx", "op": "on"})[0], 200)
+        self.assertIs(app_server.load_config()["word_fx"], True)
+        # 演出が未設定のグループは出せない／未知グループは拒否
+        self.assertEqual(act({"action": "fx", "group": "笑い"})[0], 400)
+        self.assertEqual(act({"action": "fx", "group": "<script>"})[0], 400)
+        self.assertEqual(act({"action": "translate_lang", "lang": "xx"})[0], 400)
+        self.assertEqual(act({"action": "translate", "op": "on"})[0], 200)
+        self.assertIs(app_server.load_config()["translate"], True)
+
+    def test_deck_and_mcp_keys_rotate_independently_and_persist(self):
+        deck = self.server.auth.rotate(kind="deck")
+        status, data = self.request("POST", "/api/auth/deck", {"action": "rotate"}, self.ui)
+        self.assertEqual(status, 200)
+        fresh = json.loads(data)["token"]
+        self.assertIsNone(self.server.auth.role(deck))
+        self.assertEqual(self.server.auth.role(self.mcp), "mcp")
+        restarted = local_auth.LocalAuth(self.server.auth.path)
+        self.assertEqual(restarted.role(fresh), "deck")
+        self.assertEqual(restarted.role(self.mcp), "mcp")
+        self.assertEqual(self.request("POST", "/api/auth/deck", {"action": "revoke"}, self.ui)[0], 200)
+        self.assertIsNone(self.server.auth.role(fresh))
+        self.assertFalse(local_auth.LocalAuth(self.server.auth.path).enabled("deck"))
+        self.assertTrue(local_auth.LocalAuth(self.server.auth.path).enabled("mcp"))
+
     def test_migration_cannot_import_another_installations_credential(self):
         import migrate
         with tempfile.TemporaryDirectory() as old:

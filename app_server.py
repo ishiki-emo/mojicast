@@ -971,7 +971,6 @@ def _try_voice_command(text, spk=""):
                          commands)
     if cmd is None:
         return False
-    suffix = ""
     if cmd["action"] == "custom":
         # 登録済みの動作を組み込みのアクション形へ解決する
         act = (cmd["command"].get("action") or {})
@@ -1000,6 +999,18 @@ def _try_voice_command(text, spk=""):
             return True
         else:
             cmd = {"action": "unknown"}
+    ok, message = _apply_command(cmd, cfg, scenes, boxes, presets)
+    broadcast({"type": "vc", "ok": ok, "message": message})
+    return True
+
+
+def _apply_command(cmd, cfg, scenes, boxes, presets):
+    """切替系の操作（シーン・デザイン・レイアウト・翻訳）を実行し (ok, 通知文) を返す。
+
+    ボイスコマンドと外部操作キー（Stream Deck）で共用する。翻訳の切替は
+    認識中なら再起動を伴う（数秒字幕が止まる）。
+    """
+    suffix = ""
     if cmd["action"] == "scene_random":
         # 今の組み合わせと違うシーンからおまかせで選ぶ
         cur = (cfg.get("preset"), cfg.get("box"))
@@ -1034,18 +1045,15 @@ def _try_voice_command(text, spk=""):
                  and any(p.get("id") == s.get("preset") for p in presets)
                  and any(b.get("id") == s.get("box") for b in boxes))
         if not valid:
-            broadcast({"type": "vc", "ok": False,
-                       "message": f"シーン「{cmd['name']}」の中身"
-                                  "（デザインかレイアウト）が見つかりません"})
-            return True
+            return False, (f"シーン「{cmd['name']}」の中身"
+                           "（デザインかレイアウト）が見つかりません")
         with _config_lock:
             cfg = load_config()
             cfg["preset"] = s["preset"]
             cfg["box"] = s["box"]
             save_config(cfg)
         broadcast_style()
-        broadcast({"type": "vc", "ok": True,
-                   "message": f"シーン「{cmd['name']}」に切り替えました{suffix}"})
+        msg = f"シーン「{cmd['name']}」に切り替えました{suffix}"
     elif cmd["action"] in ("box", "preset"):
         key = "box" if cmd["action"] == "box" else "preset"
         label = "レイアウト" if key == "box" else "字幕デザイン"
@@ -1054,8 +1062,7 @@ def _try_voice_command(text, spk=""):
             cfg[key] = cmd["id"]
             save_config(cfg)
         broadcast_style()
-        broadcast({"type": "vc", "ok": True,
-                   "message": f"{label}を「{cmd['name']}」に切り替えました{suffix}"})
+        msg = f"{label}を「{cmd['name']}」に切り替えました{suffix}"
     elif cmd["action"] in ("translate_on", "translate_off", "translate_lang"):
         with _config_lock:
             cfg = load_config()
@@ -1084,18 +1091,14 @@ def _try_voice_command(text, spk=""):
             if changed:
                 save_config(cfg)
         if not changed:
-            broadcast({"type": "vc", "ok": True,
-                       "message": "翻訳はすでにその設定です"})
-            return True
+            return True, "翻訳はすでにその設定です"
         broadcast_style()
         if _engine is not None and _engine.running:
             msg += "（反映のため再起動しています…）"
             _restart_engine_async()
-        broadcast({"type": "vc", "ok": True, "message": msg})
     else:
-        broadcast({"type": "vc", "ok": False,
-                   "message": "コマンドを聞き取れませんでした"})
-    return True
+        return False, "コマンドを聞き取れませんでした"
+    return True, msg
 
 
 def _restart_engine_async():
@@ -1115,6 +1118,149 @@ def _restart_engine_async():
             time.sleep(0.3)
 
     threading.Thread(target=work, daemon=True, name="vc-restart").start()
+
+
+# ---------------- 外部操作キー（Stream Deck など） ----------------
+
+def _deck_state():
+    """物理ボタンの表示用スナップショット（状態ランプ・選択肢の一覧）。
+
+    字幕の本文・辞書・ログは含めない。プラグインは数秒おきにこれを読む
+    """
+    import soundfx
+    import voicecmd
+    from engine import TRANSLATE_LANGS
+    cfg = load_config()
+    with _engine_state_lock:
+        engine_state = _engine_state.get("state", "stopped")
+    rules = cfg.get("sound_fx_rules") or {}
+    labels = {code: label for code, label, _k in voicecmd._TRANS_LANGS}
+
+    def items(path, key):
+        return [{"id": x.get("id"), "name": x.get("name") or x.get("id")}
+                for x in _read_json(path, {key: []})[key] if x.get("id")]
+
+    return {
+        "engine": engine_state,
+        "preset": cfg.get("preset"), "box": cfg.get("box"),
+        "translate": bool(cfg.get("translate")),
+        "translate_lang": cfg.get("translate_lang"),
+        "word_fx": cfg.get("word_fx", True) is not False,
+        "vrchat": bool(cfg.get("vrchat")),
+        "vrchat_source": cfg.get("vrchat_source", "ja"),
+        "vrchat_supported": platform_compat.vrchat_supported(),
+        "scenes": items(_scenes_path(), "scenes"),
+        "presets": items(_presets_path(), "presets"),
+        "boxes": items(_boxes_path(), "boxes"),
+        "langs": [{"id": c, "name": labels.get(c, c)} for c in TRANSLATE_LANGS],
+        "fx_groups": [{"id": g, "name": g,
+                       "ready": bool((rules.get(g) or {}).get("on"))}
+                      for g in soundfx.GROUPS],
+    }
+
+
+def _deck_toggle(op, current):
+    """on/off/toggle を真偽値へ。未知の指定は None"""
+    return {"on": True, "off": False, "toggle": not current}.get(op)
+
+
+def _deck_set(key, value):
+    with _config_lock:
+        cfg = load_config()
+        cfg[key] = value
+        save_config(cfg)
+    return cfg
+
+
+def _deck_action(body):
+    """外部操作キーからの1操作を実行して (ok, 通知文) を返す。
+
+    出せるのは配信中に押す操作だけ。任意の文の表示・伏せ字・辞書・ログには触れない
+    """
+    if not isinstance(body, dict):
+        return False, "invalid request"
+    action = body.get("action")
+    op = body.get("op", "toggle")
+    cfg = load_config()
+    if action == "engine":
+        eng = get_engine()
+        with _engine_state_lock:
+            state = _engine_state.get("state", "stopped")
+        want = _deck_toggle(op, state in ("starting", "running"))
+        if want is None:
+            return False, "unknown op"
+        if want:
+            eng.start(load_config())
+            return True, "認識を開始しました"
+        eng.stop()
+        return True, "認識を停止しました"
+    if action == "clear":
+        broadcast({"type": "clear"})
+        return True, "字幕をクリアしました"
+    if action in ("scene", "preset", "box"):
+        path = {"scene": _scenes_path, "preset": _presets_path,
+                "box": _boxes_path}[action]()
+        key = action + ("s" if action != "box" else "es")
+        it = next((x for x in _read_json(path, {key: []})[key]
+                   if x.get("id") == body.get("id")), None)
+        if it is None:
+            return False, "切替先が見つかりません（削除された可能性があります）"
+        cmd = {"action": action, "id": it["id"], "name": it.get("name") or it["id"]}
+    elif action in ("scene_random", "preset_random", "box_random"):
+        cmd = {"action": action}
+    elif action == "translate":
+        want = _deck_toggle(op, bool(cfg.get("translate")))
+        if want is None:
+            return False, "unknown op"
+        cmd = {"action": "translate_on" if want else "translate_off"}
+    elif action == "translate_lang":
+        import voicecmd
+        labels = {code: label for code, label, _k in voicecmd._TRANS_LANGS}
+        if body.get("lang") not in labels:
+            return False, "対応していない翻訳先です"
+        cmd = {"action": "translate_lang", "lang": body["lang"],
+               "label": labels[body["lang"]]}
+    elif action == "fx":
+        import soundfx
+        group = body.get("group")
+        if group not in soundfx.GROUPS:
+            return False, "unknown group"
+        rule = (cfg.get("sound_fx_rules") or {}).get(group) or {}
+        if not rule.get("on"):
+            return False, f"「{group}」の演出が未設定です（音イベント演出の設定でONにしてください）"
+        # 音イベント検出（sound_fx）がOFFでも、手動の発火は出せる（ルールは常に配信済み）
+        broadcast({"type": "sound", "group": group, "score": 1.0,
+                   "speaker": "", "manual": True})
+        return True, f"演出「{group}」を出しました"
+    elif action == "word_fx":
+        want = _deck_toggle(op, cfg.get("word_fx", True) is not False)
+        if want is None:
+            return False, "unknown op"
+        _deck_set("word_fx", want)
+        broadcast_style()
+        return True, "単語エフェクトを" + ("オン" if want else "オフ") + "にしました"
+    elif action == "vrchat":
+        if not platform_compat.vrchat_supported():
+            return False, "このOSではVRChat転送を使えません"
+        want = _deck_toggle(op, bool(cfg.get("vrchat")))
+        if want is None:
+            return False, "unknown op"
+        vrcchat.configure(_deck_set("vrchat", want))
+        return True, "VRChat転送を" + ("オン" if want else "オフ") + "にしました"
+    elif action == "vrchat_source":
+        value = body.get("value", "toggle")
+        if value == "toggle":
+            value = "tr" if cfg.get("vrchat_source", "ja") == "ja" else "ja"
+        if value not in ("ja", "tr"):
+            return False, "unknown value"
+        vrcchat.configure(_deck_set("vrchat_source", value))
+        return True, "VRChatへ送る内容を" + ("訳文" if value == "tr" else "文字起こし") + "にしました"
+    else:
+        return False, "unknown action"
+    boxes = _read_json(_boxes_path(), {"boxes": []})["boxes"]
+    presets = _read_json(_presets_path(), {"presets": []})["presets"]
+    scenes = _read_json(_scenes_path(), {"scenes": []})["scenes"]
+    return _apply_command(cmd, cfg, scenes, boxes, presets)
 
 
 def _engine_on_final(text, fid, spk=""):
@@ -1244,6 +1390,11 @@ class Handler(BaseHTTPRequestHandler):
             allowed = local_auth.MCP_POST_FIELDS if state_changing else local_auth.MCP_GET
             if path not in allowed:
                 self._json({"error": "この操作はMCPに許可されていません"}, 403)
+                return False
+        if self.auth_role == "deck":
+            allowed = local_auth.DECK_POST if state_changing else local_auth.DECK_GET
+            if path not in allowed:
+                self._json({"error": "この操作は外部操作キーに許可されていません"}, 403)
                 return False
         return True
 
@@ -1385,6 +1536,10 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"groups": list(soundfx.GROUPS)})
         elif path == "/api/auth/mcp":
             self._json({"enabled": self.server.auth.enabled()})
+        elif path == "/api/auth/deck":
+            self._json({"enabled": self.server.auth.enabled("deck")})
+        elif path == "/api/deck/state":
+            self._json(_deck_state())
         elif path == "/api/config":
             cfg = load_config()
             if self.auth_role == "mcp":
@@ -1540,13 +1695,14 @@ class Handler(BaseHTTPRequestHandler):
             if set(body) - local_auth.MCP_POST_FIELDS[path]:
                 self._json({"error": "この設定項目はMCPから変更できません"}, 403)
                 return
-        if path == "/api/auth/mcp":
+        if path in ("/api/auth/mcp", "/api/auth/deck"):
             action = body.get("action")
             if action not in ("rotate", "revoke"):
                 self._json({"error": "unknown credential action"}, 400)
                 return
+            kind = "deck" if path == "/api/auth/deck" else "mcp"
             try:
-                token = self.server.auth.rotate(revoke=action == "revoke")
+                token = self.server.auth.rotate(revoke=action == "revoke", kind=kind)
             except OSError:
                 self._json({"error": "認証設定を保存できませんでした"}, 500)
                 return
@@ -1898,6 +2054,10 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/clear":
             broadcast({"type": "clear"})
             self._json({"ok": True})
+        elif path == "/api/deck/action":
+            ok, message = _deck_action(body)
+            self._json({"ok": ok, "message": message,
+                        "state": _deck_state()}, 200 if ok else 400)
         elif path == "/api/sample-caption":
             self._post_sample_caption(body)
         else:
