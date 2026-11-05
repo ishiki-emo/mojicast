@@ -27,7 +27,7 @@ import platform_compat
 import vrcchat
 import wordstore
 
-APP_VERSION = "1.0.1"
+APP_VERSION = "1.1.0-beta1"
 
 # 更新チェック用のマニフェスト（GitHub raw）。リリース時に latest.json を更新する。
 # 中身: {"version": "0.5.1", "url": "<配布ページ>", "notes": "<一行紹介>"}
@@ -593,6 +593,49 @@ def _pick(items, key, wanted):
                 items[0] if items else {})
 
 
+# 字幕ログを返すときの上限（1回の配信が長くても応答を膨らませすぎない）
+RECENT_LOGS_MAX_SESSIONS = 10
+RECENT_LOGS_MAX_LINES = 3000
+
+
+def recent_logs(sessions="1"):
+    """新しい順に sessions 回ぶんの字幕ログ（logs/日付/日付時刻.log）を返す。
+
+    1回分が長いときは末尾の RECENT_LOGS_MAX_LINES 行だけ返す（truncated で知らせる）
+    """
+    try:
+        n = max(1, min(RECENT_LOGS_MAX_SESSIONS, int(sessions)))
+    except (TypeError, ValueError):
+        n = 1
+    root = os.path.join(DATA_BASE, "logs")
+    files = []
+    try:
+        days = sorted((d for d in os.listdir(root)
+                       if os.path.isdir(os.path.join(root, d))), reverse=True)
+    except OSError:
+        days = []
+    for d in days:
+        try:
+            names = sorted((f for f in os.listdir(os.path.join(root, d))
+                            if f.endswith(".log")), reverse=True)
+        except OSError:
+            continue
+        files += [os.path.join(d, f) for f in names]
+        if len(files) >= n:
+            break
+    out = []
+    for rel in files[:n]:
+        try:
+            with open(os.path.join(root, rel), encoding="utf-8", errors="replace") as f:
+                lines = [ln.rstrip("\r\n") for ln in f if ln.strip()]
+        except OSError:
+            continue
+        out.append({"file": rel.replace(os.sep, "/"),
+                    "lines": lines[-RECENT_LOGS_MAX_LINES:],
+                    "truncated": len(lines) > RECENT_LOGS_MAX_LINES})
+    return out
+
+
 def _translating(cfg):
     """「実際に翻訳が動いているか」。エンジン稼働中はエンジンの実態を優先する。
 
@@ -733,6 +776,8 @@ def broadcast(event: dict):
 # overlay は final の版が手元の版と違えば /api/style で取り直す。style を
 # 何らかの理由で取りこぼしても、次の字幕で自力で最新の見た目へ戻れる
 _style_rev = 0
+# 試し表示（/api/sample-caption）の行番号。エンジンの行番号とぶつからない帯を使う
+_sample_fid = 10 ** 9
 _style_lock = threading.Lock()
 
 
@@ -1356,6 +1401,9 @@ class Handler(BaseHTTPRequestHandler):
             if offer and query.get("job") != "1":
                 out["candidates"] = migrate.find_candidates(DATA_BASE)
             self._json(out)
+        elif path == "/api/logs/recent":
+            # 最近の配信の字幕ログ（MCP が誤認識の候補を探すのに使う）
+            self._json({"logs": recent_logs(query.get("sessions", "1"))})
         elif path == "/api/perf":
             # リモート切り分け用: デコード回数・平均所要時間（今セッション累計）
             p = getattr(_engine, "perf", None) if _engine else None
@@ -1707,8 +1755,32 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/clear":
             broadcast({"type": "clear"})
             self._json({"ok": True})
+        elif path == "/api/sample-caption":
+            self._post_sample_caption(body)
         else:
             self._send_body(404, b"not found", "text/plain")
+
+    def _post_sample_caption(self, body):
+        """見た目確認用の字幕を1行出す（話さずに OBS 上の表示を確かめる。MCP から使う）。
+
+        エンジンを通さず overlay へ直接送るだけなので、ログ・VRChat・翻訳には流れない。
+        translation を渡すと訳文の併記も出す（翻訳のみ表示の確認用）
+        """
+        global _sample_fid
+        text = str(body.get("text") or "").strip()[:200]
+        if not text:
+            self._json({"ok": False, "error": "text is required"}, 400)
+            return
+        _sample_fid += 1
+        fid = _sample_fid
+        broadcast({"type": "final", "text": text, "id": fid, "speaker": "",
+                   "rev": _style_rev, "sample": True})
+        tr = str(body.get("translation") or "").strip()[:300]
+        if tr:
+            broadcast({"type": "translation", "id": fid, "text": tr,
+                       "fallback": False, "lang": str(body.get("lang") or "en")[:8],
+                       "order": 0, "sample": True})
+        self._json({"ok": True, "id": fid})
 
     def _post_words_import(self, body):
         """単語の一括取り込み（CSV / JSON）。
