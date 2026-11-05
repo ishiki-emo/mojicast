@@ -165,7 +165,7 @@ def _field_guide(fields):
 
 def _api(path, body=None):
     if not TOKEN:
-        raise RuntimeError("Mojicastの設定 → 画面とログでMCPトークンを発行し、接続設定のMOJICAST_TOKENに登録してください")
+        raise RuntimeError("Mojicastの設定 → AI連携でMCPトークンを発行し、接続設定のMOJICAST_TOKENに登録してください")
     data = None if body is None else json.dumps(body, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(BASE + path, data=data, headers={"Authorization": "Bearer " + TOKEN}, method="POST" if body is not None else "GET")
     try:
@@ -634,7 +634,7 @@ def read_recent_logs(sessions: int = 1) -> dict:
     """最近の配信の字幕ログ（確定した字幕）を新しい順に読む。sessions は何回分か（1〜10）。
 
     初期状態では読み取り不可。拒否された場合はユーザーに Mojicast の設定 →
-    画面とログで「MCP経由のログ読み取りを許可する」をONにしてもらう。
+    AI連携で「AIに保存済みログの読み取りを許可する」をONにしてもらう。
     AIから許可を変更しない。取得内容は接続したAIサービスに渡る場合がある。
 
     誤認識を探すときに使う: 登録済みの名前・固有名詞が別の字（同じ音のひらがな・

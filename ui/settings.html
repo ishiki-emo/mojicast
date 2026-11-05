@@ -143,6 +143,7 @@
     <button data-section="voice" onclick="switchSection('voice')"><span class="icon">🎤</span><strong data-i18n="st.nav_voice">ボイスコマンド</strong><small data-i18n="st.nav_voice_d">声でレイアウト切替</small></button>
     <button data-section="obs" onclick="switchSection('obs')"><span class="icon">🎬</span><strong data-i18n="st.nav_obs">OBS接続</strong><small data-i18n="st.nav_obs_d">表示URL・ポート</small></button>
     <button data-section="vrchat" onclick="switchSection('vrchat')"><span class="icon">🥽</span><strong data-i18n="st.nav_vrchat">VRChat連携</strong><small data-i18n="st.nav_vrchat_d">チャットボックス送信</small></button>
+    <button data-section="ai" onclick="switchSection('ai')"><span class="icon">✦</span><strong data-i18n="st.nav_ai">AI連携</strong><small data-i18n="st.nav_ai_d">接続・ログの共有</small></button>
     <button data-section="other" onclick="switchSection('other')"><span class="icon">⚙</span><strong data-i18n="st.nav_other">画面とログ</strong><small data-i18n="st.nav_other_d">表示言語・テーマ・字幕ログ</small></button>
     <button data-section="about" onclick="switchSection('about')"><span class="icon">ℹ️</span><strong data-i18n="st.nav_about">情報・連絡先</strong><small data-i18n="st.nav_about_d">バージョン・作者</small></button>
   </nav>
@@ -283,17 +284,29 @@
       </div>
     </section>
 
+    <section class="pane" id="pAi">
+      <h1 data-i18n="st.h1_ai">AI連携</h1><p class="lead" data-i18n="st.lead_ai">AIアプリから字幕の見た目や辞書を調整できます（MCP対応）。</p>
+      <p class="note" data-i18n="st.ai_local">音声認識は引き続きPC内で動作します。AIアプリに渡した情報は、そのアプリの設定に応じて外部サービスへ送信される場合があります。</p>
+      <div class="grid">
+        <article class="card">
+          <h2 data-i18n="st.mcp_auth_title">AIアプリと接続する</h2>
+          <p data-i18n="st.mcp_auth_note">パスワードは不要です。接続用トークンを発行し、AIアプリのMCP設定に MOJICAST_TOKEN として登録して、接続を再起動してください。</p>
+          <p id="mcpAuthStatus" role="status"></p>
+          <div class="actions"><button id="mcpIssue" data-i18n="st.mcp_issue">トークンを発行・再発行</button><button id="mcpRevoke" data-i18n="st.mcp_revoke">MCP接続を無効化</button></div>
+          <div id="mcpTokenPanel" hidden><label for="mcpToken" data-i18n="st.mcp_token_note">このトークンは今回だけ表示されます。コピーして接続設定に登録してください。</label><input id="mcpToken" type="text" readonly autocomplete="off" spellcheck="false" style="width:100%;box-sizing:border-box"></div>
+          <p class="note" data-i18n="st.ai_token_caution">トークンは他人に共有しないでください。再発行・無効化すると、古いトークンはすぐに使えなくなります。</p>
+        </article>
+        <article class="card"><h2 data-i18n="st.ai_access">字幕ログの共有</h2><p data-i18n="st.ai_access_note">ログの保存と、AIへの読み取り許可は別の設定です。</p>
+          <label class="checkrow"><input id="mcpAllowLogs" type="checkbox"><span><b data-i18n="st.mcp_logs">AIに保存済みログの読み取りを許可する</b><small data-i18n="st.mcp_logs_d">初期値はOFF。誤認識の確認など、ログを使うときだけONにします。OFFに戻しても、取得済みのログは取り消せません。</small></span></label>
+        </article>
+      </div>
+    </section>
+
     <section class="pane" id="pOther">
       <h1 data-i18n="st.h1_other">画面とログ</h1><p class="lead" data-i18n="st.lead_other">表示言語・テーマ・文字の大きさと、字幕ログの保存を設定します。</p>
       <div class="grid">
         <article class="card"><h2 data-i18n="st.card_capproc">字幕ログ</h2><p data-i18n="st.card_capproc_d">話した内容を配信後に見返せるよう保存します。</p>
           <label class="checkrow"><input id="saveLog" type="checkbox"><span><b data-i18n="st.chk_savelog">字幕ログを保存する</b><small data-i18n="st.chk_savelog_d">あとから配信内容を確認できます</small></span></label>
-          <label class="checkrow"><input id="mcpAllowLogs" type="checkbox"><span><b data-i18n="st.mcp_logs">MCP経由のログ読み取りを許可する</b><small data-i18n="st.mcp_logs_d">初期値はOFFです。ONにすると、接続したAIアプリが保存済みの字幕ログを取得できます。内容はそのアプリの設定に応じて外部サービスへ送信される場合があります。音声認識は引き続きローカルで動作します。OFFにしても、取得済みのログは取り消せません。</small></span></label>
-          <h3 data-i18n="st.mcp_auth_title">MCP接続の認証</h3>
-          <p data-i18n="st.mcp_auth_note">パスワードは不要です。発行したトークンをAIアプリの接続設定の MOJICAST_TOKEN に登録してください。再発行・無効化すると古いトークンは直ちに使えなくなります。トークンは他人に共有しないでください。</p>
-          <p id="mcpAuthStatus" role="status"></p>
-          <div class="actions"><button id="mcpIssue" data-i18n="st.mcp_issue">トークンを発行・再発行</button><button id="mcpRevoke" data-i18n="st.mcp_revoke">MCP接続を無効化</button></div>
-          <div id="mcpTokenPanel" hidden><label for="mcpToken" data-i18n="st.mcp_token_note">このトークンは今回だけ表示されます。コピーして接続設定に登録してください。</label><input id="mcpToken" type="text" readonly autocomplete="off" spellcheck="false" style="width:100%;box-sizing:border-box"></div>
           <div class="actions"><button id="openLogs" data-i18n="st.btn_openlogs">字幕ログの保存フォルダを開く</button></div>
         </article>
         <article class="card"><h2 data-i18n="st.card_appscr">アプリ画面</h2><p data-i18n="st.card_appscr_d">OBSに映る字幕の色には影響しません。</p>
@@ -341,8 +354,8 @@
 <script>
   const $ = id => document.getElementById(id);
   const qs = new URLSearchParams(location.search);
-  const panes = { hearing:"pHearing", translation:"pTranslation", collab:"pCollab", voice:"pVoice", obs:"pObs", vrchat:"pVrchat", other:"pOther", about:"pAbout" };
-  const descsJa = { hearing:"マイク・認識・区切りを設定", translation:"翻訳先とモデルを設定", collab:"通話相手の音声を設定", voice:"声でレイアウトを切り替え", obs:"OBSとの接続を設定", vrchat:"VRChatのチャットボックスへ送信", other:"表示言語・テーマ・字幕ログを設定", about:"バージョンと連絡先" };
+  const panes = { hearing:"pHearing", translation:"pTranslation", collab:"pCollab", voice:"pVoice", obs:"pObs", vrchat:"pVrchat", ai:"pAi", other:"pOther", about:"pAbout" };
+  const descsJa = { hearing:"マイク・認識・区切りを設定", translation:"翻訳先とモデルを設定", collab:"通話相手の音声を設定", voice:"声でレイアウトを切り替え", obs:"OBSとの接続を設定", vrchat:"VRChatのチャットボックスへ送信", ai:"AIアプリとの接続・共有を設定", other:"表示言語・テーマ・字幕ログを設定", about:"バージョンと連絡先" };
   const T = (key, jaDefault) => window.MojicastI18n ? window.MojicastI18n.t(key, jaDefault) : jaDefault;
   let cfg = {}, running = false, savedTimer, nameTimer, vcTimer, curSection = "hearing";
 

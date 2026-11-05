@@ -66,8 +66,11 @@ class SettingsUiTests(unittest.TestCase):
                         app_server.save_config({**original, "ui_variant": variant,
                                                 "ui_lang": lang, "mcp_allow_logs": False,
                                                 "save_log": True})
-                        self.page.goto(self._url("/ui/settings?section=other"))
+                        self.page.goto(self._url("/ui/settings?section=ai"))
                         self.page.wait_for_function("() => document.getElementById('device').options.length > 0")
+                        self.assertTrue(self.page.is_visible("#pAi"))
+                        self.assertFalse(self.page.is_visible("#saveLog"))
+                        self.assertTrue(self.page.is_visible("#mcpIssue"))
                         self.assertFalse(self.page.is_checked("#mcpAllowLogs"))
                         with self.page.expect_response(lambda r: r.url.endswith("/api/config") and r.request.method == "POST") as response:
                             self.page.check("#mcpAllowLogs")

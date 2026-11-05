@@ -1476,7 +1476,7 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/logs/recent":
             # Permission applies to every client of this endpoint, not just MCP.
             if load_config().get("mcp_allow_logs") is not True:
-                self._json({"error": "ログの読み取りは許可されていません。Mojicast の設定 → 画面とログで「MCP経由のログ読み取りを許可する」をONにしてください。",
+                self._json({"error": "ログの読み取りは許可されていません。Mojicast の設定 → AI連携で「AIに保存済みログの読み取りを許可する」をONにしてください。",
                             "code": "log_access_denied"}, 403)
                 return
             # 最近の配信の字幕ログ（MCP が誤認識の候補を探すのに使う）

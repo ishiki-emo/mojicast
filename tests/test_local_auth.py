@@ -186,7 +186,7 @@ class AuthBrowserTests(AuthFixture, unittest.TestCase):
                     page = browser.new_page()
                     try:
                         base = f"http://127.0.0.1:{self.port}"
-                        page.goto(base + "/ui/settings?section=other#mojicast_session=" + self.ui)
+                        page.goto(base + "/ui/settings?section=ai#mojicast_session=" + self.ui)
                         page.wait_for_function("() => document.getElementById('device').options.length > 0")
                         self.assertFalse(self.ui in page.url)
                         opened = page.evaluate("""() => new Promise(resolve => {
