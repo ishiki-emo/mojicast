@@ -1,0 +1,611 @@
+{
+  "source": "E:\\AIProject\\ReazonSpeech\\20260708.wav",
+  "source_sha256": "9b38f3eb8f080cb54f328abf30cfebcf84058e8bf4cd3171a0d8015bb9627b27",
+  "seconds": 78.1,
+  "sherpa_onnx": "1.13.8",
+  "config": {
+    "threshold": 0.5,
+    "silence_seconds": 0.3,
+    "max_utterance_seconds": 12,
+    "asr": "k2-ja",
+    "precision": "int8-fp32",
+    "hotwords": false
+  },
+  "recording": {
+    "0.25": [
+      {
+        "start": 0.518,
+        "duration": 3.662,
+        "text": "なわとび最後に跳んだのはいつだったか覚えてますか"
+      },
+      {
+        "start": 4.55,
+        "duration": 4.686,
+        "text": "皆様おはようございます二千二十六年七月八日水曜日です"
+      },
+      {
+        "start": 9.606,
+        "duration": 2.638,
+        "text": "毎日の雑談ヒントお届けします"
+      },
+      {
+        "start": 12.742,
+        "duration": 3.086,
+        "text": "本日七月八日は縄の日です"
+      },
+      {
+        "start": 16.166,
+        "duration": 3.342,
+        "text": "なわの語呂合わせで生まれた記念日なんです"
+      },
+      {
+        "start": 20.294,
+        "duration": 3.79,
+        "text": "日本なわとびプロジェクトという団体が制定したんですよ"
+      },
+      {
+        "start": 24.71,
+        "duration": 4.334,
+        "text": "縄跳びで基礎体力を高めようという願いが込められています"
+      },
+      {
+        "start": 29.606,
+        "duration": 5.55,
+        "text": "実は十月二日もとびの日でとびの語呂合わせ"
+      },
+      {
+        "start": 35.942,
+        "duration": 4.078,
+        "text": "二つの記念日で縄を持つ両手を表しているんだとか"
+      },
+      {
+        "start": 40.774,
+        "duration": 4.334,
+        "text": "縄跳びはいつでもどこでも誰とでもできるのが魅力です"
+      },
+      {
+        "start": 45.67,
+        "duration": 5.07,
+        "text": "運動としてだけでなく協調性やチャレンジ精神も育つんだとか"
+      },
+      {
+        "start": 51.43,
+        "duration": 4.526,
+        "text": "私も子どもの頃は二重跳びの練習に夢中になりました"
+      },
+      {
+        "start": 56.646,
+        "duration": 4.014,
+        "text": "初めて跳べた瞬間のうれしさは今でも覚えているんです"
+      },
+      {
+        "start": 61.318,
+        "duration": 4.782,
+        "text": "大人になった今も一回跳べば気分まで弾みそうですよね"
+      },
+      {
+        "start": 67.43,
+        "duration": 3.054,
+        "text": "皆様が得意だったのは何跳びですか"
+      },
+      {
+        "start": 71.046,
+        "duration": 5.39,
+        "text": "それでは皆様今日も一日心も軽やかに弾む一日を"
+      }
+    ],
+    "0.15": [
+      {
+        "start": 0.522,
+        "duration": 3.658,
+        "text": "なわとび最後に跳んだのはいつだったか覚えてますか"
+      },
+      {
+        "start": 4.554,
+        "duration": 4.682,
+        "text": "皆様おはようございます二千二十六年七月八日水曜日です"
+      },
+      {
+        "start": 9.61,
+        "duration": 2.634,
+        "text": "毎日の雑談ヒントお届けします"
+      },
+      {
+        "start": 12.746,
+        "duration": 3.082,
+        "text": "本日七月八日は縄の日です"
+      },
+      {
+        "start": 16.17,
+        "duration": 3.338,
+        "text": "なわの語呂合わせで生まれた記念日なんです"
+      },
+      {
+        "start": 19.978,
+        "duration": 4.106,
+        "text": "日本なわとびプロジェクトという団体が制定したんですよ"
+      },
+      {
+        "start": 24.714,
+        "duration": 4.33,
+        "text": "縄跳びで基礎体力を高めようという願いが込められています"
+      },
+      {
+        "start": 29.61,
+        "duration": 5.546,
+        "text": "実は十月二日もとびの日でとびの語呂合わせ"
+      },
+      {
+        "start": 35.946,
+        "duration": 4.074,
+        "text": "二つの記念日で縄を持つ両手を表しているんだとか"
+      },
+      {
+        "start": 40.778,
+        "duration": 4.33,
+        "text": "縄跳びはいつでもどこでも誰とでもできるのが魅力です"
+      },
+      {
+        "start": 45.674,
+        "duration": 5.066,
+        "text": "運動としてだけでなく協調性やチャレンジ精神も育つんだとか"
+      },
+      {
+        "start": 51.434,
+        "duration": 4.522,
+        "text": "私も子どもの頃は二重跳びの練習に夢中になりました"
+      },
+      {
+        "start": 56.65,
+        "duration": 4.01,
+        "text": "初めて跳べた瞬間のうれしさは今でも覚えているんです"
+      },
+      {
+        "start": 61.322,
+        "duration": 4.778,
+        "text": "大人になった今も一回跳べば気分まで弾みそうですよね"
+      },
+      {
+        "start": 66.794,
+        "duration": 3.69,
+        "text": "さて皆様が得意だったのは何跳びですか"
+      },
+      {
+        "start": 71.05,
+        "duration": 5.386,
+        "text": "それでは皆様今日も一日心も軽やかに弾む一日を"
+      }
+    ],
+    "0.1": [
+      {
+        "start": 0.54,
+        "duration": 3.64,
+        "text": "なわとび最後に跳んだのはいつだったか覚えてますか"
+      },
+      {
+        "start": 4.572,
+        "duration": 4.664,
+        "text": "皆様おはようございます二千二十六年七月八日水曜日です"
+      },
+      {
+        "start": 9.628,
+        "duration": 2.616,
+        "text": "毎日の雑談ヒントお届けします"
+      },
+      {
+        "start": 12.764,
+        "duration": 3.064,
+        "text": "本日七月八日は縄の日です"
+      },
+      {
+        "start": 16.188,
+        "duration": 3.32,
+        "text": "なわの語呂合わせで生まれた記念日なんです"
+      },
+      {
+        "start": 19.996,
+        "duration": 4.088,
+        "text": "日本なわとびプロジェクトという団体が制定したんですよ"
+      },
+      {
+        "start": 24.732,
+        "duration": 4.312,
+        "text": "縄跳びで基礎体力を高めようという願いが込められています"
+      },
+      {
+        "start": 29.628,
+        "duration": 5.528,
+        "text": "実は十月二日もとびの日でとびの語呂合わせ"
+      },
+      {
+        "start": 35.964,
+        "duration": 4.056,
+        "text": "一つの記念日で縄を持つ両手を表しているんだとか"
+      },
+      {
+        "start": 40.796,
+        "duration": 4.312,
+        "text": "縄跳びはいつでもどこでも誰とでもできるのが魅力です"
+      },
+      {
+        "start": 45.692,
+        "duration": 5.048,
+        "text": "運動としてだけでなく協調性やチャレンジ精神も育つんだとか"
+      },
+      {
+        "start": 51.452,
+        "duration": 4.504,
+        "text": "私も子どもの頃は二重跳びの練習に夢中になりました"
+      },
+      {
+        "start": 56.668,
+        "duration": 3.992,
+        "text": "初めて跳べた瞬間のうれしさは今でも覚えているんです"
+      },
+      {
+        "start": 61.34,
+        "duration": 4.76,
+        "text": "大人になった今も一回飛べば気分まで弾みそうですよね"
+      },
+      {
+        "start": 66.812,
+        "duration": 3.672,
+        "text": "さて皆様が得意だったのは何跳びですか"
+      },
+      {
+        "start": 71.068,
+        "duration": 5.368,
+        "text": "それでは皆様今日も一日心も軽やかに弾む一日を"
+      }
+    ]
+  },
+  "synthetic_controls": {
+    "silence": {
+      "0.25": [],
+      "0.15": [],
+      "0.1": []
+    },
+    "white_noise_rms_0.01": {
+      "0.25": [],
+      "0.15": [],
+      "0.1": []
+    },
+    "clicks": {
+      "0.25": [],
+      "0.15": [],
+      "0.1": []
+    }
+  },
+  "short_tts": [
+    {
+      "file": "short_0_0.wav",
+      "voice": "Microsoft Haruka Desktop",
+      "expected": "はい",
+      "rate": 0,
+      "active_span_seconds": 0.1945,
+      "direct_asr": "はい",
+      "results": {
+        "0.25": [],
+        "0.15": [
+          "はい"
+        ],
+        "0.1": [
+          "はい"
+        ]
+      }
+    },
+    {
+      "file": "short_0_1.wav",
+      "voice": "Microsoft Haruka Desktop",
+      "expected": "うん",
+      "rate": 0,
+      "active_span_seconds": 0.2064,
+      "direct_asr": "うん",
+      "results": {
+        "0.25": [],
+        "0.15": [
+          "うん"
+        ],
+        "0.1": [
+          "うん"
+        ]
+      }
+    },
+    {
+      "file": "short_0_2.wav",
+      "voice": "Microsoft Haruka Desktop",
+      "expected": "え",
+      "rate": 0,
+      "active_span_seconds": 0.1393,
+      "direct_asr": "えっ",
+      "results": {
+        "0.25": [],
+        "0.15": [
+          "えっ"
+        ],
+        "0.1": [
+          "えっ"
+        ]
+      }
+    },
+    {
+      "file": "short_0_3.wav",
+      "voice": "Microsoft Haruka Desktop",
+      "expected": "あ",
+      "rate": 0,
+      "active_span_seconds": 0.1428,
+      "direct_asr": "あっ",
+      "results": {
+        "0.25": [],
+        "0.15": [],
+        "0.1": [
+          "あっ"
+        ]
+      }
+    },
+    {
+      "file": "short_0_4.wav",
+      "voice": "Microsoft Haruka Desktop",
+      "expected": "そう",
+      "rate": 0,
+      "active_span_seconds": 0.2712,
+      "direct_asr": "そう",
+      "results": {
+        "0.25": [],
+        "0.15": [
+          "そう"
+        ],
+        "0.1": [
+          "そう"
+        ]
+      }
+    },
+    {
+      "file": "short_0_5.wav",
+      "voice": "Microsoft Haruka Desktop",
+      "expected": "いや",
+      "rate": 0,
+      "active_span_seconds": 0.2674,
+      "direct_asr": "いや",
+      "results": {
+        "0.25": [
+          "いや"
+        ],
+        "0.15": [
+          "いや"
+        ],
+        "0.1": [
+          "いや"
+        ]
+      }
+    },
+    {
+      "file": "short_0_6.wav",
+      "voice": "Microsoft Haruka Desktop",
+      "expected": "ね",
+      "rate": 0,
+      "active_span_seconds": 0.1476,
+      "direct_asr": "ねっ",
+      "results": {
+        "0.25": [],
+        "0.15": [
+          "ねっ"
+        ],
+        "0.1": [
+          "ねっ"
+        ]
+      }
+    },
+    {
+      "file": "short_0_7.wav",
+      "voice": "Microsoft Haruka Desktop",
+      "expected": "おい",
+      "rate": 0,
+      "active_span_seconds": 0.186,
+      "direct_asr": "おい",
+      "results": {
+        "0.25": [],
+        "0.15": [
+          "おい"
+        ],
+        "0.1": [
+          "おい"
+        ]
+      }
+    },
+    {
+      "file": "short_0_8.wav",
+      "voice": "Microsoft Haruka Desktop",
+      "expected": "待って",
+      "rate": 0,
+      "active_span_seconds": 0.4136,
+      "direct_asr": "待って",
+      "results": {
+        "0.25": [],
+        "0.15": [],
+        "0.1": [
+          "待って"
+        ]
+      }
+    },
+    {
+      "file": "short_0_9.wav",
+      "voice": "Microsoft Haruka Desktop",
+      "expected": "ありがとう",
+      "rate": 0,
+      "active_span_seconds": 0.5542,
+      "direct_asr": "ありがとう",
+      "results": {
+        "0.25": [
+          "ありがとう"
+        ],
+        "0.15": [
+          "ありがとう"
+        ],
+        "0.1": [
+          "ありがとう"
+        ]
+      }
+    },
+    {
+      "file": "short_3_0.wav",
+      "voice": "Microsoft Haruka Desktop",
+      "expected": "はい",
+      "rate": 3,
+      "active_span_seconds": 0.1341,
+      "direct_asr": "はい",
+      "results": {
+        "0.25": [],
+        "0.15": [],
+        "0.1": [
+          "はい"
+        ]
+      }
+    },
+    {
+      "file": "short_3_1.wav",
+      "voice": "Microsoft Haruka Desktop",
+      "expected": "うん",
+      "rate": 3,
+      "active_span_seconds": 0.1484,
+      "direct_asr": "うん",
+      "results": {
+        "0.25": [],
+        "0.15": [
+          "うん"
+        ],
+        "0.1": [
+          "うん"
+        ]
+      }
+    },
+    {
+      "file": "short_3_2.wav",
+      "voice": "Microsoft Haruka Desktop",
+      "expected": "え",
+      "rate": 3,
+      "active_span_seconds": 0.0961,
+      "direct_asr": "えっ",
+      "results": {
+        "0.25": [],
+        "0.15": [],
+        "0.1": [
+          "えっ"
+        ]
+      }
+    },
+    {
+      "file": "short_3_3.wav",
+      "voice": "Microsoft Haruka Desktop",
+      "expected": "あ",
+      "rate": 3,
+      "active_span_seconds": 0.1037,
+      "direct_asr": "あっ",
+      "results": {
+        "0.25": [],
+        "0.15": [],
+        "0.1": []
+      }
+    },
+    {
+      "file": "short_3_4.wav",
+      "voice": "Microsoft Haruka Desktop",
+      "expected": "そう",
+      "rate": 3,
+      "active_span_seconds": 0.1921,
+      "direct_asr": "そう",
+      "results": {
+        "0.25": [],
+        "0.15": [
+          "そう"
+        ],
+        "0.1": [
+          "そう"
+        ]
+      }
+    },
+    {
+      "file": "short_3_5.wav",
+      "voice": "Microsoft Haruka Desktop",
+      "expected": "いや",
+      "rate": 3,
+      "active_span_seconds": 0.1871,
+      "direct_asr": "いや",
+      "results": {
+        "0.25": [],
+        "0.15": [
+          "いや"
+        ],
+        "0.1": [
+          "いや"
+        ]
+      }
+    },
+    {
+      "file": "short_3_6.wav",
+      "voice": "Microsoft Haruka Desktop",
+      "expected": "ね",
+      "rate": 3,
+      "active_span_seconds": 0.1044,
+      "direct_asr": "ねっ",
+      "results": {
+        "0.25": [],
+        "0.15": [],
+        "0.1": [
+          "ねっ"
+        ]
+      }
+    },
+    {
+      "file": "short_3_7.wav",
+      "voice": "Microsoft Haruka Desktop",
+      "expected": "おい",
+      "rate": 3,
+      "active_span_seconds": 0.1352,
+      "direct_asr": "おい",
+      "results": {
+        "0.25": [],
+        "0.15": [],
+        "0.1": [
+          "おい"
+        ]
+      }
+    },
+    {
+      "file": "short_3_8.wav",
+      "voice": "Microsoft Haruka Desktop",
+      "expected": "待って",
+      "rate": 3,
+      "active_span_seconds": 0.2951,
+      "direct_asr": "待って",
+      "results": {
+        "0.25": [],
+        "0.15": [],
+        "0.1": []
+      }
+    },
+    {
+      "file": "short_3_9.wav",
+      "voice": "Microsoft Haruka Desktop",
+      "expected": "ありがとう",
+      "rate": 3,
+      "active_span_seconds": 0.4049,
+      "direct_asr": "ありがとう",
+      "results": {
+        "0.25": [
+          "ありがとう"
+        ],
+        "0.15": [
+          "ありがとう"
+        ],
+        "0.1": [
+          "ありがとう"
+        ]
+      }
+    }
+  ],
+  "production_vad_verified": {
+    "minimum_seconds": 0.15,
+    "matches_comparison_sample_for_sample": true
+  }
+}

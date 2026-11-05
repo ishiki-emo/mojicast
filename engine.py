@@ -32,6 +32,7 @@ from numnorm import normalize_numbers
 
 SAMPLE_RATE = 16000
 WINDOW_SIZE = 512
+VAD_MIN_SPEECH_SEC = 0.15  # 短い相づちを通す（0.25秒との比較: bench/short_speech_results.json）
 PARTIAL_WINDOW_SEC = 6.0   # 途中経過(薄文字)がデコードする末尾の秒数
 VAD_MODEL_PATH = os.path.join(BASE, "silero_vad.onnx")
 
@@ -683,13 +684,15 @@ class CaptionEngine:
             if mon is not None:
                 mon.join(timeout=2)
 
-    def _build_vad(self, min_silence_ms):
+    def _build_vad(self, min_silence_ms, min_speech_ms=None):
         import sherpa_onnx
         c = sherpa_onnx.VadModelConfig()
         c.silero_vad.model = VAD_MODEL_PATH
         c.silero_vad.threshold = 0.5
         c.silero_vad.min_silence_duration = min_silence_ms / 1000.0
-        c.silero_vad.min_speech_duration = 0.25
+        c.silero_vad.min_speech_duration = (
+            min_speech_ms / 1000.0 if min_speech_ms in (250, 150, 100, 75, 50)
+            else VAD_MIN_SPEECH_SEC)
         c.silero_vad.window_size = WINDOW_SIZE
         c.sample_rate = SAMPLE_RATE
         return sherpa_onnx.VoiceActivityDetector(c, buffer_size_in_seconds=30)
@@ -1018,7 +1021,8 @@ class CaptionEngine:
         認識は共有Recognizerを _recognize 内のロックで直列化する。"""
         try:
             import sounddevice as sd
-            vad = self._build_vad(cfg.get("silence_ms", 300))
+            vad = self._build_vad(cfg.get("silence_ms", 300),
+                                  cfg.get("min_speech_ms"))
             audio_q: "queue.Queue[np.ndarray]" = queue.Queue(
                 maxsize=AUDIO_QUEUE_MAX_BLOCKS)
             last_level_t = [0.0]

@@ -42,6 +42,7 @@ _update_cache_at = 0.0    # time.monotonic() ベースの取得時刻
 
 DEFAULT_CONFIG = {
     "silence_ms": 300, "interval": 0.4, "max_utt": 12.0,
+    "min_speech_ms": 150,  # 短い発話の拾いやすさ（250/150/100/75/50ms）
     "final_only": False,    # 途中経過（薄文字）を出さず確定字幕だけ表示する
     "device": None, "precision": "int8-fp32", "punctuate": True,
     "asr_model": "k2-ja",   # 認識モデル（k2-ja=日本語特化 / sensevoice=多言語）

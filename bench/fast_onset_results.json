@@ -1,0 +1,454 @@
+{
+  "source": "E:\\AIProject\\ReazonSpeech\\20260708.wav",
+  "source_sha256": "9b38f3eb8f080cb54f328abf30cfebcf84058e8bf4cd3171a0d8015bb9627b27",
+  "seconds": 78.1,
+  "sherpa_onnx": "1.13.8",
+  "config": {
+    "threshold": 0.5,
+    "silence_seconds": 0.3,
+    "max_utterance_seconds": 12,
+    "asr": "k2-ja",
+    "precision": "int8-fp32",
+    "hotwords": false
+  },
+  "recording": {
+    "0.25": [
+      {
+        "start": 0.518,
+        "duration": 3.662,
+        "text": "なわとび最後に跳んだのはいつだったか覚えてますか"
+      },
+      {
+        "start": 4.55,
+        "duration": 4.686,
+        "text": "皆様おはようございます二千二十六年七月八日水曜日です"
+      },
+      {
+        "start": 9.606,
+        "duration": 2.638,
+        "text": "毎日の雑談ヒントお届けします"
+      },
+      {
+        "start": 12.742,
+        "duration": 3.086,
+        "text": "本日七月八日は縄の日です"
+      },
+      {
+        "start": 16.166,
+        "duration": 3.342,
+        "text": "なわの語呂合わせで生まれた記念日なんです"
+      },
+      {
+        "start": 20.294,
+        "duration": 3.79,
+        "text": "日本なわとびプロジェクトという団体が制定したんですよ"
+      },
+      {
+        "start": 24.71,
+        "duration": 4.334,
+        "text": "縄跳びで基礎体力を高めようという願いが込められています"
+      },
+      {
+        "start": 29.606,
+        "duration": 5.55,
+        "text": "実は十月二日もとびの日でとびの語呂合わせ"
+      },
+      {
+        "start": 35.942,
+        "duration": 4.078,
+        "text": "二つの記念日で縄を持つ両手を表しているんだとか"
+      },
+      {
+        "start": 40.774,
+        "duration": 4.334,
+        "text": "縄跳びはいつでもどこでも誰とでもできるのが魅力です"
+      },
+      {
+        "start": 45.67,
+        "duration": 5.07,
+        "text": "運動としてだけでなく協調性やチャレンジ精神も育つんだとか"
+      },
+      {
+        "start": 51.43,
+        "duration": 4.526,
+        "text": "私も子どもの頃は二重跳びの練習に夢中になりました"
+      },
+      {
+        "start": 56.646,
+        "duration": 4.014,
+        "text": "初めて跳べた瞬間のうれしさは今でも覚えているんです"
+      },
+      {
+        "start": 61.318,
+        "duration": 4.782,
+        "text": "大人になった今も一回跳べば気分まで弾みそうですよね"
+      },
+      {
+        "start": 67.43,
+        "duration": 3.054,
+        "text": "皆様が得意だったのは何跳びですか"
+      },
+      {
+        "start": 71.046,
+        "duration": 5.39,
+        "text": "それでは皆様今日も一日心も軽やかに弾む一日を"
+      }
+    ],
+    "0.15": [
+      {
+        "start": 0.522,
+        "duration": 3.658,
+        "text": "なわとび最後に跳んだのはいつだったか覚えてますか"
+      },
+      {
+        "start": 4.554,
+        "duration": 4.682,
+        "text": "皆様おはようございます二千二十六年七月八日水曜日です"
+      },
+      {
+        "start": 9.61,
+        "duration": 2.634,
+        "text": "毎日の雑談ヒントお届けします"
+      },
+      {
+        "start": 12.746,
+        "duration": 3.082,
+        "text": "本日七月八日は縄の日です"
+      },
+      {
+        "start": 16.17,
+        "duration": 3.338,
+        "text": "なわの語呂合わせで生まれた記念日なんです"
+      },
+      {
+        "start": 19.978,
+        "duration": 4.106,
+        "text": "日本なわとびプロジェクトという団体が制定したんですよ"
+      },
+      {
+        "start": 24.714,
+        "duration": 4.33,
+        "text": "縄跳びで基礎体力を高めようという願いが込められています"
+      },
+      {
+        "start": 29.61,
+        "duration": 5.546,
+        "text": "実は十月二日もとびの日でとびの語呂合わせ"
+      },
+      {
+        "start": 35.946,
+        "duration": 4.074,
+        "text": "二つの記念日で縄を持つ両手を表しているんだとか"
+      },
+      {
+        "start": 40.778,
+        "duration": 4.33,
+        "text": "縄跳びはいつでもどこでも誰とでもできるのが魅力です"
+      },
+      {
+        "start": 45.674,
+        "duration": 5.066,
+        "text": "運動としてだけでなく協調性やチャレンジ精神も育つんだとか"
+      },
+      {
+        "start": 51.434,
+        "duration": 4.522,
+        "text": "私も子どもの頃は二重跳びの練習に夢中になりました"
+      },
+      {
+        "start": 56.65,
+        "duration": 4.01,
+        "text": "初めて跳べた瞬間のうれしさは今でも覚えているんです"
+      },
+      {
+        "start": 61.322,
+        "duration": 4.778,
+        "text": "大人になった今も一回跳べば気分まで弾みそうですよね"
+      },
+      {
+        "start": 66.794,
+        "duration": 3.69,
+        "text": "さて皆様が得意だったのは何跳びですか"
+      },
+      {
+        "start": 71.05,
+        "duration": 5.386,
+        "text": "それでは皆様今日も一日心も軽やかに弾む一日を"
+      }
+    ],
+    "0.1": [
+      {
+        "start": 0.54,
+        "duration": 3.64,
+        "text": "なわとび最後に跳んだのはいつだったか覚えてますか"
+      },
+      {
+        "start": 4.572,
+        "duration": 4.664,
+        "text": "皆様おはようございます二千二十六年七月八日水曜日です"
+      },
+      {
+        "start": 9.628,
+        "duration": 2.616,
+        "text": "毎日の雑談ヒントお届けします"
+      },
+      {
+        "start": 12.764,
+        "duration": 3.064,
+        "text": "本日七月八日は縄の日です"
+      },
+      {
+        "start": 16.188,
+        "duration": 3.32,
+        "text": "なわの語呂合わせで生まれた記念日なんです"
+      },
+      {
+        "start": 19.996,
+        "duration": 4.088,
+        "text": "日本なわとびプロジェクトという団体が制定したんですよ"
+      },
+      {
+        "start": 24.732,
+        "duration": 4.312,
+        "text": "縄跳びで基礎体力を高めようという願いが込められています"
+      },
+      {
+        "start": 29.628,
+        "duration": 5.528,
+        "text": "実は十月二日もとびの日でとびの語呂合わせ"
+      },
+      {
+        "start": 35.964,
+        "duration": 4.056,
+        "text": "一つの記念日で縄を持つ両手を表しているんだとか"
+      },
+      {
+        "start": 40.796,
+        "duration": 4.312,
+        "text": "縄跳びはいつでもどこでも誰とでもできるのが魅力です"
+      },
+      {
+        "start": 45.692,
+        "duration": 5.048,
+        "text": "運動としてだけでなく協調性やチャレンジ精神も育つんだとか"
+      },
+      {
+        "start": 51.452,
+        "duration": 4.504,
+        "text": "私も子どもの頃は二重跳びの練習に夢中になりました"
+      },
+      {
+        "start": 56.668,
+        "duration": 3.992,
+        "text": "初めて跳べた瞬間のうれしさは今でも覚えているんです"
+      },
+      {
+        "start": 61.34,
+        "duration": 4.76,
+        "text": "大人になった今も一回飛べば気分まで弾みそうですよね"
+      },
+      {
+        "start": 66.812,
+        "duration": 3.672,
+        "text": "さて皆様が得意だったのは何跳びですか"
+      },
+      {
+        "start": 71.068,
+        "duration": 5.368,
+        "text": "それでは皆様今日も一日心も軽やかに弾む一日を"
+      }
+    ]
+  },
+  "synthetic_controls": {
+    "silence": {
+      "0.25": [],
+      "0.15": [],
+      "0.1": []
+    },
+    "white_noise_rms_0.01": {
+      "0.25": [],
+      "0.15": [],
+      "0.1": []
+    },
+    "clicks": {
+      "0.25": [],
+      "0.15": [],
+      "0.1": []
+    }
+  },
+  "short_tts": [
+    {
+      "expected": "マジで",
+      "voice": "Microsoft Haruka Desktop",
+      "file": "onset_0_0.wav",
+      "rate": 0,
+      "active_span_seconds": 0.4126,
+      "direct_asr": "マジで",
+      "results": {
+        "0.25": [
+          "マジで"
+        ],
+        "0.15": [
+          "マジで"
+        ],
+        "0.1": [
+          "マジで"
+        ]
+      }
+    },
+    {
+      "expected": "マジでそう思う",
+      "voice": "Microsoft Haruka Desktop",
+      "file": "onset_0_1.wav",
+      "rate": 0,
+      "active_span_seconds": 0.9992,
+      "direct_asr": "マジでそう思う",
+      "results": {
+        "0.25": [
+          "マジでそう思う"
+        ],
+        "0.15": [
+          "マジでそう思う"
+        ],
+        "0.1": [
+          "マジでそう思う"
+        ]
+      }
+    },
+    {
+      "expected": "それマジで",
+      "voice": "Microsoft Haruka Desktop",
+      "file": "onset_0_2.wav",
+      "rate": 0,
+      "active_span_seconds": 0.6539,
+      "direct_asr": "それマジで",
+      "results": {
+        "0.25": [
+          "それマジで"
+        ],
+        "0.15": [
+          "それまじで"
+        ],
+        "0.1": [
+          "それまじで"
+        ]
+      }
+    },
+    {
+      "expected": "マジで",
+      "voice": "Microsoft Haruka Desktop",
+      "file": "onset_3_0.wav",
+      "rate": 3,
+      "active_span_seconds": 0.2988,
+      "direct_asr": "マジで",
+      "results": {
+        "0.25": [
+          "マジで"
+        ],
+        "0.15": [
+          "マジで"
+        ],
+        "0.1": [
+          "マジで"
+        ]
+      }
+    },
+    {
+      "expected": "マジでそう思う",
+      "voice": "Microsoft Haruka Desktop",
+      "file": "onset_3_1.wav",
+      "rate": 3,
+      "active_span_seconds": 0.7218,
+      "direct_asr": "マジでそう思う",
+      "results": {
+        "0.25": [
+          "マジでそう思う"
+        ],
+        "0.15": [
+          "マジでそう思う"
+        ],
+        "0.1": [
+          "マジでそう思う"
+        ]
+      }
+    },
+    {
+      "expected": "それマジで",
+      "voice": "Microsoft Haruka Desktop",
+      "file": "onset_3_2.wav",
+      "rate": 3,
+      "active_span_seconds": 0.4613,
+      "direct_asr": "それまちで",
+      "results": {
+        "0.25": [
+          "それまちで"
+        ],
+        "0.15": [
+          "それまちで"
+        ],
+        "0.1": [
+          "それまちで"
+        ]
+      }
+    },
+    {
+      "expected": "マジで",
+      "voice": "Microsoft Haruka Desktop",
+      "file": "onset_6_0.wav",
+      "rate": 6,
+      "active_span_seconds": 0.2125,
+      "direct_asr": "待ちで",
+      "results": {
+        "0.25": [],
+        "0.15": [
+          "待ちで"
+        ],
+        "0.1": [
+          "待ちで"
+        ]
+      }
+    },
+    {
+      "expected": "マジでそう思う",
+      "voice": "Microsoft Haruka Desktop",
+      "file": "onset_6_1.wav",
+      "rate": 6,
+      "active_span_seconds": 0.5127,
+      "direct_asr": "まじでそう思う",
+      "results": {
+        "0.25": [
+          "まじでそう思う"
+        ],
+        "0.15": [
+          "まじでそう思う"
+        ],
+        "0.1": [
+          "まじでそう思う"
+        ]
+      }
+    },
+    {
+      "expected": "それマジで",
+      "voice": "Microsoft Haruka Desktop",
+      "file": "onset_6_2.wav",
+      "rate": 6,
+      "active_span_seconds": 0.3343,
+      "direct_asr": "ソリマジで",
+      "results": {
+        "0.25": [
+          "それまじで"
+        ],
+        "0.15": [
+          "それまちで"
+        ],
+        "0.1": [
+          "それまちで"
+        ]
+      }
+    }
+  ],
+  "production_vad_verified": {
+    "minimum_seconds": 0.15,
+    "matches_comparison_sample_for_sample": true
+  }
+}

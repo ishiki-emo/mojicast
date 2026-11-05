@@ -153,6 +153,13 @@
           <div class="field" id="intervalRow"><label><span data-i18n="st.f_interval">途中経過の更新間隔</span> <output id="intervalOut"></output></label><input id="interval" type="range" min="0.2" max="1" step="0.1"></div>
         </article>
         <article class="card"><h2 data-i18n="st.card_assist">認識の補助</h2><p data-i18n="st.card_assist_d">固有名詞や数字の認識を補助します。</p>
+          <div class="field">
+            <label for="minSpeech"><span data-i18n="st.f_min_speech">短い発話の拾いやすさ</span> <output id="minSpeechOut" for="minSpeech"></output></label>
+            <input id="minSpeech" type="range" min="0" max="4" step="1" list="minSpeechTicks" aria-describedby="minSpeechHelp">
+            <datalist id="minSpeechTicks"><option value="0"></option><option value="1"></option><option value="2"></option><option value="3"></option><option value="4"></option></datalist>
+            <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--dim)"><span data-i18n="st.speech_less">控えめ</span><span data-i18n="st.speech_more">より短い発話も拾う</span></div>
+            <div class="note" id="minSpeechHelp"><span data-i18n="st.speech_default">標準は150ms。右ほど短い発話を拾います。</span><br><span data-i18n="st.speech_note">短い発話の取りこぼしを減らしやすくなる一方、「えー」「あー」などのフィラーも拾いやすくなります。拾う量に応じてCPU負荷も増えるため、古いPCで字幕が遅れるときは控えめに。</span></div>
+          </div>
           <label class="checkrow"><input id="useHotwords" type="checkbox"><span><b data-i18n="st.chk_hotwords">登録した単語を認識に使う</b><small data-i18n="st.chk_hotwords_d">字幕スタジオで登録した言葉を優先します</small></span></label>
           <div class="field"><label><span data-i18n="st.f_hotscore">登録単語の出やすさ</span> <output id="hotwordsOut"></output></label><input id="hotwordsScore" type="range" min="1" max="4" step="0.5"></div>
           <label class="checkrow"><input id="numArabic" type="checkbox"><span><b data-i18n="st.chk_numarabic">漢数字を数字にする</b><small data-i18n="st.chk_numarabic_d">「三」を「3」のように表示します</small></span></label>
@@ -460,6 +467,18 @@
       if (d.supported === false) { $("collabHint").textContent = "このWindowsは1対1コラボに対応していません。"; $("collabHint").classList.add("danger"); }
     } catch (e) { $("collabHint").textContent = "アプリ一覧を取得できませんでした。"; }
   }
+  function bindMinSpeech() {
+    const steps = [250, 150, 100, 75, 50], el = $("minSpeech"), output = $("minSpeechOut");
+    const index = steps.indexOf(cfg.min_speech_ms);
+    el.value = index < 0 ? 1 : index;
+    const update = () => {
+      output.value = steps[+el.value] + "ms";
+      el.setAttribute("aria-valuetext", steps[+el.value] + " ms");
+    };
+    update();
+    el.addEventListener("input", update);
+    el.addEventListener("change", () => save({min_speech_ms:steps[+el.value]}));
+  }
   function bindRange(id, out, key, unit, fallback) {
     const el=$(id), output=$(out); el.value = cfg[key] ?? fallback; output.value = el.value + unit;
     el.addEventListener("input", () => output.value = el.value + unit);
@@ -474,6 +493,7 @@
     $("device").innerHTML = `<option value="default">${esc(T("cp.mic_default","既定のマイク"))}</option>` + (dv.devices || []).map(d => `<option value="${d.index}">${esc(d.name)}${d.default ? esc(T("cp.default_suffix"," (既定)")) : ""}</option>`).join("");
     $("device").value = cfg.device == null ? "default" : String(cfg.device);
     $("asrModel").value = cfg.asr_model || "k2-ja"; $("asrLang").value = cfg.asr_lang || "auto"; syncAsrLanguage();
+    bindMinSpeech();
     bindRange("silence","silenceOut","silence_ms","ms",300); bindRange("maxUtt","maxUttOut","max_utt","秒",12);
     bindRange("interval","intervalOut","interval","秒",.4); bindRange("hotwordsScore","hotwordsOut","hotwords_score","",2);
     $("useHotwords").checked = cfg.use_hotwords !== false; $("numArabic").checked = cfg.num_arabic !== false; $("highPrecision").checked = cfg.precision === "fp32";
