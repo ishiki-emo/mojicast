@@ -17,6 +17,7 @@ Mojicast 本体には組み込まない（配布物の依存を増やさない�
 登録例（Claude Code）:
   claude mcp add mojicast -s user -- uv run --script E:\\AIProject\\ReazonSpeech\\tools\\mcp\\mojicast_mcp.py
 ポートを変えている場合は環境変数 MOJICAST_PORT で指定する。
+設定画面で発行した専用トークンを環境変数 MOJICAST_TOKEN に設定する（必須）。
 """
 import json
 import os
@@ -29,6 +30,15 @@ from mcp.server.fastmcp import FastMCP
 
 PORT = int(os.environ.get("MOJICAST_PORT", "8765"))
 BASE = f"http://127.0.0.1:{PORT}"
+TOKEN = os.environ.get("MOJICAST_TOKEN", "")
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+_HTTP = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect())
 
 mcp = FastMCP("mojicast")
 
@@ -154,10 +164,12 @@ def _field_guide(fields):
 # ---------------- Mojicast への HTTP ----------------
 
 def _api(path, body=None):
+    if not TOKEN:
+        raise RuntimeError("Mojicastの設定 → 画面とログでMCPトークンを発行し、接続設定のMOJICAST_TOKENに登録してください")
     data = None if body is None else json.dumps(body, ensure_ascii=False).encode("utf-8")
-    req = urllib.request.Request(BASE + path, data=data, method="POST" if body is not None else "GET")
+    req = urllib.request.Request(BASE + path, data=data, headers={"Authorization": "Bearer " + TOKEN}, method="POST" if body is not None else "GET")
     try:
-        with urllib.request.urlopen(req, timeout=5) as r:
+        with _HTTP.open(req, timeout=5) as r:
             return json.loads(r.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         try:

@@ -52,7 +52,7 @@ class SettingsUiTests(unittest.TestCase):
         cls.tmp.cleanup()
 
     def setUp(self):
-        self.page = self.browser.new_page(viewport={"width": 1100, "height": 800})
+        self.page = self.browser.new_page(extra_http_headers={"Authorization": "Bearer " + self.server.auth.ui_token}, viewport={"width": 1100, "height": 800})
 
     def tearDown(self):
         self.page.close()

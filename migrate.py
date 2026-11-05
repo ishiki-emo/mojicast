@@ -221,7 +221,10 @@ def copy_data(src_folder, current_data):
         else:
             # 生成物（_hotwords_gen.txt）は開始時に作り直されるので持ってこない
             shutil.copytree(src, current_data, dirs_exist_ok=True,
-                            ignore=shutil.ignore_patterns("_hotwords_gen.txt"))
+                            ignore=shutil.ignore_patterns("_hotwords_gen.txt", "api_auth.json", ".api-auth-*"))
+        auth_backup = os.path.join(backup, "api_auth.json")
+        if os.path.isfile(auth_backup):
+            shutil.copy2(auth_backup, os.path.join(current_data, "api_auth.json"))
     except Exception:
         try:
             _clear_dir(current_data)

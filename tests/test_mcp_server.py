@@ -70,6 +70,7 @@ class McpToolTests(unittest.TestCase):
         cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
         cls.thread.start()
         cls.m = _load_mcp_module(cls.port)
+        cls.m.TOKEN = cls.server.auth.rotate()
 
     @classmethod
     def tearDownClass(cls):
@@ -209,7 +210,8 @@ class McpToolTests(unittest.TestCase):
         self.m.add_words("banned", ["AIが足した語"])
         # AI の操作のあとに、人が Mojicast の画面で伏せ字を足した
         cur = self.m.get_words()["banned"]
-        self.m._api("/api/banned", {"words": cur + ["人が足した語"]})
+        with patch.object(self.m, "TOKEN", self.server.auth.ui_token):
+            self.m._api("/api/banned", {"words": cur + ["人が足した語"]})
         self.m.undo()
         banned = self.m.get_words()["banned"]
         self.assertNotIn("AIが足した語", banned)
@@ -250,15 +252,17 @@ class McpToolTests(unittest.TestCase):
                         with self.assertRaisesRegex(RuntimeError, "ログの読み取りは許可されていません"):
                             self.m.read_recent_logs()
                 read.assert_not_called()
-                self.m._api("/api/config", {"mcp_allow_logs": True})
+                with patch.object(self.m, "TOKEN", self.server.auth.ui_token):
+                    self.m._api("/api/config", {"mcp_allow_logs": True})
                 self.assertEqual(self.m.read_recent_logs()["logs"], [{"lines": ["private"]}])
-                self.m._api("/api/config", {"mcp_allow_logs": False})
+                with patch.object(self.m, "TOKEN", self.server.auth.ui_token):
+                    self.m._api("/api/config", {"mcp_allow_logs": False})
                 with self.assertRaisesRegex(RuntimeError, "ログの読み取りは許可されていません"):
                     self.m._api("/api/logs/recent?sessions=10")
                 self.assertEqual(read.call_count, 1)
                 self.assertEqual(app_server.load_config()["save_log"], original["save_log"])
                 for invalid in ("true", 1, None):
-                    with self.assertRaisesRegex(RuntimeError, "must be a boolean"):
+                    with patch.object(self.m, "TOKEN", self.server.auth.ui_token), self.assertRaisesRegex(RuntimeError, "must be a boolean"):
                         self.m._api("/api/config", {"mcp_allow_logs": invalid})
                 self.assertIs(app_server.load_config()["mcp_allow_logs"], False)
         finally:
@@ -323,6 +327,35 @@ class McpToolTests(unittest.TestCase):
             finally:
                 browser.close()
                 self.m.undo()
+
+    def test_missing_credential_gives_setup_instructions(self):
+        with patch.object(self.m, "TOKEN", ""):
+            with self.assertRaisesRegex(RuntimeError, "MOJICAST_TOKEN"):
+                self.m.mojicast_status()
+
+    def test_redirect_never_forwards_the_credential(self):
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+        seen = []
+        class Redirect(BaseHTTPRequestHandler):
+            def do_GET(handler):
+                seen.append(handler.path)
+                handler.send_response(302)
+                handler.send_header("Location", "/credential-sink")
+                handler.end_headers()
+            def log_message(handler, *args):
+                pass
+        server = HTTPServer(("127.0.0.1", 0), Redirect)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with patch.object(self.m, "BASE", f"http://127.0.0.1:{server.server_address[1]}"):
+                with self.assertRaises(RuntimeError):
+                    self.m._api("/api/status")
+            self.assertEqual(seen, ["/api/status"])
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(2)
 
     def test_unreachable_mojicast_gives_a_clear_message(self):
         saved = self.m.BASE

@@ -26,6 +26,8 @@ import migrate
 import platform_compat
 import vrcchat
 import wordstore
+import local_auth
+import math
 
 APP_VERSION = "1.1.0-beta1"
 
@@ -100,6 +102,43 @@ DEFAULT_CONFIG = {
     # "" = 対象外 / "pending" = 初回起動で案内中 / "done" = 引き継いだ / "dismissed" = 断った
     "migrate_offer": "",
 }
+
+def _validate_config_patch(body):
+    unknown = set(body) - set(DEFAULT_CONFIG)
+    if unknown:
+        raise ValueError("未知の設定項目です")
+    ranges = {"silence_ms": (50, 5000), "interval": (0.1, 5), "max_utt": (1, 120),
+              "hotwords_score": (0, 20), "port": (1024, 65535), "vrchat_port": (1024, 65535)}
+    for key, value in body.items():
+        default = DEFAULT_CONFIG[key]
+        if isinstance(default, bool) and type(value) is not bool:
+            raise ValueError(f"{key} must be a boolean")
+        if key in ranges:
+            lo, hi = ranges[key]
+            if type(value) not in (int, float) or not lo <= value <= hi or not math.isfinite(value):
+                raise ValueError(f"{key}: {lo}〜{hi} の数値で指定してください")
+            if key in ("port", "vrchat_port", "silence_ms") and int(value) != value:
+                raise ValueError(f"{key}: 整数で指定してください")
+        if key == "min_speech_ms" and (type(value) is not int or value not in (50, 75, 100, 150, 250)):
+            raise ValueError("min_speech_ms: 50/75/100/150/250で指定してください")
+        if key == "ui_scale":
+            continue  # normalize_ui_scale keeps the established UI fallback/clamp behavior.
+        if isinstance(default, str) and (not isinstance(value, str) or len(value) > 1024):
+            raise ValueError(f"{key}: 1024文字以内の文字列で指定してください")
+        if isinstance(default, list) and (not isinstance(value, list) or len(value) > 100
+                                         or not all(isinstance(v, str) and len(v) <= 256 for v in value)):
+            raise ValueError(f"{key}: 文字列の配列で指定してください")
+        if isinstance(default, dict) and not isinstance(value, dict):
+            raise ValueError(f"{key}: オブジェクトで指定してください")
+        if key in ("device", "collab_device") and value is not None and (type(value) is not int or value < 0):
+            raise ValueError(f"{key}: デバイス番号かnullで指定してください")
+        if key == "studio_edit_profile" and value is not None and (not isinstance(value, str) or len(value) > 256):
+            raise ValueError("studio_edit_profile: プロファイル名で指定してください")
+    for key, choices in {"precision": ("int8-fp32", "fp32"), "asr_model": ("k2-ja", "sensevoice"),
+                         "asr_lang": ("auto", "ja", "zh", "en", "ko", "yue")}.items():
+        if key in body and body[key] not in choices:
+            raise ValueError(f"{key}: 対応する選択肢で指定してください")
+
 
 _clients = []
 _clients_lock = threading.Lock()
@@ -1161,7 +1200,7 @@ class Handler(BaseHTTPRequestHandler):
         """ローカル利用を保ったまま、外部OriginとDNSリバインディングを拒否する。
 
         - WebView/OBS: http://127.0.0.1:<port> と http://localhost:<port> を許可
-        - curl/PowerShell等: Originなしの直接アクセスを許可
+        - 設定画面とMCP: 専用Bearerトークンを必須とし、権限を分離
         - 外部Webページ: OriginまたはSec-Fetch-Siteで拒否
         - DNSリバインディング: Hostがloopback名でなければ拒否
         """
@@ -1183,12 +1222,37 @@ class Handler(BaseHTTPRequestHandler):
             self._send_body(403, b"cross-site request blocked",
                             "text/plain; charset=utf-8")
             return False
+        query = parse_qs(urlparse(self.path).query)
+        header = self.headers.get("Authorization", "")
+        token = header[7:] if header.startswith("Bearer ") else ""
+        # EventSource cannot attach headers. Query credentials work only for UI SSE.
+        if not token and path == "/events":
+            candidate = query.get("ui_session", [""])[0]
+            if self.server.auth.role(candidate) == "ui":
+                token = candidate
+        self.auth_role = self.server.auth.role(token)
+        public = not state_changing and (
+            (not path.startswith("/api/") and path != "/events")
+            or path == "/api/style"
+            or (path == "/events" and query.get("overlay") == ["1"]))
+        if public:
+            return True
+        if self.auth_role is None:
+            self._json({"error": "認証が必要です。設定画面はMojicastアプリから開いてください。MCPは専用トークンを設定してください。"}, 401)
+            return False
+        if self.auth_role == "mcp":
+            allowed = local_auth.MCP_POST_FIELDS if state_changing else local_auth.MCP_GET
+            if path not in allowed:
+                self._json({"error": "この操作はMCPに許可されていません"}, 403)
+                return False
         return True
 
     def _send_body(self, code, body: bytes, ctype: str):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("X-Frame-Options", "SAMEORIGIN")
         # GUIは開発中に同じURLで頻繁に更新される。WebView2の復元キャッシュも含め、
         # 古いHTML/JSを再利用させない。
         self.send_header("Cache-Control", "no-store, max-age=0")
@@ -1205,12 +1269,15 @@ class Handler(BaseHTTPRequestHandler):
              ".js": "text/javascript; charset=utf-8",
              ".css": "text/css; charset=utf-8"}
 
-    def _file(self, path, ctype=None):
+    def _file(self, path, ctype=None, ui=False):
         ext = os.path.splitext(path)[1]
         ctype = ctype or self._MIME.get(ext, "application/octet-stream")
         try:
             with open(path, "rb") as f:
-                self._send_body(200, f.read(), ctype)
+                content = f.read()
+                if ui and ext == ".html":
+                    content = content.replace(b"<head>", b'<head><script src="/ui/auth.js"></script>', 1)
+                self._send_body(200, content, ctype)
         except OSError:
             self._send_body(404, b"not found", "text/plain")
 
@@ -1283,7 +1350,7 @@ class Handler(BaseHTTPRequestHandler):
             if os.path.splitext(name)[1] not in self._MIME:
                 self._send_body(404, b"not found", "text/plain")
                 return
-            self._file(_ui_file(name))
+            self._file(_ui_file(name), ui=True)
         elif path.startswith("/soundfx/"):
             # 音イベント演出のユーザー画像（overlay が <img> で読む）。
             # 日本語ファイル名は encodeURIComponent で届くため復号してから検証する
@@ -1301,8 +1368,13 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/soundfx/groups":
             import soundfx
             self._json({"groups": list(soundfx.GROUPS)})
+        elif path == "/api/auth/mcp":
+            self._json({"enabled": self.server.auth.enabled()})
         elif path == "/api/config":
             cfg = load_config()
+            if self.auth_role == "mcp":
+                self._json({k: cfg.get(k) for k in local_auth.MCP_CONFIG_READ})
+                return
             cfg["version"] = APP_VERSION   # 表示用（保存はされない: POSTでは既知キーのみ更新）
             # OS能力（表示用）。UIはこれでコラボ欄をグレーアウトする
             cfg["collab_supported"] = platform_compat.collab_supported()
@@ -1445,7 +1517,34 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"ok": False, "error": "bad json"}, 400)
             return
 
+        if not isinstance(body, dict):
+            self._json({"error": "JSON object required"}, 400)
+            return
+        if self.auth_role == "mcp":
+            if set(body) - local_auth.MCP_POST_FIELDS[path]:
+                self._json({"error": "この設定項目はMCPから変更できません"}, 403)
+                return
+        if path == "/api/auth/mcp":
+            action = body.get("action")
+            if action not in ("rotate", "revoke"):
+                self._json({"error": "unknown credential action"}, 400)
+                return
+            try:
+                token = self.server.auth.rotate(revoke=action == "revoke")
+            except OSError:
+                self._json({"error": "認証設定を保存できませんでした"}, 500)
+                return
+            result = {"enabled": token is not None}
+            if token:
+                result["token"] = token  # Shown only at issuance, never returned by GET.
+            self._json(result)
+            return
         if path == "/api/config":
+            try:
+                _validate_config_patch(body)
+            except ValueError as e:
+                self._json({"error": str(e)}, 400)
+                return
             if "mcp_allow_logs" in body and type(body["mcp_allow_logs"]) is not bool:
                 self._json({"ok": False, "error": "mcp_allow_logs must be a boolean"}, 400)
                 return
@@ -1561,7 +1660,9 @@ class Handler(BaseHTTPRequestHandler):
             # ピクセルサイズは起動時に決まるため次回起動から反映される。
             if "ui_scale" in body:
                 broadcast({"type": "ui_scale", "ui_scale": resolve_ui_scale(cfg)})
-            self._json({"ok": True, "config": cfg})
+            visible = ({k: cfg.get(k) for k in local_auth.MCP_CONFIG_READ}
+                       if self.auth_role == "mcp" else cfg)
+            self._json({"ok": True, "config": visible})
         elif path == "/api/profiles":
             self._post_profiles(body)
         elif path == "/api/words/import":
@@ -1584,7 +1685,21 @@ class Handler(BaseHTTPRequestHandler):
             p = self._profile_arg(body.get("profile"))
             if p is None:
                 return
-            wordstore.save_banned(body.get("words", []), p)
+            words = body.get("words", [])
+            if not isinstance(words, list) or not all(isinstance(w, str) for w in words):
+                self._json({"error": "words must be a string list"}, 400)
+                return
+            with self.server.auth._lock:
+                before = set(wordstore.load_banned(p))
+                after = {w.strip() for w in words if w.strip() and not w.strip().startswith("#")}
+                owned = self.server.auth.banned_added.setdefault(p, set())
+                if self.auth_role == "mcp" and (before - after) - owned:
+                    self._json({"error": "MCPから既存の伏せ字は削除できません"}, 403)
+                    return
+                wordstore.save_banned(words, p)
+                owned.intersection_update(after)
+                if self.auth_role == "mcp":
+                    owned.update(after - before)
             _notify_words_saved(p)
             if "mask_char" in body:      # 伏せ字文字は全体設定（プロファイル外）
                 with _config_lock:
@@ -2029,6 +2144,10 @@ class _QuietHTTPServer(ThreadingHTTPServer):
     出る。動作には影響しないため、これらの切断だけ握りつぶし、他の例外は従来通り。
     """
 
+    def __init__(self, *args, **kwargs):
+        self.auth = local_auth.LocalAuth(wordstore.data_path("api_auth.json"))
+        super().__init__(*args, **kwargs)
+
     def handle_error(self, request, client_address):
         exc = sys.exc_info()[1]
         if isinstance(exc, (ConnectionAbortedError, ConnectionResetError,
@@ -2037,7 +2156,17 @@ class _QuietHTTPServer(ThreadingHTTPServer):
         super().handle_error(request, client_address)
 
 
+_active_server = None
+
+
+def authenticated_ui_url(url):
+    if _active_server is None:
+        raise RuntimeError("Mojicast server has not started")
+    return url.split("#", 1)[0] + "#mojicast_session=" + _active_server.auth.ui_token
+
+
 def start(port: int = 8765):
+    global _active_server
     wordstore.ensure_data()   # data/ 作成・旧配置からの移行・既定データの複製
     _seed_style_defaults()    # 後から増えた既定スタイルを既存環境へ一度だけ追加
     if wordstore.fresh_install and sys.platform == "win32":
@@ -2049,5 +2178,6 @@ def start(port: int = 8765):
             save_config(cfg)
     vrcchat.configure(load_config())   # VRChat転送の設定スナップショット
     server = _QuietHTTPServer(("127.0.0.1", port), Handler)
+    _active_server = server
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server

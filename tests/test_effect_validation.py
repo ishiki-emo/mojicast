@@ -82,7 +82,7 @@ class EffectValidationTests(unittest.TestCase):
                                       ({}, 400), ({"effects": [self.good]}, 200)):
                 conn = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=5)
                 try:
-                    conn.request("POST", "/api/effects", json.dumps({**payload, "profile": "test"}), {"Content-Type": "application/json"})
+                    conn.request("POST", "/api/effects", json.dumps({**payload, "profile": "test"}), {"Content-Type": "application/json", "Authorization": "Bearer " + server.auth.ui_token})
                     response = conn.getresponse()
                     self.assertEqual(response.status, expected)
                     response.read()

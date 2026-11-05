@@ -274,6 +274,11 @@
           <label class="checkrow"><input id="punctuate" type="checkbox"><span><b data-i18n="st.chk_punct">句読点を付ける</b></span></label>
           <label class="checkrow"><input id="saveLog" type="checkbox"><span><b data-i18n="st.chk_savelog">字幕ログを保存する</b><small data-i18n="st.chk_savelog_d">あとから配信内容を確認できます</small></span></label>
           <label class="checkrow"><input id="mcpAllowLogs" type="checkbox"><span><b data-i18n="st.mcp_logs">MCP経由のログ読み取りを許可する</b><small data-i18n="st.mcp_logs_d">初期値はOFFです。ONにすると、接続したAIアプリが保存済みの字幕ログを取得できます。内容はそのアプリの設定に応じて外部サービスへ送信される場合があります。音声認識は引き続きローカルで動作します。OFFにしても、取得済みのログは取り消せません。</small></span></label>
+          <h3 data-i18n="st.mcp_auth_title">MCP接続の認証</h3>
+          <p data-i18n="st.mcp_auth_note">パスワードは不要です。発行したトークンをAIアプリの接続設定の MOJICAST_TOKEN に登録してください。再発行・無効化すると古いトークンは直ちに使えなくなります。トークンは他人に共有しないでください。</p>
+          <p id="mcpAuthStatus" role="status"></p>
+          <div class="actions"><button id="mcpIssue" data-i18n="st.mcp_issue">トークンを発行・再発行</button><button id="mcpRevoke" data-i18n="st.mcp_revoke">MCP接続を無効化</button></div>
+          <div id="mcpTokenPanel" hidden><label for="mcpToken" data-i18n="st.mcp_token_note">このトークンは今回だけ表示されます。コピーして接続設定に登録してください。</label><input id="mcpToken" type="text" readonly autocomplete="off" spellcheck="false" style="width:100%;box-sizing:border-box"></div>
           <div class="actions"><button id="openLogs" data-i18n="st.btn_openlogs">字幕ログの保存フォルダを開く</button></div>
         </article>
         <article class="card"><h2 data-i18n="st.card_appscr">アプリ画面</h2><p data-i18n="st.card_appscr_d">OBSに映る字幕の色には影響しません。</p>
@@ -328,7 +333,10 @@
 
   async function api(path, body) {
     const opt = body === undefined ? {} : { method:"POST", body:JSON.stringify(body) };
-    return (await fetch(path, opt)).json();
+    const response = await fetch(path, opt);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || String(response.status));
+    return data;
   }
   function closeThisWindow() {
     if (window.pywebview && window.pywebview.api && window.pywebview.api.close_window)
@@ -519,6 +527,7 @@
     if (cfg.vrchat_supported === false)   // VRChat 未対応OS（mac）: 欄ごと出さない
       document.querySelector('.nav button[data-section="vrchat"]').style.display = "none";
     $("mcpAllowLogs").checked = cfg.mcp_allow_logs === true;
+    refreshMcpAuth();
     $("punctuate").checked = cfg.punctuate !== false; $("saveLog").checked = cfg.save_log !== false; $("theme").value = cfg.theme || "light";
     $("uiLang").value = cfg.ui_lang || "ja";
     // 選択肢にない倍率（旧版・手書きconfig）は「自動」に見せる。保存し直すまで実効値はそのまま
@@ -661,6 +670,30 @@
   $("vrchatSource").addEventListener("change", e => save({vrchat_source:e.target.value},false));
   $("vrchatPort").addEventListener("change", async e => { const v=Math.round(+e.target.value); if(v<1024||v>65535){e.target.value=cfg.vrchat_port||9000;return;} await save({vrchat_port:v},false); });
   $("punctuate").addEventListener("change", e => save({punctuate:e.target.checked},false));
+  function showMcpAuth(enabled) {
+    $("mcpAuthStatus").textContent = enabled ? T("st.mcp_enabled", "MCP接続：有効（専用トークンが必要）") : T("st.mcp_disabled", "MCP接続：無効");
+    $("mcpRevoke").disabled = !enabled;
+  }
+  async function refreshMcpAuth() {
+    try { showMcpAuth((await api("/api/auth/mcp")).enabled); }
+    catch (e) { $("mcpAuthStatus").textContent = e.message; }
+  }
+  async function changeMcpAuth(action) {
+    $("mcpIssue").disabled = true; $("mcpRevoke").disabled = true;
+    $("mcpToken").value = ""; $("mcpTokenPanel").hidden = true;
+    try {
+      const result = await api("/api/auth/mcp", {action});
+      showMcpAuth(result.enabled);
+      if (result.token) {
+        $("mcpTokenPanel").hidden = false;
+        $("mcpToken").value = result.token;
+        $("mcpToken").focus(); $("mcpToken").select();
+      }
+    } catch (e) { toast(e.message, true); await refreshMcpAuth(); }
+    finally { $("mcpIssue").disabled = false; }
+  }
+  $("mcpIssue").addEventListener("click", () => changeMcpAuth("rotate"));
+  $("mcpRevoke").addEventListener("click", () => changeMcpAuth("revoke"));
   $("mcpAllowLogs").addEventListener("change", e => save({mcp_allow_logs:e.target.checked},false));
   $("saveLog").addEventListener("change", e => save({save_log:e.target.checked},false));
   $("openLogs").addEventListener("click", async () => {

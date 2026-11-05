@@ -113,6 +113,7 @@ class ConfigApiUiScaleTests(unittest.TestCase):
     def request(self, method, path, body=None):
         conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
         headers = {"Content-Type": "application/json"} if body else {}
+        headers["Authorization"] = "Bearer " + self.server.auth.ui_token
         conn.request(method, path,
                      body=json.dumps(body) if body else None, headers=headers)
         res = conn.getresponse()

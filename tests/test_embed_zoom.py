@@ -68,7 +68,7 @@ class EmbeddedFooterTests(unittest.TestCase):
         実アプリでは窓の実寸は次回起動まで変わらないため、倍率と窓寸は独立に動く）
         """
         self._set_scale(scale)
-        page = browser.new_page(viewport={"width": width or int(1120 * scale),
+        page = browser.new_page(extra_http_headers={"Authorization": "Bearer " + self.server.auth.ui_token}, viewport={"width": width or int(1120 * scale),
                                           "height": height or int(840 * scale)})
         page.goto(f"http://127.0.0.1:{self.port}/ui/studio?s={scale}&tab=words")
         page.wait_for_selector("#fWords[src]")

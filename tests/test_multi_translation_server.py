@@ -40,7 +40,7 @@ class MultiTranslationServerTests(unittest.TestCase):
     def _post_config(self, body):
         conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
         conn.request("POST", "/api/config", json.dumps(body),
-                     {"Content-Type": "application/json",
+                     {"Authorization": "Bearer " + self.server.auth.ui_token, "Content-Type": "application/json",
                       "Host": f"127.0.0.1:{self.port}"})
         res = conn.getresponse()
         data = json.loads(res.read())

@@ -311,7 +311,7 @@ class ServerImportTests(unittest.TestCase):
         import json
         conn = self.http.HTTPConnection("127.0.0.1", self.port, timeout=5)
         conn.request("POST", path, body=json.dumps(body).encode("utf-8"),
-                     headers={"Content-Type": "application/json",
+                     headers={"Authorization": "Bearer " + self.server.auth.ui_token, "Content-Type": "application/json",
                               "Host": f"127.0.0.1:{self.port}"})
         res = conn.getresponse()
         data = json.loads(res.read().decode("utf-8"))

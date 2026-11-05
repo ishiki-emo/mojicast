@@ -63,7 +63,8 @@ class _TempData:
 
     def request(self, method, path, body=None):
         conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
-        conn.request(method, path, body=json.dumps(body) if body is not None else None)
+        conn.request(method, path, body=json.dumps(body) if body is not None else None,
+                     headers={"Authorization": "Bearer " + self.server.auth.ui_token})
         res = conn.getresponse()
         data = json.loads(res.read().decode("utf-8"))
         conn.close()
