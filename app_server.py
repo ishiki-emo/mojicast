@@ -29,7 +29,7 @@ import wordstore
 import local_auth
 import math
 
-APP_VERSION = "1.1.0-beta1"
+APP_VERSION = "1.1.0"
 
 # 更新チェック用のマニフェスト（GitHub raw）。リリース時に latest.json を更新する。
 # 中身: {"version": "0.5.1", "url": "<配布ページ>", "notes": "<一行紹介>"}
