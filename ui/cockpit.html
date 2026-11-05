@@ -1319,8 +1319,12 @@
   // ---------- エンジン ----------
   async function toggleEngine() {
     $("btnEngine").disabled = true;
-    await api("/api/engine", { action: running ? "stop" : "start" });
-    setTimeout(() => { $("btnEngine").disabled = false; }, 800);
+    try {
+      await api("/api/engine", { action: running ? "stop" : "start" });
+    } finally {
+      // 通信に失敗してもボタンを押せない状態のまま残さない
+      setTimeout(() => { $("btnEngine").disabled = false; }, 800);
+    }
   }
 
   // 「今すぐ反映」= 停止→開始（変更した設定でロードし直す）

@@ -7,7 +7,16 @@
     sessionStorage.setItem(key, incoming);
     history.replaceState(null, "", location.pathname + location.search);
   }
-  const token = () => sessionStorage.getItem(key) || "";
+  // Mac (WKWebView) wipes this page's sessionStorage when another app window closes,
+  // without reloading the page. Keep the credential in memory too and write it back,
+  // so same-origin iframes that reload later can still pick it up.
+  let cached = incoming || sessionStorage.getItem(key) || "";
+  const token = () => {
+    const stored = sessionStorage.getItem(key);
+    if (stored) cached = stored;
+    else if (cached) sessionStorage.setItem(key, cached);
+    return cached;
+  };
   const originalFetch = window.fetch.bind(window);
   window.fetch = (input, init) => {
     const url = new URL(input instanceof Request ? input.url : input, location.href);
