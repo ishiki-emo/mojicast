@@ -211,6 +211,11 @@ class AuthBrowserTests(AuthFixture, unittest.TestCase):
                         frame.locator("#fxTable").wait_for(state="attached")
                         response = page.frames[-1].evaluate("async () => (await fetch('/api/config')).status")
                         self.assertEqual(response, 200)
+                        # Mac WKWebView wipes sessionStorage when another window closes,
+                        # without reloading the page. The page must keep authenticating.
+                        response = page.evaluate("async () => { sessionStorage.clear(); return (await fetch('/api/config')).status; }")
+                        self.assertEqual(response, 200)
+                        self.assertTrue(page.evaluate("() => !!sessionStorage.getItem('mojicast.ui.session')"))
                     finally:
                         page.close()
             finally:
