@@ -54,7 +54,7 @@ DEFAULT_CONFIG = {
     # 非保証の追加翻訳先（M2M-100 の言語コード。例 ["th", "vi"]）。画面には無い裏口で、
     # ここに書くと設定画面の翻訳先に「（非保証）」付きで並ぶ。品質は測っていない
     "translate_extra_langs": [],
-    "save_log": True, "mask_char": "○", "num_arabic": True,
+    "mcp_allow_logs": False, "save_log": True, "mask_char": "○", "num_arabic": True,
     "word_fx": True,        # 単語エフェクトの表示（OFFでも認識誘導・置換は有効）
     "preset": "standard", "box": "none", "port": 8765,
     "word_profile": "",     # 使用中の単語プロファイル（"" = 共通のみ）
@@ -1402,6 +1402,11 @@ class Handler(BaseHTTPRequestHandler):
                 out["candidates"] = migrate.find_candidates(DATA_BASE)
             self._json(out)
         elif path == "/api/logs/recent":
+            # Permission applies to every client of this endpoint, not just MCP.
+            if load_config().get("mcp_allow_logs") is not True:
+                self._json({"error": "ログの読み取りは許可されていません。Mojicast の設定 → 画面とログで「MCP経由のログ読み取りを許可する」をONにしてください。",
+                            "code": "log_access_denied"}, 403)
+                return
             # 最近の配信の字幕ログ（MCP が誤認識の候補を探すのに使う）
             self._json({"logs": recent_logs(query.get("sessions", "1"))})
         elif path == "/api/perf":
@@ -1441,6 +1446,9 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/config":
+            if "mcp_allow_logs" in body and type(body["mcp_allow_logs"]) is not bool:
+                self._json({"ok": False, "error": "mcp_allow_logs must be a boolean"}, 400)
+                return
             if "word_profile" in body:
                 p = self._profile_arg(body.get("word_profile"))
                 if p is None:

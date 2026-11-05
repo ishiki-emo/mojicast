@@ -288,6 +288,7 @@
       <div class="grid">
         <article class="card"><h2 data-i18n="st.card_capproc">字幕ログ</h2><p data-i18n="st.card_capproc_d">話した内容を配信後に見返せるよう保存します。</p>
           <label class="checkrow"><input id="saveLog" type="checkbox"><span><b data-i18n="st.chk_savelog">字幕ログを保存する</b><small data-i18n="st.chk_savelog_d">あとから配信内容を確認できます</small></span></label>
+          <label class="checkrow"><input id="mcpAllowLogs" type="checkbox"><span><b data-i18n="st.mcp_logs">MCP経由のログ読み取りを許可する</b><small data-i18n="st.mcp_logs_d">初期値はOFFです。ONにすると、接続したAIアプリが保存済みの字幕ログを取得できます。内容はそのアプリの設定に応じて外部サービスへ送信される場合があります。音声認識は引き続きローカルで動作します。OFFにしても、取得済みのログは取り消せません。</small></span></label>
           <div class="actions"><button id="openLogs" data-i18n="st.btn_openlogs">字幕ログの保存フォルダを開く</button></div>
         </article>
         <article class="card"><h2 data-i18n="st.card_appscr">アプリ画面</h2><p data-i18n="st.card_appscr_d">OBSに映る字幕の色には影響しません。</p>
@@ -532,6 +533,7 @@
     $("vrchatOn").checked = !!cfg.vrchat; $("vrchatSource").value = cfg.vrchat_source || "ja"; $("vrchatPort").value = cfg.vrchat_port || 9000;
     if (cfg.vrchat_supported === false)   // VRChat 未対応OS（mac）: 欄ごと出さない
       document.querySelector('.nav button[data-section="vrchat"]').style.display = "none";
+    $("mcpAllowLogs").checked = cfg.mcp_allow_logs === true;
     $("punctuate").checked = cfg.punctuate !== false; $("saveLog").checked = cfg.save_log !== false; $("theme").value = cfg.theme || "light";
     $("uiLang").value = cfg.ui_lang || "ja";
     // 選択肢にない倍率（旧版・手書きconfig）は「自動」に見せる。保存し直すまで実効値はそのまま
@@ -674,6 +676,7 @@
   $("vrchatSource").addEventListener("change", e => save({vrchat_source:e.target.value},false));
   $("vrchatPort").addEventListener("change", async e => { const v=Math.round(+e.target.value); if(v<1024||v>65535){e.target.value=cfg.vrchat_port||9000;return;} await save({vrchat_port:v},false); });
   $("punctuate").addEventListener("change", e => save({punctuate:e.target.checked},false));
+  $("mcpAllowLogs").addEventListener("change", e => save({mcp_allow_logs:e.target.checked},false));
   $("saveLog").addEventListener("change", e => save({save_log:e.target.checked},false));
   $("openLogs").addEventListener("click", async () => {
     try {

@@ -57,6 +57,31 @@ class SettingsUiTests(unittest.TestCase):
     def tearDown(self):
         self.page.close()
 
+    def test_log_permission_toggle_persists_in_both_interfaces(self):
+        original = app_server.load_config()
+        try:
+            for variant in ("new", "legacy"):
+                for lang in ("ja", "en", "zh"):
+                    with self.subTest(variant=variant, lang=lang):
+                        app_server.save_config({**original, "ui_variant": variant,
+                                                "ui_lang": lang, "mcp_allow_logs": False,
+                                                "save_log": True})
+                        self.page.goto(self._url("/ui/settings?section=other"))
+                        self.page.wait_for_function("() => document.getElementById('device').options.length > 0")
+                        self.assertFalse(self.page.is_checked("#mcpAllowLogs"))
+                        with self.page.expect_response(lambda r: r.url.endswith("/api/config") and r.request.method == "POST") as response:
+                            self.page.check("#mcpAllowLogs")
+                        self.assertEqual(response.value.status, 200)
+                        self.assertIs(app_server.load_config()["mcp_allow_logs"], True)
+                        self.page.reload()
+                        self.page.wait_for_function("() => document.getElementById('mcpAllowLogs').checked")
+                        with self.page.expect_response(lambda r: r.url.endswith("/api/config") and r.request.method == "POST"):
+                            self.page.uncheck("#mcpAllowLogs")
+                        self.assertIs(app_server.load_config()["mcp_allow_logs"], False)
+                        self.assertIs(app_server.load_config()["save_log"], True)
+        finally:
+            app_server.save_config(original)
+
     def _url(self, path):
         return f"http://127.0.0.1:{self.port}{path}"
 

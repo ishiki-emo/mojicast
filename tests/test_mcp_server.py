@@ -13,6 +13,7 @@ import tempfile
 import threading
 import types
 import unittest
+from unittest.mock import patch
 
 try:
     from playwright.sync_api import sync_playwright
@@ -235,7 +236,37 @@ class McpToolTests(unittest.TestCase):
         finally:
             wordstore.delete_profile("ゲームA")
 
+    def test_log_permission_defaults_denies_and_revokes_immediately(self):
+        original = app_server.load_config()
+        try:
+            # An existing config without the new key must fail closed.
+            legacy = dict(original)
+            legacy.pop("mcp_allow_logs", None)
+            app_server.save_config(legacy)
+            self.assertIs(app_server.load_config()["mcp_allow_logs"], False)
+            with patch.object(app_server, "recent_logs", return_value=[{"lines": ["private"]}]) as read:
+                for value in (None, False, "true", 1):
+                    with patch.object(app_server, "load_config", return_value={"mcp_allow_logs": value}):
+                        with self.assertRaisesRegex(RuntimeError, "ログの読み取りは許可されていません"):
+                            self.m.read_recent_logs()
+                read.assert_not_called()
+                self.m._api("/api/config", {"mcp_allow_logs": True})
+                self.assertEqual(self.m.read_recent_logs()["logs"], [{"lines": ["private"]}])
+                self.m._api("/api/config", {"mcp_allow_logs": False})
+                with self.assertRaisesRegex(RuntimeError, "ログの読み取りは許可されていません"):
+                    self.m._api("/api/logs/recent?sessions=10")
+                self.assertEqual(read.call_count, 1)
+                self.assertEqual(app_server.load_config()["save_log"], original["save_log"])
+                for invalid in ("true", 1, None):
+                    with self.assertRaisesRegex(RuntimeError, "must be a boolean"):
+                        self.m._api("/api/config", {"mcp_allow_logs": invalid})
+                self.assertIs(app_server.load_config()["mcp_allow_logs"], False)
+        finally:
+            app_server.save_config(original)
+
     def test_recent_logs_newest_first(self):
+        original = app_server.load_config()
+        app_server.save_config({**original, "mcp_allow_logs": True})
         saved = app_server.DATA_BASE
         app_server.DATA_BASE = self.tmp.name
         try:
@@ -254,6 +285,7 @@ class McpToolTests(unittest.TestCase):
             self.assertEqual(len(self.m.read_recent_logs(1)["logs"]), 1)
         finally:
             app_server.DATA_BASE = saved
+            app_server.save_config(original)
 
     @unittest.skipIf(sync_playwright is None, "playwright 未導入のためスキップ")
     def test_sample_caption_is_drawn_with_the_new_design(self):
