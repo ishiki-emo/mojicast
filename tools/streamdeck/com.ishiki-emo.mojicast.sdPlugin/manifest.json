@@ -1,0 +1,314 @@
+{
+  "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+  "Name": "Mojicast",
+  "Version": "0.1.0.0",
+  "Author": "癒色えも",
+  "Description": "Mojicast（配信用のリアルタイム字幕アプリ）をボタンで操作します。認識の開始・停止、字幕クリア、シーン・デザイン・翻訳の切替、演出の手動発火など。",
+  "UUID": "com.ishiki-emo.mojicast",
+  "URL": "https://ishiki-emo.com/mojicast",
+  "Icon": "imgs/plugin/marketplace",
+  "Category": "Mojicast",
+  "CategoryIcon": "imgs/plugin/category-icon",
+  "CodePath": "bin/plugin.js",
+  "SDKVersion": 3,
+  "Software": {
+    "MinimumVersion": "7.1"
+  },
+  "OS": [
+    {
+      "Platform": "windows",
+      "MinimumVersion": "10"
+    },
+    {
+      "Platform": "mac",
+      "MinimumVersion": "12"
+    }
+  ],
+  "Nodejs": {
+    "Version": "24"
+  },
+  "Actions": [
+    {
+      "Name": "認識 スタート/ストップ",
+      "UUID": "com.ishiki-emo.mojicast.engine",
+      "Icon": "imgs/actions/engine/icon",
+      "Tooltip": "音声認識を開始・停止します",
+      "PropertyInspectorPath": "ui/engine.html",
+      "Controllers": [
+        "Keypad"
+      ],
+      "DisableAutomaticStates": true,
+      "SupportedInMultiActions": true,
+      "UserTitleEnabled": false,
+      "States": [
+        {
+          "Image": "imgs/actions/engine/key0",
+          "ShowTitle": false
+        },
+        {
+          "Image": "imgs/actions/engine/key1",
+          "ShowTitle": false
+        }
+      ]
+    },
+    {
+      "Name": "字幕クリア",
+      "UUID": "com.ishiki-emo.mojicast.clear",
+      "Icon": "imgs/actions/clear/icon",
+      "Tooltip": "画面の字幕を消します",
+      "PropertyInspectorPath": "ui/clear.html",
+      "Controllers": [
+        "Keypad"
+      ],
+      "DisableAutomaticStates": true,
+      "SupportedInMultiActions": true,
+      "UserTitleEnabled": true,
+      "States": [
+        {
+          "Image": "imgs/actions/clear/key0",
+          "ShowTitle": false
+        }
+      ]
+    },
+    {
+      "Name": "シーン切替",
+      "UUID": "com.ishiki-emo.mojicast.scene",
+      "Icon": "imgs/actions/scene/icon",
+      "Tooltip": "指定したシーン（デザイン＋レイアウト）に切り替えます",
+      "PropertyInspectorPath": "ui/scene.html",
+      "Controllers": [
+        "Keypad"
+      ],
+      "DisableAutomaticStates": true,
+      "SupportedInMultiActions": true,
+      "UserTitleEnabled": true,
+      "States": [
+        {
+          "Image": "imgs/actions/scene/key0",
+          "TitleAlignment": "bottom",
+          "FontSize": 11,
+          "ShowTitle": true
+        },
+        {
+          "Image": "imgs/actions/scene/key1",
+          "TitleAlignment": "bottom",
+          "FontSize": 11,
+          "ShowTitle": true
+        }
+      ]
+    },
+    {
+      "Name": "デザイン切替",
+      "UUID": "com.ishiki-emo.mojicast.preset",
+      "Icon": "imgs/actions/preset/icon",
+      "Tooltip": "指定した字幕デザインに切り替えます",
+      "PropertyInspectorPath": "ui/preset.html",
+      "Controllers": [
+        "Keypad"
+      ],
+      "DisableAutomaticStates": true,
+      "SupportedInMultiActions": true,
+      "UserTitleEnabled": true,
+      "States": [
+        {
+          "Image": "imgs/actions/preset/key0",
+          "TitleAlignment": "bottom",
+          "FontSize": 11,
+          "ShowTitle": true
+        },
+        {
+          "Image": "imgs/actions/preset/key1",
+          "TitleAlignment": "bottom",
+          "FontSize": 11,
+          "ShowTitle": true
+        }
+      ]
+    },
+    {
+      "Name": "レイアウト切替",
+      "UUID": "com.ishiki-emo.mojicast.box",
+      "Icon": "imgs/actions/box/icon",
+      "Tooltip": "指定したレイアウトに切り替えます",
+      "PropertyInspectorPath": "ui/box.html",
+      "Controllers": [
+        "Keypad"
+      ],
+      "DisableAutomaticStates": true,
+      "SupportedInMultiActions": true,
+      "UserTitleEnabled": true,
+      "States": [
+        {
+          "Image": "imgs/actions/box/key0",
+          "TitleAlignment": "bottom",
+          "FontSize": 11,
+          "ShowTitle": true
+        },
+        {
+          "Image": "imgs/actions/box/key1",
+          "TitleAlignment": "bottom",
+          "FontSize": 11,
+          "ShowTitle": true
+        }
+      ]
+    },
+    {
+      "Name": "おまかせ切替",
+      "UUID": "com.ishiki-emo.mojicast.random",
+      "Icon": "imgs/actions/random/icon",
+      "Tooltip": "シーン・デザイン・レイアウトをおまかせで切り替えます",
+      "PropertyInspectorPath": "ui/random.html",
+      "Controllers": [
+        "Keypad"
+      ],
+      "DisableAutomaticStates": true,
+      "SupportedInMultiActions": true,
+      "UserTitleEnabled": true,
+      "States": [
+        {
+          "Image": "imgs/actions/random/key0",
+          "ShowTitle": false
+        }
+      ]
+    },
+    {
+      "Name": "翻訳 ON/OFF",
+      "UUID": "com.ishiki-emo.mojicast.translate",
+      "Icon": "imgs/actions/translate/icon",
+      "Tooltip": "翻訳をオン・オフします（認識中は数秒止まります）",
+      "PropertyInspectorPath": "ui/translate.html",
+      "Controllers": [
+        "Keypad"
+      ],
+      "DisableAutomaticStates": true,
+      "SupportedInMultiActions": true,
+      "UserTitleEnabled": false,
+      "States": [
+        {
+          "Image": "imgs/actions/translate/key0",
+          "ShowTitle": false
+        },
+        {
+          "Image": "imgs/actions/translate/key1",
+          "ShowTitle": false
+        }
+      ]
+    },
+    {
+      "Name": "翻訳先の切替",
+      "UUID": "com.ishiki-emo.mojicast.translate-lang",
+      "Icon": "imgs/actions/translate-lang/icon",
+      "Tooltip": "翻訳先の言語を切り替えます（翻訳もオンになります）",
+      "PropertyInspectorPath": "ui/translate-lang.html",
+      "Controllers": [
+        "Keypad"
+      ],
+      "DisableAutomaticStates": true,
+      "SupportedInMultiActions": true,
+      "UserTitleEnabled": true,
+      "States": [
+        {
+          "Image": "imgs/actions/translate-lang/key0",
+          "TitleAlignment": "bottom",
+          "FontSize": 11,
+          "ShowTitle": true
+        },
+        {
+          "Image": "imgs/actions/translate-lang/key1",
+          "TitleAlignment": "bottom",
+          "FontSize": 11,
+          "ShowTitle": true
+        }
+      ]
+    },
+    {
+      "Name": "演出を出す",
+      "UUID": "com.ishiki-emo.mojicast.fx",
+      "Icon": "imgs/actions/fx/icon",
+      "Tooltip": "笑い・拍手などの演出を手動で出します",
+      "PropertyInspectorPath": "ui/fx.html",
+      "Controllers": [
+        "Keypad"
+      ],
+      "DisableAutomaticStates": true,
+      "SupportedInMultiActions": true,
+      "UserTitleEnabled": true,
+      "States": [
+        {
+          "Image": "imgs/actions/fx/key0",
+          "TitleAlignment": "bottom",
+          "FontSize": 11,
+          "ShowTitle": true
+        }
+      ]
+    },
+    {
+      "Name": "単語エフェクト ON/OFF",
+      "UUID": "com.ishiki-emo.mojicast.word-fx",
+      "Icon": "imgs/actions/word-fx/icon",
+      "Tooltip": "単語エフェクトの表示をオン・オフします",
+      "PropertyInspectorPath": "ui/word-fx.html",
+      "Controllers": [
+        "Keypad"
+      ],
+      "DisableAutomaticStates": true,
+      "SupportedInMultiActions": true,
+      "UserTitleEnabled": false,
+      "States": [
+        {
+          "Image": "imgs/actions/word-fx/key0",
+          "ShowTitle": false
+        },
+        {
+          "Image": "imgs/actions/word-fx/key1",
+          "ShowTitle": false
+        }
+      ]
+    },
+    {
+      "Name": "VRChat転送 ON/OFF",
+      "UUID": "com.ishiki-emo.mojicast.vrchat",
+      "Icon": "imgs/actions/vrchat/icon",
+      "Tooltip": "VRChatのチャットボックスへの転送をオン・オフします",
+      "PropertyInspectorPath": "ui/vrchat.html",
+      "Controllers": [
+        "Keypad"
+      ],
+      "DisableAutomaticStates": true,
+      "SupportedInMultiActions": true,
+      "UserTitleEnabled": false,
+      "States": [
+        {
+          "Image": "imgs/actions/vrchat/key0",
+          "ShowTitle": false
+        },
+        {
+          "Image": "imgs/actions/vrchat/key1",
+          "ShowTitle": false
+        }
+      ]
+    },
+    {
+      "Name": "VRChat送信内容の切替",
+      "UUID": "com.ishiki-emo.mojicast.vrchat-source",
+      "Icon": "imgs/actions/vrchat-source/icon",
+      "Tooltip": "VRChatへ送る内容（文字起こし／訳文）を切り替えます",
+      "PropertyInspectorPath": "ui/vrchat-source.html",
+      "Controllers": [
+        "Keypad"
+      ],
+      "DisableAutomaticStates": true,
+      "SupportedInMultiActions": true,
+      "UserTitleEnabled": false,
+      "States": [
+        {
+          "Image": "imgs/actions/vrchat-source/key0",
+          "ShowTitle": false
+        },
+        {
+          "Image": "imgs/actions/vrchat-source/key1",
+          "ShowTitle": false
+        }
+      ]
+    }
+  ]
+}

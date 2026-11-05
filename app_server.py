@@ -1149,7 +1149,11 @@ def _deck_state():
         "vrchat": bool(cfg.get("vrchat")),
         "vrchat_source": cfg.get("vrchat_source", "ja"),
         "vrchat_supported": platform_compat.vrchat_supported(),
-        "scenes": items(_scenes_path(), "scenes"),
+        # シーンは中身（デザイン＋レイアウト）も返す。今のシーンをボタンで点灯させるため
+        "scenes": [{"id": x.get("id"), "name": x.get("name") or x.get("id"),
+                    "preset": x.get("preset"), "box": x.get("box")}
+                   for x in _read_json(_scenes_path(), {"scenes": []})["scenes"]
+                   if x.get("id")],
         "presets": items(_presets_path(), "presets"),
         "boxes": items(_boxes_path(), "boxes"),
         "langs": [{"id": c, "name": labels.get(c, c)} for c in TRANSLATE_LANGS],
