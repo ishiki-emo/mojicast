@@ -1603,7 +1603,11 @@ class Handler(BaseHTTPRequestHandler):
             p = self._profile_arg(body.get("profile"))
             if p is None:
                 return
-            wordstore.save_effects(body.get("effects", []), p)
+            try:
+                wordstore.save_effects(body.get("effects"), p)
+            except ValueError as e:
+                self._json({"ok": False, "error": str(e)}, 400)
+                return
             broadcast_style()
             self._json({"ok": True})
         elif path == "/api/soundfx/test":

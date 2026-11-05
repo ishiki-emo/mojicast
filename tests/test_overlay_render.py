@@ -66,6 +66,32 @@ class OverlayRenderTests(unittest.TestCase):
         cls._srv.shutdown()
         cls._srv.server_close()
 
+    def test_particles_reject_css_injection_without_external_requests(self):
+        page = self._browser.new_page()
+        requests = []
+        page.route("https://effects-test.invalid/**", lambda route: (requests.append(route.request.url), route.abort()))
+        try:
+            page.goto(f"http://127.0.0.1:{self._port}{HARNESS}")
+            counts = page.evaluate("""() => {
+                const target = render('test', 'none');
+                const random = Math.random;
+                Math.random = () => 0;
+                try {
+                    for (const type of ['confetti', 'spark'])
+                        FX.spawnParticles(target, type, '#ffffff;background-image:url(https://effects-test.invalid/pixel)');
+                    FX.spawnParticles(target, '__proto__', '#ffffff');
+                } finally { Math.random = random; }
+                return [...document.querySelectorAll('span')].filter(p => p.style.position === 'fixed').map(p => ({
+                    image: p.style.backgroundImage, color: p.style.color || p.style.backgroundColor
+                }));
+            }""")
+            self.assertEqual(len(counts), 38)
+            self.assertTrue(all(p['image'] == '' and p['color'] == 'rgb(255, 212, 0)' for p in counts))
+            page.wait_for_timeout(200)
+            self.assertEqual(requests, [])
+        finally:
+            page.close()
+
     def _render(self, text, anim, effects=None):
         self.page.evaluate("([t, a, e]) => window.render(t, a, e)",
                            [text, anim, effects or []])
