@@ -1315,6 +1315,21 @@ class Handler(BaseHTTPRequestHandler):
             raise _RequestBodyTooLarge
         return json.loads(self.rfile.read(n).decode("utf-8")) if n else {}
 
+    def _discard_body(self):
+        """拒否したリクエストの本文を読み捨てる。
+
+        未読のまま接続を閉じると macOS は RST を送り、クライアントは
+        返したはずの 401/403 を受け取る前に ConnectionResetError になる。
+        """
+        try:
+            n = int(self.headers.get("Content-Length", 0))
+        except ValueError:
+            n = -1
+        if 0 < n <= MAX_REQUEST_BODY_BYTES:
+            self.rfile.read(n)
+        elif n:
+            self.close_connection = True   # 読み切れない大きさは読まずに切る
+
     def _profile_arg(self, value):
         """profile 指定を検証して返す（"" = 共通 / None = エラー応答済み）"""
         p = value.strip() if isinstance(value, str) else ""
@@ -1507,6 +1522,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         path = self.path.split("?")[0]
         if not self._allow_request(path, state_changing=True):
+            self._discard_body()
             return
         try:
             body = self._body_json()
