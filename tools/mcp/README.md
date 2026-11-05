@@ -1,5 +1,7 @@
 # Mojicast MCP サーバ（試作）
 
+初めて使う方は、配布フォルダの **「ガイド/AI連携ガイド.html」** を先に開いてください。MCPやトークンの意味、AIアプリ別の接続例、接続確認を順に説明しています。
+
 ## 接続用トークン（この版から必須）
 
 Mojicast の「設定 → AI連携 → AIアプリと接続する」でトークンを発行し、AIアプリのMCP接続設定に環境変数 `MOJICAST_TOKEN` として登録してください。接続設定を変更したらMCPを再起動します。既存の接続設定にも追加が必要です。パスワードの設定は不要です。
@@ -38,8 +40,10 @@ Claude Code などの AI から、Mojicast の字幕デザインとレイアウ�
 [uv](https://docs.astral.sh/uv/) が必要です。依存（`mcp<2`）は uv が自動で用意します。
 
 ```
-claude mcp add mojicast -s user -- uv run --script <Mojicast のフォルダ>\mcp\mojicast_mcp.py
+claude mcp add mojicast -s user -e MOJICAST_TOKEN=接続キー -- uv run --script "<Mojicast のフォルダ>\mcp\mojicast_mcp.py"
 ```
+
+実際のキーをチャットへ送らないでください。コマンドに入力するとシェル履歴に残るため、初めての方はHTMLガイドの接続設定欄へ直接入力する方法を使ってください。
 
 `<Mojicast のフォルダ>` は Mojicast.exe があるフォルダです（開発版では `tools\mcp\mojicast_mcp.py`）。
 
