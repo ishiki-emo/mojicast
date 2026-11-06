@@ -20,7 +20,6 @@ import type { DeckState, Item } from "./mojicast";
 type Settings = {
 	id?: string;
 	target?: string;
-	lang?: string;
 	group?: string;
 	hideName?: boolean;
 };
@@ -200,32 +199,6 @@ export class RandomAction extends MojicastAction {
 	protected body(s: Settings) {
 		const target = ["scene", "preset", "box"].includes(s.target ?? "") ? s.target : "scene";
 		return { action: `${target}_random` };
-	}
-}
-
-@action({ UUID: "com.ishiki-emo.mojicast.translate" })
-export class TranslateAction extends MojicastAction {
-	protected body() {
-		return { action: "translate", op: "toggle" };
-	}
-	protected override isOn(st: DeckState) {
-		return st.translate;
-	}
-}
-
-@action({ UUID: "com.ishiki-emo.mojicast.translate-lang" })
-export class TranslateLangAction extends MojicastAction {
-	protected body(s: Settings) {
-		return s.lang ? { action: "translate_lang", lang: s.lang } : null;
-	}
-	protected override isOn(st: DeckState, s: Settings) {
-		return st.translate && st.translate_lang === s.lang;
-	}
-	protected override label(st: DeckState, s: Settings) {
-		return s.lang ? nameOf(st.langs, s.lang) : undefined;
-	}
-	protected override choices(st: DeckState) {
-		return pick(st.langs);
 	}
 }
 

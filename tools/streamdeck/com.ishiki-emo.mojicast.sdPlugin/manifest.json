@@ -171,56 +171,6 @@
       ]
     },
     {
-      "Name": "翻訳 ON/OFF",
-      "UUID": "com.ishiki-emo.mojicast.translate",
-      "Icon": "imgs/actions/translate/icon",
-      "Tooltip": "翻訳をオン・オフします（認識中は数秒止まります）",
-      "PropertyInspectorPath": "ui/translate.html",
-      "Controllers": [
-        "Keypad"
-      ],
-      "DisableAutomaticStates": true,
-      "SupportedInMultiActions": true,
-      "UserTitleEnabled": false,
-      "States": [
-        {
-          "Image": "imgs/actions/translate/key0",
-          "ShowTitle": false
-        },
-        {
-          "Image": "imgs/actions/translate/key1",
-          "ShowTitle": false
-        }
-      ]
-    },
-    {
-      "Name": "翻訳先の切替",
-      "UUID": "com.ishiki-emo.mojicast.translate-lang",
-      "Icon": "imgs/actions/translate-lang/icon",
-      "Tooltip": "翻訳先の言語を切り替えます（翻訳もオンになります）",
-      "PropertyInspectorPath": "ui/translate-lang.html",
-      "Controllers": [
-        "Keypad"
-      ],
-      "DisableAutomaticStates": true,
-      "SupportedInMultiActions": true,
-      "UserTitleEnabled": true,
-      "States": [
-        {
-          "Image": "imgs/actions/translate-lang/key0",
-          "TitleAlignment": "bottom",
-          "FontSize": 11,
-          "ShowTitle": true
-        },
-        {
-          "Image": "imgs/actions/translate-lang/key1",
-          "TitleAlignment": "bottom",
-          "FontSize": 11,
-          "ShowTitle": true
-        }
-      ]
-    },
-    {
       "Name": "演出を出す",
       "UUID": "com.ishiki-emo.mojicast.fx",
       "Icon": "imgs/actions/fx/icon",

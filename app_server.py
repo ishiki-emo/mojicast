@@ -1128,13 +1128,10 @@ def _deck_state():
     字幕の本文・辞書・ログは含めない。プラグインは数秒おきにこれを読む
     """
     import soundfx
-    import voicecmd
-    from engine import TRANSLATE_LANGS
     cfg = load_config()
     with _engine_state_lock:
         engine_state = _engine_state.get("state", "stopped")
     rules = cfg.get("sound_fx_rules") or {}
-    labels = {code: label for code, label, _k in voicecmd._TRANS_LANGS}
 
     def items(path, key):
         return [{"id": x.get("id"), "name": x.get("name") or x.get("id")}
@@ -1143,8 +1140,6 @@ def _deck_state():
     return {
         "engine": engine_state,
         "preset": cfg.get("preset"), "box": cfg.get("box"),
-        "translate": bool(cfg.get("translate")),
-        "translate_lang": cfg.get("translate_lang"),
         "word_fx": cfg.get("word_fx", True) is not False,
         "vrchat": bool(cfg.get("vrchat")),
         "vrchat_source": cfg.get("vrchat_source", "ja"),
@@ -1156,7 +1151,6 @@ def _deck_state():
                    if x.get("id")],
         "presets": items(_presets_path(), "presets"),
         "boxes": items(_boxes_path(), "boxes"),
-        "langs": [{"id": c, "name": labels.get(c, c)} for c in TRANSLATE_LANGS],
         "fx_groups": [{"id": g, "name": g,
                        "ready": bool((rules.get(g) or {}).get("on"))}
                       for g in soundfx.GROUPS],
@@ -1179,7 +1173,8 @@ def _deck_set(key, value):
 def _deck_action(body):
     """外部操作キーからの1操作を実行して (ok, 通知文) を返す。
 
-    出せるのは配信中に押す操作だけ。任意の文の表示・伏せ字・辞書・ログには触れない
+    出せるのは配信中に押す操作だけ。任意の文の表示・伏せ字・辞書・ログには触れない。
+    翻訳の切替は認識の再起動（数秒止まる）を伴うので、ボタンには出さない
     """
     if not isinstance(body, dict):
         return False, "invalid request"
@@ -1212,18 +1207,6 @@ def _deck_action(body):
         cmd = {"action": action, "id": it["id"], "name": it.get("name") or it["id"]}
     elif action in ("scene_random", "preset_random", "box_random"):
         cmd = {"action": action}
-    elif action == "translate":
-        want = _deck_toggle(op, bool(cfg.get("translate")))
-        if want is None:
-            return False, "unknown op"
-        cmd = {"action": "translate_on" if want else "translate_off"}
-    elif action == "translate_lang":
-        import voicecmd
-        labels = {code: label for code, label, _k in voicecmd._TRANS_LANGS}
-        if body.get("lang") not in labels:
-            return False, "対応していない翻訳先です"
-        cmd = {"action": "translate_lang", "lang": body["lang"],
-               "label": labels[body["lang"]]}
     elif action == "fx":
         import soundfx
         group = body.get("group")

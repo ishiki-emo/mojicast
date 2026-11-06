@@ -155,9 +155,10 @@ class LocalAuthTests(AuthFixture, unittest.TestCase):
         # 演出が未設定のグループは出せない／未知グループは拒否
         self.assertEqual(act({"action": "fx", "group": "笑い"})[0], 400)
         self.assertEqual(act({"action": "fx", "group": "<script>"})[0], 400)
-        self.assertEqual(act({"action": "translate_lang", "lang": "xx"})[0], 400)
-        self.assertEqual(act({"action": "translate", "op": "on"})[0], 200)
-        self.assertIs(app_server.load_config()["translate"], True)
+        # 翻訳の切替は再起動を伴うので外部操作からは出さない
+        self.assertEqual(act({"action": "translate", "op": "on"})[0], 400)
+        self.assertEqual(act({"action": "translate_lang", "lang": "en"})[0], 400)
+        self.assertIs(app_server.load_config()["translate"], False)
 
     def test_deck_and_mcp_keys_rotate_independently_and_persist(self):
         deck = self.server.auth.rotate(kind="deck")

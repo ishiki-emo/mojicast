@@ -14,8 +14,6 @@ export type DeckState = {
 	engine: string;
 	preset: string;
 	box: string;
-	translate: boolean;
-	translate_lang: string;
 	word_fx: boolean;
 	vrchat: boolean;
 	vrchat_source: string;
@@ -23,7 +21,6 @@ export type DeckState = {
 	scenes: Item[];
 	presets: Item[];
 	boxes: Item[];
-	langs: Item[];
 	fx_groups: Item[];
 };
 
