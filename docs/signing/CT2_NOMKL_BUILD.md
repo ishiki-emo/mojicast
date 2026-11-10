@@ -191,6 +191,16 @@ release-build-windows.yml の入力 `ctranslate2`（既定 `official`）を `nom
 `iomp` / `mkl_` / `libomp` / `libgomp` の名前のファイルが無いこと、`_internal\ctranslate2\vcomp140.dll` が
 あることを確かめる。`build-info.json` も artifact に入れる。
 
+**配布物への入り方の確認（2026-11-10・手元で CI と同じ手順）**: ロックファイルの venv に CI の wheel
+（MSVC 14.44）を入れて PyInstaller（Mojicast.spec）→ build_bundle.ps1 -NoModels → smoke_test.ps1。
+
+- vcomp140.dll は `_internal\ctranslate2\vcomp140.dll` の1つだけ（193,152 バイト・wheel のものと同じハッシュ）。
+  `_internal` 直下などへの重複は無い。libiomp5md / mkl / libomp の名前のファイルも無い
+- vcomp140 をインポートしているのは `ctranslate2.dll` だけ（dumpbin /dependents で全 DLL・pyd・exe を確認）
+- smoke_test.ps1 PASS（英訳のロード時の試訳・多言語訳を含む）。実行中の Mojicast.exe のプロセスには
+  `_internal\ctranslate2\VCOMP140.DLL` が読み込まれていた（Windows 側の vcomp140 ではなく同梱のもの）
+- build_bundle.ps1 は「MKL なし版なのに CREDITS が公式版」の警告を出した（切り替え時は CREDITS も変える）
+
 ### 手元ビルド（今のリリース手順）
 
 ```powershell
