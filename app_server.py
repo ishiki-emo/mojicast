@@ -352,6 +352,40 @@ def _version_tuple(s):
     return tuple(parts)
 
 
+# 更新通知のリンク先として許す配布先（latest.json の url）。latest.json が書き換えられても、
+# 利用者を別のサイトへ誘導できないようにする。https のみ・ポート指定や認証情報付きは不可。
+# 2026-11 時点の url は BOOTH の商品ページ。GitHub は ishiki-emo の配下だけ許す。
+# 配布先を変えるときは、latest.json を変える前にここへ足してリリースしておくこと
+# （古い版はリンクを出せなくなる。バナー自体は出る）。
+_UPDATE_URL_HOSTS = {
+    "emo-ishiki.booth.pm": "/",          # 配布ページ（BOOTH・現行の誘導先）
+    "github.com": "/ishiki-emo/",       # GitHub Releases（正本）
+    "ishiki-emo.com": "/",              # プロダクトページ
+    "www.ishiki-emo.com": "/",
+}
+
+
+def _safe_update_url(url):
+    """許可した配布先の https URL ならそのまま、それ以外は空文字を返す"""
+    from urllib.parse import urlsplit
+    url = str(url or "").strip()
+    if "\\" in url or any(ord(c) < 33 for c in url):
+        return ""
+    try:
+        u = urlsplit(url)
+        port = u.port               # 不正なポート表記は ValueError
+    except ValueError:
+        return ""
+    if u.scheme != "https" or port is not None or u.username or u.password:
+        return ""
+    prefix = _UPDATE_URL_HOSTS.get((u.hostname or "").lower())
+    path = u.path or "/"
+    # 「/ishiki-emo/../他人」はブラウザが正規化して別の場所を開くので弾く
+    if prefix is None or not path.startswith(prefix) or ".." in path or "%2e" in path.lower():
+        return ""
+    return url
+
+
 def _check_update(force=False):
     """latest.json を取得して更新有無を判定。結果は一定時間キャッシュする。
 
@@ -381,7 +415,7 @@ def _check_update(force=False):
         latest = str(data.get("version", "")).strip()
         if latest:
             result["latest"] = latest
-            result["url"] = str(data.get("url", "")).strip()
+            result["url"] = _safe_update_url(data.get("url", ""))
             result["notes"] = str(data.get("notes", "")).strip()
             result["update_available"] = (
                 _version_tuple(latest) > _version_tuple(APP_VERSION)
