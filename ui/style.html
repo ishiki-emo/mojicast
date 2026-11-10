@@ -73,6 +73,13 @@
   .editor { display: flex; flex-direction: column; min-height: 0; }
   .form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; overflow-y: auto; padding-bottom: 8px; }
   .form.locked { display: none; }
+
+  /* 3D演出プリセットのボタン（押すとレイアウトの傾きに値を写す） */
+  .tilt-presets { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .tilt-presets button { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line, #2a3547);
+    background: transparent; color: inherit; cursor: pointer; font: inherit; font-size: 12px; }
+  .tilt-presets button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); font-weight: 700; }
+  .tilt-presets .custom { font-size: 12px; color: var(--accent); }
   .editor:not(.advanced-open) .advanced-only { display: none !important; }
   #translationFields { display: contents; }
   :root.translation-focus #form > :not(#translationFields) { display: none !important; }
@@ -278,6 +285,8 @@
         <div class="fr"><label data-i18n="sy.hot_color">強調の色</label><input type="color" id="f_hotColor"></div>
         <div class="fr"><label data-i18n="sy.outline_color">縁取り色</label><input type="color" id="f_outlineColor"></div>
         <div class="fr"><label><span data-i18n="sy.outline_width">縁取りの太さ</span> <output id="o_outlineWidth"></output></label><input type="range" id="f_outlineWidth" min="0" max="6" step="1"></div>
+        <div class="fr advanced-only"><label><span data-i18n="sy.extrude">厚み（3D）</span> <output id="o_extrude"></output><span data-i18n="sy.zero_none">（0でなし）</span></label><input type="range" id="f_extrude" min="0" max="20" step="1"></div>
+        <div class="fr advanced-only"><label><span data-i18n="sy.extrude_dir">厚みの向き</span> <output id="o_extrudeDir"></output></label><input type="range" id="f_extrudeDir" min="0" max="355" step="5"></div>
         <div class="fr advanced-only"><label data-i18n="sy.glow_color">グロー色</label><input type="color" id="f_glowColor"></div>
         <div class="fr advanced-only"><label><span data-i18n="sy.glow_size">グロー強さ</span> <output id="o_glowSize"></output><span data-i18n="sy.zero_none">（0でなし）</span></label><input type="range" id="f_glowSize" min="0" max="30" step="2"></div>
         <div class="fr advanced-only"><label data-i18n="sy.anim_in">登場アニメ</label><select id="f_animIn"></select></div>
@@ -375,6 +384,13 @@
           </select></div>
         <div class="fr only-flow advanced-only"><label data-i18n="sy.text_align">文字揃え</label>
           <select id="b_align"><option value="left" data-i18n="sy.align_left">左揃え</option><option value="center" data-i18n="sy.align_center">中央</option><option value="right" data-i18n="sy.align_right">右揃え</option></select></div>
+
+        <div class="fsec only-3d"><span data-i18n="sy.bsec_3d">🧊 3D</span> <small data-i18n="sy.bsec_3d_d">枠ごと傾けて奥行きを出します（リリックでは使えません）</small></div>
+        <div class="fr only-3d" style="grid-column:1/-1"><div class="tilt-presets" id="tiltPresets"></div></div>
+        <div class="fr only-3d advanced-only"><label><span data-i18n="sy.tilt_x">縦の傾き</span> <output id="o_tiltX"></output></label><input type="range" id="b_tiltX" min="-20" max="65" step="1"></div>
+        <div class="fr only-3d advanced-only"><label><span data-i18n="sy.tilt_y">横の傾き</span> <output id="o_tiltY"></output></label><input type="range" id="b_tiltY" min="-60" max="60" step="1"></div>
+        <div class="fr only-3d advanced-only"><label><span data-i18n="sy.tilt_z">回転</span> <output id="o_tiltZ"></output></label><input type="range" id="b_tiltZ" min="-15" max="15" step="1"></div>
+        <div class="fr only-3d advanced-only"><label><span data-i18n="sy.perspective">遠近の強さ</span> <output id="o_persp"></output></label><input type="range" id="b_perspective" min="400" max="3000" step="50"></div>
 
         <div class="fsec only-flow advanced-only" data-i18n="sy.bsec_flow">🎞 行の流れ方</div>
         <div class="fr only-flow advanced-only"><label><span data-i18n="sy.max_lines">保持する行数</span> <output id="o_bml"></output></label><input type="range" id="b_maxLines" min="2" max="40" step="1"></div>
@@ -633,6 +649,8 @@
     $("f_hotColor").value = p.hotColor || "#ffd400";
     $("f_outlineColor").value = p.outlineColor || "#000000";
     setR("f_outlineWidth", "o_outlineWidth", p.outlineWidth ?? 2, v => v + "px");
+    setR("f_extrude", "o_extrude", p.extrude ?? 0, v => v + T("sy.layers", "層"));
+    setR("f_extrudeDir", "o_extrudeDir", p.extrudeDir ?? 45, v => v + "°");
     $("f_glowColor").value = p.glow || "#00e5ff";
     setR("f_glowSize", "o_glowSize", p.glow ? (p.glowSize ?? 12) : 0, v => v + "px");
     $("f_animIn").value = p.animIn || "slide";
@@ -701,6 +719,8 @@
     p.hotColor = $("f_hotColor").value;
     p.outlineColor = $("f_outlineColor").value;
     p.outlineWidth = +$("f_outlineWidth").value;
+    p.extrude = +$("f_extrude").value;
+    p.extrudeDir = +$("f_extrudeDir").value;
     const gs = +$("f_glowSize").value;
     p.glow = gs > 0 ? $("f_glowColor").value : "";
     p.glowSize = gs;
@@ -910,6 +930,8 @@
     const lyric = mode === "lyric", bubble = mode === "bubble";
     for (const el of document.querySelectorAll(".only-flow"))
       el.style.display = lyric || bubble ? "none" : "";
+    for (const el of document.querySelectorAll(".only-3d"))
+      el.style.display = lyric ? "none" : "";
     for (const el of document.querySelectorAll(".only-lyric"))
       el.style.display = lyric ? "" : "none";
     for (const el of document.querySelectorAll(".only-bubble"))
@@ -988,6 +1010,7 @@
     $("b_bubbleInk").value = b.bubbleInk || "#1a1a1a";
     $("b_bubblePartial").checked = b.bubblePartial !== false;
     setR("b_bubbleLife", "o_bbl", b.bubbleLife ?? 0, v => +v ? v + "秒" : T("sy.bub_life_keep", "次の発話まで"));
+    loadTiltFields(b);
     updateModeRows();
     stageApply(); stageClear(); stageAdd(); stageAdd();
     $("customizeBoxBtn").textContent = T("sy.customize","カスタマイズ");
@@ -1023,6 +1046,58 @@
     syncAdvLabel("boxEditor", "boxAdvancedBtn");
     updateModeRows();
   }
+  // ---- 3D（枠ごと傾ける） ----
+  // 傾きの表示: 縦・横・回転は度、遠近はカメラの距離（小さいほど遠近が強い）
+  const TILT_FMT = {
+    b_tiltX: ["o_tiltX", v => v + "°"], b_tiltY: ["o_tiltY", v => v + "°"],
+    b_tiltZ: ["o_tiltZ", v => v + "°"], b_perspective: ["o_persp", v => v + "px"],
+  };
+  function loadTiltFields(b) {
+    // リリックでも値は残っている（無視されるだけ）ので、mode に関係なく保存値を出す
+    const t = FX.tiltOf({ ...b, mode: "flow" }) || {};
+    for (const k of FX.TILT_KEYS) {
+      const v = t[k] ?? (k === "perspective"
+        ? Math.min(3000, Math.max(400, +b.perspective || FX.TILT_DEFAULT_PERSPECTIVE)) : 0);
+      setR("b_" + k, TILT_FMT["b_" + k][0], v, TILT_FMT["b_" + k][1]);
+    }
+    syncTiltPresets();
+  }
+  function collectTilt(b) {
+    for (const k of FX.TILT_KEYS) b[k] = +$("b_" + k).value;
+  }
+  // 3D演出プリセットのボタン。押すと値を写すだけ（プリセット自体は保存しない）
+  function renderTiltPresets() {
+    const box = $("tiltPresets");
+    box.textContent = "";
+    for (const p of FX.TILT_PRESETS) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.dataset.id = p.id;
+      btn.textContent = T("sy.tilt_" + p.id.replace("-", "_"), p.ja);
+      btn.addEventListener("click", () => {
+        for (const k of FX.TILT_KEYS) setR("b_" + k, TILT_FMT["b_" + k][0], p.v[k], TILT_FMT["b_" + k][1]);
+        collectBox(); setStyleDirty(true);
+        syncTiltPresets();
+        stageApply();
+      });
+      box.appendChild(btn);
+    }
+    const custom = document.createElement("span");
+    custom.className = "custom";
+    custom.id = "tiltCustom";
+    custom.textContent = T("sy.tilt_custom", "カスタム");
+    box.appendChild(custom);
+  }
+  function syncTiltPresets() {
+    if (!$("tiltPresets").children.length) renderTiltPresets();
+    const v = {};
+    for (const k of FX.TILT_KEYS) v[k] = +$("b_" + k).value;
+    const id = FX.tiltPresetOf(v);
+    for (const btn of $("tiltPresets").querySelectorAll("button"))
+      btn.setAttribute("aria-pressed", String(btn.dataset.id === id));
+    $("tiltCustom").hidden = id !== "";
+  }
+
   function collectBox() {
     const b = boxes[curBox];
     b.name = $("b_name").value.trim() || b.name;
@@ -1068,6 +1143,7 @@
     b.bubbleInk = $("b_bubbleInk").value;
     b.bubblePartial = $("b_bubblePartial").checked;
     b.bubbleLife = +$("b_bubbleLife").value;
+    collectTilt(b);
     return b;
   }
 
@@ -1418,7 +1494,8 @@
     });
     const outs = {
       f_weight: ["o_weight", v => v], f_size: ["o_size", v => v + "px"],
-      f_outlineWidth: ["o_outlineWidth", v => v + "px"], f_glowSize: ["o_glowSize", v => v + "px"],
+      f_outlineWidth: ["o_outlineWidth", v => v + "px"],
+      f_extrude: ["o_extrude", v => v + T("sy.layers", "層")], f_extrudeDir: ["o_extrudeDir", v => v + "°"], f_glowSize: ["o_glowSize", v => v + "px"],
       f_partial: ["o_partial", v => v], f_spacing: ["o_spacing", v => v + "em"],
       f_enScale: ["o_enScale", v => "×" + v], f_enOpacity: ["o_enOpacity", v => v],
       f_enOutlineWidth: ["o_enOutlineWidth", v => v + "px"],
@@ -1467,6 +1544,7 @@
     for (const el of document.querySelectorAll("#bform input, #bform select")) {
       el.addEventListener("input", () => {
         if (bouts[el.id]) $(bouts[el.id][0]).textContent = bouts[el.id][1](el.value);
+        if (TILT_FMT[el.id]) { $(TILT_FMT[el.id][0]).textContent = TILT_FMT[el.id][1](el.value); syncTiltPresets(); }
         collectBox(); setStyleDirty(true);
         $("editBoxName").textContent = boxes[curBox].name;
         renderBoxList();

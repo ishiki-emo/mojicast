@@ -13,6 +13,12 @@
 
   const DICT = {
     zh: {
+      // 字幕の3D化（feat/caption-3d）で追加
+      "sy.extrude": "厚度（3D）", "sy.extrude_dir": "厚度方向", "sy.layers": "层",
+      "sy.bsec_3d": "🧊 3D", "sy.bsec_3d_d": "整个框倾斜，营造纵深感（歌词模式不可用）",
+      "sy.tilt_x": "纵向倾斜", "sy.tilt_y": "横向倾斜", "sy.tilt_z": "旋转", "sy.perspective": "透视强度",
+      "sy.tilt_flat": "平面（无3D）", "sy.tilt_wall_right": "右侧墙面", "sy.tilt_wall_left": "左侧墙面",
+      "sy.tilt_floor": "铺在地面", "sy.tilt_slant": "稍微倾斜", "sy.tilt_custom": "自定义",
       // 新UI（feat/new-ui）で追加
       "sy.bub_guest_hint": "联动时对方也使用此布局，会把两人的气泡合在一起排列。对方气泡的尾巴指向下方的位置",
       "sy.bub_gtail_x": "对方头像位置 X",
@@ -583,6 +589,12 @@
       "ly.legend": "随机也在相同种子下重现相同顺序。「静 → 副歌」会逐步提高演出强度。"
     },
     en: {
+      // Added for 3D captions (feat/caption-3d)
+      "sy.extrude": "Thickness (3D)", "sy.extrude_dir": "Thickness direction", "sy.layers": " layers",
+      "sy.bsec_3d": "🧊 3D", "sy.bsec_3d_d": "Tilt the whole box for depth (not available for lyric mode)",
+      "sy.tilt_x": "Vertical tilt", "sy.tilt_y": "Horizontal tilt", "sy.tilt_z": "Rotation", "sy.perspective": "Perspective",
+      "sy.tilt_flat": "Flat (no 3D)", "sy.tilt_wall_right": "Right wall", "sy.tilt_wall_left": "Left wall",
+      "sy.tilt_floor": "Floor", "sy.tilt_slant": "Slight angle", "sy.tilt_custom": "Custom",
       // 新UI（feat/new-ui）で追加
       "sy.bub_guest_hint": "When your collab partner also uses this layout, both people's bubbles are arranged together. The partner's tails point to the position below",
       "sy.bub_gtail_x": "Partner avatar X",
