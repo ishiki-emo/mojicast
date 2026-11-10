@@ -75,8 +75,12 @@ jobs:
       - name: Sanity check (no proprietary leftovers / no models)
         run: |
           $app = "dist\Mojicast"
-          $bad = Get-ChildItem $app -Recurse -File |
-            Where-Object { $_.Name -match 'cudnn|hf_xet' -or $_.FullName -match '\\models(_conv)?\\' }
+          # モデル等は exe 直下にだけ作られる（ctranslate2\models\ のようなライブラリ内部の
+          # 同名フォルダは別物なので、直下だけを見る）
+          foreach ($d in @("models", "models_conv", "data", "logs")) {
+            if (Test-Path (Join-Path $app $d)) { throw "混入あり: $d\" }
+          }
+          $bad = Get-ChildItem $app -Recurse -File | Where-Object { $_.Name -match 'cudnn|hf_xet' }
           if ($bad) { $bad | ForEach-Object { Write-Host "  $($_.FullName)" }; throw "混入あり" }
           $vi = (Get-Item "$app\Mojicast.exe").VersionInfo
           Write-Host "Mojicast.exe ProductName=[$($vi.ProductName)] ProductVersion=[$($vi.ProductVersion)]"
