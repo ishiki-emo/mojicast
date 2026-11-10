@@ -2,7 +2,7 @@
 
 - build.ps1 がビルドする CTranslate2 の版が requirements.txt / ロックファイルと同じこと
   （ずれると、手元とCIで別の版の翻訳エンジンが入る）。構成は MSVC＋vcomp140
-- リリースビルドの既定は公式版のまま（MKL なし版は実測のあとで決める）で、nomkl を選べること
+- リリースビルドの既定は公式版のまま（MKL なし版は SignPath に求められたら切り替える控え）で、nomkl を選べること
 - CREDITS.md がリリースビルドの既定と同じ版の中身で書かれていること
 - MKL なし版の wheel のキャッシュの鍵が、2つのワークフローで同じこと
 - translate.py が、vcomp の ctranslate2 のときだけ ctranslate2 を読む前に OMP_WAIT_POLICY=PASSIVE を
@@ -192,9 +192,34 @@ class CompareSummaryTests(unittest.TestCase):
         self.assertAlmostEqual(one["mean"], 22.5)
         self.assertEqual(one["cpu_ms"], 20)
         self.assertEqual((one["same_self"], one["same_base"], one["total"]), (1, 1, 2))
-        self.assertAlmostEqual(sw["custom_passive"]["4"]["mean"], 30.0)
+        self.assertAlmostEqual(sw["custom_passive"]["4"]["mean"], 30.0)   # sweep に無い 4 は本計測から
         self.assertIn("スレッド数の比較", rep["text"])
         self.assertIn("custom_passive・2スレッド", rep["text"])     # 失敗の記録
+
+    def test_thread_sweep_prefers_same_condition_run(self):
+        runs = [self._run("dnnl", 1.0, ["a", "b"]), self._run("dnnl", 1.0, ["a", "b"], cpu=50)]
+        runs = [runs[0], self._run("custom", 1.0, ["a", "b"]), self._run("custom", 1.0, ["a", "b"]),
+                runs[1]]
+        sweep = [self._run("dnnl", 3.0, ["a", "b"], cpu=70, threads=4),
+                 self._run("dnnl", 1.5, ["a", "b"], cpu=30, threads=1)]
+        rep = self.c.summarize(runs, ["dnnl", "custom"], "cpu", 2, sweep=sweep)
+        four = rep["data"]["sweep"]["en_int8"]["dnnl"]["4"]
+        self.assertAlmostEqual(four["mean"], 45.0)                 # 本計測（15.0）ではなく sweep の回
+        self.assertEqual(four["cpu_ms"], 70)
+
+    def test_cpu_seconds_is_fine_grained(self):
+        # Windows の os.times は 15.6ms 刻み。サイクル数による計測は数 ms の計算も拾う
+        if sys.platform != "win32":
+            self.skipTest("Windows のみ")
+        import time
+        c0 = self.c._cpu_seconds()
+        t0 = time.perf_counter()
+        while time.perf_counter() - t0 < 0.003:
+            pass
+        ms = (self.c._cpu_seconds() - c0) * 1000
+        self.assertGreater(ms, 1.0)
+        self.assertLess(ms, 12.0)
+        self.assertIn("QueryProcessCycleTime", self.c._cpu_clock_name())
 
     def test_not_comparable_when_one_side_failed(self):
         runs = [self._run("dnnl", 1.0, ["a"]), {"variant": "custom", "failed": "x", "backend": []}]

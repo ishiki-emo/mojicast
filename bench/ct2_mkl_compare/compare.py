@@ -80,7 +80,7 @@ VARIANTS = {
                "custom": True},
 }
 THREADS = 4
-SWEEP_THREADS = (1, 2)
+SWEEP_THREADS = (1, 2, 4)   # 4 も同じ条件（同じ文数・1回）で測り直して並べる
 CPU_GAP = 1.0      # CPU 時間を測るときの、文と文の間（秒）
 
 # sentences.txt が無いときの予備（配信でよく出る種類の文）
@@ -183,8 +183,9 @@ def _runtime_info():
         "ctranslate2_dll_sha256": _sha256(dll) if os.path.exists(dll) else None,
         "openmp_dlls": sorted({_mask_path(m) for m, n in zip(mods, names)
                                if n.startswith(("vcomp", "libiomp", "libomp", "libgomp"))}),
+        # DLL だけを見る（このツール自身の ct2_mkl_compare.exe を拾わないように）
         "intel_dlls": sorted({_mask_path(m) for m, n in zip(mods, names)
-                              if "mkl" in n or "iomp" in n}),
+                              if n.endswith(".dll") and ("mkl" in n or "iomp" in n)}),
         "package_files": sorted(os.listdir(pkg)),
     }
     bi = os.path.join(os.path.dirname(pkg), "build-info.json")
@@ -268,9 +269,49 @@ def _prepare_custom(path, work):
 
 # ---------------------------------------------------------------- 子プロセス
 
+_CYCLE_HZ = None
+
+
+def _cycle_hz():
+    """CPU サイクル数を秒に直す係数。1スレッドで 0.3 秒空回りして測る（一度だけ）"""
+    global _CYCLE_HZ
+    if _CYCLE_HZ is None:
+        k32 = ctypes.windll.kernel32
+        k32.GetCurrentThread.restype = ctypes.c_void_p
+        c = ctypes.c_ulonglong()
+        h = ctypes.c_void_p(k32.GetCurrentThread())
+        k32.QueryThreadCycleTime(h, ctypes.byref(c))
+        c0, t0 = c.value, time.perf_counter()
+        while time.perf_counter() - t0 < 0.3:
+            pass
+        k32.QueryThreadCycleTime(h, ctypes.byref(c))
+        _CYCLE_HZ = (c.value - c0) / (time.perf_counter() - t0)
+    return _CYCLE_HZ
+
+
 def _cpu_seconds():
+    """プロセスが使った CPU 時間（秒）。
+    Windows の os.times() はタイマー割り込みの刻み（15.6ms）で数えるので、数 ms で終わる
+    計算は 0 か 15.6ms のどちらかになる（N100 の fp32・2スレッドで CPU/文 5ms のような値が出た）。
+    Windows では CPU サイクル数（QueryProcessCycleTime）を _cycle_hz() で割って求める"""
+    if sys.platform == "win32":
+        try:
+            hz = _cycle_hz()                  # 校正（空回り）を読み取りより先に済ませる
+            k32 = ctypes.windll.kernel32
+            k32.GetCurrentProcess.restype = ctypes.c_void_p
+            c = ctypes.c_ulonglong()
+            if k32.QueryProcessCycleTime(ctypes.c_void_p(k32.GetCurrentProcess()), ctypes.byref(c)):
+                return c.value / hz
+        except Exception:
+            pass
     t = os.times()
     return t.user + t.system
+
+
+def _cpu_clock_name():
+    if sys.platform == "win32" and _CYCLE_HZ:
+        return f"QueryProcessCycleTime（{_CYCLE_HZ / 1e9:.2f} GHz で換算）"
+    return "os.times"
 
 
 def run_child(variant, sentences_path, out_path, custom_root, cpu_n, threads=THREADS):
@@ -291,6 +332,8 @@ def run_child(variant, sentences_path, out_path, custom_root, cpu_n, threads=THR
               # translate.py を読んだ後の値（本体が実際に使う待ち方）
               "omp_wait_policy": os.environ.get("OMP_WAIT_POLICY") or "",
               "ct2_openmp": getattr(T, "CT2_OPENMP", "")}
+    _cpu_seconds()                            # 換算係数の校正を計測の外で済ませる
+    result["cpu_clock"] = _cpu_clock_name()
     for key, _label in CASES:
         t0 = time.perf_counter()
         if key == "en_int8":
@@ -561,6 +604,9 @@ def summarize(runs, variants, cpu, n_sent, now=None, sweep=None):
                  "（1 より大きいほど遅い）、一致 = 基準と同じ訳文の数")
     lines.append(f"CPU/文 = 1文訳して {CPU_GAP:g} 秒空けるまでに使った CPU 時間の平均"
                  "（配信中の負荷。計算後に空回りすると増える）")
+    clock = ok[base][0].get("cpu_clock") or "os.times（15.6ms 刻み・参考値）"
+    lines.append(f"  CPU 時間の測り方: {clock}")
+    data["cpu_clock"] = clock
     diffs_all = []
     for key, label in CASES:
         lines.append(f"\n{label}")
@@ -608,7 +654,9 @@ def summarize(runs, variants, cpu, n_sent, now=None, sweep=None):
 
 
 def _summarize_sweep(lines, data, ok, base, sweep):
-    """スレッド数の比較。4 スレッドの行は本計測（2回のうち速い方）の先頭 n 文から作る"""
+    """スレッド数の比較。どのスレッド数も同じ条件（先頭 n 文・1回・CPU/文 は同じ文数）で測った
+    sweep の回から作る。古い結果で sweep に 4 スレッドが無ければ、本計測から補う（条件は揃わない）。
+    一致(同) の比べる相手は、本計測の 4 スレッドの訳文"""
     done = [r for r in sweep if "cases" in r]
     if not done:
         return
@@ -618,7 +666,8 @@ def _summarize_sweep(lines, data, ok, base, sweep):
         if r["variant"] not in vs and ok.get(r["variant"]):
             vs.append(r["variant"])
     lines.append("")
-    lines.append(f"スレッド数の比較（先頭 {n} 文・各1回）。CPU/文 は先頭の数文で測った値。")
+    lines.append(f"スレッド数の比較（先頭 {n} 文・各1回・どのスレッド数も同じ条件）。"
+                 "CPU/文 は先頭の数文で測った値。")
     lines.append(f"  一致(同) = 同じ variant の 4 スレッドと同じ訳文の数、"
                  f"一致(基準) = 基準 {base} の 4 スレッドと同じ訳文の数")
     for key, label in CASES:
@@ -629,10 +678,12 @@ def _summarize_sweep(lines, data, ok, base, sweep):
         data["sweep"][key] = {}
         for v in vs:
             four = ok[v][0]["cases"][key]["outs"][:n]
-            t4 = [min(ts) for ts in zip(*[r["cases"][key]["times"][:n] for r in ok[v]])]
-            cpus4 = [statistics.mean(r["cases"][key]["cpu_ms"]) for r in ok[v]
-                     if r["cases"][key].get("cpu_ms")]
-            rows = [(THREADS, t4, min(cpus4) if cpus4 else None, four)]
+            rows = []
+            if not any(r["variant"] == v and r["threads"] == THREADS for r in done):
+                t4 = [min(ts) for ts in zip(*[r["cases"][key]["times"][:n] for r in ok[v]])]
+                cpus4 = [statistics.mean(r["cases"][key]["cpu_ms"]) for r in ok[v]
+                         if r["cases"][key].get("cpu_ms")]
+                rows.append((THREADS, t4, min(cpus4) if cpus4 else None, four))
             for r in done:
                 if r["variant"] == v:
                     c = r["cases"][key]
