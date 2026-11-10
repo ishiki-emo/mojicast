@@ -110,28 +110,33 @@ them in the code):
 
 All bundled libraries are listed in `CREDITS.md`.
 
-- **CTranslate2 is built from source without Intel oneMKL.** The official
-  CTranslate2 PyPI wheel statically links Intel oneMKL and ships Intel OpenMP
-  (`libiomp5md.dll`), both under the non-OSI Intel Simplified Software License.
-  Our release workflow instead builds CTranslate2 4.8.1 from its tagged source
-  with `WITH_MKL=OFF` (matrix math via oneDNN, Apache-2.0) using MSVC, inside
-  the same GitHub Actions job (`tools/signing/ct2_nomkl/build.ps1`, documented
-  in `docs/signing/CT2_NOMKL_BUILD.md`). The workflow fails if any Intel MKL or
-  Intel OpenMP file remains in the package. OpenMP is then provided by the
-  MSVC runtime (`vcomp140.dll`, part of the Visual C++ Redistributable, like
-  the `msvcp140.dll` / `vcruntime140.dll` every MSVC-built program ships); we
-  consider it a system/compiler runtime library, and would like to confirm
-  that with you. (We also tried the LLVM OpenMP runtime, which is OSI-licensed,
-  but it requires compiling with clang-cl and changed int8 translation output
-  versus the official build, so we did not adopt it.) We measured the change
-  on Intel and AMD machines before switching; the benchmark script and results
-  are in `bench/ct2_mkl_compare/`.
-  [TODO before submitting: switch is pending these measurements; remove this
-  note once the release default is `nomkl`.]
-
 We want to be upfront about the following non-OSI components in the current
 build, and ask how you would like us to handle them:
 
+- **Intel oneMKL and Intel OpenMP, inside the official CTranslate2 binary.**
+  Mojicast ships the upstream CTranslate2 4.8.1 wheel from PyPI unchanged. On
+  Windows, that official binary statically links Intel oneMKL into
+  `ctranslate2.dll` and ships Intel OpenMP (`libiomp5md.dll`), both under the
+  Intel Simplified Software License, which is not OSI-approved.
+  - We have prepared a replacement: CTranslate2 4.8.1 built from its tagged
+    source with `WITH_MKL=OFF` (matrix math via oneDNN, Apache-2.0) and MSVC,
+    inside the release GitHub Actions job (`tools/signing/ct2_nomkl/build.ps1`,
+    documented in `docs/signing/CT2_NOMKL_BUILD.md`). The workflow fails if any
+    Intel MKL or Intel OpenMP file remains in the package. In that build,
+    OpenMP comes from the MSVC runtime (`vcomp140.dll`, Visual C++
+    Redistributable).
+  - We verified that this build produces exactly the same translations as the
+    official binary: 200 of 200 sentences identical in every translation mode
+    we use, on three different CPUs (AMD Ryzen 7 9800X3D, Intel Core
+    i7-13700HX, Intel N100). The benchmark tool and results are in
+    `bench/ct2_mkl_compare/`.
+  - However, it is measurably slower: translation takes 1.3 to 1.8 times as
+    long as with the official binary (for example, +209 ms per sentence for
+    Korean on the Intel N100). Because Mojicast shows live captions during
+    streams, we currently keep the official binary.
+  - If you require it, we will switch to the MKL-free build starting with the
+    next release. The switch is a single workflow input
+    (`ctranslate2: nomkl`) plus the matching `CREDITS.md` update.
 - **Microsoft WebView2 SDK** DLLs (`Microsoft.Web.WebView2.Core.dll`,
   `Microsoft.Web.WebView2.WinForms.dll`, `WebView2Loader.dll`), shipped by
   pywebview. The WebView2 Runtime itself is part of Windows 11.
