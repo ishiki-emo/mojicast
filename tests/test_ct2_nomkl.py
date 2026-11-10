@@ -1,22 +1,35 @@
 """CTranslate2 の MKL なしビルド（docs/signing/CT2_NOMKL_BUILD.md）の整合
 
 - build.ps1 がビルドする CTranslate2 の版が requirements.txt / ロックファイルと同じこと
-  （ずれると、手元とCIで別の版の翻訳エンジンが入る）
-- リリースビルドの既定が MKL なし版で、公式版へ戻す入力があること
-- CREDITS.md が MKL なし版の中身（Intel のものなし・LLVM OpenMP あり）で書かれていること
+  （ずれると、手元とCIで別の版の翻訳エンジンが入る）。構成は MSVC＋vcomp140
+- リリースビルドの既定は公式版のまま（MKL なし版は実測のあとで決める）で、nomkl を選べること
+- CREDITS.md がリリースビルドの既定と同じ版の中身で書かれていること
+- MKL なし版の wheel のキャッシュの鍵が、2つのワークフローで同じこと
+- translate.py が、vcomp の ctranslate2 のときだけ ctranslate2 を読む前に OMP_WAIT_POLICY=PASSIVE を
+  設定し、利用者の指定を上書きしないこと
 - 比較ツールの集計（bench/ct2_mkl_compare/compare.py）
 """
 import importlib.util
+import json
 import os
 import re
+import subprocess
+import sys
+import tempfile
 import unittest
 
-ROOT = os.path.join(os.path.dirname(__file__), "..")
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 
 def _read(*parts):
     with open(os.path.join(ROOT, *parts), encoding="utf-8-sig") as f:
         return f.read()
+
+
+def _release_default():
+    src = _read(".github", "workflows", "release-build-windows.yml")
+    m = re.search(r"ctranslate2:\s*\n(?:\s+.*\n)*?\s+default:\s*\"(\w+)\"", src)
+    return m.group(1) if m else None
 
 
 class BuildScriptTests(unittest.TestCase):
@@ -37,34 +50,98 @@ class BuildScriptTests(unittest.TestCase):
 
     def test_sources_are_pinned(self):
         self.assertRegex(self._var("CT2_COMMIT"), r"^[0-9a-f]{40}$")
-        for name in ("ONEDNN_SHA256", "LLVM_OPENMP_SHA256", "LLVM_CMAKE_SHA256"):
-            self.assertRegex(self._var(name), r"^[0-9a-f]{64}$", name)
+        self.assertRegex(self._var("ONEDNN_SHA256"), r"^[0-9a-f]{64}$")
 
     def test_mkl_off_and_dispatch_on(self):
         for opt in ("-DWITH_MKL=OFF", "-DWITH_DNNL=ON", "-DOPENMP_RUNTIME=COMP",
                     "-DENABLE_CPU_DISPATCH=ON", "-DWITH_CUDA=OFF"):
             self.assertIn(f'"{opt}"', self.ps1, opt)
-        self.assertIn("-ffp-contract=off", self.ps1)
+
+    def test_msvc_vcomp_only(self):
+        # clang-cl＋LLVM libomp は int8 の訳文が公式とずれるので不採用（手順書に記録）
+        self.assertNotIn("LLVM_OPENMP", self.ps1)
+        self.assertNotIn("clang-cl.exe", self.ps1)
+        self.assertIn("vcomp140", self.ps1)
+        self.assertIn("PrintToolchain", self.ps1)          # キャッシュの鍵
 
 
 class WorkflowTests(unittest.TestCase):
-    def test_release_build_uses_nomkl_by_default(self):
+    def test_release_build_defaults_to_official(self):
         src = _read(".github", "workflows", "release-build-windows.yml")
-        m = re.search(r"ctranslate2:\s*\n(?:\s+.*\n)*?\s+default:\s*\"(\w+)\"", src)
-        self.assertIsNotNone(m)
-        self.assertEqual(m.group(1), "nomkl")
-        self.assertIn("options: [nomkl, official]", src)
+        self.assertEqual(_release_default(), "official")
+        self.assertIn("options: [official, nomkl]", src)
+        self.assertIn("ct2_rebuild:", src)
         self.assertIn("tools\\signing\\ct2_nomkl\\build.ps1", src)
-        self.assertIn("iomp|mkl_|^vcomp", src)               # 配布物に残っていないことの確認
+        # MKL なし版で出すときの確認: Intel のもの・他の OpenMP が無く、vcomp140 があること
+        self.assertIn("iomp|mkl_|^libomp|^libgomp", src)
+        self.assertIn("_internal\\ctranslate2\\vcomp140.dll", src)
+        self.assertIn("SHA256SUMS.txt", src)               # キャッシュから戻した wheel の照合
+
+    def test_cache_key_is_shared(self):
+        def keys(name):
+            src = _read(".github", "workflows", name)
+            return set(re.findall(r"key: (ct2-nomkl-.+)", src))
+        build = keys("build-ctranslate2-windows.yml")
+        release = keys("release-build-windows.yml")
+        self.assertEqual(len(build), 1)
+        self.assertEqual(len(release), 1)
+        # 鍵の中の steps.<id> の名前は違ってよいので、そこだけ揃えて比べる
+        norm = lambda s: re.sub(r"steps\.\w+\.outputs", "steps.X.outputs", s)
+        self.assertEqual({norm(k) for k in build}, {norm(k) for k in release})
+        for k in build:
+            self.assertIn("toolchain", k)
+            self.assertIn("hashFiles('tools/signing/ct2_nomkl/build.ps1'", k)
 
 
 class CreditsTests(unittest.TestCase):
-    def test_credits_describe_nomkl_build(self):
+    def test_credits_match_release_default(self):
         src = _read("CREDITS.md")
-        self.assertNotIn("Intel oneMKL", src)
-        self.assertNotIn("libiomp5md", src)
-        self.assertIn("LLVM OpenMP", src)
         self.assertIn("oneDNN", src)
+        if _release_default() == "official":
+            self.assertIn("Intel oneMKL", src)
+            self.assertIn("libiomp5md", src)
+            self.assertNotIn("libomp)", src)
+        else:
+            self.assertNotIn("Intel oneMKL", src)
+            self.assertNotIn("libiomp5md", src)
+            self.assertIn("vcomp140", src)
+
+
+class TranslateOpenMPTests(unittest.TestCase):
+    """translate.py を別プロセスで import し、ダミーの ctranslate2 パッケージで判定を確かめる"""
+
+    def _run(self, dll, env_value=None):
+        with tempfile.TemporaryDirectory() as d:
+            pkg = os.path.join(d, "ctranslate2")
+            os.makedirs(pkg)
+            with open(os.path.join(pkg, "__init__.py"), "w") as f:
+                f.write("raise ImportError('ctranslate2 must not be imported here')\n")
+            if dll:
+                open(os.path.join(pkg, dll), "wb").close()
+            code = ("import sys, os, json; sys.path[:0] = [sys.argv[1], sys.argv[2]];"
+                    "import translate as T;"
+                    "print(json.dumps({'omp': os.environ.get('OMP_WAIT_POLICY'),"
+                    " 'kind': T.CT2_OPENMP, 'loaded': 'ctranslate2' in sys.modules}))")
+            env = dict(os.environ)
+            env.pop("OMP_WAIT_POLICY", None)
+            if env_value is not None:
+                env["OMP_WAIT_POLICY"] = env_value
+            p = subprocess.run([sys.executable, "-c", code, d, ROOT], env=env,
+                               capture_output=True, text=True, timeout=120)
+            self.assertEqual(p.returncode, 0, p.stderr)
+            return json.loads(p.stdout.strip().splitlines()[-1])
+
+    def test_vcomp_sets_passive_before_import(self):
+        r = self._run("vcomp140.dll")
+        self.assertEqual(r, {"omp": "PASSIVE", "kind": "msvc", "loaded": False})
+
+    def test_user_value_wins(self):
+        self.assertEqual(self._run("vcomp140.dll", "ACTIVE")["omp"], "ACTIVE")
+
+    def test_intel_openmp_untouched(self):
+        r = self._run("libiomp5md.dll")
+        self.assertEqual(r["kind"], "intel")
+        self.assertIsNone(r["omp"])
 
 
 def _load_compare():
@@ -79,12 +156,13 @@ class CompareSummaryTests(unittest.TestCase):
     def setUp(self):
         self.c = _load_compare()
 
-    def _run(self, variant, scale, outs, cpu=100.0):
+    def _run(self, variant, scale, outs, cpu=100.0, threads=4):
         cases = {}
         for key, _ in self.c.CASES:
             cases[key] = {"load_ms": 10.0, "times": [10.0 * scale, 20.0 * scale],
                           "outs": list(outs), "peak_mb": 500, "cpu_ms": [cpu, cpu]}
-        return {"variant": variant, "cases": cases, "backend": [],
+        return {"variant": variant, "threads": threads, "cases": cases, "backend": [],
+                "omp_wait_policy": "", "ct2_openmp": "",
                 "runtime": {"ctranslate2_version": "4.8.1", "openmp_dlls": []}}
 
     def test_ratio_and_diffs_against_first_variant(self):
@@ -98,6 +176,25 @@ class CompareSummaryTests(unittest.TestCase):
         self.assertEqual(en["custom"]["diffs"], [{"i": 1, "base": "b", "other": "B"}])
         self.assertEqual(en["custom"]["cpu_ms"], 80)               # 2回のうち少ない方
         self.assertIn("訳文が変わった文", rep["text"])
+        self.assertEqual(rep["data"]["sweep"], {})                 # スレッド比較なし
+
+    def test_thread_sweep(self):
+        runs = [self._run("dnnl", 1.0, ["a", "b"]), self._run("custom_passive", 2.0, ["a", "b"]),
+                self._run("custom_passive", 2.0, ["a", "b"]), self._run("dnnl", 1.0, ["a", "b"])]
+        sweep = [self._run("dnnl", 1.5, ["a", "b"], cpu=30, threads=1),
+                 self._run("custom_passive", 1.5, ["a", "X"], cpu=20, threads=1),
+                 {"variant": "custom_passive", "threads": 2, "failed": "x", "backend": []}]
+        rep = self.c.summarize(runs, ["dnnl", "custom_passive"], "cpu", 2, sweep=sweep)
+        sw = rep["data"]["sweep"]["en_int8"]
+        self.assertEqual(set(sw), {"dnnl", "custom_passive"})
+        self.assertEqual(set(sw["custom_passive"]), {"1", "4"})    # 失敗した 2 は載せない
+        one = sw["custom_passive"]["1"]
+        self.assertAlmostEqual(one["mean"], 22.5)
+        self.assertEqual(one["cpu_ms"], 20)
+        self.assertEqual((one["same_self"], one["same_base"], one["total"]), (1, 1, 2))
+        self.assertAlmostEqual(sw["custom_passive"]["4"]["mean"], 30.0)
+        self.assertIn("スレッド数の比較", rep["text"])
+        self.assertIn("custom_passive・2スレッド", rep["text"])     # 失敗の記録
 
     def test_not_comparable_when_one_side_failed(self):
         runs = [self._run("dnnl", 1.0, ["a"]), {"variant": "custom", "failed": "x", "backend": []}]
@@ -108,18 +205,30 @@ class CompareSummaryTests(unittest.TestCase):
     def test_variant_selection(self):
         cv = self.c.choose_variants
         self.assertEqual(cv(None, True, False), ["mkl", "dnnl"])
-        self.assertEqual(cv(None, True, True), ["mkl", "dnnl", "custom"])
-        self.assertEqual(cv(None, False, True), ["dnnl", "custom"])
+        self.assertEqual(cv(None, True, True), ["mkl", "dnnl", "custom_passive", "custom"])
+        self.assertEqual(cv(None, False, True), ["dnnl", "custom_passive", "custom"])
         self.assertEqual(cv(None, False, False), ["dnnl"])            # AMD で自前ビルドなし: 測らない
         self.assertEqual(cv("custom,dnnl", False, True), ["custom", "dnnl"])
         with self.assertRaises(SystemExit):
-            cv("dnnl,custom", False, False)
+            cv("dnnl,custom_passive", False, False)
         with self.assertRaises(SystemExit):
             cv("dnnl,foo", True, True)
 
+    def test_sweep_variants(self):
+        sv = self.c.sweep_variants
+        self.assertEqual(sv(["mkl", "dnnl", "custom_passive", "custom"]),
+                         ["mkl", "custom_passive", "custom"])
+        self.assertEqual(sv(["dnnl", "custom_passive", "custom"]),
+                         ["dnnl", "custom_passive", "custom"])
+
+    def test_passive_variants_set_wait_policy(self):
+        v = self.c.VARIANTS
+        self.assertEqual(v["custom_passive"]["env"]["OMP_WAIT_POLICY"], "PASSIVE")
+        self.assertEqual(v["custom"]["env"]["OMP_WAIT_POLICY"], "")   # 指定なし（vcomp 既定）
+
     def test_mask_path_hides_user_folders(self):
         home = os.path.expanduser("~")
-        p = os.path.join(home, "Downloads", "x", "libomp.dll")
+        p = os.path.join(home, "Downloads", "x", "vcomp140.dll")
         self.assertNotIn(home, self.c._mask_path(p))
         self.assertTrue(self.c._mask_path(p).startswith(("~", "<tool>")))
 

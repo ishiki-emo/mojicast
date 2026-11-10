@@ -114,14 +114,20 @@ All bundled libraries are listed in `CREDITS.md`.
   CTranslate2 PyPI wheel statically links Intel oneMKL and ships Intel OpenMP
   (`libiomp5md.dll`), both under the non-OSI Intel Simplified Software License.
   Our release workflow instead builds CTranslate2 4.8.1 from its tagged source
-  with `WITH_MKL=OFF` (matrix math via oneDNN, Apache-2.0) and the LLVM OpenMP
-  runtime (`libomp.dll`, Apache-2.0 WITH LLVM-exception), itself built from the
-  LLVM 19.1.7 source release, all inside the same GitHub Actions job
-  (`tools/signing/ct2_nomkl/build.ps1`, documented in
-  `docs/signing/CT2_NOMKL_BUILD.md`). The workflow fails if any Intel MKL or
-  Intel OpenMP file remains in the package. We measured the change on Intel
-  and AMD machines before switching; the benchmark script and results are in
-  `bench/ct2_mkl_compare/`.
+  with `WITH_MKL=OFF` (matrix math via oneDNN, Apache-2.0) using MSVC, inside
+  the same GitHub Actions job (`tools/signing/ct2_nomkl/build.ps1`, documented
+  in `docs/signing/CT2_NOMKL_BUILD.md`). The workflow fails if any Intel MKL or
+  Intel OpenMP file remains in the package. OpenMP is then provided by the
+  MSVC runtime (`vcomp140.dll`, part of the Visual C++ Redistributable, like
+  the `msvcp140.dll` / `vcruntime140.dll` every MSVC-built program ships); we
+  consider it a system/compiler runtime library, and would like to confirm
+  that with you. (We also tried the LLVM OpenMP runtime, which is OSI-licensed,
+  but it requires compiling with clang-cl and changed int8 translation output
+  versus the official build, so we did not adopt it.) We measured the change
+  on Intel and AMD machines before switching; the benchmark script and results
+  are in `bench/ct2_mkl_compare/`.
+  [TODO before submitting: switch is pending these measurements; remove this
+  note once the release default is `nomkl`.]
 
 We want to be upfront about the following non-OSI components in the current
 build, and ask how you would like us to handle them:

@@ -35,17 +35,20 @@ SignPath の条件は「全コンポーネントが OSI 承認ライセンス」
   - [x] 👤 Intel 2台（N100・i7-13700HX）で計測 → [results](../bench/ct2_mkl_compare/results/)。訳文は 4ケースとも 200/200 一致、
     MKL なしは平均 0.90〜1.30 倍の時間、ピークメモリは M2M で約 300MB・fp32 で約 200MB 減る
   - [x] 🤖 MKL なしの自前ビルドを用意した（[signing/CT2_NOMKL_BUILD.md](signing/CT2_NOMKL_BUILD.md)・
-    `tools/signing/ct2_nomkl/build.ps1`・release-build-windows.yml に組み込み済み・既定で使う）
-  - [ ] 👤 自前ビルドでの確認（Intel 2台＋AMD の再測定・通しの字幕遅延・訳文の回帰比較）→ CT2_NOMKL_BUILD.md の「人の確認」
+    `tools/signing/ct2_nomkl/build.ps1`・release-build-windows.yml に `ctranslate2: nomkl` で組み込み済み・
+    **既定はまだ official**）。構成は MSVC＋vcomp140＋`OMP_WAIT_POLICY=PASSIVE`（訳文は公式と一致）。
+    clang-cl＋LLVM libomp は int8 の訳文がずれるため不採用（2026-11-10 えもさん判断）
+  - [ ] 👤 自前ビルドでの確認（Intel 2台＋AMD の再測定〈PASSIVE あり/なし・スレッド数 1/2/4〉・通しの字幕遅延・
+    訳文の回帰比較）→ CT2_NOMKL_BUILD.md の「人の確認」。結果で採用を決め、既定と CREDITS を切り替える
   - 参考（開発機 AMD で MKL を強制した場合・8文）: MKL 有効だと中韓 約3.4〜4.0秒/文 vs 無効 130〜190ms、
     ピークメモリ 2.1GB vs 0.6GB。AMD で MKL を使わない今の既定は正しい
 - [x] 🤖 ASIO 版 PortAudio DLL（`libportaudio64bit-asio.dll`）を spec で除外した（2026-11-10 develop・次のリリースから）
       凍結時は `SD_ENABLE_ASIO` を apppaths で外す（設定されていると sounddevice がこの DLL を探して失敗するため）
 - [ ] 🤖 ついでに不要物を除外: `pywebview-android.jar`、（動作確認のうえ）`dbghelp.dll` `dbgcore.dll`
 - [x] 🤖 LICENSE 末尾の日本語注記を CREDITS.md へ移した（2026-11-10 main に反映・GitHub の判定が MIT になったことを確認済み）
-- [x] 🤖 CREDITS.md を実物に合わせた（2026-11-10 develop・次のリリースから）。MKL なしへの切り替えに合わせ、
-      Intel oneMKL / Intel OpenMP を外し LLVM OpenMP（libomp）を足した（chore/signpath-prep）。
-      手元ビルドも MKL なし wheel に入れ替えないと記載とずれる（build_bundle.ps1 が警告を出す）
+- [x] 🤖 CREDITS.md を実物に合わせた（2026-11-10 develop・次のリリースから）。今は公式 wheel の中身
+      （Intel oneMKL・oneDNN・Intel OpenMP）で書いてある。MKL なし版に切り替えるときに書き換える
+      （CT2_NOMKL_BUILD.md 4章。build_bundle.ps1 が同梱物とのずれを警告し、テストが既定とのずれを見る）
 
 ## 1. exe へのバージョン情報の付与（次のリリースで）
 

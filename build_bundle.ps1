@@ -13,16 +13,23 @@ if (-not (Test-Path (Join-Path $app "Mojicast.exe"))) {
     throw "先に PyInstaller ビルドを実行してください（$app が見つかりません）"
 }
 
-# --- 翻訳エンジン（ctranslate2）がどちらの版か。CREDITS.md は MKL なし版（LLVM OpenMP）で書いてある。
-#     公式版（Intel oneMKL / Intel OpenMP 入り）のままビルドすると記載と中身がずれるので知らせる
-#     （切り替え・戻し方: docs/signing/CT2_NOMKL_BUILD.md） ---
+# --- 翻訳エンジン（ctranslate2）がどちらの版か。CREDITS.md の記載と同梱物が合っているかを確かめる。
+#     公式版 = Intel oneMKL 静的リンク＋Intel OpenMP（libiomp5md.dll）、
+#     MKL なし版 = 自前ビルド（MSVC OpenMP の vcomp140.dll）。
+#     どちらで出すかを変えたら CREDITS.md も書き換える（docs/signing/CT2_NOMKL_BUILD.md） ---
 $ct2 = Join-Path $app "_internal\ctranslate2"
-if (Test-Path (Join-Path $ct2 "libiomp5md.dll")) {
-    Write-Warning ("ctranslate2 が公式版（Intel MKL / Intel OpenMP 入り）です。CREDITS.md の記載（MKL なし版）と" +
-                   "合いません。MKL なし版の wheel を reazonspeech-env に入れてから PyInstaller をやり直してください" +
-                   "（docs/signing/CT2_NOMKL_BUILD.md）")
-} elseif (Test-Path (Join-Path $ct2 "libomp.dll")) {
-    Write-Host "  ctranslate2 : MKL なし版（LLVM OpenMP）"
+$ct2Kind = if (Test-Path (Join-Path $ct2 "libiomp5md.dll")) { "official" }
+           elseif (Test-Path (Join-Path $ct2 "vcomp140.dll")) { "nomkl" } else { "" }
+$credits = Get-Content (Join-Path $root "CREDITS.md") -Raw -Encoding UTF8
+$creditsKind = if ($credits -match 'libiomp5md') { "official" } else { "nomkl" }
+$kindName = @{ official = "公式版（Intel MKL / Intel OpenMP 入り）"; nomkl = "MKL なし版（MSVC OpenMP）" }
+if (-not $ct2Kind) {
+    Write-Warning "ctranslate2 の OpenMP の DLL が見つかりません（$ct2）"
+} elseif ($ct2Kind -ne $creditsKind) {
+    Write-Warning ("ctranslate2 が$($kindName[$ct2Kind])ですが、CREDITS.md は$($kindName[$creditsKind])で" +
+                   "書かれています。どちらかを合わせてください（docs/signing/CT2_NOMKL_BUILD.md）")
+} else {
+    Write-Host "  ctranslate2 : $($kindName[$ct2Kind])"
 }
 
 # --- コード資産のみ app 直下へ。データファイル(hotwords等)はルートに置かず、
