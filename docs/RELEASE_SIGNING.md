@@ -27,6 +27,10 @@ SignPath の条件は「全コンポーネントが OSI 承認ライセンス」
   - 案A: CTranslate2 を MKL 無しで CI ビルドする（`WITH_MKL=OFF`, `WITH_DNNL=ON`,
     `OPENMP_RUNTIME=COMP`）。翻訳速度・メモリが変わるので実測が要る
   - 案B: 申請時に正直に書いて SignPath に判断を仰ぐ（下書きはこの前提）
+  - 実測（2026-11-10・Ryzen 7 9800X3D）: CTranslate2 は AMD では MKL を使わず oneDNN で動いている
+    （`Use Intel MKL: false` / GEMM_S8 backend: DNNL）。MKL を抜いて影響を受けるのは Intel 利用者だけ
+  - [ ] 👤🤖 保留中: Intel 機で比較する小さなアプリを作る（現行版のまま `CT2_USE_MKL=0` で
+    MKL 抜きと同じ経路になるので、ビルド不要で 1行あたりの時間・訳文の一致を比べられる）
 - [ ] 🤖 ASIO 版 PortAudio DLL（`libportaudio64bit-asio.dll`）を spec で除外する
       （Mojicast は ASIO 未使用。`a.binaries` / `a.datas` から "asio" を落とす）
 - [ ] 🤖 ついでに不要物を除外: `pywebview-android.jar`、（動作確認のうえ）`dbghelp.dll` `dbgcore.dll`
