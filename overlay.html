@@ -21,11 +21,15 @@
 </style>
 <script src="/ui/fx.js"></script>
 <script src="/ui/soundfx.js"></script>
+<script src="/ui/widgets.js"></script>
 </head>
 <body>
 
 <script>
   const qp = new URLSearchParams(location.search);
+  // ガンビットの部品（カウンター）。翻訳だけ・コラボ相手用などオーバーレイを
+  // 複数置くときは、部品を出さないものに ?widgets=0 を付ける
+  const showWidgets = qp.get("widgets") !== "0";
 
   // サーバから来なければこの既定（旧CLI互換）
   const DEFAULT_STYLE = {
@@ -398,8 +402,10 @@
         if (msg.rev != null) styleRev = msg.rev;
         updatePanes(msg);
         if ("sound_rules" in msg) SFX.setRules(msg.sound_rules);
+        if (showWidgets && "widgets" in msg) WIDGETS.setConfig(msg.widgets);
         break;
       case "sound":   SFX.play(msg.group, msg.score); break;
+      case "widget":  if (showWidgets) WIDGETS.update(msg.id, msg.value, msg.delta); break;
       case "final":
         if (msg.rev != null && styleRev != null && msg.rev !== styleRev) resyncStyle();
         addFinal(paneFor(msg.speaker), msg.text, msg.id);
