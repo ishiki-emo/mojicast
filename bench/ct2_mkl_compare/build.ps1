@@ -5,13 +5,15 @@
 #   -CustomWheel : 自前ビルドの wheel（tools\signing\ct2_nomkl\build.ps1 の出力）。指定すると
 #                  Zip の ct2_custom\ に展開して入れ、公式ビルドと並べて測る（同じフォルダの
 #                  build-info.json も一緒に入れる）。省略時は公式ビルドの MKL あり/なしだけ
+#   -CustomLlvmWheel : 上流 LLVM libomp 版の自前ビルドの wheel。Zip の ct2_custom_llvm\ に入れる
 # 出力: bench\ct2_mkl_compare\dist\ct2_mkl_compare-win-x64.zip
 #   ※ Zip には配信の書き起こし（sentences.txt・えもさん本人の配信）が入る。ベータテスターに配ってよい
 param(
     [string]$Python = "E:\AIProject\ReazonSpeech\reazonspeech-env\Scripts\python.exe",
     [string]$LogsRoot = "E:\AIProject\ReazonSpeech",
     [int]$Sentences = 200,
-    [string]$CustomWheel = ""
+    [string]$CustomWheel = "",
+    [string]$CustomLlvmWheel = ""
 )
 $ErrorActionPreference = "Stop"
 $here = $PSScriptRoot
@@ -31,16 +33,20 @@ try {
     & $Python make_sentences.py $LogsRoot (Join-Path $app "sentences.txt") $Sentences
     if ($LASTEXITCODE -ne 0) { throw "文の抜き出しに失敗しました" }
     Copy-Item (Join-Path $here "README.md") (Join-Path $app "README.md")
-    if ($CustomWheel) {
+    foreach ($c in @(@($CustomWheel, "ct2_custom", "vcomp140.dll"), @($CustomLlvmWheel, "ct2_custom_llvm", "libomp.dll"))) {
+        $whl, $folder, $omp = $c
+        if (-not $whl) { continue }
         # wheel は zip。中の ctranslate2\ と *.dist-info\ をそのまま置く（compare.py が優先して読む）
-        $dst = Join-Path $app "ct2_custom"
+        $dst = Join-Path $app $folder
         New-Item -ItemType Directory -Force $dst | Out-Null
-        $tmp = Join-Path $here "build\custom.zip"
-        Copy-Item $CustomWheel $tmp
+        $tmp = Join-Path $here "build\$folder.zip"
+        Copy-Item $whl $tmp
         Expand-Archive $tmp -DestinationPath $dst -Force
-        $bi = Join-Path (Split-Path $CustomWheel) "build-info.json"
+        # 取り違え防止（vcomp 版を ct2_custom_llvm に入れる等）
+        if (-not (Test-Path (Join-Path $dst "ctranslate2\$omp"))) { throw "$folder に入れた wheel に $omp がありません: $whl" }
+        $bi = Join-Path (Split-Path $whl) "build-info.json"
         if (Test-Path $bi) { Copy-Item $bi $dst }
-        Write-Host "自前ビルドを同梱: $CustomWheel"
+        Write-Host "自前ビルドを同梱（$folder）: $whl"
     }
     $zip = Join-Path $here "dist\ct2_mkl_compare-win-x64.zip"
     Compress-Archive -Path $app -DestinationPath $zip -Force

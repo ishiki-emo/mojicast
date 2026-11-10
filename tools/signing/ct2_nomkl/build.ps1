@@ -12,10 +12,16 @@
 # Mojicast は OMP_WAIT_POLICY=PASSIVE を設定して使う（translate.py）。
 # clang-cl＋LLVM libomp の構成は int8 の訳文が公式とずれるため不採用。詳しくは docs/signing/CT2_NOMKL_BUILD.md。
 #
+# -OpenMP llvm（試作・2026-11-11）: コンパイラは cl のまま /openmp:llvm で LLVM 形式の OpenMP 呼び出しを出させ、
+#   リンクする OpenMP ランタイムを、LLVM 公式リリースのソースからビルドした上流の libomp.dll
+#   （Apache-2.0 WITH LLVM-exception）にする。Microsoft の libomp140 は再頒布できないので使わない（2.4）。
+#   libomp 自体は clang-cl でビルドする（上流の想定どおり。C の ABI なので cl のコードから呼べる）。
+#   Intel OpenMP と同じ KMP_BLOCKTIME が効くので PASSIVE は要らない。上流ソースへのパッチなし。
+#
 # 実行（ローカル・GitHub Actions 共通）:
-#   powershell -ExecutionPolicy Bypass -File tools\signing\ct2_nomkl\build.ps1 -Python <python3.11.exe>
-# 必要なもの: Visual Studio 2022（「C++ によるデスクトップ開発」）、CMake 3.18 以上、git、tar（Windows 標準）、
-#             Python 3.11 x64。
+#   powershell -ExecutionPolicy Bypass -File tools\signing\ct2_nomkl\build.ps1 -Python <python3.11.exe> [-OpenMP llvm]
+# 必要なもの: Visual Studio 2022（「C++ によるデスクトップ開発」。-OpenMP llvm は「C++ Clang ツール」も）、
+#             CMake 3.18 以上、git、tar（Windows 標準）、Python 3.11 x64。
 # 出力: <OutDir>\ctranslate2-4.8.1+nomkl-cp311-cp311-win_amd64.whl と build-info.json、SHA256SUMS.txt
 param(
     [Parameter(Mandatory = $true)][string]$Python,
@@ -27,7 +33,9 @@ param(
     # CTranslate2 はこのログをモデルを読んだ時にしか出さないため、省略時は DLL の依存とシンボルだけで確かめる
     [string]$ProbeModel = "",
     # CI のキャッシュの鍵に使う値（MSVC の版）を表示して終わる
-    [switch]$PrintToolchain
+    [switch]$PrintToolchain,
+    # vcomp: MSVC の vcomp140.dll（＋PASSIVE） / llvm: cl /openmp:llvm ＋ 上流 libomp.dll（試作）
+    [ValidateSet("vcomp", "llvm")][string]$OpenMP = "vcomp"
 )
 $ErrorActionPreference = "Stop"
 
@@ -38,6 +46,20 @@ $ONEDNN_VERSION = "3.1.1"          # 公式 wheel の prepare_build_environment_
 $ONEDNN_SHA256 = "d1cd58f57b2308d362a9bc474acbc21524cb879cf5d8779b460c718f0fac82d6"
 $PYBIND11_VERSION = "2.11.1"       # CTranslate2 の python/pyproject.toml と同じ
 $LOCAL_VERSION = "nomkl"
+# -OpenMP llvm で使う上流 libomp（LLVM 公式リリースの openmp / cmake ソース）
+$LLVM_VERSION = "19.1.7"
+$LLVM_OPENMP_SHA256 = "bd7e6901ab086fd268750363017935fd4a717c153dad3c2aab86cb0140d9e3fe"
+$LLVM_CMAKE_SHA256 = "11c5a28f90053b0c43d0dec3d0ad579347fc277199c005206b963c19aae514e3"
+$LIBOMP_CMAKE_OPTIONS = @(
+    "-DCMAKE_BUILD_TYPE=Release",
+    "-DLIBOMP_ENABLE_SHARED=ON",
+    "-DLIBOMP_USE_ITT_NOTIFY=OFF",          # Intel VTune 向けの計測フック（不要）
+    "-DLIBOMP_OMPT_SUPPORT=OFF",            # ツール向けインターフェース（不要）
+    "-DLIBOMP_OMPD_SUPPORT=OFF",
+    "-DOPENMP_ENABLE_LIBOMPTARGET=OFF",     # GPU オフロード（不要）
+    "-DOPENMP_ENABLE_OMPT_TOOLS=OFF",
+    "-DLIBOMP_INSTALL_ALIASES=OFF"          # libiomp5md.dll などの別名を作らない
+)
 
 $CT2_CMAKE_OPTIONS = @(
     "-DCMAKE_BUILD_TYPE=Release",
@@ -86,12 +108,24 @@ function Fetch([string]$url, [string]$path, [string]$sha256) {
 
 # ---- Visual Studio 2022 の開発環境を取り込む（cl / link / dumpbin / ninja） ----
 $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-$vs = & $vswhere -version "[17.0,18.0)" -products * -latest `
-    -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-if (-not $vs) { throw "Visual Studio 2022（C++ ツール）が見つかりません" }
+$need = @("Microsoft.VisualStudio.Component.VC.Tools.x86.x64")
+if ($OpenMP -eq "llvm") { $need += "Microsoft.VisualStudio.Component.VC.Llvm.Clang" }
+$vs = & $vswhere -version "[17.0,18.0)" -products * -latest -requires $need -property installationPath
+if (-not $vs) { throw "Visual Studio 2022（C++ ツール$(if ($OpenMP -eq 'llvm') {'・C++ Clang ツール'})）が見つかりません" }
 $msvcVer = (Get-Content (Join-Path $vs "VC\Auxiliary\Build\Microsoft.VCToolsVersion.default.txt")).Trim()
 $redistVer = (Get-Content (Join-Path $vs "VC\Auxiliary\Build\Microsoft.VCRedistVersion.default.txt")).Trim()
-if ($PrintToolchain) { "msvc-$msvcVer-redist-$redistVer"; return }
+$clangCl = Join-Path $vs "VC\Tools\Llvm\x64\bin\clang-cl.exe"
+$clangVer = ""
+if ($OpenMP -eq "llvm") {
+    if (-not (Test-Path $clangCl)) { throw "clang-cl が見つかりません: $clangCl" }
+    $clangVer = if ((& $clangCl --version | Select-Object -First 1) -match 'version (\S+)') { $Matches[1] } else { "?" }
+}
+if ($PrintToolchain) {
+    # vcomp 版は従来どおりの値（既存のキャッシュをそのまま使う）。llvm 版は libomp と clang-cl の版も入れる
+    if ($OpenMP -eq "llvm") { "msvc-$msvcVer-redist-$redistVer-libomp-$LLVM_VERSION-clang-$clangVer" }
+    else { "msvc-$msvcVer-redist-$redistVer" }
+    return
+}
 & cmd /c "`"$(Join-Path $vs 'VC\Auxiliary\Build\vcvars64.bat')`" >nul && set" | ForEach-Object {
     if ($_ -match '^([^=]+)=(.*)$') { Set-Item "Env:$($Matches[1])" $Matches[2] }
 }
@@ -101,16 +135,41 @@ $ninja = Join-Path $vs "Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja
 if (-not (Test-Path $ninja)) { $ninja = (Get-Command ninja.exe).Source }
 $GEN = @("-G", "Ninja", "-DCMAKE_MAKE_PROGRAM=$ninja", "-DCMAKE_C_COMPILER=$cl", "-DCMAKE_CXX_COMPILER=$cl")
 $vcomp = Join-Path $vs "VC\Redist\MSVC\$redistVer\x64\Microsoft.VC143.OpenMP\vcomp140.dll"
-if (-not (Test-Path $vcomp)) { throw "vcomp140.dll が見つかりません: $vcomp" }
-Write-Host "Visual Studio: $vs（MSVC $msvcVer / 再頒布 $redistVer）"
+if ($OpenMP -eq "vcomp" -and -not (Test-Path $vcomp)) { throw "vcomp140.dll が見つかりません: $vcomp" }
+Write-Host "Visual Studio: $vs（MSVC $msvcVer / 再頒布 $redistVer）$(if ($clangVer) { " / clang-cl $clangVer" })"
+Write-Host "OpenMP: $OpenMP"
 
 New-Item -ItemType Directory -Force $WorkDir, $OutDir | Out-Null
 $WorkDir = (Resolve-Path $WorkDir).Path
 $OutDir = (Resolve-Path $OutDir).Path
 $src = Join-Path $WorkDir "CTranslate2"
 $dnnlSrc = Join-Path $WorkDir "oneDNN-$ONEDNN_VERSION"
-$dnnlPrefix = Join-Path $WorkDir "onednn-install"
-$ct2Prefix = Join-Path $WorkDir "ct2-install"
+# llvm 版はビルド先を分ける（同じ WorkDir で両方作っても混ざらないように）
+$sfx = if ($OpenMP -eq "llvm") { "-llvm" } else { "" }
+$dnnlPrefix = Join-Path $WorkDir "onednn-install$sfx"
+$ct2Prefix = Join-Path $WorkDir "ct2-install$sfx"
+$ompSrc = Join-Path $WorkDir "llvm-$LLVM_VERSION"
+$ompPrefix = Join-Path $WorkDir "libomp-install"
+$ompLibDir = Join-Path $ompPrefix "lib"
+if ($OpenMP -eq "llvm") {
+    $ompDll = Join-Path $ompPrefix "bin\libomp.dll"
+    $ompName = "libomp.dll"
+    $ompDesc = "LLVM OpenMP $LLVM_VERSION (libomp.dll, built from source with clang-cl $clangVer; code compiled with cl /openmp:llvm)"
+    # oneDNN は find_package(OpenMP) で探すので、ここでビルドした libomp を教える
+    $dnnlOmp = @("-DOpenMP_C_FLAGS=/openmp:llvm", "-DOpenMP_CXX_FLAGS=/openmp:llvm",
+                 "-DOpenMP_C_LIB_NAMES=libomp", "-DOpenMP_CXX_LIB_NAMES=libomp",
+                 "-DOpenMP_libomp_LIBRARY=$(Join-Path $ompLibDir 'libomp.lib')")
+    # CTranslate2 は MSVC だと /openmp を直書きする。/openmp:llvm を足すと cl は llvm 形式を選ぶ。
+    # リンクは上流の libomp.lib を先に指定する（cl が既定で付ける libomp.lib＝libomp140 より前に見つかる）
+    $ct2Omp = @("-DCMAKE_CXX_FLAGS_INIT=/openmp:llvm", "-DCMAKE_C_FLAGS_INIT=/openmp:llvm",
+                "-DCMAKE_SHARED_LINKER_FLAGS=/LIBPATH:$ompLibDir libomp.lib")
+} else {
+    $ompDll = $vcomp
+    $ompName = "vcomp140.dll"
+    $ompDesc = "MSVC OpenMP (vcomp140.dll, VC++ $redistVer)"
+    $dnnlOmp = @()
+    $ct2Omp = @()
+}
 
 Step "ソース取得" {
     if (-not (Test-Path $src)) {
@@ -130,19 +189,42 @@ Step "ソース取得" {
         Fetch "https://github.com/oneapi-src/oneDNN/archive/refs/tags/v$ONEDNN_VERSION.tar.gz" $tgz $ONEDNN_SHA256
         Exec tar @("-xzf", $tgz, "-C", $WorkDir)
     }
+    if ($OpenMP -eq "llvm" -and -not (Test-Path (Join-Path $ompSrc "openmp"))) {
+        # openmp/ の CMake は兄弟フォルダの cmake/（LLVM 共通モジュール）を参照する
+        New-Item -ItemType Directory -Force $ompSrc | Out-Null
+        $base = "https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_VERSION"
+        foreach ($p in @(@("openmp", $LLVM_OPENMP_SHA256), @("cmake", $LLVM_CMAKE_SHA256))) {
+            $xz = Join-Path $WorkDir "$($p[0])-$LLVM_VERSION.src.tar.xz"
+            Fetch "$base/$($p[0])-$LLVM_VERSION.src.tar.xz" $xz $p[1]
+            Exec tar @("-xf", $xz, "-C", $ompSrc)
+            Rename-Item (Join-Path $ompSrc "$($p[0])-$LLVM_VERSION.src") $p[0]
+        }
+    }
+}
+
+if ($OpenMP -eq "llvm") {
+    Step "libomp ビルド" {
+        $b = Join-Path $WorkDir "libomp-build"
+        $genClang = @("-G", "Ninja", "-DCMAKE_MAKE_PROGRAM=$ninja",
+                      "-DCMAKE_C_COMPILER=$clangCl", "-DCMAKE_CXX_COMPILER=$clangCl")
+        Exec cmake (@("-S", (Join-Path $ompSrc "openmp"), "-B", $b) + $genClang + @(
+                      "-DCMAKE_ASM_MASM_COMPILER=ml64", "-DCMAKE_INSTALL_PREFIX=$ompPrefix") + $LIBOMP_CMAKE_OPTIONS)
+        Exec cmake @("--build", $b, "--parallel", "$Jobs")
+        Exec cmake @("--install", $b)
+    }
 }
 
 Step "oneDNN ビルド" {
-    $b = Join-Path $WorkDir "onednn-build"
-    Exec cmake (@("-S", $dnnlSrc, "-B", $b) + $GEN + @("-DCMAKE_INSTALL_PREFIX=$dnnlPrefix") + $ONEDNN_CMAKE_OPTIONS)
+    $b = Join-Path $WorkDir "onednn-build$sfx"
+    Exec cmake (@("-S", $dnnlSrc, "-B", $b) + $GEN + @("-DCMAKE_INSTALL_PREFIX=$dnnlPrefix") + $dnnlOmp + $ONEDNN_CMAKE_OPTIONS)
     Exec cmake @("--build", $b, "--parallel", "$Jobs")
     Exec cmake @("--install", $b)
 }
 
 Step "CTranslate2 ビルド" {
-    $b = Join-Path $WorkDir "ct2-build"
+    $b = Join-Path $WorkDir "ct2-build$sfx"
     Exec cmake (@("-S", $src, "-B", $b) + $GEN + @("-DCMAKE_INSTALL_PREFIX=$ct2Prefix",
-                  "-DCMAKE_PREFIX_PATH=$dnnlPrefix") + $CT2_CMAKE_OPTIONS)
+                  "-DCMAKE_PREFIX_PATH=$dnnlPrefix") + $ct2Omp + $CT2_CMAKE_OPTIONS)
     Exec cmake @("--build", $b, "--parallel", "$Jobs")
     Exec cmake @("--install", $b)
 }
@@ -157,14 +239,18 @@ Step "wheel 作成" {
     Copy-Item (Join-Path $src "LICENSE") (Join-Path $py "LICENSE") -Force
     Copy-Item (Join-Path $dnnlSrc "LICENSE") (Join-Path $py "LICENSE.oneDNN") -Force
     Copy-Item (Join-Path $dnnlSrc "THIRD-PARTY-PROGRAMS") (Join-Path $py "LICENSE.oneDNN-THIRD-PARTY-PROGRAMS") -Force
+    if ($OpenMP -eq "llvm") {
+        # libomp.dll をバイナリで再配布するため（Apache-2.0 第4項）
+        Copy-Item (Join-Path $ompSrc "openmp\LICENSE.TXT") (Join-Path $py "LICENSE.LLVM-openmp") -Force
+    }
     Get-ChildItem $py\ctranslate2 -Filter *.dll | Remove-Item -Force
     # setuptools の前回のビルド結果（build\lib.*\ctranslate2\*.dll）が wheel に混ざらないように消す
     Remove-Item -Recurse -Force (Join-Path $py "build"), (Join-Path $py "ctranslate2.egg-info") -ErrorAction SilentlyContinue
     Copy-Item (Join-Path $ct2Prefix "bin\ctranslate2.dll") (Join-Path $py "ctranslate2") -Force
-    # MSVC の OpenMP ランタイム。公式 wheel が libiomp5md.dll を入れているのと同じ場所に置く
-    # （ctranslate2\__init__.py がこのフォルダの DLL を先に読み込む。VC++ 再頒布パッケージが
+    # OpenMP ランタイム（vcomp140.dll か libomp.dll）。公式 wheel が libiomp5md.dll を入れているのと同じ場所に
+    # 置く（ctranslate2\__init__.py がこのフォルダの DLL を先に読み込む。VC++ 再頒布パッケージが
     # 入っていない PC でも読めるように）
-    Copy-Item $vcomp (Join-Path $py "ctranslate2") -Force
+    Copy-Item $ompDll (Join-Path $py "ctranslate2") -Force
     $verFile = Join-Path $py "ctranslate2\version.py"
     $ver = (Get-Content $verFile -Raw) -replace '__version__ = "([^"+]+)"', "__version__ = `"`$1+$LOCAL_VERSION`""
     Set-Content $verFile $ver -NoNewline -Encoding utf8
@@ -188,18 +274,26 @@ Step "確認" {
     $zip.Dispose()
     $lic = $names | Where-Object { $_ -match '\.dist-info/licenses/' } | ForEach-Object { Split-Path $_ -Leaf }
     Write-Host "wheel のライセンス文: $($lic -join ', ')"
-    foreach ($l in @("LICENSE", "LICENSE.oneDNN")) { if ($lic -notcontains $l) { throw "wheel に $l がありません" } }
+    $wantLic = @("LICENSE", "LICENSE.oneDNN") + $(if ($OpenMP -eq "llvm") { @("LICENSE.LLVM-openmp") } else { @() })
+    foreach ($l in $wantLic) { if ($lic -notcontains $l) { throw "wheel に $l がありません" } }
     $dlls = $names | Where-Object { $_ -match '\.dll$' }
     Write-Host "wheel の DLL: $($dlls -join ', ')"
-    if ($dlls -match 'iomp|mkl|cudnn|libomp') { throw "wheel に Intel OpenMP / MKL / cuDNN / libomp が入っています" }
-    if (-not ($dlls -match 'ctranslate2/vcomp140\.dll$')) { throw "wheel に vcomp140.dll がありません" }
+    if ($dlls -match 'iomp|mkl|cudnn|libomp140') { throw "wheel に Intel OpenMP / MKL / cuDNN / libomp140 が入っています" }
+    # OpenMP ランタイムはちょうど1つ（vcomp 版は vcomp140.dll、llvm 版は libomp.dll）
+    $ompInWheel = @($dlls | Where-Object { $_ -match '/(vcomp140|libomp)\.dll$' } | ForEach-Object { Split-Path $_ -Leaf })
+    if ($ompInWheel.Count -ne 1 -or $ompInWheel[0] -ne $ompName) {
+        throw "wheel の OpenMP ランタイムが想定と違います（$ompName だけのはず）: $($ompInWheel -join ', ')"
+    }
 
     $dll = Join-Path $ct2Prefix "bin\ctranslate2.dll"
     $deps = (& $dumpbin /nologo /dependents $dll) |
         Where-Object { $_ -match '^\s+\S+\.dll\s*$' } | ForEach-Object { $_.Trim() }
     Write-Host "ctranslate2.dll が読む DLL: $($deps -join ', ')"
-    if ($deps -match 'iomp|mkl|libomp') { throw "Intel の部品か libomp に依存しています: $deps" }
-    if (-not ($deps -match '^vcomp140\.dll$')) { throw "vcomp140.dll に依存していません（OpenMP が無効？）" }
+    if ($deps -match 'iomp|mkl|libomp140') { throw "Intel の部品か libomp140（再頒布不可）に依存しています: $deps" }
+    $depOmp = @($deps | Where-Object { $_ -match '^(vcomp\d*|libomp\S*)\.dll$' })
+    if ($depOmp.Count -ne 1 -or $depOmp[0] -ne $ompName) {
+        throw "ctranslate2.dll の OpenMP の依存が想定と違います（$ompName だけのはず）: $($depOmp -join ', ')"
+    }
     $bin = [IO.File]::ReadAllText($dll, [Text.Encoding]::ASCII)
     if ($bin -match 'mkl_serv_|MKL_Get_Version|mkl_sgemm') { throw "MKL のシンボルが残っています" }
 
@@ -222,14 +316,15 @@ Step "確認" {
         ctranslate2 = @{ tag = $CT2_TAG; commit = $CT2_COMMIT }
         onednn = @{ version = $ONEDNN_VERSION; sha256 = $ONEDNN_SHA256; cmake = $ONEDNN_CMAKE_OPTIONS }
         cmake = $CT2_CMAKE_OPTIONS
-        openmp_runtime = "MSVC OpenMP (vcomp140.dll, VC++ $redistVer)"
-        compiler = "MSVC $msvcVer"
+        openmp = $OpenMP
+        openmp_runtime = $ompDesc
+        compiler = "MSVC $msvcVer$(if ($OpenMP -eq 'llvm') { ' (/openmp:llvm)' })"
         msvc = $msvcVer
         visual_studio = (Split-Path $vs -Leaf)
         python = (& $Python -c "import sys; print(sys.version.split()[0])").Trim()
         pybind11 = $PYBIND11_VERSION
         ctranslate2_dll_dependents = $deps
-        vcomp140_sha256 = (Get-FileHash $vcomp -Algorithm SHA256).Hash.ToLower()
+        openmp_dll_sha256 = (Get-FileHash $ompDll -Algorithm SHA256).Hash.ToLower()
         wheel = $whl.Name
         wheel_sha256 = (Get-FileHash $whl.FullName -Algorithm SHA256).Hash.ToLower()
         built_at = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")

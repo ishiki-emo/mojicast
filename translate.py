@@ -35,7 +35,8 @@ os.environ.setdefault("KMP_BLOCKTIME", "5")
 
 
 def _ct2_openmp_runtime():
-    """同梱の ctranslate2 が使う OpenMP ランタイム（"intel" / "msvc" / ""）。
+    """同梱の ctranslate2 が使う OpenMP ランタイム（"intel" / "msvc" / "llvm" / ""）。
+    "llvm" は上流 LLVM libomp の自前ビルド。Intel OpenMP と同じく KMP_BLOCKTIME が効くので何もしない。
     ctranslate2 を import せずに（＝OpenMP の DLL を読み込む前に）、パッケージのフォルダの DLL で見分ける"""
     try:
         import importlib.util
@@ -52,6 +53,8 @@ def _ct2_openmp_runtime():
                 return "msvc"
             if "libiomp5md.dll" in names:
                 return "intel"
+            if "libomp.dll" in names:
+                return "llvm"
     except Exception:
         pass
     return ""

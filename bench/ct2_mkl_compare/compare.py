@@ -12,8 +12,12 @@ ctranslate2.dll に静的リンクされた Intel oneMKL と Intel OpenMP（libi
   custom_passive : 自前ビルド（MKL なし・oneDNN ＋ MSVC OpenMP）＋ OMP_WAIT_POLICY=PASSIVE。
                    採用するならこの形（translate.py が vcomp を見つけると PASSIVE にする）
   custom         : 自前ビルドで OMP_WAIT_POLICY を指定しない（vcomp 既定の空回りあり）
+  llvm           : 自前ビルド（MKL なし・oneDNN ＋ cl /openmp:llvm ＋ 上流 LLVM libomp）。
+                   Intel OpenMP と同じ KMP_BLOCKTIME=5 が効くので PASSIVE は使わない
 mkl と dnnl の差が「MKL を外した影響」、dnnl と custom の差が「OpenMP の部品を替えた影響」、
 custom と custom_passive の差が「空回りを止めた影響（CPU 負荷は減るが遅くなりうる）」。
+dnnl と llvm の差が「Intel OpenMP を上流 libomp に替えた影響」（同じ LLVM 系なので小さいはず）。
+上流 libomp 版があるときの既定は mkl / dnnl / llvm / custom_passive（custom は --variants で指定）。
 AMD 等ではもともと MKL を使わないので mkl は測らない（強制すると極端に遅い）。
 
 測るもの（本体の translate.py をそのまま呼ぶ・intra_threads=4 は本体と同じ）:
@@ -34,8 +38,9 @@ AMD 等ではもともと MKL を使わないので mkl は測らない（強制
 （先頭50文・CPU 時間は先頭10文）測り、4 スレッドの結果と並べる。スレッドを減らすと
 PASSIVE の遅れと CPU 負荷の両方が下がるかを見るため。--sweep-sentences 0 で省く。
 
-自前ビルドの指定: --custom <wheel か、ctranslate2 パッケージを含むフォルダ>。
-  省略時は exe（またはこのファイル）の隣の ct2_custom\\ を使う（配布 Zip に入れておける）。
+自前ビルドの指定: --custom <wheel か、ctranslate2 パッケージを含むフォルダ>（vcomp 版）、
+  --custom-llvm <同>（上流 libomp 版）。省略時は exe（またはこのファイル）の隣の ct2_custom\\ /
+  ct2_custom_llvm\\ を使う（配布 Zip に入れておける）。
   自前ビルドが無ければ、従来どおり mkl / dnnl の2つだけを比べる。
 
 使い方（配布版）: ct2_mkl_compare.exe をダブルクリック。
@@ -75,10 +80,15 @@ VARIANTS = {
     "dnnl": {"label": "公式・MKL なし（oneDNN＋Intel OpenMP）", "env": {"CT2_USE_MKL": "0"},
              "custom": False},
     "custom_passive": {"label": "自前ビルド（vcomp）＋PASSIVE", "env": {"OMP_WAIT_POLICY": "PASSIVE"},
-                       "custom": True},
+                       "custom": "vcomp"},
     "custom": {"label": "自前ビルド（vcomp）・待ち方は既定", "env": {"OMP_WAIT_POLICY": ""},
-               "custom": True},
+               "custom": "vcomp"},
+    # cl /openmp:llvm ＋ 上流 LLVM libomp（Apache-2.0・ソースからビルド）。KMP_BLOCKTIME=5 が効くので
+    # PASSIVE は使わない（translate.py も libomp では設定しない）
+    "llvm": {"label": "自前ビルド（上流 libomp）", "env": {"OMP_WAIT_POLICY": ""}, "custom": "llvm"},
 }
+# 自前ビルドの種類 → 指定オプションと、exe 隣の既定フォルダ
+CUSTOM_KINDS = {"vcomp": ("--custom", "ct2_custom"), "llvm": ("--custom-llvm", "ct2_custom_llvm")}
 THREADS = 4
 SWEEP_THREADS = (1, 2, 4)   # 4 も同じ条件（同じ文数・1回）で測り直して並べる
 CPU_GAP = 1.0      # CPU 時間を測るときの、文と文の間（秒）
@@ -247,13 +257,13 @@ def _find_mojicast_models():
     return None
 
 
-def _prepare_custom(path, work):
-    """--custom の指定（wheel / フォルダ）を「ctranslate2 パッケージを含むフォルダ」にする"""
+def _prepare_custom(path, work, name="ct2_custom"):
+    """--custom / --custom-llvm の指定（wheel / フォルダ）を「ctranslate2 パッケージを含むフォルダ」にする"""
     if not path:
         return None
     path = os.path.abspath(path)
     if os.path.isfile(path) and path.lower().endswith(".whl"):
-        root = os.path.join(work, "ct2_custom")
+        root = os.path.join(work, name)
         shutil.rmtree(root, ignore_errors=True)
         with zipfile.ZipFile(path) as z:
             z.extractall(root)
@@ -407,19 +417,27 @@ def _p95(xs):
     return xs[min(len(xs) - 1, int(round(0.95 * (len(xs) - 1))))]
 
 
-def choose_variants(requested, intel, has_custom):
-    """測る variant を決める（先頭が比較の基準）"""
+def choose_variants(requested, intel, kinds):
+    """測る variant を決める（先頭が比較の基準）。kinds は手元にある自前ビルドの種類（"vcomp" / "llvm"）"""
+    kinds = set(kinds or ())
     if requested:
         variants = [v for v in requested.split(",") if v]
         bad = [v for v in variants if v not in VARIANTS]
         if bad:
             raise SystemExit(f"不明な variant: {bad}（使えるもの: {', '.join(VARIANTS)}）")
-        if any(VARIANTS[v]["custom"] for v in variants) and not has_custom:
-            raise SystemExit("custom / custom_passive を測るには --custom で自前ビルドの wheel か"
-                             "フォルダを指定してください")
+        for v in variants:
+            kind = VARIANTS[v]["custom"]
+            if kind and kind not in kinds:
+                opt, folder = CUSTOM_KINDS[kind]
+                raise SystemExit(f"{v} を測るには {opt} で自前ビルドの wheel かフォルダを指定するか、"
+                                 f"exe の隣に {folder}\\ を置いてください")
         return variants
-    return ((["mkl", "dnnl"] if intel else ["dnnl"])
-            + (["custom_passive", "custom"] if has_custom else []))
+    base = ["mkl", "dnnl"] if intel else ["dnnl"]
+    if "llvm" in kinds:
+        # 上流 libomp 版が本命。vcomp 版は PASSIVE ありの形だけ並べる（既定の空回りありは 2026-11-10 に
+        # 3台で測り済みなので省き、1回の計測時間を前回と同じに保つ）
+        return base + ["llvm"] + (["custom_passive"] if "vcomp" in kinds else [])
+    return base + (["custom_passive", "custom"] if "vcomp" in kinds else [])
 
 
 def sweep_variants(variants):
@@ -449,16 +467,20 @@ def run_parent(args):
     work = os.path.join(HERE, f"_work_{stamp}")
     os.makedirs(work, exist_ok=True)
 
-    custom_arg = args.custom
-    if not custom_arg and os.path.isdir(os.path.join(HERE, "ct2_custom")):
-        custom_arg = os.path.join(HERE, "ct2_custom")
-    custom_root = _prepare_custom(custom_arg, work)
+    roots, custom_args = {}, {}
+    for kind, (_opt, folder) in CUSTOM_KINDS.items():
+        arg = args.custom if kind == "vcomp" else args.custom_llvm
+        if not arg and os.path.isdir(os.path.join(HERE, folder)):
+            arg = os.path.join(HERE, folder)
+        root = _prepare_custom(arg, work, folder)
+        if root:
+            roots[kind], custom_args[kind] = root, arg
 
     cpu = _cpu_name()
     vendor = _cpu_vendor()
     intel = vendor == "GenuineIntel" or not vendor or args.force
     print(f"CPU: {cpu}")
-    variants = choose_variants(args.variants, intel, bool(custom_root))
+    variants = choose_variants(args.variants, intel, roots)
     if len(variants) < 2:
         # AMD 等で自前ビルドも無い: MKL はもともと使っていないので比べるものが無い。
         # しかも MKL を強制すると1文数秒かかり、全体で1時間を超える
@@ -477,8 +499,8 @@ def run_parent(args):
     else:
         print("モデル: 初回はダウンロードします（約0.7GB・このフォルダの models に保存）")
     env.setdefault("PYTHONIOENCODING", "utf-8")
-    if custom_root:
-        print(f"自前ビルド: {custom_arg}")
+    for kind, arg in custom_args.items():
+        print(f"自前ビルド（{kind}）: {arg}")
 
     order = [(v, THREADS) for v in variants + variants[::-1]]
     n_sweep = min(args.sweep_sentences, n_sent)
@@ -508,7 +530,7 @@ def run_parent(args):
         print(f"[{i + 1}/{len(order)}] {what} で計測中...", flush=True)
         t0 = time.time()
         cmd = _child_cmd(variant, sentences_path if main_run else sweep_path, out_path,
-                         custom_root,
+                         roots.get(VARIANTS[variant]["custom"]),
                          min(args.cpu_sentences if main_run else args.sweep_cpu_sentences,
                              n_sent if main_run else n_sweep),
                          threads)
@@ -711,7 +733,8 @@ def main():
     ap.add_argument("--custom-root", default="")
     ap.add_argument("--sentences")
     ap.add_argument("--out")
-    ap.add_argument("--custom", help="自前ビルドの wheel、または ctranslate2\\ を含むフォルダ")
+    ap.add_argument("--custom", help="自前ビルド（vcomp 版）の wheel、または ctranslate2\\ を含むフォルダ")
+    ap.add_argument("--custom-llvm", help="自前ビルド（上流 libomp 版）の wheel、またはフォルダ")
     ap.add_argument("--variants", help="測る組み合わせ（例: dnnl,custom）。先頭が基準。既定は自動")
     ap.add_argument("--models", help="Mojicast の models フォルダを流用する場合に指定")
     ap.add_argument("--limit", type=int, default=0, help="文の数を絞る（試運転用）")

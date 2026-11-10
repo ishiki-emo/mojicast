@@ -57,12 +57,25 @@ class BuildScriptTests(unittest.TestCase):
                     "-DENABLE_CPU_DISPATCH=ON", "-DWITH_CUDA=OFF"):
             self.assertIn(f'"{opt}"', self.ps1, opt)
 
-    def test_msvc_vcomp_only(self):
-        # clang-cl＋LLVM libomp は int8 の訳文が公式とずれるので不採用（手順書に記録）
-        self.assertNotIn("LLVM_OPENMP", self.ps1)
-        self.assertNotIn("clang-cl.exe", self.ps1)
+    def test_translation_code_is_compiled_with_msvc(self):
+        # clang-cl で CTranslate2 をコンパイルすると int8 の訳文が公式とずれるので不採用（手順書 2.3）。
+        # oneDNN と CTranslate2 は常に cl。clang-cl は -OpenMP llvm の libomp（C のランタイム）だけ
+        m = re.search(r'^\$GEN = @\((.+)\)$', self.ps1, re.M)
+        self.assertIsNotNone(m)
+        self.assertIn("-DCMAKE_CXX_COMPILER=$cl", m.group(1))
+        self.assertEqual(self.ps1.count("-DCMAKE_CXX_COMPILER=$clangCl"), 1)   # libomp の genClang だけ
+        self.assertIn('[ValidateSet("vcomp", "llvm")][string]$OpenMP = "vcomp"', self.ps1)
         self.assertIn("vcomp140", self.ps1)
         self.assertIn("PrintToolchain", self.ps1)          # キャッシュの鍵
+
+    def test_llvm_variant_uses_pinned_upstream_libomp(self):
+        self.assertRegex(self._var("LLVM_OPENMP_SHA256"), r"^[0-9a-f]{64}$")
+        self.assertRegex(self._var("LLVM_CMAKE_SHA256"), r"^[0-9a-f]{64}$")
+        self.assertIn("releases/download/llvmorg-$LLVM_VERSION", self.ps1)
+        self.assertIn("/openmp:llvm", self.ps1)
+        self.assertIn("LICENSE.LLVM-openmp", self.ps1)
+        self.assertIn("libomp140", self.ps1)               # 再頒布不可の libomp140 に依存したら失敗させる
+        self.assertIn('"-DLIBOMP_INSTALL_ALIASES=OFF"', self.ps1)
 
 
 class WorkflowTests(unittest.TestCase):
@@ -142,6 +155,11 @@ class TranslateOpenMPTests(unittest.TestCase):
         r = self._run("libiomp5md.dll")
         self.assertEqual(r["kind"], "intel")
         self.assertIsNone(r["omp"])
+
+    def test_upstream_libomp_untouched(self):
+        # 上流 LLVM libomp は KMP_BLOCKTIME=5 が効くので PASSIVE にしない
+        r = self._run("libomp.dll")
+        self.assertEqual(r, {"omp": None, "kind": "llvm", "loaded": False})
 
 
 def _load_compare():
@@ -229,15 +247,21 @@ class CompareSummaryTests(unittest.TestCase):
 
     def test_variant_selection(self):
         cv = self.c.choose_variants
-        self.assertEqual(cv(None, True, False), ["mkl", "dnnl"])
-        self.assertEqual(cv(None, True, True), ["mkl", "dnnl", "custom_passive", "custom"])
-        self.assertEqual(cv(None, False, True), ["dnnl", "custom_passive", "custom"])
-        self.assertEqual(cv(None, False, False), ["dnnl"])            # AMD で自前ビルドなし: 測らない
-        self.assertEqual(cv("custom,dnnl", False, True), ["custom", "dnnl"])
+        self.assertEqual(cv(None, True, {}), ["mkl", "dnnl"])
+        self.assertEqual(cv(None, True, {"vcomp"}), ["mkl", "dnnl", "custom_passive", "custom"])
+        self.assertEqual(cv(None, False, {"vcomp"}), ["dnnl", "custom_passive", "custom"])
+        self.assertEqual(cv(None, False, {}), ["dnnl"])               # AMD で自前ビルドなし: 測らない
+        self.assertEqual(cv("custom,dnnl", False, {"vcomp"}), ["custom", "dnnl"])
+        # 上流 libomp 版があるとき: vcomp は PASSIVE ありの形だけ（計測の回数を前回と同じに保つ）
+        self.assertEqual(cv(None, True, {"vcomp", "llvm"}), ["mkl", "dnnl", "llvm", "custom_passive"])
+        self.assertEqual(cv(None, True, {"llvm"}), ["mkl", "dnnl", "llvm"])
+        self.assertEqual(cv(None, False, {"llvm"}), ["dnnl", "llvm"])
         with self.assertRaises(SystemExit):
-            cv("dnnl,custom_passive", False, False)
+            cv("dnnl,custom_passive", False, {})
         with self.assertRaises(SystemExit):
-            cv("dnnl,foo", True, True)
+            cv("dnnl,llvm", False, {"vcomp"})                         # 種類の違う自前ビルドしかない
+        with self.assertRaises(SystemExit):
+            cv("dnnl,foo", True, {"vcomp"})
 
     def test_sweep_variants(self):
         sv = self.c.sweep_variants
@@ -245,11 +269,16 @@ class CompareSummaryTests(unittest.TestCase):
                          ["mkl", "custom_passive", "custom"])
         self.assertEqual(sv(["dnnl", "custom_passive", "custom"]),
                          ["dnnl", "custom_passive", "custom"])
+        self.assertEqual(sv(["mkl", "dnnl", "llvm", "custom_passive"]),
+                         ["mkl", "llvm", "custom_passive"])
 
     def test_passive_variants_set_wait_policy(self):
         v = self.c.VARIANTS
         self.assertEqual(v["custom_passive"]["env"]["OMP_WAIT_POLICY"], "PASSIVE")
         self.assertEqual(v["custom"]["env"]["OMP_WAIT_POLICY"], "")   # 指定なし（vcomp 既定）
+        self.assertEqual(v["llvm"]["env"]["OMP_WAIT_POLICY"], "")     # libomp は KMP_BLOCKTIME で足りる
+        self.assertEqual({k: x["custom"] for k, x in v.items() if x["custom"]},
+                         {"custom_passive": "vcomp", "custom": "vcomp", "llvm": "llvm"})
 
     def test_mask_path_hides_user_folders(self):
         home = os.path.expanduser("~")
