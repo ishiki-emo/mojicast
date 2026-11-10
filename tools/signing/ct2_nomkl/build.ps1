@@ -101,9 +101,22 @@ function Exec([string]$exe, [string[]]$argv) {
     if ($LASTEXITCODE -ne 0) { throw "$exe が失敗しました（終了コード $LASTEXITCODE）" }
 }
 function Fetch([string]$url, [string]$path, [string]$sha256) {
-    if (-not (Test-Path $path)) { Invoke-WebRequest -UseBasicParsing -OutFile $path $url }
+    if (-not (Test-Path $path)) {
+        Write-Host "取得: $url"
+        # 進捗表示を出さない（pwsh の進捗表示はダウンロードを大きく遅くする）。止まったときは時間切れにする
+        $pp = $ProgressPreference; $ProgressPreference = "SilentlyContinue"
+        try { Invoke-WebRequest -UseBasicParsing -TimeoutSec 600 -OutFile $path $url } finally { $ProgressPreference = $pp }
+    }
     $h = (Get-FileHash $path -Algorithm SHA256).Hash.ToLower()
     if ($h -ne $sha256) { Remove-Item $path; throw "SHA256 が違います: $url ($h)" }
+    Write-Host ("  {0:N0} バイト・SHA256 一致" -f (Get-Item $path).Length)
+}
+# 展開は Windows 標準の tar（bsdtar）に固定する（PATH 次第で Git 付属の GNU tar が選ばれると、
+# "D:\..." を「ホスト D のファイル」と解釈したり、.xz を外部の xz に頼ったりする）
+$TAR = Join-Path $env:SystemRoot "System32\tar.exe"
+function Extract([string]$archive, [string]$dest) {
+    Write-Host "展開: $archive"
+    Exec $TAR @("-xf", $archive, "-C", $dest)
 }
 
 # ---- Visual Studio 2022 の開発環境を取り込む（cl / link / dumpbin / ninja） ----
@@ -187,7 +200,7 @@ Step "ソース取得" {
     if (-not (Test-Path $dnnlSrc)) {
         $tgz = Join-Path $WorkDir "onednn-$ONEDNN_VERSION.tar.gz"
         Fetch "https://github.com/oneapi-src/oneDNN/archive/refs/tags/v$ONEDNN_VERSION.tar.gz" $tgz $ONEDNN_SHA256
-        Exec tar @("-xzf", $tgz, "-C", $WorkDir)
+        Extract $tgz $WorkDir
     }
     if ($OpenMP -eq "llvm" -and -not (Test-Path (Join-Path $ompSrc "openmp"))) {
         # openmp/ の CMake は兄弟フォルダの cmake/（LLVM 共通モジュール）を参照する
@@ -196,7 +209,7 @@ Step "ソース取得" {
         foreach ($p in @(@("openmp", $LLVM_OPENMP_SHA256), @("cmake", $LLVM_CMAKE_SHA256))) {
             $xz = Join-Path $WorkDir "$($p[0])-$LLVM_VERSION.src.tar.xz"
             Fetch "$base/$($p[0])-$LLVM_VERSION.src.tar.xz" $xz $p[1]
-            Exec tar @("-xf", $xz, "-C", $ompSrc)
+            Extract $xz $ompSrc
             Rename-Item (Join-Path $ompSrc "$($p[0])-$LLVM_VERSION.src") $p[0]
         }
     }
