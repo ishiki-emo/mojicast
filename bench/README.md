@@ -118,3 +118,8 @@
 
 ## 効きそうな削減案（未実施）
 - 標準構成で fp32 認識を選んでいる利用者は int8-fp32 へ誘導（-410MB・精度差ほぼ無し）。
+
+## CTranslate2 の MKL なしビルド（2026-11-10）
+
+SignPath 申請のため、翻訳エンジンから Intel oneMKL / Intel OpenMP を外した。その根拠と切り替え後の確認は
+[ct2_mkl_compare/](ct2_mkl_compare/README.md)（比較ツールと結果）。ビルド手順は docs/signing/CT2_NOMKL_BUILD.md。

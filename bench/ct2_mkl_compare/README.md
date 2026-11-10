@@ -1,0 +1,73 @@
+# Mojicast 翻訳エンジン計測ツール
+
+Mojicast の翻訳エンジンから、ライセンスの都合で外したい部品（Intel MKL・Intel OpenMP）があります。
+外した版（自前ビルド）に切り替えても翻訳が遅くならないか・重くならないかを、いろいろなパソコンで
+確かめるためのツールです。
+
+- Mojicast 本体の設定やファイルには一切触りません
+- インターネットには、翻訳モデルのダウンロード（初回だけ・Hugging Face）以外では接続しません
+- 中に入っている文（`sentences.txt`）は、癒色えもの配信の書き起こしです
+
+## やってほしいこと
+
+1. Zip を好きな場所に展開する
+2. Mojicast・ゲーム・配信ソフトなど、重いアプリを閉じる
+3. `ct2_mkl_compare.exe` をダブルクリック
+   - 「Windows によって PC が保護されました」と出たら「詳細情報」→「実行」
+   - インストール版の Mojicast があれば、そのモデルを使います。無ければ初回に約 0.7GB ダウンロードします
+4. 20〜50 分ほど待つ（途中で窓を閉じないでください）
+5. 終わると同じフォルダに `result_日時.txt` と `result_日時.json` ができるので、この 2 つを送ってください
+
+### 結果ファイルに入るもの
+
+CPU の名前、Windows のバージョン、翻訳にかかった時間、訳文、メモリ使用量、CPU 使用時間、
+読み込まれた翻訳エンジンの部品（DLL）の名前。
+ユーザー名やファイルの場所など、個人を特定する情報は入りません（部品の場所は、このツールの
+フォルダからの相対で記録します）。
+
+### Zip 版の Mojicast のモデルを使いたいとき
+
+コマンドプロンプトで、Mojicast のフォルダの `models` を指定して実行します。
+
+```
+ct2_mkl_compare.exe --models "C:\...\Mojicast\models"
+```
+
+---
+
+## 開発メモ
+
+申請（SignPath Foundation）で「MKL を外した根拠」として示す計測。結果は [results/](results/)。
+
+### 何と何を比べるか
+
+| variant | 中身 | 意味 |
+|---|---|---|
+| `mkl` | 公式 wheel・`CT2_USE_MKL=1` | Intel 機の現行の動き（MKL＋Intel OpenMP） |
+| `dnnl` | 公式 wheel・`CT2_USE_MKL=0` | MKL を外した場合（oneDNN＋Intel OpenMP）。AMD 機の現行の動き |
+| `custom` | 自前ビルド（[tools/signing/ct2_nomkl](../../tools/signing/ct2_nomkl/build.ps1)） | 配布予定の形（oneDNN＋LLVM OpenMP・clang-cl） |
+
+- 既定: Intel 機は `mkl,dnnl[,custom]`、それ以外は `dnnl[,custom]`（MKL は AMD では元から使われず、
+  強制すると極端に遅い）。`--variants dnnl,custom` のように選べる。先頭が比較の基準
+- 自前ビルドは `--custom <wheel かフォルダ>`、または exe（compare.py）の隣の `ct2_custom\`。
+  PyInstaller 同梱の ctranslate2 より優先して読むよう `sys.meta_path` に差し込む（読み込まれた場所を
+  子プロセスが確かめ、違えば失敗にする）
+- 各 variant を往復の順で2回ずつ別プロセスで走らせ、1文ごとに速い方を採る
+- 結果に残すもの: 使われた GEMM 実装（`CT2_VERBOSE=1` のログ）、ctranslate2 の版と DLL の SHA256、
+  プロセスに読み込まれた OpenMP の DLL（フルパス）、自前ビルドの `build-info.json`（CMake オプション、
+  コンパイラ、libomp の版とハッシュ）
+- **CPU/文**: 先頭20文（`--cpu-sentences`）で、1文訳して1秒空けるまでのプロセス CPU 時間。
+  OpenMP のスレッドが計算後に空回りすると、速さは変わらずここだけ増える。Mojicast は Intel/LLVM の
+  OpenMP に `KMP_BLOCKTIME=5` を設定している（translate.py）。MSVC の OpenMP（vcomp140）はこの設定が
+  効かず、開発機で英訳の CPU/文 が 98ms → 397ms に増えたため不採用にした（docs/signing/CT2_NOMKL_BUILD.md）
+- 訳文: M2M（中韓）は数値計算の順序が変わると数 % 変わることがある。2026-11-10 の Intel 2台では
+  MKL あり/なしで 4ケースとも 200/200 一致
+
+### 作り方・動かし方
+
+- Zip: `powershell -ExecutionPolicy Bypass -File bench\ct2_mkl_compare\build.ps1 -CustomWheel <whl>`
+  （`dist\ct2_mkl_compare-win-x64.zip` ができる。`-CustomWheel` を省くと公式の MKL あり/なしだけ）
+- 開発実行: `reazonspeech-env\Scripts\python.exe bench\ct2_mkl_compare\compare.py --limit 6 --custom <whl>`
+  （開発用の環境には torch が入っていて、torch 由来の libiomp5md.dll も読み込まれる。結果の
+  「Intel の DLL」欄はその分も出るので、パスで見分ける。配布版には torch は入らない）
+- `results/` の命名: `日付_CPU_内容.{txt,json}`

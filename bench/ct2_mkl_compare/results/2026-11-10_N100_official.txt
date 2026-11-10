@@ -1,0 +1,37 @@
+CTranslate2 MKL あり/なし比較  2026-11-10 19:41
+CPU: Intel(R) N100
+OS: Windows-10-10.0.22631-SP0
+文の数: 200  スレッド: 4
+
+[MKL あり（CT2_USE_MKL=1）] 使われた実装:
+  CPU: GenuineIntel (SSE4.1=true, AVX=true, AVX2=true, AVX512=false)
+  - Selected ISA: AVX2
+  - Use Intel MKL: true
+  - SGEMM backend: MKL (packed: true)
+  - GEMM_S16 backend: MKL (packed: true)
+  - GEMM_S8 backend: MKL (packed: true, u8s8 preferred: true)
+  - Selected compute type: int8_float32
+  - Selected compute type: float32
+[MKL なし（CT2_USE_MKL=0）] 使われた実装:
+  CPU: GenuineIntel (SSE4.1=true, AVX=true, AVX2=true, AVX512=false)
+  - Selected ISA: AVX2
+  - Use Intel MKL: false
+  - SGEMM backend: DNNL (packed: false)
+  - GEMM_S16 backend: none (packed: false)
+  - GEMM_S8 backend: DNNL (packed: false, u8s8 preferred: true)
+  - Selected compute type: int8_float32
+  - Selected compute type: float32
+
+ケース                               MKLあり 中央値/平均/p95 (ms)           MKLなし 中央値/平均/p95 (ms)           なし/あり     訳文一致      
+英訳 FuguMT int8（通常）            68.0 / 70.3 / 121.8               82.7 / 82.4 / 138.7                1.17倍    200/200
+英訳 FuguMT fp32（高精度モード）        167.8 / 177.2 / 294.0             184.1 / 195.9 / 322.2              1.11倍    200/200
+中国語訳 M2M ja→zh                272.9 / 283.6 / 457.0             322.3 / 336.8 / 559.3              1.19倍    200/200
+韓国語訳 M2M ja→ko                435.2 / 450.7 / 804.5             525.2 / 540.4 / 958.0              1.20倍    200/200
+
+ロード時間 (ms) / ピークメモリ (MB・その時点までの最大):
+  英訳 FuguMT int8（通常）             あり 884ms / なし 905ms   メモリ あり 277MB / なし 270MB
+  英訳 FuguMT fp32（高精度モード）         あり 586ms / なし 478ms   メモリ あり 584MB / なし 385MB
+  中国語訳 M2M ja→zh                 あり 986ms / なし 898ms   メモリ あり 914MB / なし 591MB
+  韓国語訳 M2M ja→ko                 （zh と同じモデル）   メモリ あり 914MB / なし 604MB
+
+訳文が変わった文（各ケース最大10件・上=MKLあり / 下=MKLなし）:
