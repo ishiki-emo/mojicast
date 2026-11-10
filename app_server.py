@@ -1357,7 +1357,19 @@ def _deck_state():
         "fx_groups": [{"id": g, "name": g,
                        "ready": bool((rules.get(g) or {}).get("on"))}
                       for g in soundfx.GROUPS],
+        # カウンター（ガンビット）: ボタンに今の数を出す。名前と数だけで、きっかけの語は出さない
+        "counters": _deck_counters(),
     }
+
+
+def _deck_counters():
+    try:
+        g = _get_gambit()
+        with _gambit_lock:
+            return [{"id": c["id"], "name": c["name"], "value": g.values.get(c["id"], 0),
+                     "enabled": c["enabled"]} for c in g.cards]
+    except Exception:   # noqa: BLE001 — ガンビットが壊れていても他のボタンは使えるように
+        return []
 
 
 def _deck_toggle(op, current):
@@ -1445,6 +1457,20 @@ def _deck_action(body):
             return False, "unknown value"
         vrcchat.configure(_deck_set("vrchat_source", value))
         return True, "VRChatへ送る内容を" + ("訳文" if value == "tr" else "文字起こし") + "にしました"
+    elif action == "counter":
+        # 手直し・手で数える用。op: add（＋1）/ sub（−1）/ reset（0に戻す）
+        cid, op = body.get("id"), body.get("op", "add")
+        if op not in ("add", "sub", "reset"):
+            return False, "unknown op"
+        try:
+            _gambit_run(lambda g: g.bump(cid, "reset" if op == "reset" else "add",
+                                         -1 if op == "sub" else 1))
+        except KeyError:
+            return False, "カウンターが見つかりません（削除された可能性があります）"
+        with _gambit_lock:
+            g = _get_gambit()
+            c = next(x for x in g.cards if x["id"] == cid)
+            return True, f"「{c['name']}」を{g.values.get(cid, 0)}にしました"
     else:
         return False, "unknown action"
     boxes = _read_json(_boxes_path(), {"boxes": []})["boxes"]

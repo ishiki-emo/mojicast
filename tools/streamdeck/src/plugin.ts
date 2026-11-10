@@ -3,6 +3,7 @@ import streamDeck from "@elgato/streamdeck";
 import {
 	BoxAction,
 	ClearAction,
+	CounterAction,
 	EngineAction,
 	FxAction,
 	PresetAction,
@@ -24,6 +25,7 @@ for (const a of [
 	new BoxAction(),
 	new RandomAction(),
 	new FxAction(),
+	new CounterAction(),
 	new WordFxAction(),
 	new VrchatAction(),
 	new VrchatSourceAction(),

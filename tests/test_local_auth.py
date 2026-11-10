@@ -160,6 +160,26 @@ class LocalAuthTests(AuthFixture, unittest.TestCase):
         self.assertEqual(act({"action": "translate_lang", "lang": "en"})[0], 400)
         self.assertIs(app_server.load_config()["translate"], False)
 
+    def test_deck_counter_buttons(self):
+        app_server._write_json(app_server._gambits_path(), {"cards": [
+            {"id": "c1", "name": "やばい", "triggers": [{"type": "word", "words": ["やばい"]}]}]})
+        app_server._gambit = None
+        self.addCleanup(lambda: (app_server._write_json(app_server._gambits_path(), {"cards": []}),
+                                 setattr(app_server, "_gambit", None)))
+        deck = self.server.auth.rotate(kind="deck")
+        act = lambda body: self.request("POST", "/api/deck/action", body, deck)
+        state = json.loads(self.request("GET", "/api/deck/state", token=deck)[1])
+        # 名前と数だけ（きっかけの語は外部へ出さない）
+        self.assertEqual(state["counters"], [{"id": "c1", "name": "やばい", "value": 0, "enabled": True}])
+        for op, want in (("add", 1), ("add", 2), ("sub", 1), ("reset", 0)):
+            status, data = act({"action": "counter", "id": "c1", "op": op})
+            self.assertEqual(status, 200)
+            res = json.loads(data)
+            self.assertEqual(res["state"]["counters"][0]["value"], want)
+        self.assertIn("「やばい」を0にしました", res["message"])
+        self.assertEqual(act({"action": "counter", "id": "no-such"})[0], 400)
+        self.assertEqual(act({"action": "counter", "id": "c1", "op": "times"})[0], 400)
+
     def test_deck_and_mcp_keys_rotate_independently_and_persist(self):
         deck = self.server.auth.rotate(kind="deck")
         status, data = self.request("POST", "/api/auth/deck", {"action": "rotate"}, self.ui)

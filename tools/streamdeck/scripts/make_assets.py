@@ -33,13 +33,16 @@ SPARK = '<path d="M64 30c4 20 8 25 28 29-20 4-24 9-28 29-4-20-8-25-28-29 20-4 24
 SPARK_S = '<path d="M106 18c2 9 4 11 12 13-8 2-10 4-12 13-2-9-4-11-12-13 8-2 10-4 12-13z" fill="{fg}" stroke="none"/>'
 GOGGLES = ('<path d="M32 42h80a10 10 0 0 1 10 10v22a10 10 0 0 1-10 10H92l-10-12H62l-10 12H32'
            'a10 10 0 0 1-10-10V52a10 10 0 0 1 10-10z"/>')
+# カウンター: 正の字のような集計の線（4本＋斜線）
+TALLY = '<path d="M40 30v56M56 30v56M72 30v56M88 30v56M28 76l76-38"/>'
 SWAP = (f'<g stroke="{PINK}"><path d="M95 28a14 14 0 0 1 24 4M121 40a14 14 0 0 1-24-4"/>'
         '<path d="M119 20v12h-12M97 52V40h12"/></g>')
 
 # kind: toggle（OFF/ON の2状態）/ select（未使用/使用中の2状態・名前はプラグインが下に出す）
 #       plain（1状態）/ pair（2状態とも普通の見た目。どちらも OFF ではない）
 # icons: 状態ごとの線画（1つなら全状態共通）。accent: plain/pair の線の色
-# pi: 設定画面の種類（select=プルダウン / random=対象の選択 / none=接続設定だけ）
+# pi: 設定画面の種類（select=プルダウン / random=対象の選択 / counter=カウンターと押したときの動き /
+#     none=接続設定だけ）
 ACTIONS = [
     dict(id="engine", name="認識 スタート/ストップ", tip="音声認識を開始・停止します",
          kind="toggle", pi="none", icons=(
@@ -66,6 +69,10 @@ ACTIONS = [
          kind="plain", accent=PINK, pi="select", setting="group", label="演出",
          note="演出の画像・位置は Mojicast の［音イベント演出］で設定します。音の自動検出がOFFでも出せます。",
          icons=(SPARK + SPARK_S,)),
+    dict(id="counter", name="カウンター", tip="カウンターを＋1・−1・0に戻します（ボタンに今の数を出します）",
+         kind="plain", accent=CYAN, pi="counter", setting="id", label="カウンター",
+         note="カウンターは Mojicast の［単語スタジオ］→［カウンター］で作ります。ボタンには今の数が出ます。",
+         icons=(TALLY,)),
     dict(id="word-fx", name="単語エフェクト ON/OFF", tip="単語エフェクトの表示をオン・オフします",
          kind="toggle", pi="none", icons=(
              '<rect x="22" y="50" width="76" height="36" rx="18"/><path d="M40 68h40"/>' + SPARK_S,)),
@@ -128,6 +135,21 @@ def pi_html(a):
   </sdpi-item>""")
         if a["kind"] == "select" or a["id"] == "fx":
             body.append("""
+  <sdpi-item label="名前">
+    <sdpi-checkbox setting="hideName" label="ボタンに名前を出さない"></sdpi-checkbox>
+  </sdpi-item>""")
+    elif a["pi"] == "counter":
+        body.append(f"""
+  <sdpi-item label="{a['label']}">
+    <sdpi-select setting="{a['setting']}" datasource="getChoices" hot-reload placeholder="選んでください"></sdpi-select>
+  </sdpi-item>
+  <sdpi-item label="押したとき">
+    <sdpi-select setting="op" default="add">
+      <option value="add">＋1</option>
+      <option value="sub">−1</option>
+      <option value="reset">0に戻す</option>
+    </sdpi-select>
+  </sdpi-item>
   <sdpi-item label="名前">
     <sdpi-checkbox setting="hideName" label="ボタンに名前を出さない"></sdpi-checkbox>
   </sdpi-item>""")
@@ -195,7 +217,7 @@ def main():
         "Name": "Mojicast",
         "Version": VERSION,
         "Author": "癒色えも",
-        "Description": "Mojicast（配信用のリアルタイム字幕アプリ）をボタンで操作します。認識の開始・停止、字幕クリア、シーン・デザイン・レイアウトの切替、演出の手動発火など。",
+        "Description": "Mojicast（配信用のリアルタイム字幕アプリ）をボタンで操作します。認識の開始・停止、字幕クリア、シーン・デザイン・レイアウトの切替、演出の手動発火、カウンターなど。",
         "UUID": UUID,
         "URL": "https://ishiki-emo.com/mojicast",
         "Icon": "imgs/plugin/marketplace",

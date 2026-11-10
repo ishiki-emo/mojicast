@@ -16,11 +16,13 @@ import type { JsonValue } from "@elgato/utils";
 
 import * as mojicast from "./mojicast";
 import type { DeckState, Item } from "./mojicast";
+import { counterImage } from "./counter-image";
 
 type Settings = {
 	id?: string;
 	target?: string;
 	group?: string;
+	op?: string;
 	hideName?: boolean;
 };
 
@@ -48,6 +50,11 @@ abstract class MojicastAction extends SingletonAction<Settings> {
 
 	/** ボタンに出す名前（シーン名など）。出さないボタンは undefined */
 	protected label(_st: DeckState, _s: Settings): string | undefined {
+		return undefined;
+	}
+
+	/** キー画像を状態に合わせて描き直すボタン（カウンターの数など）。描かないボタンは undefined */
+	protected image(_st: DeckState, _s: Settings): string | undefined {
 		return undefined;
 	}
 
@@ -117,11 +124,13 @@ abstract class MojicastAction extends SingletonAction<Settings> {
 		const st = mojicast.state();
 		const on = st ? this.isOn(st, s) : false;
 		const name = st && !s.hideName ? this.label(st, s) : undefined;
-		const key = `${on}|${name ?? ""}`;
+		const img = st ? this.image(st, s) : undefined;
+		const key = `${on}|${name ?? ""}|${img ?? ""}`;
 		if (this.painted.get(a.id) === key) return;
 		this.painted.set(a.id, key);
 		if (on !== null) await a.setState(on ? 1 : 0);
 		if (name !== undefined) await a.setTitle(name);
+		if (img !== undefined) await a.setImage(img);
 	}
 }
 
@@ -212,6 +221,28 @@ export class FxAction extends MojicastAction {
 	}
 	protected override choices(st: DeckState) {
 		return st.fx_groups.map((g) => ({ value: g.id, label: g.ready ? g.name : `${g.name}（演出が未設定）` }));
+	}
+}
+
+@action({ UUID: "com.ishiki-emo.mojicast.counter" })
+export class CounterAction extends MojicastAction {
+	protected body(s: Settings) {
+		const op = ["add", "sub", "reset"].includes(s.op ?? "") ? s.op : "add";
+		return s.id ? { action: "counter", id: s.id, op } : null;
+	}
+	protected override label(st: DeckState, s: Settings) {
+		return s.id ? nameOf(st.counters ?? [], s.id) : undefined;
+	}
+	protected override image(st: DeckState, s: Settings) {
+		if (!s.id) return undefined;
+		const c = (st.counters ?? []).find((x) => x.id === s.id);
+		return counterImage(c ? c.value : null, s.op ?? "add", c ? c.enabled : false);
+	}
+	protected override choices(st: DeckState) {
+		const list = st.counters ?? [];
+		if (!list.length)
+			return [{ value: "", label: "（カウンターがありません。Mojicastで作ってください）", disabled: true }];
+		return list.map((c) => ({ value: c.id, label: c.enabled ? c.name : `${c.name}（OFF）` }));
 	}
 }
 

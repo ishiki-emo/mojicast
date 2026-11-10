@@ -10,6 +10,8 @@ import streamDeck from "@elgato/streamdeck";
 
 export type Item = { id: string; name: string; preset?: string; box?: string; ready?: boolean };
 
+export type Counter = { id: string; name: string; value: number; enabled: boolean };
+
 export type DeckState = {
 	engine: string;
 	preset: string;
@@ -22,6 +24,8 @@ export type DeckState = {
 	presets: Item[];
 	boxes: Item[];
 	fx_groups: Item[];
+	/** カウンター（ガンビット）。古い Mojicast には無い */
+	counters?: Counter[];
 };
 
 export type GlobalSettings = { port?: string; key?: string };

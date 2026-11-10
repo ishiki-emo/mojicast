@@ -3,7 +3,7 @@
   "Name": "Mojicast",
   "Version": "0.1.0.0",
   "Author": "癒色えも",
-  "Description": "Mojicast（配信用のリアルタイム字幕アプリ）をボタンで操作します。認識の開始・停止、字幕クリア、シーン・デザイン・レイアウトの切替、演出の手動発火など。",
+  "Description": "Mojicast（配信用のリアルタイム字幕アプリ）をボタンで操作します。認識の開始・停止、字幕クリア、シーン・デザイン・レイアウトの切替、演出の手動発火、カウンターなど。",
   "UUID": "com.ishiki-emo.mojicast",
   "URL": "https://ishiki-emo.com/mojicast",
   "Icon": "imgs/plugin/marketplace",
@@ -193,6 +193,27 @@
       "States": [
         {
           "Image": "imgs/actions/fx/key0",
+          "TitleAlignment": "bottom",
+          "FontSize": 11,
+          "ShowTitle": true
+        }
+      ]
+    },
+    {
+      "Name": "カウンター",
+      "UUID": "com.ishiki-emo.mojicast.counter",
+      "Icon": "imgs/actions/counter/icon",
+      "Tooltip": "カウンターを＋1・−1・0に戻します（ボタンに今の数を出します）",
+      "PropertyInspectorPath": "ui/counter.html",
+      "Controllers": [
+        "Keypad"
+      ],
+      "DisableAutomaticStates": true,
+      "SupportedInMultiActions": true,
+      "UserTitleEnabled": true,
+      "States": [
+        {
+          "Image": "imgs/actions/counter/key0",
           "TitleAlignment": "bottom",
           "FontSize": 11,
           "ShowTitle": true
