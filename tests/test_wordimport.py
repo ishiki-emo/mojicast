@@ -197,6 +197,66 @@ class ExportTests(unittest.TestCase):
         self.assertEqual(len(gl), 1)
 
 
+class CsvFormulaTests(unittest.TestCase):
+    """書き出した CSV を Excel で開いても数式として実行されないこと（CSV injection 対策）と、
+    書き出し→取り込みで「@名前」のような語が元に戻ること"""
+
+    TRICKY = ["@えも", "=1+1", "+81", "-san", "=HYPERLINK(\"http://x\")",
+              "'=既にクォート付き", "''@二重", "'Tis", "普通の語"]
+
+    def _cells(self, text):
+        import csv
+        import io
+        return list(csv.reader(io.StringIO(text.lstrip("﻿"))))
+
+    def test_export_prefixes_formula_cells(self):
+        hot = [{"surface": "@えも", "reading": "=よみ", "score": ""}]
+        gloss = [{"ja": "@えも", "en": "+Emo"}, {"ja": "-だけ", "en": "@only"}]
+        rows = self._cells(w.to_csv(hot, gloss))
+        self.assertEqual(rows[1][:4], ["'@えも", "'=よみ", "", "'+Emo"])
+        self.assertEqual(rows[2][0], "'-だけ")
+        self.assertEqual(rows[2][3], "'@only")
+        rows = self._cells(w.to_csv_glossary_only(gloss))
+        self.assertEqual(rows[1], ["'@えも", "'+Emo"])
+        # 書き出した全セルが、数式の先頭文字で始まっていない
+        for text in (w.to_csv(hot, gloss), w.to_csv_glossary_only(gloss)):
+            for row in self._cells(text):
+                for cell in row:
+                    self.assertFalse(cell[:1] in ("=", "+", "-", "@"), cell)
+
+    def test_ordinary_cells_are_unchanged(self):
+        hot = [{"surface": "昇龍拳", "reading": "しょうりゅうけん", "score": "3"}]
+        gloss = [{"ja": "昇龍拳", "en": "Shoryuken"}, {"ja": "'Tis", "en": "it is"}]
+        text = w.to_csv(hot, gloss)
+        self.assertIn("昇龍拳,しょうりゅうけん,3,Shoryuken,\r\n", text)
+        self.assertIn("'Tis,,,it is,英訳のみ\r\n", text)
+
+    def test_words_roundtrip(self):
+        hot = [{"surface": s, "reading": "", "score": ""} for s in self.TRICKY]
+        gloss = [{"ja": s, "en": s} for s in self.TRICKY]
+        entries, skipped = w.parse_words(w.to_csv(hot, gloss))
+        self.assertEqual(skipped, [])
+        self.assertEqual([e["surface"] for e in entries], self.TRICKY)
+        self.assertEqual([e["en"] for e in entries], self.TRICKY)
+        new_hot, new_gl, _ = w.apply_import(entries, [], [], "add")
+        self.assertEqual([h["surface"] for h in new_hot], self.TRICKY)
+        self.assertEqual([(g["ja"], g["en"]) for g in new_gl],
+                         [(s, s) for s in self.TRICKY])
+
+    def test_glossary_roundtrip(self):
+        gloss = [{"ja": s, "en": s} for s in self.TRICKY]
+        entries, skipped = w.parse_glossary(w.to_csv_glossary_only(gloss))
+        self.assertEqual(skipped, [])
+        self.assertEqual(entries, gloss)
+
+    def test_hand_written_csv_is_unchanged(self):
+        # 手書き CSV の「@えも」（' なし）はそのまま入る。JSON には ' の処理をしない
+        entries, _ = w.parse_words("@えも,,,@Emo\n")
+        self.assertEqual((entries[0]["surface"], entries[0]["en"]), ("@えも", "@Emo"))
+        entries, _ = w.parse_words('[{"surface": "\'@えも"}]')
+        self.assertEqual(entries[0]["surface"], "'@えも")
+
+
 class GlossaryImportTests(unittest.TestCase):
     def test_parse_csv_glossary(self):
         text = "日本語,英訳\n星野ひかり,Hikari Hoshino\n癒色えも,ISHIKI Emo\n"
