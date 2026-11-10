@@ -66,6 +66,7 @@ CTranslate2 の `OPENMP_RUNTIME` は `INTEL`（libiomp5md・非 OSI）/ `COMP`�
 | **① LLVM の libomp.dll（clang-cl ＋ `/openmp`）** | Apache-2.0 WITH LLVM-exception（OSI） | **不採用**。int8 の訳文が公式とずれる（2.3） |
 | **② MSVC の vcomp140.dll（cl ＋ `/openmp`）＋ PASSIVE** | VC++ 再頒布パッケージ（下記） | **控え**。訳文は公式と一致するが 1文あたり +22〜+209ms 遅い（1.2〜3.1 倍・9章） |
 | ③ MSVC の `/openmp:llvm`（libomp140.x86_64.dll） | VS の `debug_nonredist` にしか無い（**再頒布不可**） | **不可**。ビルド・訳文・速さは満たした（2.4） |
+| **④ cl ＋ `/openmp:llvm` ＋ 上流の libomp.dll** | Apache-2.0 WITH LLVM-exception（OSI） | **計測中**。開発機で訳文 200/200 一致・dnnl 並み（2.5） |
 
 vcomp140.dll は VC++ 再頒布パッケージの一部で、配布物に既に入っている MSVCP140 / VCRUNTIME140 と
 同じ扱い（Microsoft のソフトウェア ライセンス条項の「再頒布可能コード」）。OSI 承認ではないため、
@@ -146,8 +147,34 @@ i7-13700HX で ② の中韓の遅れが大きかったため、コンパイラ�
     `Microsoft.VC[version].OpenMP.LLVM` はこのフォルダの Utilities に載っている
     （https://learn.microsoft.com/en-us/visualstudio/releases/2022/redistribution）
   - 同じ一覧で vcomp140（`Microsoft_VC143_OpenMP`）は再頒布可能コードに入っている
-- 未検証の次案: cl の `/openmp:llvm` のまま、①で作った上流の LLVM libomp.dll（Apache-2.0）にリンクする
-  （ctranslate2.dll が呼ぶのは上流の libomp にもある `__kmpc_*` だけ）
+- 次案（cl の `/openmp:llvm` ＋ 上流 libomp）は 2.5 で試した
+
+### 2.5 ④ cl ＋ `/openmp:llvm` ＋ 上流 LLVM libomp（2026-11-11 試作・3台で計測中）
+
+③ のコンパイル（cl ＋ `/openmp:llvm`）はそのままにして、リンクする OpenMP を ① で使った上流の libomp.dll
+（LLVM 公式リリースのソースからビルド・Apache-2.0 WITH LLVM-exception）に替えた。`build.ps1 -OpenMP llvm`。
+確認する4点を決め、1つでも満たせなければ打ち切る条件で進めた。
+
+1. **パッチなしでビルドが通る**: 通った。CTranslate2 は git の作業ツリーに変更なし（コミット 0d8bcd36）、
+   oneDNN 3.1.1 は tarball（SHA256 固定）と全 3595 ファイル一致、LLVM openmp 19.1.7 は tarball（SHA256 固定）と
+   全 741 ファイル一致。oneDNN には `-DOpenMP_*_FLAGS=/openmp:llvm` と `-DOpenMP_libomp_LIBRARY=<上流の libomp.lib>`、
+   CTranslate2 には ③ と同じ `CMAKE_*_FLAGS_INIT=/openmp:llvm` ＋ `CMAKE_SHARED_LINKER_FLAGS="/LIBPATH:<上流> libomp.lib"`。
+   cl は `/openmp:llvm` のとき既定で `libomp.lib` をリンクするが、/LIBPATH で上流のものが先に見つかる。
+   libomp 自体は clang-cl でビルドする（① と同じ。C の ABI なので cl のコードから呼べる）
+2. **依存する OpenMP が上流の libomp だけ**: `ctranslate2.dll` の依存は `libomp.dll` だけで、libomp140・vcomp140・
+   libiomp5md への依存は無い。インポートは `__kmpc_fork_call` / `__kmpc_barrier` / `__kmpc_push_num_threads` /
+   `__kmpc_global_thread_num` と `omp_*` 5つの計9個で、いずれも上流 libomp が持つ。libomp.dll 自体の依存は
+   KERNEL32・PSAPI・VCRUNTIME140・UCRT だけ。wheel には `LICENSE.LLVM-openmp` を入れる。build.ps1 はこれらを確認し、
+   違えば失敗にする
+3. **訳文**: 4ケース（int8 の英・中・韓、英 fp32）とも公式と 200/200 一致（開発機）。① と違ってずれないのは、
+   翻訳のコード（layer_norm の fast-math 区間を含む）を公式と同じ cl がコンパイルしているため
+4. **速さ・CPU/文**（PASSIVE なし・KMP_BLOCKTIME=5）: 開発機（Ryzen 7 9800X3D・200文）で公式の MKL なし（dnnl）と
+   比べて英訳 int8 1.01 倍（CPU/文 95→103ms）、英訳 fp32 1.00 倍（282→279ms）、中国語訳 1.01 倍（528→582ms）、
+   韓国語訳 1.04 倍（774→787ms）。結果は [results/2026-11-11_9800X3D_upomp](../../bench/ct2_mkl_compare/results/2026-11-11_9800X3D_upomp.txt)
+
+4点とも満たしたので、比較ツールに `llvm` variant を足した（Intel 2台で測り直す。AMD は MKL を使わないので
+dnnl 並み＝現行並み）。**リリースの既定は official のまま**で、切り替えは3台の実測のあとで判断する。
+translate.py は libomp.dll を "llvm" と判定し、PASSIVE を付けない（KMP_BLOCKTIME=5 だけが効く）。
 
 ## 3. ビルド手順
 
@@ -181,6 +208,19 @@ powershell -ExecutionPolicy Bypass -File tools\signing\ct2_nomkl\build.ps1 -Pyth
 |---|---|---|---|---|---|---|
 | 開発機（Ryzen 7 9800X3D・16 スレッド・新規フォルダ・2026-11-10） | 11秒 | 107秒 | 20秒 | 45秒 | 12秒 | **196秒** |
 | GitHub Actions `windows-2022`（4 vCPU・MSVC 14.44・2026-11-10） | 8秒 | 735秒 | 90秒 | 80秒 | 10秒 | **929秒**（ジョブ全体 約16分） |
+
+**-OpenMP llvm（④）の増分**（同じ CI の実行で vcomp / llvm を並べてビルド・2026-11-11・run 42853027717）:
+
+| 環境 | ソース取得 | libomp | oneDNN | CTranslate2 | wheel | 確認 | 合計 |
+|---|---|---|---|---|---|---|---|
+| CI `windows-2022`・vcomp（MSVC 14.44） | 8秒 | — | 551秒 | 67秒 | 64秒 | 9秒 | **707秒**（ジョブ 12分8秒） |
+| CI `windows-2022`・llvm（MSVC 14.44・clang-cl 19.1.5） | 10秒 | 46秒 | 541秒 | 67秒 | 63秒 | 8秒 | **741秒**（ジョブ 12分46秒） |
+| 開発機・llvm（MSVC 14.43・clang-cl 19.1.1・新規フォルダ） | 15秒 | 44秒 | 144秒 | 27秒 | 51秒 | 14秒 | **296秒** |
+
+増えるのは libomp のビルド（約45秒）だけで、**CI の合計で +34秒（ジョブ +38秒）**。oneDNN の時間は実行ごとに
+550〜735秒とばらつく（共有ランナーのため）。CI の llvm 版の wheel も公式と 4ケース 200/200 一致（開発機で確認）。
+LLVM のソース（.tar.xz）は Python の tarfile で展開する。`windows-2022` の tar.exe は openmp-19.1.7.src.tar.xz の
+展開で止まった（2回・7分と36分で打ち切り。手元の Windows 11 では数秒）。
 
 コンパイルの大半は oneDNN。wheel 作成は pip が CTranslate2 の Python 拡張をビルドする分。
 CI の wheel（MSVC 14.44）も、開発機の wheel（14.43）と同じく公式 wheel と訳文 200/200 一致（英訳 int8・韓国語訳）。
