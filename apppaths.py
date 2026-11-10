@@ -56,6 +56,11 @@ if getattr(sys, "frozen", False):
         BASE = os.path.dirname(sys.executable)
         DATA_BASE = BASE              # exe 隣に集約（ポータブル運用）
         _unblock_downloaded_files(BASE)   # clr 読み込み前に MOTW を剥がす
+        # 配布物は ASIO 版 PortAudio（Steinberg ASIO SDK 入り・非OSS）を同梱しない
+        # （Mojicast.spec で除外）。sounddevice は SD_ENABLE_ASIO があるとその DLL を
+        # 読みに行き、無いと import ごと失敗してマイクが一切使えなくなる。
+        # DAW 等が入れた環境変数を引き継いでも動くよう、ここで外しておく
+        os.environ.pop("SD_ENABLE_ASIO", None)
     # DL先も参照先も DATA_BASE/models に集約（HF系を import する前に確定させる）
     os.environ.setdefault("HF_HOME", os.path.join(DATA_BASE, "models"))
 else:
