@@ -33,11 +33,11 @@ jobs:
       run:
         shell: pwsh
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: pip
@@ -112,7 +112,7 @@ jobs:
           }
 
       - name: Upload artifacts (unsigned)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mojicast-v${{ steps.ver.outputs.version }}-win-x64-unsigned
           path: |
