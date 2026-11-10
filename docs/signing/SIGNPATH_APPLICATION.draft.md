@@ -82,6 +82,30 @@ and to raw.githubusercontent.com to check for updates. Privacy policy:
 https://github.com/ishiki-emo/mojicast/blob/main/docs/PRIVACY.md (also linked from https://ishiki-emo.com/mojicast)
 [要確認: 申請前に docs/PRIVACY.md を main に公開しておく]
 
+Points the privacy policy states explicitly (so reviewers do not have to find
+them in the code):
+
+- **Unauthenticated local endpoints.** The caption overlay for OBS
+  (`/events?overlay=1`) and `/api/style` can be read without authentication,
+  because OBS browser sources cannot send credentials. The server listens on
+  `127.0.0.1` only and rejects requests from other web origins, but other
+  programs on the same computer can read the live captions. All other API
+  calls require a key issued by Mojicast.
+- **Caption logs.** Saving caption logs (`save_log`) is on by default. Logs are
+  unencrypted text files in the app's data folder and never leave the
+  computer. Users can turn it off in Settings → Caption log and delete the
+  folder.
+- **Mark of the Web removal.** At startup the Windows build removes the
+  `Zone.Identifier` stream from files inside its own install folder, and only
+  when a bundled component still carries it (i.e. the first launch after
+  extracting a downloaded zip). Without this, .NET refuses to load the
+  pythonnet / WebView2 assemblies and the app cannot start. It never touches
+  files outside its folder, and SmartScreen still checks `Mojicast.exe` before
+  any of this runs. (`apppaths.py`, `_unblock_downloaded_files`)
+- **Pinned downloads.** AI models are downloaded from Hugging Face at fixed
+  commit IDs (`model_pins.py`), not from the moving `main` branch. GitHub
+  Actions are pinned to commit SHAs and run with `contents: read`.
+
 ## Third-party components (for review)
 
 All bundled libraries are listed in `CREDITS.md`. We want to be upfront about

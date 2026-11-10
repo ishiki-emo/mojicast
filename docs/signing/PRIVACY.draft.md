@@ -57,6 +57,56 @@ Mojicast（以下「本アプリ」）は、音声認識・句読点付け・翻
   その先で AI サービスに何が送られるかは、利用者が使う AI アプリの設定とポリシーに従います。
 - Stream Deck プラグイン（別配布）を使う場合、プラグインから本アプリへの接続も `127.0.0.1` 経由です。
 
+### 同じパソコンのほかのプログラムから読めるもの
+
+OBS のブラウザソースは鍵（認証情報）を付けて接続できないため、字幕の表示に使う
+次の 2 つは**認証なし**で読めるようにしています。
+
+- `http://127.0.0.1:8765/events?overlay=1`（ポート番号は設定で変えられます）:
+  認識中の字幕（確定前の途中経過を含む）・訳文・コラボ時の話者名などがリアルタイムに流れます
+- `http://127.0.0.1:8765/api/style`: 字幕のデザイン・レイアウト、単語の演出、
+  ハイライトする単語の一覧、カウンターの値
+
+どちらも `127.0.0.1` でしか待ち受けないため、ほかのパソコンからは読めません。
+また、ほかの Web サイトに埋め込まれたページからの読み取りは拒否します
+（接続元のサイトを確認しています）。ただし、**同じパソコンで動いているほかのプログラム**
+（ほかの利用者アカウントで動くものを含む）は読み取れます。字幕は配信で公開する
+内容である前提の設計です。配信前の打ち合わせなど、映したくない話をするときは
+認識を止めてください。設定の変更や字幕ログの読み出しなど、それ以外の操作には
+本アプリが発行する鍵が必要です。
+
+### パソコンに残るもの（字幕ログ）
+
+- 「字幕ログを保存する」（アプリ設定の「字幕ログ」欄）は**既定でオン**です。
+  認識した文（確定した行）を、時刻とコラボ時の話者名付きで
+  **暗号化していないテキストファイル**として保存します。
+  - Windows: 本アプリのフォルダの `logs\日付\日付時刻.log`
+  - macOS: `~/Library/Application Support/Mojicast/logs/日付/日付時刻.log`
+- 保存をやめるには、アプリ設定の「字幕ログを保存する」をオフにします
+  （次に認識を開始したときから保存されなくなります）。保存済みのログは
+  「字幕ログの保存フォルダを開く」から開いたフォルダを消してください。
+- 字幕ログはこのパソコンの外へは送りません。AI 連携（MCP）から字幕ログを読む機能は
+  既定でオフで、オンにした場合だけ AI アプリが読めます。
+- 字幕ログとは別に、翻訳でエラーが起きたときは、原因の調査用に訳せなかった文と
+  エラー内容を `translate_error.log` に残します（字幕ログの設定とは無関係）。
+
+### Windows 版が起動時に行うこと（ダウンロード由来の印の解除）
+
+インターネットから入手した Zip を展開すると、Windows は中のファイルに「インターネットから
+ダウンロードした」という印（Mark of the Web / `Zone.Identifier`）を付けます。この印が
+残っていると Windows の .NET が本アプリの部品（pythonnet・WebView2 の DLL）の読み込みを
+拒否し、本アプリが起動できません。
+
+そのため Windows 版の本アプリは起動時に、**自分のフォルダ（`Mojicast.exe` のあるフォルダ）の中の
+ファイルに限って**この印を外します。
+
+- 印が付いているかを部品の 1 ファイルで確かめ、付いているときだけ行います
+  （実質、ダウンロード後の初回起動の 1 回だけ）
+- 自分のフォルダの外のファイル、Windows のセキュリティ設定には触れません
+- `Mojicast.exe` 自体を実行してよいかの確認（SmartScreen）は、この処理より前に
+  Windows が行います。インストーラ版は印が付かないため、この処理は実質何もしません
+- 同梱の「ブロック解除.bat」は、同じ処理を手動で行うためのものです
+
 ### オフラインでの利用
 
 モデルの取得が済んでいれば、インターネットに接続していなくても全機能が動きます。
@@ -109,6 +159,60 @@ The caption overlay, the settings window, the VRChat OSC output, the MCP
 server for AI apps and the Stream Deck plugin (distributed separately) all use `127.0.0.1` (this computer only). Mojicast cannot be
 reached from other computers. What an AI app sends to its own service is
 governed by that app's settings and policy.
+
+### What other programs on the same computer can read
+
+OBS browser sources cannot send credentials, so the two endpoints used to draw
+captions are readable **without authentication**:
+
+- `http://127.0.0.1:8765/events?overlay=1` (the port can be changed in the
+  settings): live captions (including in-progress text), translations and, in
+  collab mode, speaker names
+- `http://127.0.0.1:8765/api/style`: caption design and layout, word effects,
+  the list of highlighted words, and counter values
+
+Both listen on `127.0.0.1` only, so other computers cannot read them, and
+requests from pages on other websites are rejected (the request origin is
+checked). **Other programs running on the same computer** (including ones
+running under another user account) can read them. This follows from the
+design assumption that captions are shown on stream anyway; stop recognition
+when you talk about something you do not want captioned. Every other
+operation, such as changing settings or reading caption logs, requires a key
+issued by Mojicast.
+
+### What is stored on this computer (caption logs)
+
+- "Save caption log" (Settings → Caption log) is **on by default**. Finalized
+  caption lines are saved with a timestamp (and the speaker name in collab
+  mode) as **unencrypted plain-text files**:
+  - Windows: `logs\<date>\<date-time>.log` in the Mojicast folder
+  - macOS: `~/Library/Application Support/Mojicast/logs/<date>/<date-time>.log`
+- To stop saving, turn off "Save caption log" (takes effect the next time
+  recognition starts). To remove existing logs, delete the folder opened by
+  "Open caption log folder".
+- Caption logs never leave the computer. Reading caption logs through the AI
+  connection (MCP) is off by default and only possible if you turn it on.
+- Separately from caption logs, when a translation fails Mojicast writes the
+  sentence that could not be translated and the error to `translate_error.log`
+  for troubleshooting (not affected by the caption log setting).
+
+### What the Windows version does at startup (removing the download mark)
+
+When a downloaded zip is extracted, Windows marks the files as downloaded from
+the internet (Mark of the Web, `Zone.Identifier`). While that mark is present,
+.NET refuses to load Mojicast's components (the pythonnet and WebView2 DLLs)
+and the app cannot start.
+
+The Windows version therefore removes this mark at startup, **only from files
+inside its own folder** (the folder containing `Mojicast.exe`):
+
+- It checks one component file first and only proceeds if the mark is present
+  (in practice, only on the first launch after download).
+- It does not touch files outside its folder or any Windows security setting.
+- Windows' own check on whether `Mojicast.exe` may run (SmartScreen) happens
+  before this. The installer version does not get the mark, so this step does
+  nothing there.
+- The bundled `ブロック解除.bat` does the same thing manually.
 
 ### Offline use
 
