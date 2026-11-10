@@ -3,14 +3,17 @@
 
 SignPath Foundation の署名条件（同梱物がすべて OSI 承認ライセンス）を満たすため、
 ctranslate2.dll に静的リンクされた Intel oneMKL と Intel OpenMP（libiomp5md.dll）を外した
-自前ビルド（tools/signing/ct2_nomkl）に切り替える。その前後で速さ・訳文・メモリを比べる。
+自前ビルド（tools/signing/ct2_nomkl・MSVC＋vcomp140）に切り替える案を測る。
+切り替えるかどうかはこの結果（Intel 2台＋AMD）を見て決める。
 
 比べる組み合わせ（variant）:
-  mkl    : 公式ビルド・MKL あり（CT2_USE_MKL=1）。Intel 機の現行の動き
-  dnnl   : 公式ビルド・MKL なし（CT2_USE_MKL=0）。oneDNN ＋ Intel OpenMP
-  custom : 自前ビルド（MKL なし）。oneDNN ＋ LLVM OpenMP（libomp.dll・clang-cl でビルド）
-mkl と dnnl の差が「MKL を外した影響」、dnnl と custom の差が「OpenMP の部品とコンパイラを
-替えた影響」。
+  mkl            : 公式ビルド・MKL あり（CT2_USE_MKL=1）。Intel 機の現行の動き
+  dnnl           : 公式ビルド・MKL なし（CT2_USE_MKL=0）。oneDNN ＋ Intel OpenMP。AMD 機の現行
+  custom_passive : 自前ビルド（MKL なし・oneDNN ＋ MSVC OpenMP）＋ OMP_WAIT_POLICY=PASSIVE。
+                   採用するならこの形（translate.py が vcomp を見つけると PASSIVE にする）
+  custom         : 自前ビルドで OMP_WAIT_POLICY を指定しない（vcomp 既定の空回りあり）
+mkl と dnnl の差が「MKL を外した影響」、dnnl と custom の差が「OpenMP の部品を替えた影響」、
+custom と custom_passive の差が「空回りを止めた影響（CPU 負荷は減るが遅くなりうる）」。
 AMD 等ではもともと MKL を使わないので mkl は測らない（強制すると極端に遅い）。
 
 測るもの（本体の translate.py をそのまま呼ぶ・intra_threads=4 は本体と同じ）:
@@ -20,12 +23,16 @@ AMD 等ではもともと MKL を使わないので mkl は測らない（強制
   - ko      : 多言語訳 M2M-100 ja→ko（int8・beam 4）
   1文ごとの時間、訳文が基準（先頭の variant）と一致するか、ロード時間、ピークメモリ、
   CPU 時間（先頭20文で、1文訳して1秒空けるまで。計算後の OpenMP の空回りはここに出る）。
-  結果には、実際に読み込まれた OpenMP ランタイムの DLL、ctranslate2 の版と DLL の SHA256、
-  自前ビルドの build-info.json（CMake オプション等）を残す。
+  結果には、実際に読み込まれた OpenMP ランタイムの DLL、効いていた OMP_WAIT_POLICY、
+  ctranslate2 の版と DLL の SHA256、自前ビルドの build-info.json（CMake オプション等）を残す。
 
 各 variant を往復の順（例: mkl → dnnl → custom → custom → dnnl → mkl）で2回ずつ別プロセスで
 走らせ、1文ごとに同じ variant の2回のうち速い方を採る（初回のファイル読み込みや順番の有利不利を
 打ち消すため）。
+
+スレッド数の比較: 続けて、基準・custom_passive・custom を intra_threads=1 / 2 で1回ずつ
+（先頭50文・CPU 時間は先頭10文）測り、4 スレッドの結果と並べる。スレッドを減らすと
+PASSIVE の遅れと CPU 負荷の両方が下がるかを見るため。--sweep-sentences 0 で省く。
 
 自前ビルドの指定: --custom <wheel か、ctranslate2 パッケージを含むフォルダ>。
   省略時は exe（またはこのファイル）の隣の ct2_custom\\ を使う（配布 Zip に入れておける）。
@@ -67,9 +74,13 @@ VARIANTS = {
     "mkl": {"label": "公式・MKL あり", "env": {"CT2_USE_MKL": "1"}, "custom": False},
     "dnnl": {"label": "公式・MKL なし（oneDNN＋Intel OpenMP）", "env": {"CT2_USE_MKL": "0"},
              "custom": False},
-    "custom": {"label": "自前ビルド・MKL なし", "env": {}, "custom": True},
+    "custom_passive": {"label": "自前ビルド（vcomp）＋PASSIVE", "env": {"OMP_WAIT_POLICY": "PASSIVE"},
+                       "custom": True},
+    "custom": {"label": "自前ビルド（vcomp）・待ち方は既定", "env": {"OMP_WAIT_POLICY": ""},
+               "custom": True},
 }
 THREADS = 4
+SWEEP_THREADS = (1, 2)
 CPU_GAP = 1.0      # CPU 時間を測るときの、文と文の間（秒）
 
 # sentences.txt が無いときの予備（配信でよく出る種類の文）
@@ -262,9 +273,11 @@ def _cpu_seconds():
     return t.user + t.system
 
 
-def run_child(variant, sentences_path, out_path, custom_root, cpu_n):
-    # ctranslate2 を import する前に決める（ランタイム初期化時に読まれる）
+def run_child(variant, sentences_path, out_path, custom_root, cpu_n, threads=THREADS):
+    # ctranslate2 を import する前に決める（ランタイム初期化時に読まれる）。
+    # OMP_WAIT_POLICY は variant が決める（空文字 = 指定なし。translate.py の setdefault も止まる）
     os.environ.pop("CT2_USE_MKL", None)
+    os.environ.pop("OMP_WAIT_POLICY", None)
     os.environ.update(VARIANTS[variant]["env"])
     os.environ["CT2_VERBOSE"] = "1"         # 使った GEMM 実装を stderr に出させる
     if VARIANTS[variant]["custom"]:
@@ -274,19 +287,22 @@ def run_child(variant, sentences_path, out_path, custom_root, cpu_n):
     with open(sentences_path, encoding="utf-8") as f:
         sentences = [s.strip() for s in f if s.strip()]
 
-    result = {"variant": variant, "cases": {}}
+    result = {"variant": variant, "threads": threads, "cases": {},
+              # translate.py を読んだ後の値（本体が実際に使う待ち方）
+              "omp_wait_policy": os.environ.get("OMP_WAIT_POLICY") or "",
+              "ct2_openmp": getattr(T, "CT2_OPENMP", "")}
     for key, _label in CASES:
         t0 = time.perf_counter()
         if key == "en_int8":
             T.unload("m2m")
-            T.load_translator(THREADS, "int8")
+            T.load_translator(threads, "int8")
             fn = T.translate
         elif key == "en_fp32":
-            T.load_translator(THREADS, "fp32")
+            T.load_translator(threads, "fp32")
             fn = T.translate
         else:
             T.unload("fugumt")
-            T.load_translator_zh(THREADS)
+            T.load_translator_zh(threads)
             fn = (lambda s, _t=key: T.translate_m2m(s, "ja", _t))
         load_ms = (time.perf_counter() - t0) * 1000
         for s in sentences[:3]:               # 温め（計測しない）
@@ -306,7 +322,7 @@ def run_child(variant, sentences_path, out_path, custom_root, cpu_n):
             cpu_ms.append((_cpu_seconds() - c0) * 1000)
         result["cases"][key] = {"load_ms": load_ms, "times": times, "outs": outs,
                                 "peak_mb": _peak_working_set_mb(), "cpu_ms": cpu_ms}
-        print(f"  [{variant}] {key}: 中央値 {statistics.median(times):.1f}ms",
+        print(f"  [{variant}/{threads}] {key}: 中央値 {statistics.median(times):.1f}ms",
               file=sys.stderr, flush=True)
     rt = _runtime_info()
     if VARIANTS[variant]["custom"]:
@@ -322,10 +338,11 @@ def run_child(variant, sentences_path, out_path, custom_root, cpu_n):
 
 # ---------------------------------------------------------------- 親プロセス
 
-def _child_cmd(variant, sentences_path, out_path, custom_root, cpu_n):
+def _child_cmd(variant, sentences_path, out_path, custom_root, cpu_n, threads=THREADS):
     base = [sys.executable] if FROZEN else [sys.executable, os.path.abspath(__file__)]
     return base + ["--child", variant, "--sentences", sentences_path, "--out", out_path,
-                   "--custom-root", custom_root or "", "--cpu-sentences", str(cpu_n)]
+                   "--custom-root", custom_root or "", "--cpu-sentences", str(cpu_n),
+                   "--threads", str(threads)]
 
 
 def _backend_lines(stderr_text):
@@ -354,11 +371,17 @@ def choose_variants(requested, intel, has_custom):
         bad = [v for v in variants if v not in VARIANTS]
         if bad:
             raise SystemExit(f"不明な variant: {bad}（使えるもの: {', '.join(VARIANTS)}）")
-        if "custom" in variants and not has_custom:
-            raise SystemExit("custom を測るには --custom で自前ビルドの wheel か"
+        if any(VARIANTS[v]["custom"] for v in variants) and not has_custom:
+            raise SystemExit("custom / custom_passive を測るには --custom で自前ビルドの wheel か"
                              "フォルダを指定してください")
         return variants
-    return (["mkl", "dnnl"] if intel else ["dnnl"]) + (["custom"] if has_custom else [])
+    return ((["mkl", "dnnl"] if intel else ["dnnl"])
+            + (["custom_passive", "custom"] if has_custom else []))
+
+
+def sweep_variants(variants):
+    """スレッド数を変えて測る variant（基準と自前ビルド）"""
+    return [v for i, v in enumerate(variants) if i == 0 or VARIANTS[v]["custom"]]
 
 
 def run_parent(args):
@@ -403,6 +426,7 @@ def run_parent(args):
 
     env = dict(os.environ)
     env.pop("CT2_USE_MKL", None)
+    env.pop("OMP_WAIT_POLICY", None)        # variant ごとに子プロセスが決める
     models = args.models or _find_mojicast_models()
     if models:
         env["HF_HOME"] = models               # apppaths の setdefault より優先される
@@ -413,42 +437,63 @@ def run_parent(args):
     if custom_root:
         print(f"自前ビルド: {custom_arg}")
 
-    order = variants + variants[::-1]
-    print(f"文の数: {n_sent} / 4種類の翻訳 × {len(order)}回"
+    order = [(v, THREADS) for v in variants + variants[::-1]]
+    n_sweep = min(args.sweep_sentences, n_sent)
+    sweep_path = None
+    if n_sweep:
+        sweep_path = os.path.join(work, "_sweep_sentences.txt")
+        with open(sentences_path, encoding="utf-8") as f:
+            lines = [s for s in f if s.strip()][:n_sweep]
+        with open(sweep_path, "w", encoding="utf-8") as f:
+            f.writelines(lines)
+        order += [(v, t) for t in SWEEP_THREADS for v in sweep_variants(variants)]
+    n_main = 2 * len(variants)
+    print(f"文の数: {n_sent} / 4種類の翻訳 × {n_main}回"
           f"（{' / '.join(VARIANTS[v]['label'] for v in variants)} を各2回）")
-    print(f"{4 * len(order)}〜{8 * len(order)}分ほどかかります。"
-          "終わるまでこの窓を閉じないでください。\n")
+    if n_sweep:
+        print(f"続けてスレッド数 {'/'.join(map(str, SWEEP_THREADS))} で {len(order) - n_main}回"
+              f"（先頭 {n_sweep} 文）")
+    print(f"{4 * n_main + 2 * (len(order) - n_main)}〜{8 * n_main + 4 * (len(order) - n_main)}"
+          "分ほどかかります。終わるまでこの窓を閉じないでください。\n")
 
-    runs = []
-    for i, variant in enumerate(order):
-        out_path = os.path.join(work, f"run{i}_{variant}.json")
-        print(f"[{i + 1}/{len(order)}] {VARIANTS[variant]['label']} で計測中...", flush=True)
+    runs, sweep = [], []
+    for i, (variant, threads) in enumerate(order):
+        main_run = i < n_main
+        tag = f"run{i}_{variant}" + ("" if main_run else f"_t{threads}")
+        out_path = os.path.join(work, tag + ".json")
+        what = VARIANTS[variant]["label"] + ("" if main_run else f"・{threads}スレッド")
+        print(f"[{i + 1}/{len(order)}] {what} で計測中...", flush=True)
         t0 = time.time()
+        cmd = _child_cmd(variant, sentences_path if main_run else sweep_path, out_path,
+                         custom_root,
+                         min(args.cpu_sentences if main_run else args.sweep_cpu_sentences,
+                             n_sent if main_run else n_sweep),
+                         threads)
         try:
-            p = subprocess.run(_child_cmd(variant, sentences_path, out_path, custom_root,
-                                          min(args.cpu_sentences, n_sent)),
-                               env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            p = subprocess.run(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                timeout=args.timeout)
             err = p.stderr.decode("utf-8", "replace")
         except subprocess.TimeoutExpired as e:
             err = (e.stderr or b"").decode("utf-8", "replace")
             p = None
-        with open(os.path.join(work, f"run{i}_{variant}.log"), "w", encoding="utf-8") as f:
+        with open(os.path.join(work, tag + ".log"), "w", encoding="utf-8") as f:
             f.write(err)
+        dest = runs if main_run else sweep
         if p is None or p.returncode != 0 or not os.path.exists(out_path):
             why = "時間切れ" if p is None else f"終了コード {p.returncode}"
             print(f"  → 失敗（{why}）。ログ: {work}")
             print("\n".join("    " + s for s in err.strip().splitlines()[-15:]))
-            runs.append({"variant": variant, "failed": why, "backend": _backend_lines(err)})
+            dest.append({"variant": variant, "threads": threads, "failed": why,
+                         "backend": _backend_lines(err)})
             continue
         with open(out_path, encoding="utf-8") as f:
             r = json.load(f)
         r["backend"] = _backend_lines(err)
         r["wall_s"] = round(time.time() - t0, 1)
-        runs.append(r)
+        dest.append(r)
         print(f"  → {r['wall_s']} 秒")
 
-    report = summarize(runs, variants, cpu, n_sent)
+    report = summarize(runs, variants, cpu, n_sent, sweep=sweep)
     txt_path = os.path.join(HERE, f"result_{stamp}.txt")
     with open(txt_path, "w", encoding="utf-8") as f:
         f.write(report["text"])
@@ -459,7 +504,7 @@ def run_parent(args):
     print("この result_ で始まる .txt と .json の2つを送ってください。")
 
 
-def summarize(runs, variants, cpu, n_sent, now=None):
+def summarize(runs, variants, cpu, n_sent, now=None, sweep=None):
     now = now or datetime.datetime.now()
     ok = {v: [r for r in runs if r["variant"] == v and "cases" in r] for v in variants}
     backend = {v: next((r.get("backend") for r in runs if r["variant"] == v), [])
@@ -472,6 +517,10 @@ def summarize(runs, variants, cpu, n_sent, now=None):
     for v in variants:
         rt = runtime[v] or {}
         lines.append(f"[{v}] {VARIANTS[v]['label']}")
+        if ok[v]:
+            r0 = ok[v][0]
+            lines.append(f"  OMP_WAIT_POLICY: {r0.get('omp_wait_policy') or '（指定なし）'}"
+                         f"  translate.py の判定: {r0.get('ct2_openmp') or '-'}")
         lines.append(f"  ctranslate2 {rt.get('ctranslate2_version', '?')}"
                      f"  DLL sha256 {(rt.get('ctranslate2_dll_sha256') or '?')[:16]}")
         omp = ", ".join(os.path.basename(x) for x in rt.get("openmp_dlls", []))
@@ -487,12 +536,17 @@ def summarize(runs, variants, cpu, n_sent, now=None):
         lines += ["  " + s for s in (backend[v] or ["（ログなし）"])]
     lines.append("")
     failed = [r for r in runs if "failed" in r]
+    failed += [r for r in (sweep or []) if "failed" in r]
     for r in failed:
-        lines.append(f"!! 失敗した回: {r['variant']}（{r['failed']}）")
+        lines.append(f"!! 失敗した回: {r['variant']}・{r.get('threads', THREADS)}スレッド"
+                     f"（{r['failed']}）")
     data = {"cpu": cpu, "os": platform.platform(), "n": n_sent, "threads": THREADS,
             "variants": variants, "backend": backend, "runtime": runtime,
-            "failed": [{"variant": r["variant"], "why": r["failed"]} for r in failed],
-            "cases": {}}
+            "omp_wait_policy": {v: (ok[v][0].get("omp_wait_policy") if ok[v] else None)
+                                for v in variants},
+            "failed": [{"variant": r["variant"], "threads": r.get("threads", THREADS),
+                        "why": r["failed"]} for r in failed],
+            "cases": {}, "sweep": {}}
     usable = [v for v in variants if ok[v]]
     if len(usable) < 2:
         lines.append("2つ以上の設定で完走しなかったため、比較できません。")
@@ -510,7 +564,7 @@ def summarize(runs, variants, cpu, n_sent, now=None):
     diffs_all = []
     for key, label in CASES:
         lines.append(f"\n{label}")
-        lines.append(f"  {'':<8}{'中央値 / 平均 / p95 (ms)':<28}{'倍率':<8}{'一致':<10}"
+        lines.append(f"  {'':<16}{'中央値 / 平均 / p95 (ms)':<28}{'倍率':<8}{'一致':<10}"
                      f"{'ロード':<10}{'ピークメモリ':<10}CPU/文")
         base_mean = statistics.mean(best_times(ok[base], key))
         base_out = ok[base][0]["cases"][key]["outs"]
@@ -538,7 +592,7 @@ def summarize(runs, variants, cpu, n_sent, now=None):
             fmt = f"{statistics.median(t):.1f} / {mean:.1f} / {_p95(t):.1f}"
             load_s = "（zh と共通）" if key == "ko" else f"{load:.0f}ms"
             cpu_s = f"{cpu:.0f}ms" if cpu is not None else "-"
-            lines.append(f"  {v:<8}{fmt:<28}{ratio:>5.2f}倍  {same:>3}/{len(outs):<6}"
+            lines.append(f"  {v:<16}{fmt:<28}{ratio:>5.2f}倍  {same:>3}/{len(outs):<6}"
                          f"{load_s:<10}{str(peak) + 'MB':<10}{cpu_s}")
     lines.append("")
     lines.append(f"訳文が変わった文（各最大10件・上=基準 {base} / 下=比べた側）:")
@@ -549,7 +603,55 @@ def summarize(runs, variants, cpu, n_sent, now=None):
         for d in ds[:10]:
             lines.append(f"    #{d['i']}  {d['base']}")
             lines.append(f"    {' ' * (len(str(d['i'])) + 1)}  {d['other']}")
+    _summarize_sweep(lines, data, ok, base, sweep or [])
     return {"text": "\n".join(lines) + "\n", "data": data}
+
+
+def _summarize_sweep(lines, data, ok, base, sweep):
+    """スレッド数の比較。4 スレッドの行は本計測（2回のうち速い方）の先頭 n 文から作る"""
+    done = [r for r in sweep if "cases" in r]
+    if not done:
+        return
+    n = min(len(r["cases"][CASES[0][0]]["outs"]) for r in done)
+    vs = []
+    for r in done:
+        if r["variant"] not in vs and ok.get(r["variant"]):
+            vs.append(r["variant"])
+    lines.append("")
+    lines.append(f"スレッド数の比較（先頭 {n} 文・各1回）。CPU/文 は先頭の数文で測った値。")
+    lines.append(f"  一致(同) = 同じ variant の 4 スレッドと同じ訳文の数、"
+                 f"一致(基準) = 基準 {base} の 4 スレッドと同じ訳文の数")
+    for key, label in CASES:
+        lines.append(f"\n{label}")
+        lines.append(f"  {'':<16}{'スレッド':<6}{'中央値 / 平均 (ms)':<20}{'CPU/文':<10}"
+                     f"{'一致(同)':<10}一致(基準)")
+        base_out = ok[base][0]["cases"][key]["outs"][:n]
+        data["sweep"][key] = {}
+        for v in vs:
+            four = ok[v][0]["cases"][key]["outs"][:n]
+            t4 = [min(ts) for ts in zip(*[r["cases"][key]["times"][:n] for r in ok[v]])]
+            cpus4 = [statistics.mean(r["cases"][key]["cpu_ms"]) for r in ok[v]
+                     if r["cases"][key].get("cpu_ms")]
+            rows = [(THREADS, t4, min(cpus4) if cpus4 else None, four)]
+            for r in done:
+                if r["variant"] == v:
+                    c = r["cases"][key]
+                    rows.append((r["threads"], c["times"][:n],
+                                 statistics.mean(c["cpu_ms"]) if c.get("cpu_ms") else None,
+                                 c["outs"][:n]))
+            rows.sort(key=lambda x: x[0])
+            data["sweep"][key][v] = {}
+            for th, t, cpu, outs in rows:
+                same_self = sum(1 for x, y in zip(four, outs) if x == y)
+                same_base = sum(1 for x, y in zip(base_out, outs) if x == y)
+                data["sweep"][key][v][str(th)] = {
+                    "median": statistics.median(t), "mean": statistics.mean(t),
+                    "cpu_ms": cpu, "same_self": same_self, "same_base": same_base,
+                    "total": len(outs)}
+                fmt = f"{statistics.median(t):.1f} / {statistics.mean(t):.1f}"
+                cpu_s = f"{cpu:.0f}ms" if cpu is not None else "-"
+                lines.append(f"  {v:<16}{th:<8}{fmt:<22}{cpu_s:<10}"
+                             f"{same_self:>3}/{len(outs):<6}{same_base:>3}/{len(outs)}")
 
 
 def main():
@@ -564,12 +666,18 @@ def main():
     ap.add_argument("--limit", type=int, default=0, help="文の数を絞る（試運転用）")
     ap.add_argument("--cpu-sentences", type=int, default=20,
                     help="CPU 時間（1文＋1秒の間）を測る文の数。0 で測らない")
+    ap.add_argument("--sweep-sentences", type=int, default=50,
+                    help="スレッド数 1/2 の比較に使う文の数。0 で比較しない")
+    ap.add_argument("--sweep-cpu-sentences", type=int, default=10,
+                    help="スレッド数の比較で CPU 時間を測る文の数")
+    ap.add_argument("--threads", type=int, default=THREADS, help=argparse.SUPPRESS)
     ap.add_argument("--timeout", type=int, default=1800, help="1回あたりの上限秒")
     ap.add_argument("--no-pause", action="store_true")
     ap.add_argument("--force", action="store_true", help="Intel 以外の CPU でも mkl を測る")
     args = ap.parse_args()
     if args.child:
-        run_child(args.child, args.sentences, args.out, args.custom_root, args.cpu_sentences)
+        run_child(args.child, args.sentences, args.out, args.custom_root, args.cpu_sentences,
+                  args.threads)
         return
     try:
         run_parent(args)

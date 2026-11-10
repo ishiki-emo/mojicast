@@ -15,7 +15,7 @@ Mojicast の翻訳エンジンから、ライセンスの都合で外したい�
 3. `ct2_mkl_compare.exe` をダブルクリック
    - 「Windows によって PC が保護されました」と出たら「詳細情報」→「実行」
    - インストール版の Mojicast があれば、そのモデルを使います。無ければ初回に約 0.7GB ダウンロードします
-4. 20〜50 分ほど待つ（途中で窓を閉じないでください）
+4. 30〜90 分ほど待つ（遅いパソコンほど長くかかります。途中で窓を閉じないでください）
 5. 終わると同じフォルダに `result_日時.txt` と `result_日時.json` ができるので、この 2 つを送ってください
 
 ### 結果ファイルに入るもの
@@ -45,21 +45,29 @@ ct2_mkl_compare.exe --models "C:\...\Mojicast\models"
 |---|---|---|
 | `mkl` | 公式 wheel・`CT2_USE_MKL=1` | Intel 機の現行の動き（MKL＋Intel OpenMP） |
 | `dnnl` | 公式 wheel・`CT2_USE_MKL=0` | MKL を外した場合（oneDNN＋Intel OpenMP）。AMD 機の現行の動き |
-| `custom` | 自前ビルド（[tools/signing/ct2_nomkl](../../tools/signing/ct2_nomkl/build.ps1)） | 配布予定の形（oneDNN＋LLVM OpenMP・clang-cl） |
+| `custom_passive` | 自前ビルド（[tools/signing/ct2_nomkl](../../tools/signing/ct2_nomkl/build.ps1)）＋`OMP_WAIT_POLICY=PASSIVE` | 採用候補の形（oneDNN＋MSVC OpenMP・計算後に眠る） |
+| `custom` | 自前ビルド・`OMP_WAIT_POLICY` 指定なし | vcomp 既定（計算後に空回り）。PASSIVE の効果を見るための比較用 |
 
-- 既定: Intel 機は `mkl,dnnl[,custom]`、それ以外は `dnnl[,custom]`（MKL は AMD では元から使われず、
-  強制すると極端に遅い）。`--variants dnnl,custom` のように選べる。先頭が比較の基準
+- 既定: Intel 機は `mkl,dnnl[,custom_passive,custom]`、それ以外は `dnnl[,custom_passive,custom]`
+  （MKL は AMD では元から使われず、強制すると極端に遅い）。`--variants dnnl,custom_passive` のように選べる。
+  先頭が比較の基準
+- **スレッド数の比較**: 本計測のあと、基準と自前ビルド2種を `intra_threads` 1 / 2 で1回ずつ
+  （先頭50文 `--sweep-sentences`・CPU/文は先頭10文 `--sweep-cpu-sentences`）測り、4 スレッドの本計測と
+  並べる。時間・CPU/文・訳文の一致（同じ variant の 4 スレッドと / 基準の 4 スレッドと）を出す。
+  `--sweep-sentences 0` で省く
 - 自前ビルドは `--custom <wheel かフォルダ>`、または exe（compare.py）の隣の `ct2_custom\`。
   PyInstaller 同梱の ctranslate2 より優先して読むよう `sys.meta_path` に差し込む（読み込まれた場所を
   子プロセスが確かめ、違えば失敗にする）
 - 各 variant を往復の順で2回ずつ別プロセスで走らせ、1文ごとに速い方を採る
 - 結果に残すもの: 使われた GEMM 実装（`CT2_VERBOSE=1` のログ）、ctranslate2 の版と DLL の SHA256、
   プロセスに読み込まれた OpenMP の DLL（フルパス）、自前ビルドの `build-info.json`（CMake オプション、
-  コンパイラ、libomp の版とハッシュ）
+  コンパイラ、vcomp140 の版とハッシュ）、子プロセスで効いていた `OMP_WAIT_POLICY`
 - **CPU/文**: 先頭20文（`--cpu-sentences`）で、1文訳して1秒空けるまでのプロセス CPU 時間。
-  OpenMP のスレッドが計算後に空回りすると、速さは変わらずここだけ増える。Mojicast は Intel/LLVM の
-  OpenMP に `KMP_BLOCKTIME=5` を設定している（translate.py）。MSVC の OpenMP（vcomp140）はこの設定が
-  効かず、開発機で英訳の CPU/文 が 98ms → 397ms に増えたため不採用にした（docs/signing/CT2_NOMKL_BUILD.md）
+  OpenMP のスレッドが計算後に空回りすると、速さは変わらずここだけ増える。Mojicast は Intel の
+  OpenMP に `KMP_BLOCKTIME=5` を設定している（translate.py）。MSVC の OpenMP（vcomp140）にはこの設定が
+  無く、開発機で英訳の CPU/文 が 94ms → 396ms に増える。`OMP_WAIT_POLICY=PASSIVE` で 86ms に戻るが、
+  1文が 26 → 58ms に延びる（docs/signing/CT2_NOMKL_BUILD.md 2.1）。この兼ね合いを custom / custom_passive と
+  スレッド数の比較で見る
 - 訳文: M2M（中韓）は数値計算の順序が変わると数 % 変わることがある。2026-11-10 の Intel 2台では
   MKL あり/なしで 4ケースとも 200/200 一致
 
