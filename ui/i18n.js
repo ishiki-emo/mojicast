@@ -19,6 +19,7 @@
       "sy.tilt_x": "纵向倾斜", "sy.tilt_y": "横向倾斜", "sy.tilt_z": "旋转", "sy.perspective": "透视强度",
       "sy.tilt_flat": "平面（无3D）", "sy.tilt_wall_right": "右侧墙面", "sy.tilt_wall_left": "左侧墙面",
       "sy.tilt_floor": "铺在地面", "sy.tilt_slant": "稍微倾斜", "sy.tilt_custom": "自定义",
+      "sy.persp_1": "弱", "sy.persp_2": "较弱", "sy.persp_3": "普通", "sy.persp_4": "较强", "sy.persp_5": "强",
       // 新UI（feat/new-ui）で追加
       "sy.bub_guest_hint": "联动时对方也使用此布局，会把两人的气泡合在一起排列。对方气泡的尾巴指向下方的位置",
       "sy.bub_gtail_x": "对方头像位置 X",
@@ -595,6 +596,7 @@
       "sy.tilt_x": "Vertical tilt", "sy.tilt_y": "Horizontal tilt", "sy.tilt_z": "Rotation", "sy.perspective": "Perspective",
       "sy.tilt_flat": "Flat (no 3D)", "sy.tilt_wall_right": "Right wall", "sy.tilt_wall_left": "Left wall",
       "sy.tilt_floor": "Floor", "sy.tilt_slant": "Slight angle", "sy.tilt_custom": "Custom",
+      "sy.persp_1": "Weak", "sy.persp_2": "Mild", "sy.persp_3": "Normal", "sy.persp_4": "Strong", "sy.persp_5": "Very strong",
       // 新UI（feat/new-ui）で追加
       "sy.bub_guest_hint": "When your collab partner also uses this layout, both people's bubbles are arranged together. The partner's tails point to the position below",
       "sy.bub_gtail_x": "Partner avatar X",

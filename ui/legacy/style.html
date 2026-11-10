@@ -807,9 +807,18 @@
   }
   // ---- 3D（枠ごと傾ける） ----
   // 傾きの表示: 縦・横・回転は度、遠近はカメラの距離（小さいほど遠近が強い）
+  // 遠近はカメラの距離（px が小さいほど強い）。スライダーは「右ほど強い」にしたいので
+  // 値を 400〜3000 の中で裏返して持つ（tiltIn は行きも帰りも同じ式）
+  const tiltIn = (k, v) => k === "perspective" ? 3400 - v : v;
+  // 遠近の強さは px でなく5段階の言葉で出す
+  function perspLabel(sv) {
+    const v = tiltIn("perspective", +sv);
+    const lv = v <= 700 ? 5 : v <= 1000 ? 4 : v <= 1500 ? 3 : v <= 2200 ? 2 : 1;
+    return T("sy.persp_" + lv, ["", "弱", "やや弱", "ふつう", "やや強", "強"][lv]);
+  }
   const TILT_FMT = {
     b_tiltX: ["o_tiltX", v => v + "°"], b_tiltY: ["o_tiltY", v => v + "°"],
-    b_tiltZ: ["o_tiltZ", v => v + "°"], b_perspective: ["o_persp", v => v + "px"],
+    b_tiltZ: ["o_tiltZ", v => v + "°"], b_perspective: ["o_persp", perspLabel],
   };
   function loadTiltFields(b) {
     // リリックでも値は残っている（無視されるだけ）ので、mode に関係なく保存値を出す
@@ -817,12 +826,12 @@
     for (const k of FX.TILT_KEYS) {
       const v = t[k] ?? (k === "perspective"
         ? Math.min(3000, Math.max(400, +b.perspective || FX.TILT_DEFAULT_PERSPECTIVE)) : 0);
-      setR("b_" + k, TILT_FMT["b_" + k][0], v, TILT_FMT["b_" + k][1]);
+      setR("b_" + k, TILT_FMT["b_" + k][0], tiltIn(k, v), TILT_FMT["b_" + k][1]);
     }
     syncTiltPresets();
   }
   function collectTilt(b) {
-    for (const k of FX.TILT_KEYS) b[k] = +$("b_" + k).value;
+    for (const k of FX.TILT_KEYS) b[k] = tiltIn(k, +$("b_" + k).value);
   }
   // 3D演出プリセットのボタン。押すと値を写すだけ（プリセット自体は保存しない）
   function renderTiltPresets() {
@@ -834,7 +843,7 @@
       btn.dataset.id = p.id;
       btn.textContent = T("sy.tilt_" + p.id.replace("-", "_"), p.ja);
       btn.addEventListener("click", () => {
-        for (const k of FX.TILT_KEYS) setR("b_" + k, TILT_FMT["b_" + k][0], p.v[k], TILT_FMT["b_" + k][1]);
+        for (const k of FX.TILT_KEYS) setR("b_" + k, TILT_FMT["b_" + k][0], tiltIn(k, p.v[k]), TILT_FMT["b_" + k][1]);
         collectBox();
         if (typeof setStyleDirty === "function") setStyleDirty(true);   // 旧UIには無い
         syncTiltPresets();
@@ -851,7 +860,7 @@
   function syncTiltPresets() {
     if (!$("tiltPresets").children.length) renderTiltPresets();
     const v = {};
-    for (const k of FX.TILT_KEYS) v[k] = +$("b_" + k).value;
+    for (const k of FX.TILT_KEYS) v[k] = tiltIn(k, +$("b_" + k).value);
     const id = FX.tiltPresetOf(v);
     for (const btn of $("tiltPresets").querySelectorAll("button"))
       btn.setAttribute("aria-pressed", String(btn.dataset.id === id));
