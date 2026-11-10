@@ -150,6 +150,25 @@ class SettingsUiTests(unittest.TestCase):
             cfg["ui_lang"] = "ja"
             app_server.save_config(cfg)
 
+    def test_reaction_fx_image_name_is_shown_as_text(self):
+        # 画像名はユーザーが置いたファイル名そのもの。HTML として解釈されず、
+        # そのままの文字で見えること（mac では < > もファイル名に使える）
+        d = app_server._soundfx_dir()
+        name = "a&amp;b<i>x</i>.png" if os.name != "nt" else "a&amp;b.png"
+        path = os.path.join(d, name)
+        with open(path, "wb") as f:
+            f.write(b"\x89PNG\r\n\x1a\n")
+        try:
+            page = self.page
+            page.goto(self._url("/ui/soundfx_settings"))
+            page.wait_for_selector("#chips .chip")
+            texts = page.eval_on_selector_all(
+                "#chips .chip", "cs => cs.map(c => c.textContent)")
+            self.assertTrue(any(name in t for t in texts), texts)
+            self.assertEqual(page.eval_on_selector_all("#chips .chip i", "e => e.length"), 0)
+        finally:
+            os.remove(path)
+
     def test_effect_options_share_translations_and_follow_language_switch(self):
         cfg = app_server.load_config()
         cfg["ui_lang"] = "en"

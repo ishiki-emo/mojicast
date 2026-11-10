@@ -125,5 +125,22 @@ class DetectorTests(unittest.TestCase):
         self.assertEqual(events, ["ゲスト"])
 
 
+class SoundFxSettingsHtmlTests(unittest.TestCase):
+    """画像名・グループ名を innerHTML に直接埋め込まないこと（CI でも走るソース検査。
+    実ブラウザでの確認は test_settings_ui.py）"""
+
+    def test_names_are_not_interpolated_into_html(self):
+        import os
+        import re
+        root = os.path.join(os.path.dirname(__file__), "..", "ui")
+        for rel in ("soundfx_settings.html", os.path.join("legacy", "soundfx_settings.html")):
+            with open(os.path.join(root, rel), encoding="utf-8") as f:
+                src = f.read()
+            for pat in (r"<span>\$\{name\}</span>", r"<span>\$\{g\}</span>",
+                        r"<span>\$\{groupName\(g\)\}</span>"):
+                self.assertIsNone(re.search(pat, src), (rel, pat))
+            self.assertIn(".textContent = name", src, rel)
+
+
 if __name__ == "__main__":
     unittest.main()

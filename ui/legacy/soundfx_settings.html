@@ -212,7 +212,8 @@
       b.className = "grow" + (g === sel ? " sel" : "");
       const on = rules[g]?.on;
       b.innerHTML = `<span class="emoji">${EMOJI[g] || "🔉"}</span>` +
-        `<span>${g}</span><span class="st${on ? " on" : ""}">${on ? "ON" : "OFF"}</span>`;
+        `<span></span><span class="st${on ? " on" : ""}">${on ? "ON" : "OFF"}</span>`;
+      b.children[1].textContent = g;   // 名前は文字として入れる（HTML として解釈させない）
       b.onclick = () => { sel = g; renderGroups(); renderEditor(); };
       box.appendChild(b);
     }
@@ -298,8 +299,11 @@
       c.innerHTML =
         (i >= 0 ? `<span class="no">${i + 1}</span>` : "") +
         `<img src="/soundfx/${encodeURIComponent(name)}" alt="">` +
-        `<span>${name}</span>` +
+        `<span></span>` +
         `<span class="del" title="この画像を削除">×</span>`;
+      // 画像名はユーザーが置いたファイル名そのもの（mac では < > も使える）。
+      // innerHTML に混ぜると HTML として解釈されるので、文字として入れる
+      c.querySelector(".del").previousElementSibling.textContent = name;
       c.onclick = (e) => {
         if (e.target.classList.contains("del")) return deleteImage(name);
         if (i >= 0) {
@@ -354,7 +358,7 @@
       m.style.width = v.size * pv.clientWidth + "px";
       m.innerHTML = `<span class="no">${i + 1}</span>` +
         `<img src="/soundfx/${encodeURIComponent(v.image)}" alt=""` +
-        (v.rot ? ` style="transform:rotate(${v.rot}deg)"` : "") + `>`;
+        (Number(v.rot) ? ` style="transform:rotate(${Number(v.rot)}deg)"` : "") + `>`;
       m.onpointerdown = (e) => startDrag(e, i, m);
       pv.appendChild(m);
     });
