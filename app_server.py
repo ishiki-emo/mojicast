@@ -27,6 +27,7 @@ import platform_compat
 import vrcchat
 import wordstore
 import local_auth
+import style_schema
 import math
 
 APP_VERSION = "1.1.0"
@@ -443,6 +444,20 @@ def _scenes_path():
     return wordstore.data_path("scenes.json")
 
 
+def _load_presets():
+    """presets.json を読み、不正な項目・件を除いた一覧を返す（ファイルは書き換えない）"""
+    data = _read_json(_presets_path(), {"presets": []})
+    return style_schema.sanitize_items(
+        "preset", data.get("presets") if isinstance(data, dict) else None)
+
+
+def _load_boxes():
+    """boxes.json を読み、不正な項目・件を除いた一覧を返す（ファイルは書き換えない）"""
+    data = _read_json(_boxes_path(), {"boxes": []})
+    return style_schema.sanitize_items(
+        "box", data.get("boxes") if isinstance(data, dict) else None)
+
+
 def _vc_commands_path():
     return wordstore.data_path("vc_commands.json")
 
@@ -615,6 +630,7 @@ def _merge_pack_items(items, existing, kind, stamp):
         return 0
     names = {x.get("name") for x in existing}
     added = 0
+    schema_kind = {"p": "preset", "b": "box"}[kind]
     for i, item in enumerate(items[:100]):          # 件数上限（暴走ファイル対策）
         if not isinstance(item, dict):
             continue
@@ -629,7 +645,9 @@ def _merge_pack_items(items, existing, kind, stamp):
         while name in names:                         # (imported) 同士の衝突も回避
             name = _clean_str(item.get("name"), 60) + f" (imported {n})"
             n += 1
-        new = dict(item)
+        # 許可リスト外・型や範囲の合わない項目は捨てる（style_schema。id/name/desc は下で付け直す）
+        new = style_schema.sanitize_item(
+            schema_kind, {**item, "id": "imp", "name": name, "desc": ""}) or {}
         new["id"] = f"imp-{kind}-{stamp}-{i}"
         new["name"] = name
         new["desc"] = _clean_str(item.get("desc"), 200)
@@ -730,8 +748,8 @@ def resolve_style(cfg):
     コラボON時は speakers に「自分／相手それぞれの style・box」を載せる
     （overlay/字幕ログが speaker で振り分けて描画）。
     """
-    presets = _read_json(_presets_path(), {"presets": []})["presets"]
-    boxes = _read_json(_boxes_path(), {"boxes": []})["boxes"]
+    presets = _load_presets()
+    boxes = _load_boxes()
     style = _pick(presets, "id", cfg.get("preset"))
     box = _pick(boxes, "id", cfg.get("box"))
     profile = cfg.get("word_profile", "")
@@ -999,8 +1017,8 @@ def _try_voice_command(text, spk=""):
         if spk not in ("", self_name):
             return False
     import voicecmd
-    boxes = _read_json(_boxes_path(), {"boxes": []})["boxes"]
-    presets = _read_json(_presets_path(), {"presets": []})["presets"]
+    boxes = _load_boxes()
+    presets = _load_presets()
     scenes = _read_json(_scenes_path(), {"scenes": []})["scenes"]
     commands = _read_json(_vc_commands_path(), {"commands": []})["commands"]
     cmd = voicecmd.parse(text, cfg.get("vc_wake"), boxes, presets, scenes,
@@ -1024,8 +1042,8 @@ def run_action(act, origin="コマンド"):
     """
     import voicecmd
     cfg = load_config()
-    boxes = _read_json(_boxes_path(), {"boxes": []})["boxes"]
-    presets = _read_json(_presets_path(), {"presets": []})["presets"]
+    boxes = _load_boxes()
+    presets = _load_presets()
     scenes = _read_json(_scenes_path(), {"scenes": []})["scenes"]
     t = act.get("type")
     if t in ("scene", "box", "preset"):
@@ -1242,7 +1260,7 @@ def _gambit_widgets():
     """
     try:
         g = _get_gambit()
-        presets = _read_json(_presets_path(), {"presets": []})["presets"]
+        presets = _load_presets()
         cur = load_config().get("preset")
         with _gambit_lock:
             return [{"id": c["id"], "name": c["name"],
@@ -1507,8 +1525,8 @@ def _deck_action(body):
             return True, f"「{c['name']}」を{g.values.get(cid, 0)}にしました"
     else:
         return False, "unknown action"
-    boxes = _read_json(_boxes_path(), {"boxes": []})["boxes"]
-    presets = _read_json(_presets_path(), {"presets": []})["presets"]
+    boxes = _load_boxes()
+    presets = _load_presets()
     scenes = _read_json(_scenes_path(), {"scenes": []})["scenes"]
     return _apply_command(cmd, cfg, scenes, boxes, presets)
 
@@ -1847,9 +1865,9 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self._json({"effects": wordstore.load_effects(p)})
         elif path == "/api/presets":
-            self._json(_read_json(_presets_path(), {"presets": []}))
+            self._json({"presets": _load_presets()})
         elif path == "/api/boxes":
-            self._json(_read_json(_boxes_path(), {"boxes": []}))
+            self._json({"boxes": _load_boxes()})
         elif path == "/api/scenes":
             self._json(_read_json(_scenes_path(), {"scenes": []}))
         elif path == "/api/vc-commands":
@@ -2212,10 +2230,10 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/migrate":
             self._post_migrate(body)
         elif path == "/api/presets":
-            presets = body.get("presets", [])
-            if not (isinstance(presets, list) and presets
-                    and all(p.get("id") and p.get("name") for p in presets)):
-                self._json({"ok": False, "error": "invalid presets"}, 400)
+            try:
+                presets = style_schema.validate_items("preset", body.get("presets", []))
+            except ValueError as e:
+                self._json({"ok": False, "error": "invalid presets", "detail": str(e)}, 400)
                 return
             _write_json(_presets_path(), {"presets": presets})
             with _config_lock:
@@ -2276,10 +2294,10 @@ class Handler(BaseHTTPRequestHandler):
             _write_json(_scenes_path(), {"scenes": scenes})
             self._json({"ok": True})
         elif path == "/api/boxes":
-            boxes = body.get("boxes", [])
-            if not (isinstance(boxes, list) and boxes
-                    and all(b.get("id") and b.get("name") for b in boxes)):
-                self._json({"ok": False, "error": "invalid boxes"}, 400)
+            try:
+                boxes = style_schema.validate_items("box", body.get("boxes", []))
+            except ValueError as e:
+                self._json({"ok": False, "error": "invalid boxes", "detail": str(e)}, 400)
                 return
             _write_json(_boxes_path(), {"boxes": boxes})
             with _config_lock:
@@ -2303,9 +2321,9 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/mojipack/export":
             ids_p = set(body.get("presets") or [])
             ids_b = set(body.get("boxes") or [])
-            presets = [p for p in _read_json(_presets_path(), {"presets": []})["presets"]
+            presets = [p for p in _load_presets()
                        if p.get("id") in ids_p]
-            boxes = [b for b in _read_json(_boxes_path(), {"boxes": []})["boxes"]
+            boxes = [b for b in _load_boxes()
                      if b.get("id") in ids_b]
             if not presets and not boxes:
                 self._json({"ok": False, "error": "エクスポート対象がありません"}, 400)

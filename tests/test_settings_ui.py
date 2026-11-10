@@ -216,6 +216,43 @@ class SettingsUiTests(unittest.TestCase):
         page.click("#saveAllBtn")
         page.wait_for_selector("#unsavedMark", state="hidden")
 
+    def test_style_editors_save_passes_validation(self):
+        # デザイン・レイアウトの保存は style_schema で検証される。新旧どちらの画面で
+        # 保存しても弾かれないこと（訳文の言語別の見た目・3D の傾き・吹き出しも含めて）
+        import json
+        for variant in ("new", "legacy"):
+            cfg = app_server.load_config()
+            cfg["ui_variant"] = variant
+            app_server.save_config(cfg)
+            try:
+                page = self.page
+                page.goto(self._url("/ui/style"))
+                page.wait_for_selector("#blist .pitem", state="attached")
+                page.wait_for_function("() => typeof persistAll === 'function'")
+                err = page.evaluate("""async () => {
+                  try {
+                    beginPresetEdit(); beginBoxEdit();
+                    const set = (id, v) => { const e = document.getElementById(id); if (!e) return;
+                      if (e.type === 'checkbox') e.checked = v; else e.value = v;
+                      e.dispatchEvent(new Event('input')); e.dispatchEvent(new Event('change')); };
+                    set('f_size', 52); set('f_color', '#123456'); set('f_glowSize', 8);
+                    set('f_trLang', 'ko'); set('f_trOverride', true); set('f_enScale', 0.7);
+                    set('b_mode', 'bubble'); set('b_tiltY', -26); set('b_perspective', 1400);
+                    set('b_x', 0); set('b_w', 100); set('b_bubbleSpotW', 80);
+                    await persistAll();
+                    return '';
+                  } catch (e) { return String(e && e.message || e); }
+                }""")
+                self.assertEqual(err, "", variant)
+                with open(wordstore.data_path("presets.json"), encoding="utf-8") as f:
+                    saved = json.load(f)["presets"]
+                self.assertTrue(any(p.get("size") == 52 and p.get("color") == "#123456"
+                                    for p in saved), variant)
+            finally:
+                cfg = app_server.load_config()
+                cfg["ui_variant"] = "new"
+                app_server.save_config(cfg)
+
     def test_layout_editor_marks_unsaved_until_saved(self):
         page = self.page
         page.goto(self._url("/ui/style?tab=box"))
