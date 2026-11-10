@@ -107,7 +107,9 @@ SignPath は「CI 上でこのリポジトリのソースから自動ビルド�
   `.github/release/requirements-win.in` 冒頭のコマンドで作り直す
 - 手元ビルドとの差は、手元の開発環境に入っている余計なパッケージ（dbghelp/dbgcore・markupsafe・wheel 等）が
   CI 側に入らないことと、click/tqdm 等の版、Windows ランタイム DLL のビルド違い。CI 側の方が素直
-- [ ] 👤🤖 CI の成果物で smoke テスト（未実施）
+- [x] 🤖 CI の成果物で `smoke_test.ps1 -Fresh` → PASS（2026-11-10）。1回目は M2M の初回DLで `LICENSE` だけ
+  取り損ねて「英訳の読み込みに失敗」になった（HF 側は正常・再実行で揃う＝一時的な取得失敗）。
+  アプリは次回の開始時に続きを取りに行くので自然に回復するが、初回だけ訳が出ない体験にはなる
 
 既知の注意点:
 - Pillow が無いとアイコン生成が黙ってスキップされ、installer の `SetupIconFile` で失敗する。
