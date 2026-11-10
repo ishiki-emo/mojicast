@@ -66,7 +66,7 @@ CTranslate2 の `OPENMP_RUNTIME` は `INTEL`（libiomp5md・非 OSI）/ `COMP`�
 | **① LLVM の libomp.dll（clang-cl ＋ `/openmp`）** | Apache-2.0 WITH LLVM-exception（OSI） | **不採用**。int8 の訳文が公式とずれる（2.3） |
 | **② MSVC の vcomp140.dll（cl ＋ `/openmp`）＋ PASSIVE** | VC++ 再頒布パッケージ（下記） | **控え**。訳文は公式と一致するが 1文あたり +22〜+209ms 遅い（1.2〜3.1 倍・9章） |
 | ③ MSVC の `/openmp:llvm`（libomp140.x86_64.dll） | VS の `debug_nonredist` にしか無い（**再頒布不可**） | **不可**。ビルド・訳文・速さは満たした（2.4） |
-| **④ cl ＋ `/openmp:llvm` ＋ 上流の libomp.dll** | Apache-2.0 WITH LLVM-exception（OSI） | **計測中**。開発機で訳文 200/200 一致・dnnl 並み（2.5） |
+| **④ cl ＋ `/openmp:llvm` ＋ 上流の libomp.dll** | Apache-2.0 WITH LLVM-exception（OSI） | **採用候補**。3台で訳文 200/200 一致・公式の MKL なし（dnnl）と同じ速さ（2.5・9.4） |
 
 vcomp140.dll は VC++ 再頒布パッケージの一部で、配布物に既に入っている MSVCP140 / VCRUNTIME140 と
 同じ扱い（Microsoft のソフトウェア ライセンス条項の「再頒布可能コード」）。OSI 承認ではないため、
@@ -149,7 +149,7 @@ i7-13700HX で ② の中韓の遅れが大きかったため、コンパイラ�
   - 同じ一覧で vcomp140（`Microsoft_VC143_OpenMP`）は再頒布可能コードに入っている
 - 次案（cl の `/openmp:llvm` ＋ 上流 libomp）は 2.5 で試した
 
-### 2.5 ④ cl ＋ `/openmp:llvm` ＋ 上流 LLVM libomp（2026-11-11 試作・3台で計測中）
+### 2.5 ④ cl ＋ `/openmp:llvm` ＋ 上流 LLVM libomp（2026-11-11 試作・3台で計測済み・9.4）
 
 ③ のコンパイル（cl ＋ `/openmp:llvm`）はそのままにして、リンクする OpenMP を ① で使った上流の libomp.dll
 （LLVM 公式リリースのソースからビルド・Apache-2.0 WITH LLVM-exception）に替えた。`build.ps1 -OpenMP llvm`。
@@ -412,3 +412,31 @@ Intel 機（特に N100 のような遅い CPU）で1回はやる。
 
 **このため、2026-11-10 の3台の結果（results/ の 2026-11-10_*）の CPU/文 は参考値として扱う。** 特に数十 ms 以下の値と、
 スレッド数の比較の CPU/文 は信用しない。1文の時間（実時間）と訳文の一致は perf_counter と文字列比較なので影響を受けない。
+
+### 9.4 ④（上流 libomp）の3台計測（2026-11-11）
+
+CI の wheel（run 42853027717）を比較ツールに入れ、i7-13700HX と N100 で mkl / dnnl / llvm / custom_passive を測った
+（9800X3D は 2.5。[results/2026-11-11_*_upomp](../../bench/ct2_mkl_compare/results/)・CPU 時間は QueryProcessCycleTime）。
+
+- **訳文**: 両機とも全4ケース 200/200 一致（mkl 基準）。スレッド数 1 / 2 / 4 でも 50/50
+- **公式の MKL なし（dnnl）との比**（平均）: 13700HX 0.99〜1.00 倍、N100 1.00 倍。CPU/文 も ±3% 以内。
+  つまり Intel OpenMP → 上流 libomp の差は無く、残るのは MKL → oneDNN の差だけ
+- **Intel 機の現行（mkl）からの増え**（1文の平均）。括弧は同じ回の custom_passive（vcomp＋PASSIVE）
+
+| | i7-13700HX | N100 |
+|---|---|---|
+| 英訳 int8 | +5ms（+27ms） | +7ms（+55ms） |
+| 英訳 fp32 | −5ms（+19ms） | +21ms（+64ms） |
+| 中国語訳 | +19ms（+44ms） | +42ms（+86ms） |
+| 韓国語訳 | +29ms（+97ms） | +83ms（+201ms）・p95 776→927ms |
+
+- **CPU/文**（mkl → llvm）: 13700HX 英 int8 88→114ms・fp32 256→225ms・中 383→457ms・韓 564→670ms、
+  N100 276→306・600→654・1053→1172・1492→1723ms。fp32 以外で 1.1〜1.3 倍（dnnl と同じ。MKL を外した分）
+- **ピークメモリ**: M2M（中韓）で 932→593MB（13700HX）・913→590MB（N100）と約 320MB 減る（dnnl と同じ）
+- **スレッド数**: llvm は mkl と同じく 4 スレッドが最も速い。custom_passive のように 2・4 スレッドで頭打ちにならない。
+  スレッド数を翻訳の種類ごとに変える必要は無い
+- AMD（9800X3D）は現行がもともと dnnl なので、④ にしても速さは変わらない（2.5）
+
+**判断**: ④ を MKL なし版の採用候補とする（えもさん・2026-11-11。「よほど数値が悪くない限りリリース前提」に対し、
+悪化は MKL を外した分だけだった）。vcomp＋PASSIVE（②）は ④ が使えなくなったときの控えとして残す。リリースへの組み込み（release-build-windows.yml の
+OpenMP 選択・リリース時のチェック（今は `libomp` を拒否して vcomp140 を要求）・CREDITS.md / LICENSE_INVENTORY.md・SignPath 申請書）は別の作業で行う。
