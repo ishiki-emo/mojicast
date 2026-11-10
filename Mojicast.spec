@@ -117,6 +117,12 @@ a.datas = [x for x in a.datas if not x[0].lower().endswith(_DEV_EXT)]
 # 紛れ込むことがあるためここでも落とす
 a.binaries = [x for x in a.binaries if "hf_xet" not in x[0].lower()]
 a.datas = [x for x in a.datas if "hf_xet" not in x[0].lower()]
+# sounddevice は ASIO 対応版の PortAudio（libportaudio64bit-asio.dll）も同梱してくるが、
+# 中身に Steinberg ASIO SDK（非OSSライセンス）を含み、Mojicast は ASIO を使わないので落とす
+# （SignPath の「全コンポーネントが OSI ライセンス」の条件のため。2026-11-10）。
+# SD_ENABLE_ASIO が設定されていると sounddevice がこの DLL を探すので、apppaths.py で外している
+a.binaries = [x for x in a.binaries if "-asio." not in x[0].lower()]
+a.datas = [x for x in a.datas if "-asio." not in x[0].lower()]
 pyz = PYZ(a.pure)
 
 exe = EXE(
