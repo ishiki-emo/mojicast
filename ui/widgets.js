@@ -27,7 +27,7 @@
       .wg { position:absolute; transform:translate(-50%,-50%); white-space:nowrap;
             line-height:1.1; display:flex; align-items:baseline;
             gap:.35em; will-change:transform; }
-      .wg .lb, .wg .v { paint-order:stroke fill; }
+      .wg .lb, .wg .v, .wg .u { paint-order:stroke fill; }
       .wg .v { display:inline-block; font-variant-numeric:tabular-nums; }
       .wg-pop .v    { animation: wg-pop .45s ease-out; }
       .wg-bounce .v { animation: wg-bounce .6s ease-out; }
@@ -79,6 +79,9 @@
   /** 数字の大きさ（px）。size は画面幅に対する比率 */
   W.valuePx = (w, areaWidth) => Math.max(8, (w.size || 0.12) * 0.3 * areaWidth);
   W.labelPx = (w, areaWidth) => Math.max(6, W.valuePx(w, areaWidth) * (w.label_scale || 0.55));
+  W.unitPx = (w, areaWidth) => Math.max(6, W.valuePx(w, areaWidth) * (w.unit_scale || 0.55));
+  /** 単位は数字に寄せる（行全体の gap .35em を打ち消して、数字の .1em ぶんだけ空ける） */
+  W.unitGap = (w, areaWidth) => -0.25 * W.valuePx(w, areaWidth) + "px";
 
   function applyLook(e, w) {
     const el = e.root;
@@ -86,6 +89,8 @@
     el.style.top = (w.pos?.y ?? 0.1) * 100 + "%";
     W.styleText(e.v, w.look, W.valuePx(w, width()));
     W.styleText(e.lb, w.label_look || w.look, W.labelPx(w, width()));
+    W.styleText(e.u, w.unit_look || w.look, W.unitPx(w, width()));
+    e.u.style.marginLeft = W.unitGap(w, width());
     // 増えたときの動き（em 単位）は数字の大きさを基準にする
     el.style.fontSize = W.valuePx(w, width()) + "px";
     el.style.display = w.visible === false ? "none" : "";
@@ -102,15 +107,18 @@
         root.className = "wg";
         const lb = document.createElement("span"); lb.className = "lb";
         const v = document.createElement("span"); v.className = "v";
-        root.append(lb, v);
+        const u = document.createElement("span"); u.className = "u";
+        root.append(lb, v, u);
         lay.appendChild(root);
-        e = { root, lb, v };
+        e = { root, lb, v, u };
         els.set(w.id, e);
       }
       e.w = w;
       e.lb.textContent = w.label === false ? "" : (w.name || "");
       e.lb.style.display = w.label === false ? "none" : "";
       e.v.textContent = String(w.value ?? 0);
+      e.u.textContent = w.unit || "";
+      e.u.style.display = w.unit ? "" : "none";
       applyLook(e, w);
     }
     for (const [id, e] of els) {

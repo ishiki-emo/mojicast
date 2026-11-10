@@ -42,6 +42,7 @@ MIN_SILENCE = 5           # しばらく黙っている（秒）
 MAX_SILENCE = 600
 MIN_LABEL_SCALE = 0.2
 MAX_LABEL_SCALE = 2.0
+MAX_UNIT_LEN = 10
 
 SPEAKERS = ("self", "guest", "any")
 RESETS = ("start", "manual")
@@ -150,9 +151,13 @@ def _clean_display(d, anims):
         raise ValueError("増えたときの動きが不正です")
     style = w.get("style", "")
     label_style = w.get("label_style", "")
-    for v in (style, label_style):
+    unit_style = w.get("unit_style", "")
+    for v in (style, label_style, unit_style):
         if not isinstance(v, str) or len(v) > 64:
             raise ValueError("見た目の指定が不正です")
+    unit = w.get("unit", "")
+    if not isinstance(unit, str) or len(unit.strip()) > MAX_UNIT_LEN:
+        raise ValueError(f"単位は{MAX_UNIT_LEN}文字までです")
     return {"widget": {
         "type": "counter",
         "visible": w.get("visible", True) is True,
@@ -165,6 +170,11 @@ def _clean_display(d, anims):
         "label_style": label_style,
         "label_scale": min(MAX_LABEL_SCALE, max(MIN_LABEL_SCALE,
                                                 float(w.get("label_scale", 0.55)))),
+        # 単位（「回」など）は数字のすぐ後ろ。"" = 付けない。見た目・大きさは名前と同じ考え方
+        "unit": unit.strip(),
+        "unit_style": unit_style,
+        "unit_scale": min(MAX_LABEL_SCALE, max(MIN_LABEL_SCALE,
+                                               float(w.get("unit_scale", 0.55)))),
         "anim": anim,
     }}
 
@@ -182,6 +192,9 @@ def _clean_card(c, later_ids, sound_groups, anims):
         raise ValueError(f"きっかけは{MAX_TRIGGERS}個までです")
     if not isinstance(links, list) or len(links) > MAX_LINKS:
         raise ValueError(f"つなぎは{MAX_LINKS}個までです")
+    # 黙っているは1カードに1つまで（話したら0に戻すので、2つあると数え方が定まらない）
+    if sum(isinstance(t, dict) and t.get("type") == "silence" for t in triggers) > 1:
+        raise ValueError("「黙っている」は1つのカードに1つまでです")
     return {
         "id": cid,
         "name": _str_in(c.get("name"), MAX_NAME_LEN, "カード名"),
@@ -234,8 +247,14 @@ def load_cards(raw, sound_groups=None, anims=None):
                 kept.append(_clean_link(lk, later, sound_groups))
             except (TypeError, ValueError, AttributeError):
                 continue
+        triggers = c.get("triggers") if isinstance(c.get("triggers"), list) else []
+        first = next((t for t in triggers
+                      if isinstance(t, dict) and t.get("type") == "silence"), None)
+        triggers = [t for t in triggers if not (isinstance(t, dict)
+                    and t.get("type") == "silence" and t is not first)]
         try:
-            card = _clean_card({**c, "links": []}, later, sound_groups, anims)
+            card = _clean_card({**c, "links": [], "triggers": triggers}, later,
+                               sound_groups, anims)
         except (TypeError, ValueError, AttributeError):
             continue
         card["links"] = kept
@@ -298,8 +317,8 @@ class GambitEngine:
         self.values = {}
         self.reached = {}
         self._last_sound = {}   # (card_id, trigger index) → 最後に発火した時刻
-        # しばらく黙っている: 話者ごとの最後に声を聞いた時刻と、どの「聞いた時刻」で
-        # 発火済みか。声を聞くと時刻が進むので、次の沈黙でまた発火できる
+        # しばらく黙っている: 話者ごとの最後に声を聞いた時刻と、きっかけごとの
+        # (どの「聞いた時刻」からの沈黙か, その沈黙で何回数えたか)
         self._heard = {"self": clock(), "guest": clock()}
         self._silence_fired = {}
         self._paused = True     # エンジンが止まっている間は沈黙を数えない
@@ -362,23 +381,36 @@ class GambitEngine:
         return effects
 
     def heard(self, speaker):
-        """声を聞いた（途中字幕・確定字幕・音イベント）。沈黙の数え直し"""
+        """声を聞いた（途中字幕・確定字幕・音イベント）。沈黙の数え直し。
+
+        この沈黙で数えていたカードは0に戻す（「いま何秒黙っているか」を出すため）
+        """
+        effects = []
+        for c in self.cards:
+            fired = False
+            for i, t in enumerate(c["triggers"]):
+                if t["type"] == "silence" and _speaker_ok(t, speaker):
+                    fired |= self._silence_fired.pop((c["id"], i), None) is not None
+            if fired and c["enabled"]:
+                self._reset(c, effects)
         self._heard[speaker] = self._clock()
+        return effects
 
     def on_tick(self, running, collab):
         """毎秒の見回り。running=False（エンジン停止中）は沈黙を数えない。
 
-        再び動き出したら、そこから数え直す。1回の沈黙で発火は1回だけ
-        （黙り続けても増え続けない）。collab でなければ相手の沈黙は数えない。
+        再び動き出したら、そこから数え直す。黙り続けている間は seconds ごとに
+        数える（5秒なら 5・10・15秒で1回ずつ）。見回りが遅れても、過ぎた分は
+        まとめて数える。collab でなければ相手の沈黙は数えない。
         """
         if not running:
             self._paused = True
             return []
         now = self._clock()
         if self._paused:
+            # 止めていた間は数えない。続きはここから（数えた印は残し、話したら0に戻す）
             self._paused = False
             self._heard = {"self": now, "guest": now}
-            self._silence_fired = {}
             return []
         effects = []
         for c in self.cards:
@@ -393,9 +425,14 @@ class GambitEngine:
                 ref = (max(self._heard.values()) if t["speaker"] == "any"
                        else self._heard[t["speaker"]])
                 key = (c["id"], i)
-                if now - ref >= t["seconds"] and self._silence_fired.get(key) != ref:
-                    self._silence_fired[key] = ref
-                    hits += 1
+                total = int((now - ref) // t["seconds"])
+                if total <= 0:
+                    continue
+                prev_ref, prev = self._silence_fired.get(key, (None, 0))
+                done = prev if prev_ref == ref else 0
+                if total > done:
+                    self._silence_fired[key] = (ref, total)
+                    hits += total - done
             if hits:
                 self._change(c, hits * c["step"], effects, 0)
         return effects

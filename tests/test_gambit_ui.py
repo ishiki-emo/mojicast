@@ -103,6 +103,17 @@ class GambitUiTests(unittest.TestCase):
                                         / parseFloat(getComputedStyle(document.querySelector('.wg .v')).fontSize)""")
         self.assertAlmostEqual(ratio, 0.55, places=2)
 
+        # 単位は数字の後ろに出る。入れるまで見た目・大きさの欄は出さない
+        unit_row = p.locator(".card .line", has_text="単位").last
+        self.assertFalse(unit_row.locator("select").is_visible())
+        with p.expect_response(lambda r: r.url.endswith("/api/gambits")
+                               and r.request.method == "POST"):
+            unit_row.locator("input[placeholder]").fill("回")
+        self.assertTrue(unit_row.locator("select").is_visible())
+        self.assertEqual(self._saved()[0]["display"]["widget"]["unit"], "回")
+        overlay.wait_for_function("() => document.querySelector('.wg .u').textContent === '回'")
+        self.assertEqual(p.text_content("#preview .marker .u"), "回")
+
         # ?widgets=0 のオーバーレイには出さない
         plain = self.browser.new_page()
         plain.goto(self._url("/?widgets=0"))
@@ -142,6 +153,8 @@ class GambitUiTests(unittest.TestCase):
             p.locator(".card button.add", has_text="黙っている").click()
         self.assertEqual(self._saved()[0]["triggers"],
                          [{"type": "silence", "speaker": "any", "seconds": 30}])
+        # 黙っているは1カードに1つまで（2つ目は足せない）
+        self.assertEqual(p.locator(".card button.add", has_text="黙っている").count(), 0)
         row = p.locator(".card .item", has_text="黙っている")
         with p.expect_response(lambda r: r.url.endswith("/api/gambits")
                                and r.request.method == "POST"):

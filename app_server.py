@@ -1191,13 +1191,14 @@ def _start_gambit_ticker():
 
 def _gambit_heard(spk):
     """声を聞いた。沈黙のきっかけがあるときだけ話者を引く（途中字幕は頻繁なため）"""
+    # 話したら、その沈黙で数えていたカードは0に戻る（値の変化を配る）
     try:
-        g = _get_gambit()
-        if g.has_silence():
-            with _gambit_lock:
-                g.heard(_speaker_role(spk))
+        if not _get_gambit().has_silence():
+            return
+        role = _speaker_role(spk)
     except Exception:   # noqa: BLE001 — 字幕の経路を守る。失敗は見回り側で warn に出る
-        pass
+        return
+    _gambit_safely(lambda g: g.heard(role))
 
 
 def _gambit_widgets():
@@ -1217,6 +1218,10 @@ def _gambit_widgets():
                      # ラベルの見た目は未指定なら数字と同じプリセット
                      "label_look": _widget_look(
                          presets, c["display"]["widget"]["label_style"]
+                         or c["display"]["widget"]["style"], cur),
+                     # 単位の見た目も同じく、未指定なら数字と同じ
+                     "unit_look": _widget_look(
+                         presets, c["display"]["widget"].get("unit_style")
                          or c["display"]["widget"]["style"], cur)}
                     for c in g.cards if c["display"].get("widget")]
     except Exception:   # noqa: BLE001

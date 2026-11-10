@@ -223,7 +223,9 @@ class GambitServerTests(unittest.TestCase):
         with mock.patch.object(app_server._get_gambit(), "heard",
                                side_effect=RuntimeError("boom")):
             sent = self._final("やばい")
-        self.assertEqual(sent[0]["type"], "final")
+        # 字幕は止めない。失敗は黙らせず警告に出す（確定字幕・音イベントの経路と同じ）
+        self.assertIn("final", [e["type"] for e in sent])
+        self.assertIn("gambit", [e.get("kind") for e in sent if e["type"] == "warn"])
 
     # ---- style 一式 / 起動時 ----
 
@@ -249,6 +251,13 @@ class GambitServerTests(unittest.TestCase):
         w = app_server.resolve_style(app_server.load_config())["widgets"][0]
         self.assertEqual((w["look"]["color"], w["label_look"]["color"]), ("#ff0000", "#ffffff"))
         self.assertEqual(w["label_scale"], 1.2)
+        # 単位も、見た目を指定しなければ数字と同じ
+        self.assertEqual(w["unit_look"]["color"], "#ff0000")
+        unit = {**SOLO, "display": {"widget": {"type": "counter", "style": "p2",
+                                               "unit": "回", "unit_style": "p1"}}}
+        self._save([unit])
+        w = app_server.resolve_style(app_server.load_config())["widgets"][0]
+        self.assertEqual((w["unit"], w["unit_look"]["color"]), ("回", "#ffffff"))
 
     def test_broken_gambit_does_not_break_style(self):
         with mock.patch.object(app_server, "_get_gambit",

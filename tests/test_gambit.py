@@ -121,15 +121,42 @@ class SilenceTests(unittest.TestCase):
         self.assertEqual(e.on_tick(True, False), [])     # 動き出した時点から数える
         return e
 
-    def test_fires_once_per_silence_and_rearms_on_voice(self):
-        e = self.started([card("c1", triggers=[silence(10)])])
+    def test_counts_every_n_seconds_and_resets_on_voice(self):
+        e = self.started([card("c1", step=5, triggers=[silence(5)])])
+        self.assertEqual(self.run_to(e, 4.9), [])
+        self.assertEqual(values_of(self.run_to(e, 5)), [("c1", 5)])
         self.assertEqual(self.run_to(e, 9.9), [])
-        self.assertEqual(values_of(self.run_to(e, 10)), [("c1", 1)])
-        self.assertEqual(self.run_to(e, 60), [])          # 黙り続けても増えない
-        self.clock.t = 61
-        e.heard("self")
-        self.assertEqual(self.run_to(e, 70.9), [])
-        self.assertEqual(values_of(self.run_to(e, 71)), [("c1", 2)])
+        self.assertEqual(values_of(self.run_to(e, 10)), [("c1", 10)])
+        self.assertEqual(values_of(self.run_to(e, 21)), [("c1", 20)])   # 遅れた分はまとめて
+        self.clock.t = 22
+        self.assertEqual(values_of(e.heard("self")), [("c1", 0)])       # 話したら0
+        self.assertEqual(e.heard("self"), [])                           # 数えていなければ何もしない
+        self.assertEqual(self.run_to(e, 26.9), [])
+        self.assertEqual(values_of(self.run_to(e, 27)), [("c1", 5)])
+
+    def test_voice_of_other_speaker_does_not_reset(self):
+        e = self.started([card("me", triggers=[silence(10, "self")])])
+        self.run_to(e, 10)
+        self.assertEqual(e.heard("guest"), [])
+        self.assertEqual(e.values["me"], 1)
+
+    def test_resume_after_stop_continues_and_voice_still_resets(self):
+        e = self.started([card("c1", triggers=[silence(10)])])
+        self.run_to(e, 10)
+        self.clock.t = 15
+        e.on_tick(False, False)
+        self.clock.t = 50
+        self.assertEqual(e.on_tick(True, False), [])      # 止めていた間は数えない
+        self.assertEqual(values_of(self.run_to(e, 60)), [("c1", 2)])
+        self.assertEqual(values_of(e.heard("self")), [("c1", 0)])
+
+    def test_only_one_silence_per_card(self):
+        raw = [card("c1", triggers=[silence(5), silence(10, "self")])]
+        with self.assertRaises(ValueError):
+            gambit.validate_cards(raw, GROUPS, ANIMS)
+        # 読み込みはカードを捨てず、2つ目以降の「黙っている」だけ外す
+        out = gambit.load_cards(raw, GROUPS, ANIMS)
+        self.assertEqual(out[0]["triggers"], [{"type": "silence", "speaker": "any", "seconds": 5}])
 
     def test_not_counted_while_engine_stopped(self):
         e = self.started([card("c1", triggers=[silence(10)])])
@@ -299,6 +326,20 @@ class ValidationTests(unittest.TestCase):
         raw[0]["display"]["widget"].update(label_style="p2", label_scale=9)
         w = gambit.validate_cards(raw, GROUPS, ANIMS)[0]["display"]["widget"]
         self.assertEqual((w["label_style"], w["label_scale"]), ("p2", gambit.MAX_LABEL_SCALE))
+
+    def test_unit_defaults_trim_and_limits(self):
+        w = gambit.validate_cards(self.good(), GROUPS, ANIMS)[0]["display"]["widget"]
+        self.assertEqual((w["unit"], w["unit_style"], w["unit_scale"]), ("", "", 0.55))
+        raw = self.good()
+        raw[0]["display"]["widget"].update(unit=" 回 ", unit_style="p2", unit_scale=0)
+        w = gambit.validate_cards(raw, GROUPS, ANIMS)[0]["display"]["widget"]
+        self.assertEqual((w["unit"], w["unit_style"], w["unit_scale"]),
+                         ("回", "p2", gambit.MIN_LABEL_SCALE))
+        for bad in ("あ" * (gambit.MAX_UNIT_LEN + 1), 5):
+            raw = self.good()
+            raw[0]["display"]["widget"]["unit"] = bad
+            with self.assertRaises(ValueError):
+                gambit.validate_cards(raw, GROUPS, ANIMS)
 
     def invalid(self):
         g = self.good
