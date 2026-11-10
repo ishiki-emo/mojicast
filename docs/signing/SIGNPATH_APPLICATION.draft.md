@@ -108,14 +108,24 @@ them in the code):
 
 ## Third-party components (for review)
 
-All bundled libraries are listed in `CREDITS.md`. We want to be upfront about
-the following non-OSI components in the current build, and ask how you would
-like us to handle them:
+All bundled libraries are listed in `CREDITS.md`.
 
-- **Intel oneMKL** (statically linked into `ctranslate2.dll` from the official
-  CTranslate2 PyPI wheel) and **Intel OpenMP** (`libiomp5md.dll`), under the
-  Intel Simplified Software License. [要判断: MKL 無しのビルドに切り替えて
-  から申請するなら、この項目は「切り替え済み」と書き換える]
+- **CTranslate2 is built from source without Intel oneMKL.** The official
+  CTranslate2 PyPI wheel statically links Intel oneMKL and ships Intel OpenMP
+  (`libiomp5md.dll`), both under the non-OSI Intel Simplified Software License.
+  Our release workflow instead builds CTranslate2 4.8.1 from its tagged source
+  with `WITH_MKL=OFF` (matrix math via oneDNN, Apache-2.0) and the LLVM OpenMP
+  runtime (`libomp.dll`, Apache-2.0 WITH LLVM-exception), itself built from the
+  LLVM 19.1.7 source release, all inside the same GitHub Actions job
+  (`tools/signing/ct2_nomkl/build.ps1`, documented in
+  `docs/signing/CT2_NOMKL_BUILD.md`). The workflow fails if any Intel MKL or
+  Intel OpenMP file remains in the package. We measured the change on Intel
+  and AMD machines before switching; the benchmark script and results are in
+  `bench/ct2_mkl_compare/`.
+
+We want to be upfront about the following non-OSI components in the current
+build, and ask how you would like us to handle them:
+
 - **Microsoft WebView2 SDK** DLLs (`Microsoft.Web.WebView2.Core.dll`,
   `Microsoft.Web.WebView2.WinForms.dll`, `WebView2Loader.dll`), shipped by
   pywebview. The WebView2 Runtime itself is part of Windows 11.
@@ -123,4 +133,4 @@ like us to handle them:
   Libraries.
 
 The Steinberg ASIO-enabled PortAudio DLL that sounddevice ships is excluded
-from the build because Mojicast does not use ASIO. [要確認: 除外を実装済みか]
+from the build because Mojicast does not use ASIO.

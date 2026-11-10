@@ -91,8 +91,7 @@
 | PortAudio | sounddevice の音声入出力 | MIT |
 | OpenBLAS | NumPy の線形代数 | BSD-3-Clause |
 | oneDNN（CTranslate2 に静的リンク） | CTranslate2 の行列演算（Windows版） | Apache-2.0 |
-| Intel oneMKL（CTranslate2 に静的リンク） | CTranslate2 の行列演算（Windows版・Intel CPU のときのみ使用） | Intel Simplified Software License |
-| Intel OpenMP (libiomp5md) | CTranslate2 の並列実行（Windows版） | Intel Simplified Software License |
+| LLVM OpenMP ランタイム (libomp) | CTranslate2 の並列実行（Windows版） | Apache-2.0 WITH LLVM-exception |
 | Microsoft WebView2 SDK（WebView2Loader / Core / WinForms） | GUI（Windows版・pywebview 同梱） | Microsoft WebView2 SDK ライセンス |
 | .NET ファサード（System.*.dll ほか） / Python.Runtime | GUI（Windows版・pythonnet 同梱） | MIT |
 | Microsoft Visual C++ / Universal CRT ランタイム | 実行環境（Windows版） | Microsoft 再頒布可能パッケージ |

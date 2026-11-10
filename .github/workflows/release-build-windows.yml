@@ -19,6 +19,12 @@ on:
         description: "app_server.py の APP_VERSION と一致するか確認する（例: 1.2.0）。空なら確認しない"
         required: false
         default: ""
+      ctranslate2:
+        description: "翻訳エンジン（nomkl = ソースからビルドした MKL なし版・署名用 / official = PyPI の公式版に戻す）"
+        required: false
+        default: "nomkl"
+        type: choice
+        options: [nomkl, official]
 
 permissions:
   contents: read
@@ -28,7 +34,7 @@ jobs:
     name: build (windows-x64, models not bundled)
     # 再現性のためイメージは固定する（windows-latest は予告なく中身が変わる）
     runs-on: windows-2022
-    timeout-minutes: 60
+    timeout-minutes: 120
     defaults:
       run:
         shell: pwsh
@@ -54,7 +60,20 @@ jobs:
           # .github/release/requirements-win.in の手順で作り直す（Pillow/PyInstaller もここに入っている。
           # Pillow が無いとアイコン生成が黙ってスキップされ、installer の SetupIconFile で失敗する）
           uv pip sync --python .venv .github/release/requirements-win.lock --require-hashes
-          uv pip freeze --python .venv > pip-freeze.txt
+
+      # Intel oneMKL / Intel OpenMP（非 OSI）を含まない ctranslate2 をソースからビルドして差し替える。
+      # 翻訳のコードは同じ v4.8.1。手順とオプションは docs/signing/CT2_NOMKL_BUILD.md
+      - name: Build CTranslate2 without MKL
+        if: inputs.ctranslate2 == 'nomkl'
+        run: |
+          $py = (uv python find 3.11.15).Trim()
+          .\tools\signing\ct2_nomkl\build.ps1 -Python $py -WorkDir "$env:RUNNER_TEMP\ct2" -OutDir "$PWD\ct2-dist"
+          $whl = Get-ChildItem ct2-dist -Filter "ctranslate2-*.whl" | Select-Object -First 1
+          uv pip install --python .venv --no-deps --reinstall $whl.FullName
+          python -c "import ctranslate2; v = ctranslate2.__version__; print(v); assert v.endswith('+nomkl'), v"
+
+      - name: Freeze
+        run: uv pip freeze --python .venv > pip-freeze.txt
 
       - name: Show Python
         run: python -c "import sys; print(sys.version); print(sys.executable)"
@@ -89,6 +108,12 @@ jobs:
           }
           $bad = Get-ChildItem $app -Recurse -File | Where-Object { $_.Name -match 'cudnn|hf_xet' }
           if ($bad) { $bad | ForEach-Object { Write-Host "  $($_.FullName)" }; throw "混入あり" }
+          if ("${{ inputs.ctranslate2 }}" -eq "nomkl") {
+            # Intel OpenMP / MKL が残っていないこと、代わりの LLVM OpenMP が入っていること
+            $intel = Get-ChildItem $app -Recurse -File | Where-Object { $_.Name -match 'iomp|mkl_|^vcomp' }
+            if ($intel) { $intel | ForEach-Object { Write-Host "  $($_.FullName)" }; throw "Intel OpenMP / MKL / vcomp が残っています" }
+            if (-not (Test-Path "$app\_internal\ctranslate2\libomp.dll")) { throw "libomp.dll がありません" }
+          }
           $vi = (Get-Item "$app\Mojicast.exe").VersionInfo
           Write-Host "Mojicast.exe ProductName=[$($vi.ProductName)] ProductVersion=[$($vi.ProductVersion)]"
 
@@ -132,5 +157,6 @@ jobs:
             Mojicast-v${{ steps.ver.outputs.version }}-win-x64-setup.zip
             SHA256SUMS.txt
             pip-freeze.txt
+            ct2-dist/build-info.json
           if-no-files-found: error
           retention-days: 14

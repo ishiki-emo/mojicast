@@ -13,8 +13,10 @@ k2 の確定テキスト（句読点適用済み）をそのまま渡す想定�
 import os
 import re
 
-# CTranslate2 は Intel OpenMP（libiomp5md）で並列化しており、既定では計算後も
-# スレッドが 200ms 空回りして次の仕事を待つ（KMP_BLOCKTIME=200）。字幕は1文訳したら
+# CTranslate2 は OpenMP で並列化しており、既定では計算後もスレッドが 200ms 空回りして
+# 次の仕事を待つ（KMP_BLOCKTIME=200）。公式 wheel の Intel OpenMP（libiomp5md）も、Windows 版で
+# 配布する MKL なしの自前ビルドの LLVM OpenMP（libomp・Intel OpenMP がオープンソース化されたもの）も
+# 同じ KMP_BLOCKTIME が効く（docs/signing/CT2_NOMKL_BUILD.md）。字幕は1文訳したら
 # 次の発話まで間が空くので、その空回りがまるごと CPU 負荷になっていた。
 # 実測 2026-10-03（9800X3D・4スレッド・1文ごとに1秒空ける）:
 #

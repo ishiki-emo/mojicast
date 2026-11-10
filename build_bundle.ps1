@@ -13,6 +13,18 @@ if (-not (Test-Path (Join-Path $app "Mojicast.exe"))) {
     throw "先に PyInstaller ビルドを実行してください（$app が見つかりません）"
 }
 
+# --- 翻訳エンジン（ctranslate2）がどちらの版か。CREDITS.md は MKL なし版（LLVM OpenMP）で書いてある。
+#     公式版（Intel oneMKL / Intel OpenMP 入り）のままビルドすると記載と中身がずれるので知らせる
+#     （切り替え・戻し方: docs/signing/CT2_NOMKL_BUILD.md） ---
+$ct2 = Join-Path $app "_internal\ctranslate2"
+if (Test-Path (Join-Path $ct2 "libiomp5md.dll")) {
+    Write-Warning ("ctranslate2 が公式版（Intel MKL / Intel OpenMP 入り）です。CREDITS.md の記載（MKL なし版）と" +
+                   "合いません。MKL なし版の wheel を reazonspeech-env に入れてから PyInstaller をやり直してください" +
+                   "（docs/signing/CT2_NOMKL_BUILD.md）")
+} elseif (Test-Path (Join-Path $ct2 "libomp.dll")) {
+    Write-Host "  ctranslate2 : MKL なし版（LLVM OpenMP）"
+}
+
 # --- コード資産のみ app 直下へ。データファイル(hotwords等)はルートに置かず、
 #     defaults\ を同梱して初回起動時に seed_defaults が生成する。
 #     → 既存インストールへの上書きアップデートでユーザーデータが潰れない ---
