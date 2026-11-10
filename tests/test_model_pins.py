@@ -37,6 +37,11 @@ def _make_cache(cache, repo, commit, files, ref_main=True):
     return snap
 
 
+def _norm(path):
+    """パスを比べる形にそろえる（macOS の /var → /private/var のようなリンクを解いてから）"""
+    return os.path.normcase(os.path.realpath(path))
+
+
 class _NoNetwork(Exception):
     pass
 
@@ -77,33 +82,33 @@ class ResolveTests(unittest.TestCase):
     def test_cache_at_pinned_commit_is_used_without_network(self):
         # 開発機・同梱版・インストール版の現状（refs/main ＝ 固定ID）
         snap = _make_cache(self.cache, self.REPO, self.pin, ["model.bin"])
-        self.assertEqual(os.path.normcase(model_pins.resolve_snapshot(self.REPO)),
-                         os.path.normcase(snap))
+        self.assertEqual(_norm(model_pins.resolve_snapshot(self.REPO)),
+                         _norm(snap))
         self.assertEqual(self.net_calls, [])
 
     def test_older_cache_from_unpinned_versions_is_kept(self):
         # 版固定前に main を取得した利用者（固定IDとは別の版）。再取得しない
         snap = _make_cache(self.cache, self.REPO, OLD, ["model.bin"])
-        self.assertEqual(os.path.normcase(model_pins.resolve_snapshot(self.REPO)),
-                         os.path.normcase(snap))
+        self.assertEqual(_norm(model_pins.resolve_snapshot(self.REPO)),
+                         _norm(snap))
         path = model_pins.resolve_file(self.REPO, "model.bin")
-        self.assertEqual(os.path.normcase(path),
-                         os.path.normcase(os.path.join(snap, "model.bin")))
+        self.assertEqual(_norm(path),
+                         _norm(os.path.join(snap, "model.bin")))
         self.assertEqual(self.net_calls, [])
 
     def test_pinned_download_without_refs_main_is_found_offline(self):
         # 固定IDで新しく取得した人（コミットID指定の取得は refs/main を書かない）
         snap = _make_cache(self.cache, self.REPO, self.pin, ["model.bin"], ref_main=False)
-        self.assertEqual(os.path.normcase(model_pins.resolve_snapshot(self.REPO, download=False)),
-                         os.path.normcase(snap))
+        self.assertEqual(_norm(model_pins.resolve_snapshot(self.REPO, download=False)),
+                         _norm(snap))
         self.assertTrue(model_pins.resolve_file(self.REPO, "model.bin", download=False))
         self.assertEqual(self.net_calls, [])
 
     def test_pinned_snapshot_is_preferred_over_older_one(self):
         _make_cache(self.cache, self.REPO, OLD, ["model.bin"])
         snap = _make_cache(self.cache, self.REPO, self.pin, ["model.bin"], ref_main=False)
-        self.assertEqual(os.path.normcase(model_pins.resolve_snapshot(self.REPO)),
-                         os.path.normcase(snap))
+        self.assertEqual(_norm(model_pins.resolve_snapshot(self.REPO)),
+                         _norm(snap))
 
     # --- 手元に無い: 固定IDを取得 ---
     def test_missing_downloads_pinned_revision(self):
