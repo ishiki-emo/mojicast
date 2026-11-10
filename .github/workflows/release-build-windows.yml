@@ -1,0 +1,125 @@
+# Windows 版リリースビルド（手動実行専用・署名なし）
+#
+# SignPath Foundation の無料コード署名は「CI 上でソースから検証可能な形でビルドされた
+# 成果物」しか署名しない（Origin verification）。その準備として、手元の
+# pyinstaller → build_bundle.ps1 -NoModels → make_release_zip.ps1 → make_installer.ps1
+# と同じ手順を GitHub Actions 上で再現する。
+#
+# - 既存のリリース手順（手元ビルド → smoke → gh release）は一切変えない。
+#   このワークフローは成果物を Actions の artifact に置くだけで、Release は作らない。
+# - 署名ステップは入っていない（申請が通ってから追加する。docs/RELEASE_SIGNING.md 参照）。
+# - workflow_dispatch のワークフローは、既定ブランチ（main）にこのファイルが入るまで
+#   Actions 画面に「Run workflow」ボタンが出ない。
+name: Release build (Windows, manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_version:
+        description: "app_server.py の APP_VERSION と一致するか確認する（例: 1.2.0）。空なら確認しない"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    name: build (windows-x64, models not bundled)
+    # 再現性のためイメージは固定する（windows-latest は予告なく中身が変わる）
+    runs-on: windows-2022
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          # requirements.txt でコメントアウトされているビルド専用の依存。
+          # Pillow は Mojicast.spec のアイコン生成（.ico）にだけ使う。無いと既定アイコンに
+          # 黙ってフォールバックし、さらに installer の SetupIconFile が見つからず失敗する
+          pip install pyinstaller==6.21.0 pillow
+          pip freeze > pip-freeze.txt
+
+      - name: Check version
+        id: ver
+        run: |
+          $m = Select-String -Path app_server.py -Pattern 'APP_VERSION = "([^"]+)"'
+          if (-not $m) { throw "app_server.py から APP_VERSION を読めません" }
+          $v = $m.Matches[0].Groups[1].Value
+          $want = "${{ inputs.expected_version }}"
+          if ($want -and $want -ne $v) { throw "APP_VERSION=$v が指定 ($want) と一致しません" }
+          "version=$v" >> $env:GITHUB_OUTPUT
+          Write-Host "APP_VERSION = $v"
+
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+
+      - name: PyInstaller
+        run: pyinstaller --noconfirm Mojicast.spec
+
+      - name: Bundle assets (light build, no models)
+        run: .\build_bundle.ps1 -NoModels
+
+      - name: Sanity check (no proprietary leftovers / no models)
+        run: |
+          $app = "dist\Mojicast"
+          $bad = Get-ChildItem $app -Recurse -File |
+            Where-Object { $_.Name -match 'cudnn|hf_xet' -or $_.FullName -match '\\models(_conv)?\\' }
+          if ($bad) { $bad | ForEach-Object { Write-Host "  $($_.FullName)" }; throw "混入あり" }
+          $vi = (Get-Item "$app\Mojicast.exe").VersionInfo
+          Write-Host "Mojicast.exe ProductName=[$($vi.ProductName)] ProductVersion=[$($vi.ProductVersion)]"
+
+      - name: Install Inno Setup
+        run: |
+          $iscc = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") |
+            Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) { choco install innosetup -y --no-progress }
+
+      - name: Release zip
+        run: .\make_release_zip.ps1
+
+      - name: Installer
+        run: .\make_installer.ps1
+
+      - name: Checksums and metadata
+        run: |
+          $v = "${{ steps.ver.outputs.version }}"
+          $files = @(
+            "Mojicast-v$v-win-x64.zip",
+            "Mojicast-v$v-win-x64-setup.exe",
+            "Mojicast-v$v-win-x64-setup.zip"
+          )
+          $files | ForEach-Object {
+            $h = (Get-FileHash $_ -Algorithm SHA256).Hash.ToLower()
+            "$h  $_"
+          } | Set-Content SHA256SUMS.txt -Encoding utf8
+          Get-Content SHA256SUMS.txt
+          foreach ($f in @("dist\Mojicast\Mojicast.exe", "Mojicast-v$v-win-x64-setup.exe")) {
+            $vi = (Get-Item $f).VersionInfo
+            Write-Host "$f : ProductName=[$($vi.ProductName)] ProductVersion=[$($vi.ProductVersion)] FileVersion=[$($vi.FileVersion)]"
+          }
+
+      - name: Upload artifacts (unsigned)
+        uses: actions/upload-artifact@v4
+        with:
+          name: mojicast-v${{ steps.ver.outputs.version }}-win-x64-unsigned
+          path: |
+            Mojicast-v${{ steps.ver.outputs.version }}-win-x64.zip
+            Mojicast-v${{ steps.ver.outputs.version }}-win-x64-setup.exe
+            Mojicast-v${{ steps.ver.outputs.version }}-win-x64-setup.zip
+            SHA256SUMS.txt
+            pip-freeze.txt
+          if-no-files-found: error
+          retention-days: 14
