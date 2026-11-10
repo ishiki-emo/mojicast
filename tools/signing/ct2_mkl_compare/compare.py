@@ -104,6 +104,35 @@ def _cpu_name():
     return platform.processor() or "unknown"
 
 
+def _cpu_vendor():
+    """GenuineIntel / AuthenticAMD 等（取れなければ空文字）"""
+    if sys.platform == "win32":
+        try:
+            import winreg
+            k = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                               r"HARDWARE\DESCRIPTION\System\CentralProcessor\0")
+            return winreg.QueryValueEx(k, "VendorIdentifier")[0].strip()
+        except Exception:
+            pass
+    return ""
+
+
+_MODEL_REPOS = ("models--ishiki-emo--mojicast-fugumt-ja-en-ct2",
+                "models--ishiki-emo--mojicast-m2m100-ct2")
+
+
+def _find_mojicast_models():
+    """インストール版 Mojicast の models を探す。翻訳モデルが2つとも揃っている時だけ使う
+    （足りない分をこのツールが Mojicast のフォルダへ書き足すことはしない）"""
+    roots = [os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Mojicast"),
+             os.path.join(os.environ.get("ProgramFiles", ""), "Mojicast")]
+    for root in roots:
+        d = os.path.join(root, "models")
+        if all(os.path.isdir(os.path.join(d, "hub", r)) for r in _MODEL_REPOS):
+            return d
+    return None
+
+
 # ---------------------------------------------------------------- 子プロセス
 
 def run_child(mode, sentences_path, out_path):
@@ -189,15 +218,28 @@ def run_parent(args):
             f.writelines(lines)
         sentences_path, n_sent = tmp, len(lines)
 
+    cpu = _cpu_name()
+    vendor = _cpu_vendor()
+    print(f"CPU: {cpu}")
+    if vendor and vendor != "GenuineIntel" and not args.force:
+        # AMD 等では MKL をもともと使っていない（＝MKL を外しても変わらない）。
+        # しかも MKL を強制すると1文数秒かかり、全体で1時間を超える
+        print("\nこの計測は Intel の CPU 向けです。このパソコンでは測る必要がありません。")
+        print("（Intel 以外の CPU では、Mojicast はもともと MKL を使っていません）")
+        print("ご協力ありがとうございました。")
+        return
+
     env = dict(os.environ)
-    if args.models:
-        env["HF_HOME"] = args.models          # apppaths の setdefault より優先される
+    models = args.models or _find_mojicast_models()
+    if models:
+        env["HF_HOME"] = models               # apppaths の setdefault より優先される
+        print(f"モデル: {models}（インストール済みの Mojicast のものを使います）")
+    else:
+        print("モデル: 初回はダウンロードします（約0.7GB・このフォルダの models に保存）")
     env.setdefault("PYTHONIOENCODING", "utf-8")
 
-    cpu = _cpu_name()
-    print(f"CPU: {cpu}")
-    print(f"文の数: {n_sent} / 4ケース × 4回（MKL あり2回・なし2回）")
-    print("初回はモデルのダウンロードがあります。数分〜十数分かかります。\n")
+    print(f"文の数: {n_sent} / 4種類の翻訳 × 4回（MKL あり2回・なし2回）")
+    print("10〜20分ほどかかります。終わるまでこの窓を閉じないでください。\n")
 
     stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     work = os.path.join(HERE, f"_work_{stamp}")
@@ -240,6 +282,7 @@ def run_parent(args):
         json.dump(report["data"], f, ensure_ascii=False, indent=1)
     print("\n" + report["text"])
     print(f"結果を保存しました: {txt_path}")
+    print("この result_ で始まる .txt と .json の2つを送ってください。")
 
 
 def summarize(runs, cpu, n_sent):
@@ -330,6 +373,7 @@ def main():
     ap.add_argument("--limit", type=int, default=0, help="文の数を絞る（試運転用）")
     ap.add_argument("--timeout", type=int, default=1800, help="1回あたりの上限秒")
     ap.add_argument("--no-pause", action="store_true")
+    ap.add_argument("--force", action="store_true", help="Intel 以外の CPU でも計測する")
     args = ap.parse_args()
     if args.child:
         run_child(args.child, args.sentences, args.out)

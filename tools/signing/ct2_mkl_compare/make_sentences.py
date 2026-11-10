@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """配信ログ（logs/*/*_transcript.txt）から比較用の文を等間隔に抜き出して sentences.txt を作る。
 
-出力は配信の書き起こしそのものなので git には入れない（.gitignore 済み）。
+出力は配信の書き起こしなので git には入れない（.gitignore 済み）。配布 Zip には入れてよい（えもさん本人の配信）。
 使い方: python make_sentences.py <リポジトリ直下> <出力先> [文の数=200]
 """
 import glob

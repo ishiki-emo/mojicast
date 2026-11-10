@@ -31,8 +31,9 @@ SignPath の条件は「全コンポーネントが OSI 承認ライセンス」
     （`Use Intel MKL: false` / GEMM_S8 backend: DNNL）。MKL を抜いて影響を受けるのは Intel 利用者だけ
   - [x] 🤖 Intel 機で比較するツールを作った（2026-11-10・[tools/signing/ct2_mkl_compare](../tools/signing/ct2_mkl_compare/README.md)）。
     現行版のまま `CT2_USE_MKL=1/0` を切り替え、英訳 int8 / fp32・中・韓の1文の時間・訳文の一致・メモリを比べる。
-    `build.ps1` で Zip（配信ログ200文入り・自分の機械以外に配らない）を作る
-  - [ ] 👤 Intel 機で実行して `result_*.txt` を持ち帰る → 案A に進むか決める
+    `build.ps1` で Zip（えもさんの配信ログ200文入り・ベータテスターに配ってよい）を作る。
+    Intel 以外の CPU では測らずに終わる・インストール版 Mojicast のモデルがあれば自動で使う
+  - [ ] 👤 Intel 機（自分の機械＋ベータテスターさん）で実行してもらい `result_*.txt/.json` を集める → 案A に進むか決める
   - 参考（開発機 AMD で MKL を強制した場合・8文）: MKL 有効だと中韓 約3.4〜4.0秒/文 vs 無効 130〜190ms、
     ピークメモリ 2.1GB vs 0.6GB。AMD で MKL を使わない今の既定は正しい
 - [x] 🤖 ASIO 版 PortAudio DLL（`libportaudio64bit-asio.dll`）を spec で除外した（2026-11-10 develop・次のリリースから）

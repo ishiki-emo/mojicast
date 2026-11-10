@@ -3,7 +3,7 @@
 #   -Python   : ビルドに使う python（既定: メイン作業フォルダの reazonspeech-env）
 #   -LogsRoot : 文を抜き出す配信ログのあるフォルダ（logs\ の親）
 # 出力: tools\signing\ct2_mkl_compare\dist\ct2_mkl_compare-win-x64.zip
-#   ※ Zip には配信の書き起こし（sentences.txt）が入る。自分の機械以外に配らない
+#   ※ Zip には配信の書き起こし（sentences.txt・えもさん本人の配信）が入る。ベータテスターに配ってよい
 param(
     [string]$Python = "E:\AIProject\ReazonSpeech\reazonspeech-env\Scripts\python.exe",
     [string]$LogsRoot = "E:\AIProject\ReazonSpeech",

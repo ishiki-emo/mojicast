@@ -1,34 +1,46 @@
-# ct2_mkl_compare — 翻訳エンジンの MKL あり/なし比較（Intel 機用）
+# Mojicast 翻訳エンジン計測ツール（Intel CPU のパソコン向け）
 
-SignPath Foundation の署名条件（同梱物がすべて OSI 承認ライセンス）を満たすため、
-翻訳エンジン CTranslate2 から Intel oneMKL（非 OSI）を外せるかを判断する計測ツール。
-AMD 機はもともと MKL を使っていないので、**Intel 機で**測る。
+Mojicast の翻訳エンジンから、ライセンスの都合で外したい部品（Intel MKL）があります。
+外しても翻訳が遅くならないかを、**Intel の CPU のパソコン**で確かめるためのツールです。
 
-## 使い方（Intel 機）
+- Mojicast 本体の設定やファイルには一切触りません
+- インターネットには、翻訳モデルのダウンロード（初回だけ・Hugging Face）以外では接続しません
+- 中に入っている文（`sentences.txt`）は、癒色えもの配信の書き起こしです
 
-1. `ct2_mkl_compare-win-x64.zip` を展開する
-2. `ct2_mkl_compare.exe` をダブルクリック
-   - 初回はモデル（約 0.7GB）を `models\` にダウンロードする
-   - Mojicast の models を流用するなら、コマンドプロンプトで
-     `ct2_mkl_compare.exe --models "C:\...\Mojicast\models"`
-3. 10〜20 分ほどで終わる（Mojicast・ゲーム・配信ソフトは閉じておく）
-4. `result_日時.txt` と `result_日時.json` を開発機に持ち帰る
+## やってほしいこと
 
-## 見る所
+1. Zip を好きな場所に展開する
+2. Mojicast・ゲーム・配信ソフトなど、重いアプリを閉じる
+3. `ct2_mkl_compare.exe` をダブルクリック
+   - 「Windows によって PC が保護されました」と出たら「詳細情報」→「実行」
+   - インストール版の Mojicast があれば、そのモデルを使います。無ければ初回に約 0.7GB ダウンロードします
+4. 10〜20 分ほど待つ（途中で窓を閉じないでください）
+5. 終わると同じフォルダに `result_日時.txt` と `result_日時.json` ができるので、この 2 つを送ってください
 
-- 「使われた実装」で、MKL あり側が `Use Intel MKL: true`、なし側が `false` になっていること
-  （両方 false なら、その CPU では元から MKL を使っていない）
-- **なし/あり**: 1 未満なら MKL なしの方が速い。1.3 倍程度までなら字幕の遅れとしては
-  体感しにくい（英訳は 1 文数十 ms）。中韓訳は 1 文 100〜300ms なので倍率が大きいと効く
-- **訳文一致**: 数値計算の順序が変わるので、M2M（中韓）は数 % 変わるのが普通。英訳は
-  ほぼ一致するはず。変わった文は結果ファイルの末尾に並ぶ
+AMD など Intel 以外の CPU では、何も測らずに終わります（測る必要がないため）。
 
-※ Zip には配信の書き起こし（`sentences.txt`）が入っている。自分の機械以外に配らない。
+### 結果ファイルに入るもの
 
-## 作り方（開発機）
+CPU の名前、Windows のバージョン、翻訳にかかった時間、訳文、メモリ使用量。
+ユーザー名やファイルの場所など、個人を特定する情報は入りません。
 
-```powershell
-powershell -ExecutionPolicy Bypass -File tools\signing\ct2_mkl_compare\build.ps1
+### Zip 版の Mojicast のモデルを使いたいとき
+
+コマンドプロンプトで、Mojicast のフォルダの `models` を指定して実行します。
+
+```
+ct2_mkl_compare.exe --models "C:\...\Mojicast\models"
 ```
 
-開発実行: `reazonspeech-env\Scripts\python.exe tools\signing\ct2_mkl_compare\compare.py --limit 6`
+---
+
+## 開発メモ
+
+- 現行の ctranslate2 は環境変数 `CT2_USE_MKL=0` で MKL 抜きビルドと同じ oneDNN 経路になる。
+  MKL=1→0→0→1 の4回を別プロセスで走らせ、1文ごとに同じ設定の速い方を採る
+- 結果の見方: 「使われた実装」で MKL あり側が `Use Intel MKL: true` になっていること
+  （false なら、その CPU では元から MKL を使っていない）。「なし/あり」が 1 未満なら MKL なしが速い。
+  M2M（中韓）は数値計算の順序が変わるので、訳文が数 % 変わるのは普通
+- 作り方: `powershell -ExecutionPolicy Bypass -File tools\signing\ct2_mkl_compare\build.ps1`
+  （`dist\ct2_mkl_compare-win-x64.zip` ができる）
+- 開発実行: `reazonspeech-env\Scripts\python.exe tools\signing\ct2_mkl_compare\compare.py --limit 6 --force`
