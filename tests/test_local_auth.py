@@ -112,6 +112,89 @@ class LocalAuthTests(AuthFixture, unittest.TestCase):
         self.assertTrue(self.server.auth.role(fresh) is None)
         self.assertFalse(local_auth.LocalAuth(self.server.auth.path).enabled())
 
+    def test_deck_key_reaches_only_deck_endpoints(self):
+        deck = self.server.auth.rotate(kind="deck")
+        self.assertEqual(self.server.auth.role(deck), "deck")
+        self.assertEqual(self.server.auth.role(self.mcp), "mcp")  # 別の鍵は残る
+        for method, path, body in (("GET", "/api/config", None),
+                                   ("GET", "/api/logs/recent", None),
+                                   ("GET", "/events", None),
+                                   ("POST", "/api/config", {"preset": "standard"}),
+                                   ("POST", "/api/sample-caption", {"text": "x"}),
+                                   ("POST", "/api/banned", {"words": []}),
+                                   ("POST", "/api/engine", {"action": "start"}),
+                                   ("POST", "/api/auth/deck", {"action": "rotate"}),
+                                   ("GET", "/api/auth/deck", None)):
+            with self.subTest(method=method, path=path):
+                self.assertEqual(self.request(method, path, body, deck)[0], 403)
+        # MCPの鍵では外部操作の窓口に届かない
+        self.assertEqual(self.request("GET", "/api/deck/state", token=self.mcp)[0], 403)
+        self.assertEqual(self.request("POST", "/api/deck/action", {"action": "clear"}, self.mcp)[0], 403)
+        status, data = self.request("GET", "/api/deck/state", token=deck)
+        self.assertEqual(status, 200)
+        state = json.loads(data)
+        self.assertEqual(state["engine"], "stopped")
+        self.assertNotIn("mcp_allow_logs", state)
+        status, data = self.request("POST", "/api/deck/action", {"action": "clear"}, deck)
+        self.assertEqual(status, 200)
+        self.assertTrue(json.loads(data)["ok"])
+        self.assertEqual(self.request("POST", "/api/deck/action", {"action": "nope"}, deck)[0], 400)
+
+    def test_deck_actions_switch_settings(self):
+        deck = self.server.auth.rotate(kind="deck")
+        act = lambda body: self.request("POST", "/api/deck/action", body, deck)
+        state = json.loads(self.request("GET", "/api/deck/state", token=deck)[1])
+        target = next(p for p in state["presets"] if p["id"] != state["preset"])
+        self.assertEqual(act({"action": "preset", "id": target["id"]})[0], 200)
+        self.assertEqual(app_server.load_config()["preset"], target["id"])
+        self.assertEqual(act({"action": "preset", "id": "no-such"})[0], 400)
+        self.assertEqual(act({"action": "word_fx", "op": "toggle"})[0], 200)
+        self.assertIs(app_server.load_config()["word_fx"], False)
+        self.assertEqual(act({"action": "word_fx", "op": "on"})[0], 200)
+        self.assertIs(app_server.load_config()["word_fx"], True)
+        # 演出が未設定のグループは出せない／未知グループは拒否
+        self.assertEqual(act({"action": "fx", "group": "笑い"})[0], 400)
+        self.assertEqual(act({"action": "fx", "group": "<script>"})[0], 400)
+        # 翻訳の切替は再起動を伴うので外部操作からは出さない
+        self.assertEqual(act({"action": "translate", "op": "on"})[0], 400)
+        self.assertEqual(act({"action": "translate_lang", "lang": "en"})[0], 400)
+        self.assertIs(app_server.load_config()["translate"], False)
+
+    def test_deck_counter_buttons(self):
+        app_server._write_json(app_server._gambits_path(), {"cards": [
+            {"id": "c1", "name": "やばい", "triggers": [{"type": "word", "words": ["やばい"]}]}]})
+        app_server._gambit = None
+        self.addCleanup(lambda: (app_server._write_json(app_server._gambits_path(), {"cards": []}),
+                                 setattr(app_server, "_gambit", None)))
+        deck = self.server.auth.rotate(kind="deck")
+        act = lambda body: self.request("POST", "/api/deck/action", body, deck)
+        state = json.loads(self.request("GET", "/api/deck/state", token=deck)[1])
+        # 名前と数だけ（きっかけの語は外部へ出さない）
+        self.assertEqual(state["counters"], [{"id": "c1", "name": "やばい", "value": 0, "enabled": True}])
+        for op, want in (("add", 1), ("add", 2), ("sub", 1), ("reset", 0)):
+            status, data = act({"action": "counter", "id": "c1", "op": op})
+            self.assertEqual(status, 200)
+            res = json.loads(data)
+            self.assertEqual(res["state"]["counters"][0]["value"], want)
+        self.assertIn("「やばい」を0にしました", res["message"])
+        self.assertEqual(act({"action": "counter", "id": "no-such"})[0], 400)
+        self.assertEqual(act({"action": "counter", "id": "c1", "op": "times"})[0], 400)
+
+    def test_deck_and_mcp_keys_rotate_independently_and_persist(self):
+        deck = self.server.auth.rotate(kind="deck")
+        status, data = self.request("POST", "/api/auth/deck", {"action": "rotate"}, self.ui)
+        self.assertEqual(status, 200)
+        fresh = json.loads(data)["token"]
+        self.assertIsNone(self.server.auth.role(deck))
+        self.assertEqual(self.server.auth.role(self.mcp), "mcp")
+        restarted = local_auth.LocalAuth(self.server.auth.path)
+        self.assertEqual(restarted.role(fresh), "deck")
+        self.assertEqual(restarted.role(self.mcp), "mcp")
+        self.assertEqual(self.request("POST", "/api/auth/deck", {"action": "revoke"}, self.ui)[0], 200)
+        self.assertIsNone(self.server.auth.role(fresh))
+        self.assertFalse(local_auth.LocalAuth(self.server.auth.path).enabled("deck"))
+        self.assertTrue(local_auth.LocalAuth(self.server.auth.path).enabled("mcp"))
+
     def test_migration_cannot_import_another_installations_credential(self):
         import migrate
         with tempfile.TemporaryDirectory() as old:
