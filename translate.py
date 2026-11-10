@@ -14,9 +14,7 @@ import os
 import re
 
 # CTranslate2 は OpenMP で並列化しており、既定では計算後もスレッドが 200ms 空回りして
-# 次の仕事を待つ（KMP_BLOCKTIME=200）。公式 wheel の Intel OpenMP（libiomp5md）も、Windows 版で
-# 配布する MKL なしの自前ビルドの LLVM OpenMP（libomp・Intel OpenMP がオープンソース化されたもの）も
-# 同じ KMP_BLOCKTIME が効く（docs/signing/CT2_NOMKL_BUILD.md）。字幕は1文訳したら
+# 次の仕事を待つ（Intel OpenMP の KMP_BLOCKTIME=200）。字幕は1文訳したら
 # 次の発話まで間が空くので、その空回りがまるごと CPU 負荷になっていた。
 # 実測 2026-10-03（9800X3D・4スレッド・1文ごとに1秒空ける）:
 #
@@ -34,6 +32,42 @@ import re
 # 読まれる）。利用者が環境変数で指定していればそちらを優先する
 # （遅くなる環境では KMP_BLOCKTIME=200 で従来の動作に戻せる）。
 os.environ.setdefault("KMP_BLOCKTIME", "5")
+
+
+def _ct2_openmp_runtime():
+    """同梱の ctranslate2 が使う OpenMP ランタイム（"intel" / "msvc" / ""）。
+    ctranslate2 を import せずに（＝OpenMP の DLL を読み込む前に）、パッケージのフォルダの DLL で見分ける"""
+    try:
+        import importlib.util
+        import sys
+        spec = importlib.util.find_spec("ctranslate2")
+        dirs = list((spec.submodule_search_locations or []) if spec else [])
+        if getattr(sys, "_MEIPASS", None):      # PyInstaller 版（DLL は _internal\ctranslate2\）
+            dirs.append(os.path.join(sys._MEIPASS, "ctranslate2"))
+        for d in dirs:
+            if not os.path.isdir(d):
+                continue
+            names = {n.lower() for n in os.listdir(d)}
+            if "vcomp140.dll" in names:
+                return "msvc"
+            if "libiomp5md.dll" in names:
+                return "intel"
+    except Exception:
+        pass
+    return ""
+
+
+# Windows の MKL なし自前ビルド（docs/signing/CT2_NOMKL_BUILD.md）は MSVC の OpenMP（vcomp140.dll）を
+# 使う。vcomp140 には KMP_BLOCKTIME に当たる設定が無く、既定では計算後に長く空回りする
+# （実測 9800X3D・4スレッド・1文ごとに1秒空ける: 英訳の CPU/文 公式 94ms → vcomp 396ms）。
+# OMP_WAIT_POLICY=PASSIVE で空回りをやめさせる（CPU/文 86ms。代わりに1文が遅くなる:
+# 英訳 26→58ms、中国語訳 171→201ms）。採用するかは bench/ct2_mkl_compare の実測で決める。公式 wheel（Intel OpenMP）には設定しない: Intel OpenMP では
+# PASSIVE が KMP_BLOCKTIME=0 と同じになり、上の 5ms より遅くなるため。
+# DLL が読み込まれる前（＝ctranslate2 の import より前）に設定する必要がある。利用者の指定を優先する
+# （OMP_WAIT_POLICY=ACTIVE で空回りありに戻せる）。
+CT2_OPENMP = _ct2_openmp_runtime()
+if CT2_OPENMP == "msvc":
+    os.environ.setdefault("OMP_WAIT_POLICY", "PASSIVE")
 
 import huggingface_hub as hf
 
