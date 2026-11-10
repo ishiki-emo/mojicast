@@ -1,9 +1,9 @@
-# CTranslate2 の MKL なし wheel を作る（MSVC＋vcomp140・計測と確認用）
+# CTranslate2 の MKL なし wheel を作る（cl ＋ 上流 LLVM OpenMP）
 #
 # Mojicast の Windows 版を SignPath Foundation で署名するには、同梱物がすべて OSI 承認ライセンス
 # である必要がある。公式の ctranslate2 wheel は Intel oneMKL と Intel OpenMP を含むため、
-# tools/signing/ct2_nomkl/build.ps1 でソースからビルドした wheel を「SignPath に求められたら切り替える控え」
-# として維持している（2026-11-10 判断。リリースの既定は公式版。CT2_NOMKL_BUILD.md 9章）。
+# tools/signing/ct2_nomkl/build.ps1 で CTranslate2・oneDNN・LLVM OpenMP をソースからビルドした wheel を
+# リリースで使う（2026-11-11 判断。CT2_NOMKL_BUILD.md 9章）。
 # このワークフローは毎回キャッシュを使わずにビルドし（CI でのビルド時間を測るため）、
 # wheel を artifact に置き、同じ鍵でキャッシュにも保存する。
 # リリースビルド（release-build-windows.yml）は同じスクリプトと同じ鍵を使う。
@@ -24,14 +24,9 @@ permissions:
 
 jobs:
   build:
-    name: ctranslate2 4.8.1+nomkl (windows-x64, cp311, msvc+${{ matrix.openmp }})
+    name: ctranslate2 4.8.1+nomkl (windows-x64, cp311, cl + LLVM OpenMP)
     runs-on: windows-2022
     timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        # vcomp: リリースで nomkl を選んだときに使う版 / llvm: cl /openmp:llvm ＋ 上流 libomp（試作・3台で計測中）
-        openmp: [vcomp, llvm]
     defaults:
       run:
         shell: pwsh
@@ -50,13 +45,13 @@ jobs:
           uv python install 3.11.15
           $py = (uv python find 3.11.15).Trim()
           "python=$py" >> $env:GITHUB_OUTPUT
-          $tc = (.\tools\signing\ct2_nomkl\build.ps1 -Python $py -OpenMP ${{ matrix.openmp }} -PrintToolchain | Select-Object -Last 1).Trim()
+          $tc = (.\tools\signing\ct2_nomkl\build.ps1 -Python $py -PrintToolchain | Select-Object -Last 1).Trim()
           "toolchain=$tc" >> $env:GITHUB_OUTPUT
           Write-Host "toolchain: $tc / runner image: $env:ImageVersion"
 
       - name: Build
         run: |
-          .\tools\signing\ct2_nomkl\build.ps1 -Python "${{ steps.key.outputs.python }}" -OpenMP ${{ matrix.openmp }} `
+          .\tools\signing\ct2_nomkl\build.ps1 -Python "${{ steps.key.outputs.python }}" `
             -WorkDir "$env:RUNNER_TEMP\ct2" -OutDir "$PWD\ct2-dist"
           Get-Content ct2-dist\build-info.json
 
@@ -69,7 +64,7 @@ jobs:
       - name: Upload wheel
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
-          name: ctranslate2-4.8.1-nomkl-msvc-${{ matrix.openmp }}-win-x64-cp311
+          name: ctranslate2-4.8.1-nomkl-win-x64-cp311
           path: ct2-dist/
           if-no-files-found: error
           retention-days: 30

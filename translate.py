@@ -14,7 +14,8 @@ import os
 import re
 
 # CTranslate2 は OpenMP で並列化しており、既定では計算後もスレッドが 200ms 空回りして
-# 次の仕事を待つ（Intel OpenMP の KMP_BLOCKTIME=200）。字幕は1文訳したら
+# 次の仕事を待つ（Intel OpenMP の KMP_BLOCKTIME=200。Windows 版の配布物が使う上流 LLVM の
+# libomp も Intel OpenMP 由来で、同じ変数が同じように効く）。字幕は1文訳したら
 # 次の発話まで間が空くので、その空回りがまるごと CPU 負荷になっていた。
 # 実測 2026-10-03（9800X3D・4スレッド・1文ごとに1秒空ける）:
 #
@@ -60,14 +61,14 @@ def _ct2_openmp_runtime():
     return ""
 
 
-# Windows の MKL なし自前ビルド（docs/signing/CT2_NOMKL_BUILD.md）は MSVC の OpenMP（vcomp140.dll）を
-# 使う。vcomp140 には KMP_BLOCKTIME に当たる設定が無く、既定では計算後に長く空回りする
-# （実測 9800X3D・4スレッド・1文ごとに1秒空ける: 英訳の CPU/文 公式 94ms → vcomp 396ms）。
-# OMP_WAIT_POLICY=PASSIVE で空回りをやめさせる（CPU/文 86ms。代わりに1文が遅くなる:
-# 英訳 26→58ms、中国語訳 171→201ms）。MKL なし版は SignPath に求められたら切り替える控え（docs/signing/CT2_NOMKL_BUILD.md 9章）。公式 wheel（Intel OpenMP）には設定しない: Intel OpenMP では
-# PASSIVE が KMP_BLOCKTIME=0 と同じになり、上の 5ms より遅くなるため。
-# DLL が読み込まれる前（＝ctranslate2 の import より前）に設定する必要がある。利用者の指定を優先する
-# （OMP_WAIT_POLICY=ACTIVE で空回りありに戻せる）。
+# Windows 版の配布物は MKL なし自前ビルド（docs/signing/CT2_NOMKL_BUILD.md）で、OpenMP は上流 LLVM の
+# libomp.dll（"llvm"）。上の KMP_BLOCKTIME=5 がそのまま効くので、ここでは何もしない。
+# 以下は不採用にした旧構成（MSVC の vcomp140.dll・"msvc"）を比較ツールなどで読み込んだときのためのもの:
+# vcomp140 には KMP_BLOCKTIME に当たる設定が無く、既定では計算後に長く空回りする
+# （実測 9800X3D・4スレッド・1文ごとに1秒空ける: 英訳の CPU/文 公式 94ms → vcomp 396ms）ので、
+# OMP_WAIT_POLICY=PASSIVE で空回りをやめさせる（CPU/文 86ms。代わりに1文が遅くなる: 英訳 26→58ms）。
+# Intel OpenMP・libomp には設定しない: PASSIVE が KMP_BLOCKTIME=0 と同じになり、上の 5ms より遅くなるため。
+# DLL が読み込まれる前（＝ctranslate2 の import より前）に設定する必要がある。利用者の指定を優先する。
 CT2_OPENMP = _ct2_openmp_runtime()
 if CT2_OPENMP == "msvc":
     os.environ.setdefault("OMP_WAIT_POLICY", "PASSIVE")

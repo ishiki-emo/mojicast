@@ -4,11 +4,12 @@
 **Intel oneMKL**（`ctranslate2.dll` に静的リンク）と **Intel OpenMP**（`libiomp5md.dll`）を含む。
 どちらも Intel Simplified Software License（OSI 非承認）で、SignPath Foundation の署名条件
 （同梱物がすべて OSI 承認ライセンス）を満たさない。そこで CTranslate2 を同じ v4.8.1 のソースから
-MKL なしでビルドし、Windows 版の配布物で使う案を進めている。
+MKL なしでビルドし、Windows 版の配布物で使う。
 
-**状態（2026-11-10 確定）: リリースの既定は公式 wheel のまま。MKL なしビルド（MSVC＋vcomp140＋`OMP_WAIT_POLICY=PASSIVE`）は
-「SignPath に求められたら切り替える控え」として維持する**（release-build-windows.yml の `ctranslate2: official`、
-CREDITS.md も公式版の記載）。訳文は3台・全ケースで公式と一致したが、翻訳の遅れが目安を超えたため（9章）。
+**状態（2026-11-11 決定）: Windows 版の配布物は MKL なしビルド（cl ＋ 上流 LLVM OpenMP の libomp.dll）に切り替えた**
+（release-build-windows.yml の既定 `ctranslate2: nomkl`、CREDITS.md も MKL なし版の記載）。3台・4ケースで訳文が公式と一致し、
+速さは公式の MKL なし（oneDNN）と同じだった（9.4・9.5）。
+MSVC の vcomp140＋`OMP_WAIT_POLICY=PASSIVE`（②）と clang-cl＋libomp（①）は不採用（2章・9章に記録を残す）。
 
 - ビルドスクリプト: [tools/signing/ct2_nomkl/build.ps1](../../tools/signing/ct2_nomkl/build.ps1)（ローカル・CI 共通）
 - CI: [build-ctranslate2-windows.yml](../../.github/workflows/build-ctranslate2-windows.yml)（毎回フルビルド・時間の実測とキャッシュ作り）、
@@ -22,13 +23,13 @@ CREDITS.md も公式版の記載）。訳文は3台・全ケースで公式と�
 |---|---|---|
 | CTranslate2 のソース | v4.8.1 | 同じ v4.8.1（コミット `0d8bcd36`。手を加えない） |
 | 行列演算 | Intel CPU: oneMKL / それ以外: oneDNN | **全 CPU で oneDNN 3.1.1**（公式と同じ版・同じオプション・静的リンク） |
-| OpenMP ランタイム | Intel OpenMP（libiomp5md.dll） | **MSVC OpenMP（vcomp140.dll）** |
-| コンパイラ | MSVC（cl） | MSVC（cl。同じ） |
+| OpenMP ランタイム | Intel OpenMP（libiomp5md.dll） | **上流 LLVM OpenMP 19.1.7（libomp.dll・ソースからビルド）** |
+| コンパイラ | MSVC（cl） | MSVC（cl。同じ。`/openmp:llvm`）。libomp だけ clang-cl |
 | CPU 自動判別（ISA dispatch） | 有効 | 有効（同じ） |
 | CUDA / cuDNN | 入っている（Mojicast は使わない・spec で除外） | 入れない |
 | wheel の版 | 4.8.1 | 4.8.1+nomkl（`==4.8.1` を満たす） |
-| ライセンス文 | — | wheel の dist-info\licenses に CTranslate2・oneDNN を同梱 |
-| 計算後の待ち方 | `KMP_BLOCKTIME=5`（translate.py） | `OMP_WAIT_POLICY=PASSIVE`（translate.py が vcomp を見つけたときだけ） |
+| ライセンス文 | — | wheel の dist-info\licenses に CTranslate2・oneDNN・LLVM OpenMP を同梱 |
+| 計算後の待ち方 | `KMP_BLOCKTIME=5`（translate.py） | 同じ（libomp も KMP_BLOCKTIME が効く） |
 
 AMD 機は公式 wheel でも MKL を使わず oneDNN で動いている（`Use Intel MKL: false`）。
 MKL を外して計算方法が変わるのは Intel 機だけ。OpenMP の部品が変わるのは全機種。
@@ -52,9 +53,19 @@ oneDNN 3.1.1（公式 wheel の `python/tools/prepare_build_environment_windows.
 ```
 
 共通: Visual Studio 2022 の開発環境（vcvars64）を取り込み、Ninja ＋ cl。`OPENMP_RUNTIME=COMP` で
-CTranslate2 の CMake が `/openmp` を付け、cl が vcomp140 をリンクする。wheel には VS 2022 の
-再頒布フォルダ（`VC\Redist\MSVC\<版>\x64\Microsoft.VC143.OpenMP`）の vcomp140.dll を入れる。
-実際の値は wheel と一緒に出る `build-info.json` に残る（比較ツールもこれを結果に写す）。
+CTranslate2 の CMake が `/openmp` を付けるが、`CMAKE_*_FLAGS_INIT=/openmp:llvm` を足して cl に LLVM 形式の
+OpenMP 呼び出し（`__kmpc_*`）を出させ、先にビルドした上流 libomp の `libomp.lib` にリンクする（2.5）。
+wheel にはその `libomp.dll` を入れる。
+実際の値は wheel と一緒に出る `build-info.json` に残る（cl・clang-cl の版は `compilers`、OpenMP は `openmp_runtime` と
+`openmp_dll_sha256`。比較ツールもこれを結果に写す）。
+
+上流 LLVM OpenMP 19.1.7（`openmp-19.1.7.src.tar.xz` ＋ `cmake-19.1.7.src.tar.xz`、SHA256 は build.ps1 に固定）:
+
+```
+-DCMAKE_BUILD_TYPE=Release -DLIBOMP_ENABLE_SHARED=ON -DLIBOMP_USE_ITT_NOTIFY=OFF
+-DLIBOMP_OMPT_SUPPORT=OFF -DLIBOMP_OMPD_SUPPORT=OFF -DOPENMP_ENABLE_LIBOMPTARGET=OFF
+-DOPENMP_ENABLE_OMPT_TOOLS=OFF -DLIBOMP_INSTALL_ALIASES=OFF
+```
 
 ## 2. OpenMP ランタイムの選定
 
@@ -64,14 +75,15 @@ CTranslate2 の `OPENMP_RUNTIME` は `INTEL`（libiomp5md・非 OSI）/ `COMP`�
 | 候補 | ライセンス | 結果 |
 |---|---|---|
 | **① LLVM の libomp.dll（clang-cl ＋ `/openmp`）** | Apache-2.0 WITH LLVM-exception（OSI） | **不採用**。int8 の訳文が公式とずれる（2.3） |
-| **② MSVC の vcomp140.dll（cl ＋ `/openmp`）＋ PASSIVE** | VC++ 再頒布パッケージ（下記） | **控え**。訳文は公式と一致するが 1文あたり +22〜+209ms 遅い（1.2〜3.1 倍・9章） |
+| **② MSVC の vcomp140.dll（cl ＋ `/openmp`）＋ PASSIVE** | VC++ 再頒布パッケージ（下記） | **不採用**（2026-11-11）。訳文は公式と一致するが 1文あたり +22〜+209ms 遅い（1.2〜3.1 倍・9章） |
 | ③ MSVC の `/openmp:llvm`（libomp140.x86_64.dll） | VS の `debug_nonredist` にしか無い（**再頒布不可**） | **不可**。ビルド・訳文・速さは満たした（2.4） |
-| **④ cl ＋ `/openmp:llvm` ＋ 上流の libomp.dll** | Apache-2.0 WITH LLVM-exception（OSI） | **採用候補**。3台で訳文 200/200 一致・公式の MKL なし（dnnl）と同じ速さ（2.5・9.4） |
+| **④ cl ＋ `/openmp:llvm` ＋ 上流の libomp.dll** | Apache-2.0 WITH LLVM-exception（OSI） | **採用**（2026-11-11）。3台で訳文 200/200 一致・公式の MKL なし（dnnl）と同じ速さ（2.5・9.4） |
 
-vcomp140.dll は VC++ 再頒布パッケージの一部で、配布物に既に入っている MSVCP140 / VCRUNTIME140 と
-同じ扱い（Microsoft のソフトウェア ライセンス条項の「再頒布可能コード」）。OSI 承認ではないため、
-SignPath には「MSVC でビルドした以上必ず付くランタイム（System Library 相当）」として説明する
-（[SIGNPATH_APPLICATION.draft.md](SIGNPATH_APPLICATION.draft.md)）。通るかは申請してみないと分からない（8章）。
+④ は OpenMP まで OSI 承認ライセンスなので、② のように vcomp140.dll（VC++ 再頒布パッケージ・非 OSI）を
+「System Library 相当」と説明する必要が無い。残る非 OSI は MSVC ランタイム（VCRUNTIME140 など）と
+WebView2 SDK の DLL だけ（[LICENSE_INVENTORY.md](LICENSE_INVENTORY.md)）。
+
+2.1〜2.4 は不採用にした構成の記録。
 
 ### 2.1 空回りと PASSIVE
 
@@ -149,7 +161,7 @@ i7-13700HX で ② の中韓の遅れが大きかったため、コンパイラ�
   - 同じ一覧で vcomp140（`Microsoft_VC143_OpenMP`）は再頒布可能コードに入っている
 - 次案（cl の `/openmp:llvm` ＋ 上流 libomp）は 2.5 で試した
 
-### 2.5 ④ cl ＋ `/openmp:llvm` ＋ 上流 LLVM libomp（2026-11-11 試作・3台で計測済み・9.4）
+### 2.5 ④ cl ＋ `/openmp:llvm` ＋ 上流 LLVM libomp（2026-11-11 試作・3台で計測・採用）
 
 ③ のコンパイル（cl ＋ `/openmp:llvm`）はそのままにして、リンクする OpenMP を ① で使った上流の libomp.dll
 （LLVM 公式リリースのソースからビルド・Apache-2.0 WITH LLVM-exception）に替えた。`build.ps1 -OpenMP llvm`。
@@ -172,33 +184,32 @@ i7-13700HX で ② の中韓の遅れが大きかったため、コンパイラ�
    比べて英訳 int8 1.01 倍（CPU/文 95→103ms）、英訳 fp32 1.00 倍（282→279ms）、中国語訳 1.01 倍（528→582ms）、
    韓国語訳 1.04 倍（774→787ms）。結果は [results/2026-11-11_9800X3D_upomp](../../bench/ct2_mkl_compare/results/2026-11-11_9800X3D_upomp.txt)
 
-4点とも満たしたので、比較ツールに `llvm` variant を足した（Intel 2台で測り直す。AMD は MKL を使わないので
-dnnl 並み＝現行並み）。**リリースの既定は official のまま**で、切り替えは3台の実測のあとで判断する。
+4点とも満たしたので、比較ツールに `llvm` variant を足し、Intel 2台で測り直した（9.4）。結果を見て採用した（9.5）。
 translate.py は libomp.dll を "llvm" と判定し、PASSIVE を付けない（KMP_BLOCKTIME=5 だけが効く）。
 
 ## 3. ビルド手順
 
-必要なもの: Visual Studio 2022（「C++ によるデスクトップ開発」）、CMake 3.18 以上（4.x 可）、git、
+必要なもの: Visual Studio 2022（「C++ によるデスクトップ開発」と「C++ Clang ツール」）、CMake 3.18 以上（4.x 可）、git、
 Python 3.11 x64。GitHub Actions の `windows-2022` には全部入っている。
 
 ```powershell
 # Python は配布物と同じ 3.11.15（uv の場合）
 $py = (uv python find 3.11.15).Trim()
-powershell -ExecutionPolicy Bypass -File tools\signing\ct2_nomkl\build.ps1 -Python $py `
+pwsh -File tools\signing\ct2_nomkl\build.ps1 -Python $py `
     -WorkDir E:\ct2-build -OutDir E:\ct2-dist `
     -ProbeModel models_conv\fugumt-ja-en-ct2     # 任意: モデルを読んで MKL 不使用をログで確かめる
 ```
 
-段階: ソース取得（CTranslate2 は git の tag ＋コミット ID を照合、oneDNN は tar の SHA256 を照合）
-→ oneDNN → CTranslate2 → wheel → 確認。
+段階: ソース取得（CTranslate2 は git の tag ＋コミット ID を照合、oneDNN と LLVM の openmp / cmake は tar の SHA256 を照合）
+→ libomp（clang-cl）→ oneDNN → CTranslate2 → wheel → 確認。`-OpenMP vcomp` で不採用の ② を作れる（比べ直す用）。
 
 **確認で落とすもの**（どれかに当たるとスクリプトが失敗する）:
 
 - ソースが指定のコミットでない、`version.py` 以外に変更がある
-- `ctranslate2.dll` が `libiomp5md` / `mkl` / `libomp` に依存している、または vcomp140 に依存していない
+- `ctranslate2.dll` が `libiomp5md` / `mkl` / `libomp140` に依存している、OpenMP の依存が `libomp.dll` の1つでない
 - `ctranslate2.dll` に MKL のシンボル文字列が残っている
-- wheel の中に libiomp5md / cudnn / mkl / libomp がある、vcomp140.dll が無い
-- wheel にライセンス文（CTranslate2・oneDNN）が無い
+- wheel の中に libiomp5md / cudnn / mkl / libomp140 がある、OpenMP の DLL が `libomp.dll` の1つでない
+- wheel にライセンス文（CTranslate2・oneDNN・LLVM OpenMP）が無い
 - 素の venv に入れて import・`get_supported_compute_types` が通らない
 - `-ProbeModel` 指定時: int8 と float32 で読み込み・1文訳せない、`Use Intel MKL: false` が出ない
 
@@ -229,15 +240,17 @@ CI の wheel（MSVC 14.44）も、開発機の wheel（14.43）と同じく公�
 ### 3.2 CI での使い回し（キャッシュ）
 
 ビルドの入力が同じなら、前回の wheel を GitHub Actions のキャッシュから使う。鍵は
-`ct2-nomkl-msvc-<MSVC の版>-redist-<再頒布の版>-py3.11.15-<build.ps1 と probe.py のハッシュ>`。
+`ct2-nomkl-msvc-<MSVC の版>-redist-<再頒布の版>-libomp-<LLVM OpenMP の版>-clang-<clang-cl の版>-py3.11.15-<build.ps1 と probe.py のハッシュ>`。
+OpenMP（libomp の版とそれをビルドする clang-cl の版）が変われば鍵も変わる。
 
 - CTranslate2・oneDNN の版、CMake オプション、確認の内容はすべて build.ps1 に書いてあるので、
   どれかを変えればハッシュが変わり、ビルドし直しになる
-- MSVC と再頒布パッケージの版は `build.ps1 -PrintToolchain` で取る（CI イメージの更新で VS が上がれば鍵が変わる）
+- MSVC・再頒布パッケージ・clang-cl の版は `build.ps1 -PrintToolchain` で取る（CI イメージの更新で VS が上がれば鍵が変わる）
 - build-ctranslate2-windows.yml は毎回キャッシュを使わずにビルドして保存する（時間の実測を兼ねる）。
   build.ps1 を変えて chore/signpath-prep に push すると走る
-- release-build-windows.yml は `ctranslate2: nomkl` のとき鍵で探し、あれば使う。無ければビルドして保存する。
-  `ct2_rebuild: true` でキャッシュを無視してビルドし直す。どちらの場合も SHA256SUMS.txt と照合してから入れる
+- release-build-windows.yml は `ctranslate2: nomkl`（既定）のとき鍵で探し、あれば使う。無ければビルドして保存する。
+  `ct2_rebuild: true` でキャッシュを無視してビルドし直す。どちらの場合も SHA256SUMS.txt と照合し、
+  build-info.json の `openmp` が `llvm` であることを確かめてから入れる
 - キャッシュはブランチごと（既定ブランチのものは全ブランチから見える）。7日使わないと消える
 
 **署名に出すビルドでは `ct2_rebuild: true` にする。** SignPath の Origin verification は「その実行で、
@@ -248,13 +261,21 @@ CI の wheel（MSVC 14.44）も、開発機の wheel（14.43）と同じく公�
 
 ### CI（署名用のリリースビルド）
 
-release-build-windows.yml の入力 `ctranslate2`（既定 `official`）を `nomkl` にして実行する。
+release-build-windows.yml の入力 `ctranslate2` は既定で `nomkl`（入力の無い実行も nomkl 扱い）。
 ロックファイルで公式 wheel を入れた後、同じジョブで build.ps1 の wheel を
-`uv pip install --no-deps --reinstall` で差し替える。「Sanity check」で `dist\Mojicast` に
-`iomp` / `mkl_` / `libomp` / `libgomp` の名前のファイルが無いこと、`_internal\ctranslate2\vcomp140.dll` が
-あることを確かめる。`build-info.json` も artifact に入れる。
+`uv pip install --no-deps --reinstall` で差し替える。「Sanity check」で
+[check_bundle.ps1](../../tools/signing/ct2_nomkl/check_bundle.ps1) を通す:
 
-**配布物への入り方の確認（2026-11-10・手元で CI と同じ手順）**: ロックファイルの venv に CI の wheel
+- `_internal\ctranslate2\libomp.dll` があり、配布物の中で libomp.dll はこの1つだけ
+- libiomp5md（Intel OpenMP）・mkl・vcomp140・libomp140・libgomp の名前のファイルが無い
+- `ctranslate2.dll` に MKL の文字列（"Math Kernel Library" など）が無い
+- `_internal\ctranslate2-4.8.1+nomkl.dist-info\licenses` に `LICENSE`（CTranslate2）・`LICENSE.oneDNN`・
+  `LICENSE.oneDNN-THIRD-PARTY-PROGRAMS`・`LICENSE.LLVM-openmp` がある（中身が Apache-2.0 / LLVM の例外条項）
+- 同梱の CREDITS.md に LLVM OpenMP・oneDNN があり、Intel oneMKL・libiomp5md が無い
+
+`build-info.json` も artifact に入れる。
+
+**旧構成（② vcomp140）での配布物への入り方の確認（2026-11-10・手元で CI と同じ手順・記録）**: ロックファイルの venv に CI の wheel
 （MSVC 14.44）を入れて PyInstaller（Mojicast.spec）→ build_bundle.ps1 -NoModels → smoke_test.ps1。
 
 - vcomp140.dll は `_internal\ctranslate2\vcomp140.dll` の1つだけ（193,152 バイト・wheel のものと同じハッシュ）。
@@ -264,33 +285,46 @@ release-build-windows.yml の入力 `ctranslate2`（既定 `official`）を `nom
   `_internal\ctranslate2\VCOMP140.DLL` が読み込まれていた（Windows 側の vcomp140 ではなく同梱のもの）
 - build_bundle.ps1 は「MKL なし版なのに CREDITS が公式版」の警告を出した（切り替え時は CREDITS も変える）
 
-### 手元ビルド（今のリリース手順）
+### 手元ビルド
+
+開発用の reazonspeech-env には MKL なし版を入れない（torch が同じ環境にあり、ctranslate2 の import で torch の
+libiomp5md と libomp が二重に初期化されて落ちる。2.3）。手元で配布物を作るときは CI と同じロックファイルの
+環境を別に作り、そこへ wheel を入れる（2026-11-11 の確認はこの手順）:
 
 ```powershell
-.\reazonspeech-env\Scripts\python.exe -m pip install --no-deps --force-reinstall E:\ct2-dist\ctranslate2-4.8.1+nomkl-cp311-cp311-win_amd64.whl
-.\reazonspeech-env\Scripts\python.exe -c "import ctranslate2; print(ctranslate2.__version__)"   # 4.8.1+nomkl
+uv venv .venv --python 3.11.15
+uv pip sync --python .venv .github\release\requirements-win.lock --require-hashes
+uv pip install --python .venv --no-deps --reinstall <ct2-dist>\ctranslate2-4.8.1+nomkl-cp311-cp311-win_amd64.whl
+.\.venv\Scripts\pyinstaller --noconfirm Mojicast.spec
+.\build_bundle.ps1 -NoModels
+pwsh -File tools\signing\ct2_nomkl\check_bundle.ps1 -App dist\Mojicast
+.\smoke_test.ps1
 ```
 
-そのあと PyInstaller → build_bundle.ps1。build_bundle.ps1 は同梱された ctranslate2 の種類
-（libiomp5md.dll があれば公式版、vcomp140.dll があれば MKL なし版）と CREDITS.md の記載（`libiomp5md` の
-有無）を比べ、合わなければ警告する（どちらの向きでも）。
+build_bundle.ps1 は同梱された ctranslate2 の種類（libomp.dll があれば MKL なし版、libiomp5md.dll があれば公式版、
+vcomp140.dll なら不採用の旧構成）と CREDITS.md の記載（`LLVM OpenMP` / `libiomp5md`）を比べ、合わなければ警告する。
+reazonspeech-env のまま固めると公式版が入り、この警告が出る（署名に出すのは CI の成果物なので配布物には影響しないが、
+手元ビルドを配るときは上の手順で作る）。
 
-### 切り替えるときに変えるもの
+smoke_test.ps1 は、英訳を読み込んだ Mojicast.exe のプロセスが同梱の OpenMP の DLL（`_internal\ctranslate2\libomp.dll`）を
+読み込んでいて、ほかの場所・ほかの種類の OpenMP を読み込んでいないことも確かめる。
 
-1. release-build-windows.yml の `ctranslate2` の既定を `nomkl` に
-2. CREDITS.md の「Intel oneMKL」「Intel OpenMP (libiomp5md)」の2行を消す（oneDNN の行は残す）。
-   vcomp140 は「Microsoft Visual C++ / Universal CRT ランタイム」の行に含まれる
-   （由来の欄に「CTranslate2 の並列実行（vcomp140）」を足す）
-3. LICENSE_INVENTORY.md の対応欄
-4. `python -m unittest tests.test_ct2_nomkl`（CREDITS と既定が合っているかを見る）
+### 切り替えたときに変えたもの（2026-11-11）
+
+1. build.ps1 の既定を `-OpenMP llvm` に、build-ctranslate2-windows.yml を llvm だけに
+2. release-build-windows.yml の `ctranslate2` の既定を `nomkl` に、Sanity check を check_bundle.ps1 に
+3. CREDITS.md の「Intel oneMKL」「Intel OpenMP (libiomp5md)」の2行を消し、「LLVM OpenMP 19.1.7（libomp.dll）」を足した
+   （oneDNN の行は残す）。自前ビルドであることとライセンス文の場所を書いた
+4. LICENSE_INVENTORY.md・SIGNPATH_APPLICATION.draft.md
+5. build_bundle.ps1 の照合、smoke_test.ps1 の OpenMP の確認、`tests/test_ct2_nomkl.py`
 
 ## 5. 公式ビルドへ戻す方法
 
-- **CI**: release-build-windows.yml を `ctranslate2: official`（今の既定）で実行する
+- **CI**: release-build-windows.yml を `ctranslate2: official` で実行する（Sanity check の check_bundle.ps1 は飛ばされる）
 - **手元**: `python -m pip install --no-deps --force-reinstall ctranslate2==4.8.1`（PyPI の公式 wheel に戻る）
-- **CREDITS.md / LICENSE_INVENTORY.md**: 4 の「切り替えるときに変えるもの」を逆に（git の履歴にある）
-- アプリのコードは戻さなくてよい（translate.py は同梱の ctranslate2 を見て、vcomp のときだけ PASSIVE にする。
-  `KMP_BLOCKTIME` は Intel OpenMP にだけ効く）
+- **CREDITS.md / LICENSE_INVENTORY.md**: 4 の「切り替えたときに変えたもの」を逆に（git の履歴にある）。
+  既定を official に戻すなら release-build-windows.yml と tests/test_ct2_nomkl.py も
+- アプリのコードは戻さなくてよい（translate.py の `KMP_BLOCKTIME=5` は Intel OpenMP にも libomp にも効く）
 
 ## 6. 版を上げるとき
 
@@ -302,7 +336,7 @@ release-build-windows.yml の入力 `ctranslate2`（既定 `official`）を `nom
 
 ## 7. 人の確認（採用を決めるための実測）
 
-（2026-11-10 に3台で実施済み。結果と判断は 9章）
+（② は 2026-11-10、④ は 2026-11-11 に3台で実施済み。結果と判断は 9章。以下は ② のときの手順の記録）
 
 🤖 の作業は済み、👤 が実機で行う。
 
@@ -352,21 +386,22 @@ Intel 機（特に N100 のような遅い CPU）で1回はやる。
 
 ## 8. 懸念点
 
-- **vcomp140 のライセンス**: OSI 承認ではない（VC++ 再頒布パッケージ）。MSVC でビルドしたものに必ず付く
-  ランタイムと同列（MSVCP140 などは既に同梱）だが、SignPath が OpenMP ランタイムまで System Library と
-  認めるかは未確認。認められなければ①（libomp）に戻って訳文のずれを受け入れるか、別の方法を探す
-- **PASSIVE の遅れ**: 1文の中のデコード1歩ごとにスレッドが寝起きするので、遅い CPU ほど遅れが大きい
-  可能性がある（N100 で要確認）。vcomp には「数 ms だけ待つ」設定が無く、中間は取れない
+- ~~vcomp140 のライセンス~~・~~PASSIVE の遅れ~~: ④ に切り替えたので解消（vcomp140 を同梱しない・PASSIVE を使わない）
+- **libomp と clang-cl の保守**: LLVM の版（19.1.7）は build.ps1 に固定。上げるときは SHA256 を取り直し、
+  bench/ct2_mkl_compare で訳文と速さを比べ直す。clang-cl は VS 付属のもの（版は build-info.json とキャッシュの鍵に入る）
+- **cl の `/openmp:llvm`**: Microsoft の文書は「必要な libomp の DLL が再頒布できないので本番には使えない」としている
+  （2.4。DLL は上流のものに替えたのでこの理由は当たらないが、Microsoft が本番用として案内している組み合わせではない）。
+  3台・4ケースで訳文一致と速さを確かめた。VS の更新で挙動が変わらないかは、鍵が変わった後の最初のビルドで比較ツールを回して見る
 - **ビルドの保守**: CTranslate2 や oneDNN を上げるたびに、公式 wheel のビルド設定（oneDNN の版とオプション）
   を追う必要がある
 - **他の OpenMP との同居**: 今の配布物で OpenMP を使うのは ctranslate2.dll だけ（2.2）。今後 OpenMP を使う
-  部品を足すと、`OMP_WAIT_POLICY=PASSIVE` がその部品にも効く（プロセス全体の環境変数のため）
-- **Intel 機での速さ**: MKL なしは Intel 機で平均 0.90〜1.30 倍の時間（英訳 int8 が最大 1.30 倍・前回の測定）。
-  これに PASSIVE の遅れが重なる
+  部品（Intel OpenMP や vcomp を持ち込むもの）を足すと、同じプロセスに OpenMP が2つ載る（torch と同居したときの
+  `OMP: Error #15` のように落ちうる）。check_bundle.ps1 と smoke_test.ps1 がこれを見張る
+- **Intel 機での速さ**: MKL なしは Intel 機で1文あたり最大 +83ms（N100 の韓国語訳・9.4）。AMD 機は変わらない
 - **CI イメージの更新**: VS の版が上がるとビルド結果のハッシュが変わる（キャッシュの鍵も変わる）。
   `build-info.json` に MSVC と再頒布パッケージの版を残している
 
-## 9. 判断（2026-11-10）
+## 9. 判断（② 2026-11-10 → ④ 2026-11-11）
 
 ### 9.1 結果
 
@@ -413,6 +448,8 @@ Intel 機（特に N100 のような遅い CPU）で1回はやる。
 **このため、2026-11-10 の3台の結果（results/ の 2026-11-10_*）の CPU/文 は参考値として扱う。** 特に数十 ms 以下の値と、
 スレッド数の比較の CPU/文 は信用しない。1文の時間（実時間）と訳文の一致は perf_counter と文字列比較なので影響を受けない。
 
+（9.1〜9.3 は ② のときの記録。9.2 の「official のまま」は 9.5 で置き換えた）
+
 ### 9.4 ④（上流 libomp）の3台計測（2026-11-11）
 
 CI の wheel（run 42853027717）を比較ツールに入れ、i7-13700HX と N100 で mkl / dnnl / llvm / custom_passive を測った
@@ -437,6 +474,21 @@ CI の wheel（run 42853027717）を比較ツールに入れ、i7-13700HX と N1
   スレッド数を翻訳の種類ごとに変える必要は無い
 - AMD（9800X3D）は現行がもともと dnnl なので、④ にしても速さは変わらない（2.5）
 
-**判断**: ④ を MKL なし版の採用候補とする（えもさん・2026-11-11。「よほど数値が悪くない限りリリース前提」に対し、
-悪化は MKL を外した分だけだった）。vcomp＋PASSIVE（②）は ④ が使えなくなったときの控えとして残す。リリースへの組み込み（release-build-windows.yml の
-OpenMP 選択・リリース時のチェック（今は `libomp` を拒否して vcomp140 を要求）・CREDITS.md / LICENSE_INVENTORY.md・SignPath 申請書）は別の作業で行う。
+### 9.5 判断（2026-11-11）
+
+- **Windows 版の配布物を ④（cl ＋ 上流 LLVM OpenMP）に切り替える**（えもさん。「よほど数値が悪くない限りリリース前提」に対し、
+  悪化は MKL を外した分だけだった）。次のリリースから。release-build-windows.yml の既定 `nomkl`、CREDITS.md も切り替えた（4章）
+- 3台の数字（公式の MKL あり＝Intel 機の現行と比べた1文の平均の増え。AMD は現行が dnnl）:
+
+| | 9800X3D（AMD） | i7-13700HX | N100 |
+|---|---|---|---|
+| 英訳 int8 | ±0（dnnl 比 1.01 倍） | +5ms | +7ms |
+| 英訳 fp32 | ±0（1.00 倍） | −5ms | +21ms |
+| 中国語訳 | ±0（1.01 倍） | +19ms | +42ms |
+| 韓国語訳 | ±0（1.04 倍） | +29ms | +83ms |
+| 訳文（4ケース × 200文） | 200/200 一致 | 200/200 一致 | 200/200 一致 |
+
+- **不採用の記録**: ② MSVC＋vcomp140＋PASSIVE は同じ回の計測で 13700HX +19〜+97ms・N100 +55〜+201ms と遅く、
+  vcomp140 は非 OSI（2章・9.1）。① clang-cl＋libomp は int8 の訳文が公式とずれる（2.3）。③ libomp140 は再頒布不可（2.4）。
+  build.ps1 の `-OpenMP vcomp` と translate.py の PASSIVE 判定は、比べ直すときのために残している
+- SignPath の申請書は「Intel のものを含まない・公開ソースから CI でビルド・3種類の CPU で訳文一致」に書き直した

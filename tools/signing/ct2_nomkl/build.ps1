@@ -1,26 +1,27 @@
 ﻿# CTranslate2 を Intel MKL・Intel OpenMP なしでビルドし、Python の wheel を作る（Windows x64）。
 #
-# 公式の PyPI wheel（ctranslate2 4.8.1）との違い。翻訳のコードもコンパイラ（MSVC）も同じ:
+# 公式の PyPI wheel（ctranslate2 4.8.1）との違い。翻訳のコードもコンパイラ（MSVC の cl）も同じ:
 #   - WITH_MKL=OFF        … Intel oneMKL（非 OSI）を静的リンクしない。行列演算は公式でも使っている
 #                           oneDNN 3.1.1（Apache-2.0・静的リンク）だけになる
-#   - OPENMP_RUNTIME=COMP … Intel OpenMP（libiomp5md.dll・非 OSI）の代わりに、MSVC の OpenMP
-#                           ランタイム（vcomp140.dll・VC++ 再頒布パッケージ）を使う
+#   - OPENMP_RUNTIME=COMP … Intel OpenMP（libiomp5md.dll・非 OSI）の代わりに、上流 LLVM の OpenMP
+#                           ランタイム（libomp.dll・Apache-2.0 WITH LLVM-exception）を使う。
+#                           cl は /openmp:llvm で LLVM 形式の OpenMP 呼び出し（__kmpc_*）を出し、
+#                           LLVM 公式リリースのソースからここでビルドした libomp.dll にリンクする。
+#                           libomp 自体は上流の想定どおり clang-cl でビルドする（C の ABI なので cl のコードから呼べる）。
+#                           Microsoft の libomp140 は再頒布できないので使わない。
+#                           Intel OpenMP と同じく KMP_BLOCKTIME が効く（translate.py が 5ms に設定）
 #   - WITH_CUDA=OFF       … Mojicast は CPU だけで動くので GPU 部分を入れない（cudnn64_9.dll も入らない）
 #   - wheel の版に +nomkl を付ける（`ctranslate2==4.8.1` の指定はそのまま満たす）
-# CPU の自動判別（ENABLE_CPU_DISPATCH）は公式と同じく有効。
-# vcomp140 は計算後にスレッドが空回りする（Intel OpenMP の KMP_BLOCKTIME に当たる設定が無い）ので、
-# Mojicast は OMP_WAIT_POLICY=PASSIVE を設定して使う（translate.py）。
-# clang-cl＋LLVM libomp の構成は int8 の訳文が公式とずれるため不採用。詳しくは docs/signing/CT2_NOMKL_BUILD.md。
+# CPU の自動判別（ENABLE_CPU_DISPATCH）は公式と同じく有効。上流ソースへのパッチなし。
+# 訳文は公式 wheel と一致（3台・4ケース × 200文）。詳しくは docs/signing/CT2_NOMKL_BUILD.md。
 #
-# -OpenMP llvm（試作・2026-11-11）: コンパイラは cl のまま /openmp:llvm で LLVM 形式の OpenMP 呼び出しを出させ、
-#   リンクする OpenMP ランタイムを、LLVM 公式リリースのソースからビルドした上流の libomp.dll
-#   （Apache-2.0 WITH LLVM-exception）にする。Microsoft の libomp140 は再頒布できないので使わない（2.4）。
-#   libomp 自体は clang-cl でビルドする（上流の想定どおり。C の ABI なので cl のコードから呼べる）。
-#   Intel OpenMP と同じ KMP_BLOCKTIME が効くので PASSIVE は要らない。上流ソースへのパッチなし。
+# -OpenMP vcomp（不採用・記録用）: MSVC の vcomp140.dll ＋ OMP_WAIT_POLICY=PASSIVE。訳文は一致したが
+#   1文あたり最大 +209ms 遅くなったため不採用（2026-11-10）。比べ直すときのために残している。
+# clang-cl で CTranslate2 までコンパイルする構成は int8 の訳文が公式とずれるため不採用（手順書 2.3）。
 #
 # 実行（ローカル・GitHub Actions 共通）:
 #   powershell -ExecutionPolicy Bypass -File tools\signing\ct2_nomkl\build.ps1 -Python <python3.11.exe> [-OpenMP llvm]
-# 必要なもの: Visual Studio 2022（「C++ によるデスクトップ開発」。-OpenMP llvm は「C++ Clang ツール」も）、
+# 必要なもの: Visual Studio 2022（「C++ によるデスクトップ開発」と「C++ Clang ツール」）、
 #             CMake 3.18 以上、git、tar（Windows 標準）、Python 3.11 x64。
 # 出力: <OutDir>\ctranslate2-4.8.1+nomkl-cp311-cp311-win_amd64.whl と build-info.json、SHA256SUMS.txt
 param(
@@ -34,8 +35,8 @@ param(
     [string]$ProbeModel = "",
     # CI のキャッシュの鍵に使う値（MSVC の版）を表示して終わる
     [switch]$PrintToolchain,
-    # vcomp: MSVC の vcomp140.dll（＋PASSIVE） / llvm: cl /openmp:llvm ＋ 上流 libomp.dll（試作）
-    [ValidateSet("vcomp", "llvm")][string]$OpenMP = "vcomp"
+    # llvm: cl /openmp:llvm ＋ 上流 libomp.dll（リリースで使う） / vcomp: MSVC の vcomp140.dll（不採用・記録用）
+    [ValidateSet("llvm", "vcomp")][string]$OpenMP = "llvm"
 )
 $ErrorActionPreference = "Stop"
 
@@ -46,7 +47,7 @@ $ONEDNN_VERSION = "3.1.1"          # 公式 wheel の prepare_build_environment_
 $ONEDNN_SHA256 = "d1cd58f57b2308d362a9bc474acbc21524cb879cf5d8779b460c718f0fac82d6"
 $PYBIND11_VERSION = "2.11.1"       # CTranslate2 の python/pyproject.toml と同じ
 $LOCAL_VERSION = "nomkl"
-# -OpenMP llvm で使う上流 libomp（LLVM 公式リリースの openmp / cmake ソース）
+# 上流 libomp（LLVM 公式リリースの openmp / cmake ソース。-OpenMP llvm）
 $LLVM_VERSION = "19.1.7"
 $LLVM_OPENMP_SHA256 = "bd7e6901ab086fd268750363017935fd4a717c153dad3c2aab86cb0140d9e3fe"
 $LLVM_CMAKE_SHA256 = "11c5a28f90053b0c43d0dec3d0ad579347fc277199c005206b963c19aae514e3"
@@ -66,7 +67,7 @@ $CT2_CMAKE_OPTIONS = @(
     "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
     "-DWITH_MKL=OFF",
     "-DWITH_DNNL=ON",
-    "-DOPENMP_RUNTIME=COMP",           # コンパイラの OpenMP（MSVC なら vcomp140.dll）
+    "-DOPENMP_RUNTIME=COMP",           # コンパイラの OpenMP（/openmp:llvm を足して上流 libomp にリンクする）
     "-DENABLE_CPU_DISPATCH=ON",
     "-DWITH_CUDA=OFF",
     "-DWITH_CUDNN=OFF",
@@ -142,7 +143,7 @@ if ($OpenMP -eq "llvm") {
     $clangVer = if ((& $clangCl --version | Select-Object -First 1) -match 'version (\S+)') { $Matches[1] } else { "?" }
 }
 if ($PrintToolchain) {
-    # vcomp 版は従来どおりの値（既存のキャッシュをそのまま使う）。llvm 版は libomp と clang-cl の版も入れる
+    # llvm 版は libomp と clang-cl の版も入れる（どれかが変われば鍵が変わってビルドし直す）
     if ($OpenMP -eq "llvm") { "msvc-$msvcVer-redist-$redistVer-libomp-$LLVM_VERSION-clang-$clangVer" }
     else { "msvc-$msvcVer-redist-$redistVer" }
     return
@@ -152,12 +153,14 @@ if ($PrintToolchain) {
 }
 $dumpbin = (Get-Command dumpbin.exe).Source
 $cl = (Get-Command cl.exe).Source
+# cl の版（バナーは stderr に出る。PowerShell 5.1 で stderr を拾うとエラー扱いになるので cmd で受ける）
+$clVer = if ((& cmd /c "`"$cl`" 2>&1" | Select-Object -First 1) -match 'Version (\S+)') { $Matches[1] } else { "?" }
 $ninja = Join-Path $vs "Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
 if (-not (Test-Path $ninja)) { $ninja = (Get-Command ninja.exe).Source }
 $GEN = @("-G", "Ninja", "-DCMAKE_MAKE_PROGRAM=$ninja", "-DCMAKE_C_COMPILER=$cl", "-DCMAKE_CXX_COMPILER=$cl")
 $vcomp = Join-Path $vs "VC\Redist\MSVC\$redistVer\x64\Microsoft.VC143.OpenMP\vcomp140.dll"
 if ($OpenMP -eq "vcomp" -and -not (Test-Path $vcomp)) { throw "vcomp140.dll が見つかりません: $vcomp" }
-Write-Host "Visual Studio: $vs（MSVC $msvcVer / 再頒布 $redistVer）$(if ($clangVer) { " / clang-cl $clangVer" })"
+Write-Host "Visual Studio: $vs（MSVC $msvcVer・cl $clVer / 再頒布 $redistVer）$(if ($clangVer) { " / clang-cl $clangVer" })"
 Write-Host "OpenMP: $OpenMP"
 
 New-Item -ItemType Directory -Force $WorkDir, $OutDir | Out-Null
@@ -341,6 +344,8 @@ Step "確認" {
         openmp_runtime = $ompDesc
         compiler = "MSVC $msvcVer$(if ($OpenMP -eq 'llvm') { ' (/openmp:llvm)' })"
         msvc = $msvcVer
+        # 使ったコンパイラの版。cl = CTranslate2・oneDNN、clang_cl = libomp（vcomp 版では使わない）
+        compilers = [ordered]@{ cl = $clVer; clang_cl = $(if ($clangVer) { $clangVer } else { $null }) }
         visual_studio = (Split-Path $vs -Leaf)
         python = (& $Python -c "import sys; print(sys.version.split()[0])").Trim()
         pybind11 = $PYBIND11_VERSION
