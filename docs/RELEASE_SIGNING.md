@@ -31,8 +31,8 @@ SignPath の条件は「全コンポーネントが OSI 承認ライセンス」
     （`Use Intel MKL: false` / GEMM_S8 backend: DNNL）。MKL を抜いて影響を受けるのは Intel 利用者だけ
   - [ ] 👤🤖 保留中: Intel 機で比較する小さなアプリを作る（現行版のまま `CT2_USE_MKL=0` で
     MKL 抜きと同じ経路になるので、ビルド不要で 1行あたりの時間・訳文の一致を比べられる）
-- [ ] 🤖 ASIO 版 PortAudio DLL（`libportaudio64bit-asio.dll`）を spec で除外する
-      （Mojicast は ASIO 未使用。`a.binaries` / `a.datas` から "asio" を落とす）
+- [x] 🤖 ASIO 版 PortAudio DLL（`libportaudio64bit-asio.dll`）を spec で除外した（2026-11-10 develop・次のリリースから）
+      凍結時は `SD_ENABLE_ASIO` を apppaths で外す（設定されていると sounddevice がこの DLL を探して失敗するため）
 - [ ] 🤖 ついでに不要物を除外: `pywebview-android.jar`、（動作確認のうえ）`dbghelp.dll` `dbgcore.dll`
 - [x] 🤖 LICENSE 末尾の日本語注記を CREDITS.md へ移した（2026-11-10 main に反映・GitHub の判定が MIT になったことを確認済み）
 - [ ] 🤖 CREDITS.md を実物に合わせる（Pillow/hf_xet は除外済み・oneMKL/WebView2 SDK/OpenSSL/protobuf を追記）
