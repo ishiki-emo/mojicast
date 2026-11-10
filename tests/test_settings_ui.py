@@ -152,9 +152,10 @@ class SettingsUiTests(unittest.TestCase):
 
     def test_reaction_fx_image_name_is_shown_as_text(self):
         # 画像名はユーザーが置いたファイル名そのもの。HTML として解釈されず、
-        # そのままの文字で見えること（mac では < > もファイル名に使える）
+        # そのままの文字で見えること（mac では < > もファイル名に使える。
+        # 閉じタグの / はフォルダの区切りになるため使わない）
         d = app_server._soundfx_dir()
-        name = "a&amp;b<i>x</i>.png" if os.name != "nt" else "a&amp;b.png"
+        name = "a&amp;b<i>x.png" if os.name != "nt" else "a&amp;b.png"
         path = os.path.join(d, name)
         with open(path, "wb") as f:
             f.write(b"\x89PNG\r\n\x1a\n")
