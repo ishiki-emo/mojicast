@@ -19,12 +19,18 @@ on:
         description: "app_server.py の APP_VERSION と一致するか確認する（例: 1.2.0）。空なら確認しない"
         required: false
         default: ""
+      # MKL なし版は Intel 2台＋AMD の実測（bench/ct2_mkl_compare）で決めるまで既定にしない
       ctranslate2:
-        description: "翻訳エンジン（nomkl = ソースからビルドした MKL なし版・署名用 / official = PyPI の公式版に戻す）"
+        description: "翻訳エンジン（official = PyPI の公式版・現行 / nomkl = ソースからビルドした MKL なし版・署名用の候補）"
         required: false
-        default: "nomkl"
+        default: "official"
         type: choice
-        options: [nomkl, official]
+        options: [official, nomkl]
+      ct2_rebuild:
+        description: "nomkl のとき、キャッシュがあってもソースからビルドし直す（署名に出すビルドでは推奨）"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -62,12 +68,51 @@ jobs:
           uv pip sync --python .venv .github/release/requirements-win.lock --require-hashes
 
       # Intel oneMKL / Intel OpenMP（非 OSI）を含まない ctranslate2 をソースからビルドして差し替える。
-      # 翻訳のコードは同じ v4.8.1。手順とオプションは docs/signing/CT2_NOMKL_BUILD.md
-      - name: Build CTranslate2 without MKL
+      # 翻訳のコードは同じ v4.8.1。OpenMP は MSVC の vcomp140.dll。手順は docs/signing/CT2_NOMKL_BUILD.md
+      # ビルドスクリプト・MSVC の版・Python の版が同じなら、前回の wheel をキャッシュから使う
+      # （ビルドは約 4〜5 分。build-ctranslate2-windows.yml と同じ鍵）
+      - name: CTranslate2 cache key
+        id: ct2key
         if: inputs.ctranslate2 == 'nomkl'
         run: |
           $py = (uv python find 3.11.15).Trim()
-          .\tools\signing\ct2_nomkl\build.ps1 -Python $py -WorkDir "$env:RUNNER_TEMP\ct2" -OutDir "$PWD\ct2-dist"
+          "python=$py" >> $env:GITHUB_OUTPUT
+          $tc = (.\tools\signing\ct2_nomkl\build.ps1 -Python $py -PrintToolchain | Select-Object -Last 1).Trim()
+          "toolchain=$tc" >> $env:GITHUB_OUTPUT
+
+      - name: Restore CTranslate2 wheel
+        id: ct2cache
+        if: inputs.ctranslate2 == 'nomkl' && !inputs.ct2_rebuild
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ct2-dist
+          key: ct2-nomkl-${{ steps.ct2key.outputs.toolchain }}-py3.11.15-${{ hashFiles('tools/signing/ct2_nomkl/build.ps1', 'tools/signing/ct2_nomkl/probe.py') }}
+
+      - name: Build CTranslate2 without MKL
+        if: inputs.ctranslate2 == 'nomkl' && steps.ct2cache.outputs.cache-hit != 'true'
+        run: |
+          Remove-Item ct2-dist -Recurse -Force -ErrorAction SilentlyContinue
+          .\tools\signing\ct2_nomkl\build.ps1 -Python "${{ steps.ct2key.outputs.python }}" `
+            -WorkDir "$env:RUNNER_TEMP\ct2" -OutDir "$PWD\ct2-dist"
+
+      - name: Save CTranslate2 wheel
+        if: inputs.ctranslate2 == 'nomkl' && steps.ct2cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ct2-dist
+          key: ct2-nomkl-${{ steps.ct2key.outputs.toolchain }}-py3.11.15-${{ hashFiles('tools/signing/ct2_nomkl/build.ps1', 'tools/signing/ct2_nomkl/probe.py') }}
+
+      - name: Install CTranslate2 without MKL
+        if: inputs.ctranslate2 == 'nomkl'
+        run: |
+          Write-Host "cache hit: ${{ steps.ct2cache.outputs.cache-hit }}"
+          Get-Content ct2-dist\build-info.json
+          # キャッシュから戻した場合も、ビルド時に記録した SHA256 と照合してから入れる
+          foreach ($line in Get-Content ct2-dist\SHA256SUMS.txt) {
+            $h, $name = $line -split '\s+\*?', 2
+            $got = (Get-FileHash (Join-Path ct2-dist $name) -Algorithm SHA256).Hash.ToLower()
+            if ($got -ne $h) { throw "SHA256 が違います: $name" }
+          }
           $whl = Get-ChildItem ct2-dist -Filter "ctranslate2-*.whl" | Select-Object -First 1
           uv pip install --python .venv --no-deps --reinstall $whl.FullName
           python -c "import ctranslate2; v = ctranslate2.__version__; print(v); assert v.endswith('+nomkl'), v"
@@ -109,10 +154,10 @@ jobs:
           $bad = Get-ChildItem $app -Recurse -File | Where-Object { $_.Name -match 'cudnn|hf_xet' }
           if ($bad) { $bad | ForEach-Object { Write-Host "  $($_.FullName)" }; throw "混入あり" }
           if ("${{ inputs.ctranslate2 }}" -eq "nomkl") {
-            # Intel OpenMP / MKL が残っていないこと、代わりの LLVM OpenMP が入っていること
-            $intel = Get-ChildItem $app -Recurse -File | Where-Object { $_.Name -match 'iomp|mkl_|^vcomp' }
-            if ($intel) { $intel | ForEach-Object { Write-Host "  $($_.FullName)" }; throw "Intel OpenMP / MKL / vcomp が残っています" }
-            if (-not (Test-Path "$app\_internal\ctranslate2\libomp.dll")) { throw "libomp.dll がありません" }
+            # Intel OpenMP / MKL が残っていないこと、代わりの MSVC OpenMP（vcomp140）が入っていること
+            $intel = Get-ChildItem $app -Recurse -File | Where-Object { $_.Name -match 'iomp|mkl_|^libomp|^libgomp' }
+            if ($intel) { $intel | ForEach-Object { Write-Host "  $($_.FullName)" }; throw "Intel OpenMP / MKL / 他の OpenMP が残っています" }
+            if (-not (Test-Path "$app\_internal\ctranslate2\vcomp140.dll")) { throw "vcomp140.dll がありません" }
           }
           $vi = (Get-Item "$app\Mojicast.exe").VersionInfo
           Write-Host "Mojicast.exe ProductName=[$($vi.ProductName)] ProductVersion=[$($vi.ProductVersion)]"
