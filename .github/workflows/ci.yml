@@ -14,10 +14,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-14]   # macos-14 = Apple Silicon (arm64)
+        os: [windows-latest, macos-15]   # macos-15 = Apple Silicon (arm64)。macos-14 は 2026-11 に提供終了
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: pip
