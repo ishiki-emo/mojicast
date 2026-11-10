@@ -85,13 +85,23 @@
 | コンポーネント | 由来 | ライセンス |
 |---|---|---|
 | CPython 3.11 本体 | 実行環境 | PSF License |
+| OpenSSL | Python の HTTPS 通信（モデル取得・更新確認） | Apache-2.0 |
+| libffi / SQLite | Python 標準ライブラリの土台 | MIT / Public Domain |
 | PyInstaller ブートローダ | 実行ファイル化 | GPL-2.0（例外条項により本アプリのライセンスへは非伝播） |
 | PortAudio | sounddevice の音声入出力 | MIT |
 | OpenBLAS | NumPy の線形代数 | BSD-3-Clause |
-| Intel OpenMP (libiomp5md) | CTranslate2 の並列実行 | Intel Simplified Software License |
-| Microsoft WebView2 SDK / .NET ランタイム | GUI（Windows版） | Microsoft ライセンス / MIT |
+| oneDNN（CTranslate2 に静的リンク） | CTranslate2 の行列演算（Windows版） | Apache-2.0 |
+| Intel oneMKL（CTranslate2 に静的リンク） | CTranslate2 の行列演算（Windows版・Intel CPU のときのみ使用） | Intel Simplified Software License |
+| Intel OpenMP (libiomp5md) | CTranslate2 の並列実行（Windows版） | Intel Simplified Software License |
+| Microsoft WebView2 SDK（WebView2Loader / Core / WinForms） | GUI（Windows版・pywebview 同梱） | Microsoft WebView2 SDK ライセンス |
+| .NET ファサード（System.*.dll ほか） / Python.Runtime | GUI（Windows版・pythonnet 同梱） | MIT |
+| Microsoft Visual C++ / Universal CRT ランタイム | 実行環境（Windows版） | Microsoft 再頒布可能パッケージ |
 | certifi | HTTPS 証明書 | MPL-2.0 |
-| Pillow / PyYAML / protobuf / hf_xet / tqdm / click ほか | 依存ライブラリ | MIT / BSD / Apache-2.0 等 |
+| protobuf / PyYAML / tqdm / click ほか | 依存ライブラリ | BSD / MIT / MPL-2.0 等 |
+
+sounddevice が同梱してくる ASIO 対応版の PortAudio（Steinberg ASIO SDK を含む）は、
+Mojicast が ASIO を使わないため配布物から除外しています。Pillow（アイコン生成）と
+hf_xet（高速ダウンロード）もビルド時に除外しており、配布物には含まれません。
 
 モデル変換時（開発作業のみ・配布物には含まれない）には PyTorch (BSD-3-Clause) と
 Transformers (Apache-2.0) を使用しています。
