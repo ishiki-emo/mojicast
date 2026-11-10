@@ -37,20 +37,26 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-python@v7
+      # Python は uv で入れる。actions/setup-python の「3.11」は python.org 版の 3.11.9 止まり
+      # （python.org は 3.11 系の Windows 版配布を 3.11.9 で終えた）で、手元ビルド
+      # （uv の 3.11.15）よりセキュリティ修正が古くなるため
+      - uses: astral-sh/setup-uv@v10
         with:
-          python-version: "3.11"
-          cache: pip
+          version: "0.13.5"
 
-      - name: Install dependencies
+      - name: Install Python and dependencies (locked)
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          # requirements.txt でコメントアウトされているビルド専用の依存。
-          # Pillow は Mojicast.spec のアイコン生成（.ico）にだけ使う。無いと既定アイコンに
-          # 黙ってフォールバックし、さらに installer の SetupIconFile が見つからず失敗する
-          pip install pyinstaller==6.21.0 pillow
-          pip freeze > pip-freeze.txt
+          uv python install 3.11.15
+          uv venv .venv --python 3.11.15
+          "$PWD\.venv\Scripts" >> $env:GITHUB_PATH
+          # 間接依存まで版とハッシュを固定したロックファイル。requirements.txt を変えたら
+          # .github/release/requirements-win.in の手順で作り直す（Pillow/PyInstaller もここに入っている。
+          # Pillow が無いとアイコン生成が黙ってスキップされ、installer の SetupIconFile で失敗する）
+          uv pip sync --python .venv .github/release/requirements-win.lock --require-hashes
+          uv pip freeze --python .venv > pip-freeze.txt
+
+      - name: Show Python
+        run: python -c "import sys; print(sys.version); print(sys.executable)"
 
       - name: Check version
         id: ver
