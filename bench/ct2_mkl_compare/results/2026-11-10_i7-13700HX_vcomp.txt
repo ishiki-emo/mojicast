@@ -1,0 +1,146 @@
+CTranslate2 比較  2026-11-10 23:18
+CPU: 13th Gen Intel(R) Core(TM) i7-13700HX
+OS: Windows-10-10.0.26200-SP0
+文の数: 200  スレッド: 4
+
+[mkl] 公式・MKL あり
+  OMP_WAIT_POLICY: （指定なし）  translate.py の判定: intel
+  ctranslate2 4.8.1  DLL sha256 a26134c47079896f
+  OpenMP: libiomp5md.dll
+  Intel の DLL: libiomp5md.dll, ct2_mkl_compare.exe
+  CPU: GenuineIntel (SSE4.1=true, AVX=true, AVX2=true, AVX512=false)
+  - Selected ISA: AVX2
+  - Use Intel MKL: true
+  - SGEMM backend: MKL (packed: true)
+  - GEMM_S16 backend: MKL (packed: true)
+  - GEMM_S8 backend: MKL (packed: true, u8s8 preferred: true)
+  - Selected compute type: int8_float32
+  - Selected compute type: float32
+[dnnl] 公式・MKL なし（oneDNN＋Intel OpenMP）
+  OMP_WAIT_POLICY: （指定なし）  translate.py の判定: intel
+  ctranslate2 4.8.1  DLL sha256 a26134c47079896f
+  OpenMP: libiomp5md.dll
+  Intel の DLL: libiomp5md.dll, ct2_mkl_compare.exe
+  CPU: GenuineIntel (SSE4.1=true, AVX=true, AVX2=true, AVX512=false)
+  - Selected ISA: AVX2
+  - Use Intel MKL: false
+  - SGEMM backend: DNNL (packed: false)
+  - GEMM_S16 backend: none (packed: false)
+  - GEMM_S8 backend: DNNL (packed: false, u8s8 preferred: true)
+  - Selected compute type: int8_float32
+  - Selected compute type: float32
+[custom_passive] 自前ビルド（vcomp）＋PASSIVE
+  OMP_WAIT_POLICY: PASSIVE  translate.py の判定: msvc
+  ctranslate2 4.8.1+nomkl  DLL sha256 ed3385a95c4732cc
+  OpenMP: VCOMP140.DLL
+  Intel の DLL: ct2_mkl_compare.exe
+  ビルド: -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DWITH_MKL=OFF -DWITH_DNNL=ON -DOPENMP_RUNTIME=COMP -DENABLE_CPU_DISPATCH=ON -DWITH_CUDA=OFF -DWITH_CUDNN=OFF -DWITH_RUY=OFF -DBUILD_CLI=OFF -DBUILD_TESTS=OFF
+  oneDNN 3.1.1 / OpenMP MSVC OpenMP (vcomp140.dll, VC++ 14.42.34433) / MSVC 14.43.34808
+  CPU: GenuineIntel (SSE4.1=true, AVX=true, AVX2=true, AVX512=false)
+  - Selected ISA: AVX2
+  - Use Intel MKL: false
+  - SGEMM backend: DNNL (packed: false)
+  - GEMM_S16 backend: none (packed: false)
+  - GEMM_S8 backend: DNNL (packed: false, u8s8 preferred: true)
+  - Selected compute type: int8_float32
+  - Selected compute type: float32
+[custom] 自前ビルド（vcomp）・待ち方は既定
+  OMP_WAIT_POLICY: （指定なし）  translate.py の判定: msvc
+  ctranslate2 4.8.1+nomkl  DLL sha256 ed3385a95c4732cc
+  OpenMP: VCOMP140.DLL
+  Intel の DLL: ct2_mkl_compare.exe
+  ビルド: -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DWITH_MKL=OFF -DWITH_DNNL=ON -DOPENMP_RUNTIME=COMP -DENABLE_CPU_DISPATCH=ON -DWITH_CUDA=OFF -DWITH_CUDNN=OFF -DWITH_RUY=OFF -DBUILD_CLI=OFF -DBUILD_TESTS=OFF
+  oneDNN 3.1.1 / OpenMP MSVC OpenMP (vcomp140.dll, VC++ 14.42.34433) / MSVC 14.43.34808
+  CPU: GenuineIntel (SSE4.1=true, AVX=true, AVX2=true, AVX512=false)
+  - Selected ISA: AVX2
+  - Use Intel MKL: false
+  - SGEMM backend: DNNL (packed: false)
+  - GEMM_S16 backend: none (packed: false)
+  - GEMM_S8 backend: DNNL (packed: false, u8s8 preferred: true)
+  - Selected compute type: int8_float32
+  - Selected compute type: float32
+
+基準: mkl（公式・MKL あり）。倍率 = 平均 ÷ 基準の平均（1 より大きいほど遅い）、一致 = 基準と同じ訳文の数
+CPU/文 = 1文訳して 1 秒空けるまでに使った CPU 時間の平均（配信中の負荷。計算後に空回りすると増える）
+
+英訳 FuguMT int8（通常）
+                  中央値 / 平均 / p95 (ms)         倍率      一致        ロード       ピークメモリ    CPU/文
+  mkl             23.2 / 23.4 / 38.5           1.00倍  200/200   622ms     295MB     95ms
+  dnnl            24.8 / 25.3 / 42.3           1.08倍  200/200   470ms     288MB     112ms
+  custom_passive  52.0 / 53.5 / 91.8           2.29倍  200/200   510ms     271MB     88ms
+  custom          24.5 / 24.9 / 40.3           1.07倍  200/200   483ms     271MB     407ms
+
+英訳 FuguMT fp32（高精度モード）
+                  中央値 / 平均 / p95 (ms)         倍率      一致        ロード       ピークメモリ    CPU/文
+  mkl             63.9 / 65.8 / 107.1          1.00倍  200/200   290ms     602MB     255ms
+  dnnl            55.7 / 59.0 / 96.8           0.90倍  200/200   227ms     404MB     220ms
+  custom_passive  78.4 / 83.9 / 139.5          1.28倍  200/200   258ms     387MB     170ms
+  custom          64.3 / 66.5 / 109.3          1.01倍  200/200   228ms     388MB     592ms
+
+中国語訳 M2M ja→zh
+                  中央値 / 平均 / p95 (ms)         倍率      一致        ロード       ピークメモリ    CPU/文
+  mkl             94.9 / 96.9 / 155.2          1.00倍  200/200   510ms     931MB     382ms
+  dnnl            115.1 / 117.6 / 189.2        1.21倍  200/200   462ms     610MB     472ms
+  custom_passive  139.8 / 142.3 / 228.9        1.47倍  200/200   481ms     592MB     383ms
+  custom          134.7 / 139.4 / 221.4        1.44倍  200/200   568ms     592MB     855ms
+
+韓国語訳 M2M ja→ko
+                  中央値 / 平均 / p95 (ms)         倍率      一致        ロード       ピークメモリ    CPU/文
+  mkl             149.5 / 152.1 / 262.9        1.00倍  200/200   （zh と共通）  931MB     563ms
+  dnnl            180.7 / 183.2 / 317.2        1.20倍  200/200   （zh と共通）  623MB     668ms
+  custom_passive  253.1 / 264.4 / 460.4        1.74倍  200/200   （zh と共通）  607MB     620ms
+  custom          212.7 / 217.1 / 373.1        1.43倍  200/200   （zh と共通）  605MB     1047ms
+
+訳文が変わった文（各最大10件・上=基準 mkl / 下=比べた側）:
+  なし
+
+スレッド数の比較（先頭 50 文・各1回）。CPU/文 は先頭の数文で測った値。
+  一致(同) = 同じ variant の 4 スレッドと同じ訳文の数、一致(基準) = 基準 mkl の 4 スレッドと同じ訳文の数
+
+英訳 FuguMT int8（通常）
+                  スレッド  中央値 / 平均 (ms)       CPU/文     一致(同)     一致(基準)
+  mkl             1       40.4 / 42.8           44ms       50/50     50/50
+  mkl             2       25.2 / 26.8           61ms       50/50     50/50
+  mkl             4       23.2 / 24.5           95ms       50/50     50/50
+  custom_passive  1       48.2 / 49.8           52ms       50/50     50/50
+  custom_passive  2       48.8 / 50.1           80ms       50/50     50/50
+  custom_passive  4       55.0 / 55.2           88ms       50/50     50/50
+  custom          1       48.8 / 49.9           53ms       50/50     50/50
+  custom          2       28.7 / 29.5           169ms      50/50     50/50
+  custom          4       24.3 / 24.7           407ms      50/50     50/50
+
+英訳 FuguMT fp32（高精度モード）
+                  スレッド  中央値 / 平均 (ms)       CPU/文     一致(同)     一致(基準)
+  mkl             1       163.3 / 178.1         189ms      50/50     50/50
+  mkl             2       88.3 / 92.0           208ms      50/50     50/50
+  mkl             4       63.5 / 66.1           255ms      50/50     50/50
+  custom_passive  1       137.7 / 142.6         142ms      50/50     50/50
+  custom_passive  2       102.5 / 106.2         175ms      50/50     50/50
+  custom_passive  4       78.2 / 83.9           170ms      50/50     50/50
+  custom          1       135.3 / 142.8         134ms      50/50     50/50
+  custom          2       79.7 / 84.8           269ms      50/50     50/50
+  custom          4       58.5 / 59.2           592ms      50/50     50/50
+
+中国語訳 M2M ja→zh
+                  スレッド  中央値 / 平均 (ms)       CPU/文     一致(同)     一致(基準)
+  mkl             1       203.3 / 213.4         220ms      50/50     50/50
+  mkl             2       120.7 / 129.3         259ms      50/50     50/50
+  mkl             4       91.6 / 96.7           382ms      50/50     50/50
+  custom_passive  1       279.3 / 293.2         302ms      50/50     50/50
+  custom_passive  2       188.6 / 198.0         344ms      50/50     50/50
+  custom_passive  4       134.1 / 141.3         383ms      50/50     50/50
+  custom          1       278.0 / 293.7         303ms      50/50     50/50
+  custom          2       164.6 / 166.8         452ms      50/50     50/50
+  custom          4       132.2 / 138.3         855ms      50/50     50/50
+
+韓国語訳 M2M ja→ko
+                  スレッド  中央値 / 平均 (ms)       CPU/文     一致(同)     一致(基準)
+  mkl             1       303.1 / 317.6         308ms      50/50     50/50
+  mkl             2       178.7 / 190.8         380ms      50/50     50/50
+  mkl             4       139.3 / 147.6         563ms      50/50     50/50
+  custom_passive  1       393.1 / 415.1         398ms      50/50     50/50
+  custom_passive  2       276.9 / 295.6         477ms      50/50     50/50
+  custom_passive  4       234.1 / 248.2         620ms      50/50     50/50
+  custom          1       391.8 / 413.6         402ms      50/50     50/50
+  custom          2       229.0 / 245.0         575ms      50/50     50/50
+  custom          4       201.1 / 212.2         1047ms     50/50     50/50

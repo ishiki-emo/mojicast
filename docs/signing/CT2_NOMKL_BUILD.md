@@ -64,7 +64,7 @@ CTranslate2 の `OPENMP_RUNTIME` は `INTEL`（libiomp5md・非 OSI）/ `COMP`�
 | 候補 | ライセンス | 結果 |
 |---|---|---|
 | **① LLVM の libomp.dll（clang-cl ＋ `/openmp`）** | Apache-2.0 WITH LLVM-exception（OSI） | **不採用**。int8 の訳文が公式とずれる（2.3） |
-| **② MSVC の vcomp140.dll（cl ＋ `/openmp`）＋ PASSIVE** | VC++ 再頒布パッケージ（下記） | **控え**。訳文は公式と一致するが 1.3〜1.8 倍遅い（9章） |
+| **② MSVC の vcomp140.dll（cl ＋ `/openmp`）＋ PASSIVE** | VC++ 再頒布パッケージ（下記） | **控え**。訳文は公式と一致するが 1文あたり +22〜+209ms 遅い（1.2〜3.1 倍・9章） |
 | ③ MSVC の `/openmp:llvm`（libomp140.x86_64.dll） | VS の `debug_nonredist` にしか無い（**再頒布不可**） | **不可**。ビルド・訳文・速さは満たした（2.4） |
 
 vcomp140.dll は VC++ 再頒布パッケージの一部で、配布物に既に入っている MSVCP140 / VCRUNTIME140 と
@@ -343,7 +343,7 @@ Intel 機（特に N100 のような遅い CPU）で1回はやる。
 | 韓国語訳 | +42ms | +112ms | +209ms（p95 797→1150ms） |
 
   （9800X3D は AMD で MKL を使わないので、比べる相手は dnnl）
-- 時間の比で 1.3〜1.8 倍
+- 時間の比（平均）で 1.2〜1.8 倍。ただし英訳 int8 は元が速いので比が大きく出る（9800X3D 3.10 倍・i7-13700HX 2.29 倍・N100 1.82 倍）。全ケースを含めると 1.19〜3.10 倍
 - i7-13700HX の韓国語訳 +112ms の内訳: MKL→oneDNN で +31ms、Intel OpenMP→vcomp で +34ms、PASSIVE で +47ms
 - **スレッド数**: 1 / 2 スレッドにしても改善しなかった
 - ③（MSVC＋libomp140）は速さは公式並みだったが、Microsoft が DLL の再頒布を認めていない（2.4）

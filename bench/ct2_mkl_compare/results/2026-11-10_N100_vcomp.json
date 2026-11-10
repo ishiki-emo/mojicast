@@ -1,0 +1,567 @@
+{
+ "cpu": "Intel(R) N100",
+ "os": "Windows-10-10.0.22631-SP0",
+ "n": 200,
+ "threads": 4,
+ "variants": [
+  "mkl",
+  "dnnl",
+  "custom_passive",
+  "custom"
+ ],
+ "backend": {
+  "mkl": [
+   "CPU: GenuineIntel (SSE4.1=true, AVX=true, AVX2=true, AVX512=false)",
+   "- Selected ISA: AVX2",
+   "- Use Intel MKL: true",
+   "- SGEMM backend: MKL (packed: true)",
+   "- GEMM_S16 backend: MKL (packed: true)",
+   "- GEMM_S8 backend: MKL (packed: true, u8s8 preferred: true)",
+   "- Selected compute type: int8_float32",
+   "- Selected compute type: float32"
+  ],
+  "dnnl": [
+   "CPU: GenuineIntel (SSE4.1=true, AVX=true, AVX2=true, AVX512=false)",
+   "- Selected ISA: AVX2",
+   "- Use Intel MKL: false",
+   "- SGEMM backend: DNNL (packed: false)",
+   "- GEMM_S16 backend: none (packed: false)",
+   "- GEMM_S8 backend: DNNL (packed: false, u8s8 preferred: true)",
+   "- Selected compute type: int8_float32",
+   "- Selected compute type: float32"
+  ],
+  "custom_passive": [
+   "CPU: GenuineIntel (SSE4.1=true, AVX=true, AVX2=true, AVX512=false)",
+   "- Selected ISA: AVX2",
+   "- Use Intel MKL: false",
+   "- SGEMM backend: DNNL (packed: false)",
+   "- GEMM_S16 backend: none (packed: false)",
+   "- GEMM_S8 backend: DNNL (packed: false, u8s8 preferred: true)",
+   "- Selected compute type: int8_float32",
+   "- Selected compute type: float32"
+  ],
+  "custom": [
+   "CPU: GenuineIntel (SSE4.1=true, AVX=true, AVX2=true, AVX512=false)",
+   "- Selected ISA: AVX2",
+   "- Use Intel MKL: false",
+   "- SGEMM backend: DNNL (packed: false)",
+   "- GEMM_S16 backend: none (packed: false)",
+   "- GEMM_S8 backend: DNNL (packed: false, u8s8 preferred: true)",
+   "- Selected compute type: int8_float32",
+   "- Selected compute type: float32"
+  ]
+ },
+ "runtime": {
+  "mkl": {
+   "ctranslate2_version": "4.8.1",
+   "ctranslate2_dir": "<tool>\\_internal\\ctranslate2",
+   "ctranslate2_dll_sha256": "a26134c47079896fc046317a3aea22a64df6b63b8c51272748cd2cc406d8d668",
+   "openmp_dlls": [
+    "<tool>\\_internal\\ctranslate2\\libiomp5md.dll"
+   ],
+   "intel_dlls": [
+    "<tool>\\_internal\\ctranslate2\\libiomp5md.dll",
+    "<tool>\\ct2_mkl_compare.exe"
+   ],
+   "package_files": [
+    "__init__.py",
+    "_ext.cp311-win_amd64.pyd",
+    "converters",
+    "ctranslate2.dll",
+    "cudnn64_9.dll",
+    "extensions.py",
+    "libiomp5md.dll",
+    "logging.py",
+    "models",
+    "specs",
+    "version.py"
+   ]
+  },
+  "dnnl": {
+   "ctranslate2_version": "4.8.1",
+   "ctranslate2_dir": "<tool>\\_internal\\ctranslate2",
+   "ctranslate2_dll_sha256": "a26134c47079896fc046317a3aea22a64df6b63b8c51272748cd2cc406d8d668",
+   "openmp_dlls": [
+    "<tool>\\_internal\\ctranslate2\\libiomp5md.dll"
+   ],
+   "intel_dlls": [
+    "<tool>\\_internal\\ctranslate2\\libiomp5md.dll",
+    "<tool>\\ct2_mkl_compare.exe"
+   ],
+   "package_files": [
+    "__init__.py",
+    "_ext.cp311-win_amd64.pyd",
+    "converters",
+    "ctranslate2.dll",
+    "cudnn64_9.dll",
+    "extensions.py",
+    "libiomp5md.dll",
+    "logging.py",
+    "models",
+    "specs",
+    "version.py"
+   ]
+  },
+  "custom_passive": {
+   "ctranslate2_version": "4.8.1+nomkl",
+   "ctranslate2_dir": "<tool>\\ct2_custom\\ctranslate2",
+   "ctranslate2_dll_sha256": "ed3385a95c4732cc63b82624b8260a53062a82dc60e14bf4ee2b1f29c950765e",
+   "openmp_dlls": [
+    "<tool>\\ct2_custom\\ctranslate2\\VCOMP140.DLL"
+   ],
+   "intel_dlls": [
+    "<tool>\\ct2_mkl_compare.exe"
+   ],
+   "package_files": [
+    "__init__.py",
+    "_ext.cp311-win_amd64.pyd",
+    "converters",
+    "ctranslate2.dll",
+    "extensions.py",
+    "logging.py",
+    "models",
+    "specs",
+    "vcomp140.dll",
+    "version.py"
+   ],
+   "build_info": {
+    "ctranslate2": {
+     "tag": "v4.8.1",
+     "commit": "0d8bcd362ac75ef860ef161d6f0efad0ae439ff0"
+    },
+    "onednn": {
+     "sha256": "d1cd58f57b2308d362a9bc474acbc21524cb879cf5d8779b460c718f0fac82d6",
+     "cmake": [
+      "-DCMAKE_BUILD_TYPE=Release",
+      "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
+      "-DONEDNN_LIBRARY_TYPE=STATIC",
+      "-DONEDNN_CPU_RUNTIME=OMP",
+      "-DONEDNN_GPU_RUNTIME=NONE",
+      "-DONEDNN_BUILD_EXAMPLES=OFF",
+      "-DONEDNN_BUILD_TESTS=OFF",
+      "-DONEDNN_ENABLE_WORKLOAD=INFERENCE",
+      "-DONEDNN_ENABLE_PRIMITIVE=CONVOLUTION;REORDER",
+      "-DONEDNN_BUILD_GRAPH=OFF"
+     ],
+     "version": "3.1.1"
+    },
+    "cmake": [
+     "-DCMAKE_BUILD_TYPE=Release",
+     "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
+     "-DWITH_MKL=OFF",
+     "-DWITH_DNNL=ON",
+     "-DOPENMP_RUNTIME=COMP",
+     "-DENABLE_CPU_DISPATCH=ON",
+     "-DWITH_CUDA=OFF",
+     "-DWITH_CUDNN=OFF",
+     "-DWITH_RUY=OFF",
+     "-DBUILD_CLI=OFF",
+     "-DBUILD_TESTS=OFF"
+    ],
+    "openmp_runtime": "MSVC OpenMP (vcomp140.dll, VC++ 14.42.34433)",
+    "compiler": "MSVC 14.43.34808",
+    "msvc": "14.43.34808",
+    "visual_studio": "BuildTools",
+    "python": "3.11.15",
+    "pybind11": "2.11.1",
+    "ctranslate2_dll_dependents": [
+     "KERNEL32.dll",
+     "MSVCP140.dll",
+     "VCOMP140.DLL",
+     "VCRUNTIME140.dll",
+     "VCRUNTIME140_1.dll",
+     "api-ms-win-crt-runtime-l1-1-0.dll",
+     "api-ms-win-crt-heap-l1-1-0.dll",
+     "api-ms-win-crt-string-l1-1-0.dll",
+     "api-ms-win-crt-math-l1-1-0.dll",
+     "api-ms-win-crt-convert-l1-1-0.dll",
+     "api-ms-win-crt-environment-l1-1-0.dll",
+     "api-ms-win-crt-stdio-l1-1-0.dll",
+     "api-ms-win-crt-filesystem-l1-1-0.dll",
+     "api-ms-win-crt-time-l1-1-0.dll",
+     "api-ms-win-crt-locale-l1-1-0.dll"
+    ],
+    "vcomp140_sha256": "e36a5c5e329bc7af35d4faa610a29aeee826a7810e06712f0f54e9b2cfe6a728",
+    "wheel": "ctranslate2-4.8.1+nomkl-cp311-cp311-win_amd64.whl",
+    "wheel_sha256": "080da3218aa50bfb3e2ae7f54f8d51a014bd1262ac1bca8585c284f34d1790c9",
+    "built_at": "2026-11-10T12:43:45Z",
+    "seconds": {
+     "ソース取得": 11.0,
+     "oneDNN ビルド": 107.0,
+     "CTranslate2 ビルド": 20.0,
+     "wheel 作成": 45.0
+    }
+   }
+  },
+  "custom": {
+   "ctranslate2_version": "4.8.1+nomkl",
+   "ctranslate2_dir": "<tool>\\ct2_custom\\ctranslate2",
+   "ctranslate2_dll_sha256": "ed3385a95c4732cc63b82624b8260a53062a82dc60e14bf4ee2b1f29c950765e",
+   "openmp_dlls": [
+    "<tool>\\ct2_custom\\ctranslate2\\VCOMP140.DLL"
+   ],
+   "intel_dlls": [
+    "<tool>\\ct2_mkl_compare.exe"
+   ],
+   "package_files": [
+    "__init__.py",
+    "_ext.cp311-win_amd64.pyd",
+    "converters",
+    "ctranslate2.dll",
+    "extensions.py",
+    "logging.py",
+    "models",
+    "specs",
+    "vcomp140.dll",
+    "version.py"
+   ],
+   "build_info": {
+    "ctranslate2": {
+     "tag": "v4.8.1",
+     "commit": "0d8bcd362ac75ef860ef161d6f0efad0ae439ff0"
+    },
+    "onednn": {
+     "sha256": "d1cd58f57b2308d362a9bc474acbc21524cb879cf5d8779b460c718f0fac82d6",
+     "cmake": [
+      "-DCMAKE_BUILD_TYPE=Release",
+      "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
+      "-DONEDNN_LIBRARY_TYPE=STATIC",
+      "-DONEDNN_CPU_RUNTIME=OMP",
+      "-DONEDNN_GPU_RUNTIME=NONE",
+      "-DONEDNN_BUILD_EXAMPLES=OFF",
+      "-DONEDNN_BUILD_TESTS=OFF",
+      "-DONEDNN_ENABLE_WORKLOAD=INFERENCE",
+      "-DONEDNN_ENABLE_PRIMITIVE=CONVOLUTION;REORDER",
+      "-DONEDNN_BUILD_GRAPH=OFF"
+     ],
+     "version": "3.1.1"
+    },
+    "cmake": [
+     "-DCMAKE_BUILD_TYPE=Release",
+     "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
+     "-DWITH_MKL=OFF",
+     "-DWITH_DNNL=ON",
+     "-DOPENMP_RUNTIME=COMP",
+     "-DENABLE_CPU_DISPATCH=ON",
+     "-DWITH_CUDA=OFF",
+     "-DWITH_CUDNN=OFF",
+     "-DWITH_RUY=OFF",
+     "-DBUILD_CLI=OFF",
+     "-DBUILD_TESTS=OFF"
+    ],
+    "openmp_runtime": "MSVC OpenMP (vcomp140.dll, VC++ 14.42.34433)",
+    "compiler": "MSVC 14.43.34808",
+    "msvc": "14.43.34808",
+    "visual_studio": "BuildTools",
+    "python": "3.11.15",
+    "pybind11": "2.11.1",
+    "ctranslate2_dll_dependents": [
+     "KERNEL32.dll",
+     "MSVCP140.dll",
+     "VCOMP140.DLL",
+     "VCRUNTIME140.dll",
+     "VCRUNTIME140_1.dll",
+     "api-ms-win-crt-runtime-l1-1-0.dll",
+     "api-ms-win-crt-heap-l1-1-0.dll",
+     "api-ms-win-crt-string-l1-1-0.dll",
+     "api-ms-win-crt-math-l1-1-0.dll",
+     "api-ms-win-crt-convert-l1-1-0.dll",
+     "api-ms-win-crt-environment-l1-1-0.dll",
+     "api-ms-win-crt-stdio-l1-1-0.dll",
+     "api-ms-win-crt-filesystem-l1-1-0.dll",
+     "api-ms-win-crt-time-l1-1-0.dll",
+     "api-ms-win-crt-locale-l1-1-0.dll"
+    ],
+    "vcomp140_sha256": "e36a5c5e329bc7af35d4faa610a29aeee826a7810e06712f0f54e9b2cfe6a728",
+    "wheel": "ctranslate2-4.8.1+nomkl-cp311-cp311-win_amd64.whl",
+    "wheel_sha256": "080da3218aa50bfb3e2ae7f54f8d51a014bd1262ac1bca8585c284f34d1790c9",
+    "built_at": "2026-11-10T12:43:45Z",
+    "seconds": {
+     "ソース取得": 11.0,
+     "oneDNN ビルド": 107.0,
+     "CTranslate2 ビルド": 20.0,
+     "wheel 作成": 45.0
+    }
+   }
+  }
+ },
+ "omp_wait_policy": {
+  "mkl": "",
+  "dnnl": "",
+  "custom_passive": "PASSIVE",
+  "custom": ""
+ },
+ "failed": [],
+ "cases": {
+  "en_int8": {
+   "mkl": {
+    "median": 66.11644942313433,
+    "mean": 66.60049702040851,
+    "p95": 111.93270049989223,
+    "load_ms": 891.7396999895573,
+    "peak_mb": 276,
+    "ratio_mean": 1.0,
+    "cpu_ms": 220.3125,
+    "same": 200,
+    "total": 200,
+    "diffs": []
+   },
+   "dnnl": {
+    "median": 74.63669963181019,
+    "mean": 77.31322599574924,
+    "p95": 127.86749936640263,
+    "load_ms": 879.653898999095,
+    "peak_mb": 270,
+    "ratio_mean": 1.160850586025777,
+    "cpu_ms": 168.75,
+    "same": 200,
+    "total": 200,
+    "diffs": []
+   },
+   "custom_passive": {
+    "median": 121.24140001833439,
+    "mean": 121.01974901743233,
+    "p95": 203.04490067064762,
+    "load_ms": 922.9419007897377,
+    "peak_mb": 268,
+    "ratio_mean": 1.8170997880143152,
+    "cpu_ms": 68.75,
+    "same": 200,
+    "total": 200,
+    "diffs": []
+   },
+   "custom": {
+    "median": 71.69585023075342,
+    "mean": 73.96806204691529,
+    "p95": 122.79410101473331,
+    "load_ms": 932.2909004986286,
+    "peak_mb": 268,
+    "ratio_mean": 1.1106232739411708,
+    "cpu_ms": 417.96875,
+    "same": 200,
+    "total": 200,
+    "diffs": []
+   }
+  },
+  "en_fp32": {
+   "mkl": {
+    "median": 161.991398781538,
+    "mean": 168.18754642270505,
+    "p95": 279.4365007430315,
+    "load_ms": 531.9838002324104,
+    "peak_mb": 584,
+    "ratio_mean": 1.0,
+    "cpu_ms": 553.90625,
+    "same": 200,
+    "total": 200,
+    "diffs": []
+   },
+   "dnnl": {
+    "median": 181.30440078675747,
+    "mean": 191.18460054509342,
+    "p95": 316.6001997888088,
+    "load_ms": 440.6109992414713,
+    "peak_mb": 386,
+    "ratio_mean": 1.1367345835736848,
+    "cpu_ms": 621.875,
+    "same": 200,
+    "total": 200,
+    "diffs": []
+   },
+   "custom_passive": {
+    "median": 219.97875068336725,
+    "mean": 232.46033201925457,
+    "p95": 404.9385990947485,
+    "load_ms": 466.6808005422354,
+    "peak_mb": 384,
+    "ratio_mean": 1.3821494930130735,
+    "cpu_ms": 151.5625,
+    "same": 200,
+    "total": 200,
+    "diffs": []
+   },
+   "custom": {
+    "median": 177.73254960775375,
+    "mean": 187.31681611388922,
+    "p95": 319.10189986228943,
+    "load_ms": 433.9691996574402,
+    "peak_mb": 382,
+    "ratio_mean": 1.113737729683663,
+    "cpu_ms": 847.65625,
+    "same": 200,
+    "total": 200,
+    "diffs": []
+   }
+  },
+  "zh": {
+   "mkl": {
+    "median": 268.55405047535896,
+    "mean": 276.05452039279044,
+    "p95": 439.52079862356186,
+    "load_ms": 894.3015988916159,
+    "peak_mb": 913,
+    "ratio_mean": 1.0,
+    "cpu_ms": 1004.6875,
+    "same": 200,
+    "total": 200,
+    "diffs": []
+   },
+   "dnnl": {
+    "median": 317.79684964567423,
+    "mean": 325.4740909766406,
+    "p95": 525.577001273632,
+    "load_ms": 813.11159953475,
+    "peak_mb": 591,
+    "ratio_mean": 1.1790210517601103,
+    "cpu_ms": 1007.03125,
+    "same": 200,
+    "total": 200,
+    "diffs": []
+   },
+   "custom_passive": {
+    "median": 361.75020039081573,
+    "mean": 368.3141325134784,
+    "p95": 590.5141998082399,
+    "load_ms": 833.763999864459,
+    "peak_mb": 589,
+    "ratio_mean": 1.3342079383065863,
+    "cpu_ms": 283.59375,
+    "same": 200,
+    "total": 200,
+    "diffs": []
+   },
+   "custom": {
+    "median": 316.91175047308207,
+    "mean": 323.96672351285815,
+    "p95": 528.7759006023407,
+    "load_ms": 812.5320002436638,
+    "peak_mb": 588,
+    "ratio_mean": 1.173560654076212,
+    "cpu_ms": 1242.1875,
+    "same": 200,
+    "total": 200,
+    "diffs": []
+   }
+  },
+  "ko": {
+   "mkl": {
+    "median": 439.66969940811396,
+    "mean": 444.78367548435926,
+    "p95": 796.6192997992039,
+    "load_ms": 0.014400109648704529,
+    "peak_mb": 913,
+    "ratio_mean": 1.0,
+    "cpu_ms": 1467.1875,
+    "same": 200,
+    "total": 200,
+    "diffs": []
+   },
+   "dnnl": {
+    "median": 524.8015001416206,
+    "mean": 538.1241124309599,
+    "p95": 959.7076009958982,
+    "load_ms": 0.005399808287620544,
+    "peak_mb": 604,
+    "ratio_mean": 1.2098558065220246,
+    "cpu_ms": 1646.875,
+    "same": 200,
+    "total": 200,
+    "diffs": []
+   },
+   "custom_passive": {
+    "median": 640.8306499943137,
+    "mean": 653.6969210021198,
+    "p95": 1149.6169995516539,
+    "load_ms": 0.006901100277900696,
+    "peak_mb": 602,
+    "ratio_mean": 1.4696962973972882,
+    "cpu_ms": 418.75,
+    "same": 200,
+    "total": 200,
+    "diffs": []
+   },
+   "custom": {
+    "median": 504.0521500632167,
+    "mean": 522.381642004475,
+    "p95": 936.6632010787725,
+    "load_ms": 0.016799196600914,
+    "peak_mb": 601,
+    "ratio_mean": 1.1744622628868142,
+    "cpu_ms": 1817.1875,
+    "same": 200,
+    "total": 200,
+    "diffs": []
+   }
+  }
+ },
+ "sweep": {
+  "en_int8": {
+   "mkl": {
+    "1": {"median": 119.86949946731329, "mean": 121.13218992948532, "cpu_ms": 98.4375, "same_self": 50, "same_base": 50, "total": 50},
+    "2": {"median": 78.25429923832417, "mean": 80.50825998187065, "cpu_ms": 120.3125, "same_self": 50, "same_base": 50, "total": 50},
+    "4": {"median": 63.549150712788105, "mean": 66.14905413240194, "cpu_ms": 220.3125, "same_self": 50, "same_base": 50, "total": 50}
+   },
+   "custom_passive": {
+    "1": {"median": 136.33170071989298, "mean": 140.16714211553335, "cpu_ms": 120.3125, "same_self": 50, "same_base": 50, "total": 50},
+    "2": {"median": 121.38979975134134, "mean": 124.54831797629595, "cpu_ms": 103.125, "same_self": 50, "same_base": 50, "total": 50},
+    "4": {"median": 116.47409945726395, "mean": 119.57728799432516, "cpu_ms": 68.75, "same_self": 50, "same_base": 50, "total": 50}
+   },
+   "custom": {
+    "1": {"median": 136.05715055018663, "mean": 140.17662789672613, "cpu_ms": 98.4375, "same_self": 50, "same_base": 50, "total": 50},
+    "2": {"median": 88.67519907653332, "mean": 89.67574991285801, "cpu_ms": 200.0, "same_self": 50, "same_base": 50, "total": 50},
+    "4": {"median": 69.83924936503172, "mean": 71.731988042593, "cpu_ms": 417.96875, "same_self": 50, "same_base": 50, "total": 50}
+   }
+  },
+  "en_fp32": {
+   "mkl": {
+    "1": {"median": 302.2934505715966, "mean": 323.2173880562186, "cpu_ms": 257.8125, "same_self": 50, "same_base": 50, "total": 50},
+    "2": {"median": 190.3135497123003, "mean": 199.39307000488043, "cpu_ms": 312.5, "same_self": 50, "same_base": 50, "total": 50},
+    "4": {"median": 144.79060005396605, "mean": 154.85551007092, "cpu_ms": 553.90625, "same_self": 50, "same_base": 50, "total": 50}
+   },
+   "custom_passive": {
+    "1": {"median": 318.0457493290305, "mean": 334.75309792906046, "cpu_ms": 251.5625, "same_self": 50, "same_base": 50, "total": 50},
+    "2": {"median": 226.33340023458004, "mean": 242.37207397818565, "cpu_ms": 4.6875, "same_self": 50, "same_base": 50, "total": 50},
+    "4": {"median": 202.77285017073154, "mean": 210.80067604780197, "cpu_ms": 151.5625, "same_self": 50, "same_base": 50, "total": 50}
+   },
+   "custom": {
+    "1": {"median": 318.11599992215633, "mean": 335.4886678978801, "cpu_ms": 260.9375, "same_self": 50, "same_base": 50, "total": 50},
+    "2": {"median": 202.09559984505177, "mean": 216.23909585177898, "cpu_ms": 396.875, "same_self": 50, "same_base": 50, "total": 50},
+    "4": {"median": 165.09840078651905, "mean": 170.5676779523492, "cpu_ms": 847.65625, "same_self": 50, "same_base": 50, "total": 50}
+   }
+  },
+  "zh": {
+   "mkl": {
+    "1": {"median": 390.3000997379422, "mean": 405.1974578946829, "cpu_ms": 317.1875, "same_self": 50, "same_base": 50, "total": 50},
+    "2": {"median": 295.64949963241816, "mean": 302.92083606123924, "cpu_ms": 498.4375, "same_self": 50, "same_base": 50, "total": 50},
+    "4": {"median": 251.76305044442415, "mean": 265.07782988250256, "cpu_ms": 1004.6875, "same_self": 50, "same_base": 50, "total": 50}
+   },
+   "custom_passive": {
+    "1": {"median": 495.78244984149933, "mean": 513.9794679731131, "cpu_ms": 426.5625, "same_self": 50, "same_base": 50, "total": 50},
+    "2": {"median": 389.21445049345493, "mean": 410.87952207773924, "cpu_ms": 364.0625, "same_self": 50, "same_base": 50, "total": 50},
+    "4": {"median": 329.11684922873974, "mean": 339.79985799640417, "cpu_ms": 283.59375, "same_self": 50, "same_base": 50, "total": 50}
+   },
+   "custom": {
+    "1": {"median": 499.0729996934533, "mean": 518.1073220819235, "cpu_ms": 410.9375, "same_self": 50, "same_base": 50, "total": 50},
+    "2": {"median": 367.55814868956804, "mean": 382.48025979846716, "cpu_ms": 642.1875, "same_self": 50, "same_base": 50, "total": 50},
+    "4": {"median": 293.2398496195674, "mean": 299.7985840216279, "cpu_ms": 1242.1875, "same_self": 50, "same_base": 50, "total": 50}
+   }
+  },
+  "ko": {
+   "mkl": {
+    "1": {"median": 665.3173491358757, "mean": 706.4288178831339, "cpu_ms": 539.0625, "same_self": 50, "same_base": 50, "total": 50},
+    "2": {"median": 452.1925002336502, "mean": 487.10068199783564, "cpu_ms": 756.25, "same_self": 50, "same_base": 50, "total": 50},
+    "4": {"median": 389.13495000451803, "mean": 416.6956340521574, "cpu_ms": 1467.1875, "same_self": 50, "same_base": 50, "total": 50}
+   },
+   "custom_passive": {
+    "1": {"median": 871.2547505274415, "mean": 922.0461000874639, "cpu_ms": 698.4375, "same_self": 50, "same_base": 50, "total": 50},
+    "2": {"median": 685.1288005709648, "mean": 718.3640779554844, "cpu_ms": 575.0, "same_self": 50, "same_base": 50, "total": 50},
+    "4": {"median": 587.4664010480046, "mean": 614.6932781115174, "cpu_ms": 418.75, "same_self": 50, "same_base": 50, "total": 50}
+   },
+   "custom": {
+    "1": {"median": 867.3734497278929, "mean": 933.3149459585547, "cpu_ms": 681.25, "same_self": 50, "same_base": 50, "total": 50},
+    "2": {"median": 616.58934969455, "mean": 632.4969879537821, "cpu_ms": 990.625, "same_self": 50, "same_base": 50, "total": 50},
+    "4": {"median": 454.5603496953845, "mean": 491.5947101265192, "cpu_ms": 1817.1875, "same_self": 50, "same_base": 50, "total": 50}
+   }
+  }
+ }
+}

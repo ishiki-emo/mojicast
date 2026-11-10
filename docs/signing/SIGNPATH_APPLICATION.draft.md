@@ -130,9 +130,10 @@ build, and ask how you would like us to handle them:
     we use, on three different CPUs (AMD Ryzen 7 9800X3D, Intel Core
     i7-13700HX, Intel N100). The benchmark tool and results are in
     `bench/ct2_mkl_compare/`.
-  - However, it is measurably slower: translation takes 1.3 to 1.8 times as
-    long as with the official binary (for example, +209 ms per sentence for
-    Korean on the Intel N100). Because Mojicast shows live captions during
+  - However, it is measurably slower: each translated sentence takes 22 to
+    209 ms longer than with the official binary (1.2 to 3.1 times as long;
+    the largest added time is +209 ms per sentence for Korean on the Intel
+    N100). Because Mojicast shows live captions during
     streams, we currently keep the official binary.
   - If you require it, we will switch to the MKL-free build starting with the
     next release. The switch is a single workflow input
