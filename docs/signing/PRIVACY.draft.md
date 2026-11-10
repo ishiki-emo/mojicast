@@ -55,6 +55,7 @@ Mojicast（以下「本アプリ」）は、音声認識・句読点付け・翻
 - VRChat 連携をオンにした場合、字幕を `127.0.0.1` の OSC ポートへ送ります。
 - AI 連携（MCP サーバ）を使う場合、AI アプリから本アプリへの接続は `127.0.0.1` 経由です。
   その先で AI サービスに何が送られるかは、利用者が使う AI アプリの設定とポリシーに従います。
+- Stream Deck プラグイン（別配布）を使う場合、プラグインから本アプリへの接続も `127.0.0.1` 経由です。
 
 ### オフラインでの利用
 
@@ -104,8 +105,8 @@ handling of it is covered by their own privacy policies:
 
 ### Local-only connections
 
-The caption overlay, the settings window, the VRChat OSC output and the MCP
-server for AI apps all use `127.0.0.1` (this computer only). Mojicast cannot be
+The caption overlay, the settings window, the VRChat OSC output, the MCP
+server for AI apps and the Stream Deck plugin (distributed separately) all use `127.0.0.1` (this computer only). Mojicast cannot be
 reached from other computers. What an AI app sends to its own service is
 governed by that app's settings and policy.
 

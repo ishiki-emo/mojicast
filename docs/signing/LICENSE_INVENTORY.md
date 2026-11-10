@@ -39,6 +39,10 @@ spec で除外しても動くなら除外した方が説明が楽。
 
 ## 3. OSI 承認のもの
 
+※ Stream Deck プラグイン（`tools/streamdeck`・2026-11-10 develop）は本体の Zip / setup.exe に入らない別配布物なので、
+SignPath の署名対象外。中身は自作 TS（MIT）＋ `@elgato/streamdeck`（MIT）＋ `sdpi-components.js`（MIT・同梱の Lit は BSD-3-Clause）で、
+外部通信は `127.0.0.1` の本体だけ。
+
 | コンポーネント | ライセンス | 備考 |
 |---|---|---|
 | Mojicast 本体（Python コード・UI・overlay.html・defaults・mcp\） | MIT | LICENSE 末尾に日本語の注記があり、GitHub は「Other」と判定している（後述） |
