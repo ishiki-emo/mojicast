@@ -145,12 +145,8 @@ def _resolve_dir(download=True):
     local = os.path.join(BASE, "models_conv", _SUBDIR)
     if os.path.exists(os.path.join(local, "model.bin")):
         return local
-    try:
-        d = hf.snapshot_download(_REPO_ID, local_files_only=True)
-    except Exception:
-        if not download:
-            raise
-        d = hf.snapshot_download(_REPO_ID)
+    import model_pins            # 版（コミットID）固定つきの取得
+    d = model_pins.resolve_snapshot(_REPO_ID, download=download)
     if not os.path.exists(os.path.join(d, "model.bin")):
         raise FileNotFoundError(f"CT2モデルが不完全です: {d}")
     return d
@@ -382,12 +378,8 @@ def _resolve_dir_m2m(download=True):
     local = os.path.join(BASE, "models_conv", _SUBDIR_M2M)
     if os.path.exists(os.path.join(local, "model.bin")):
         return local
-    try:
-        d = hf.snapshot_download(_REPO_ID_M2M, local_files_only=True)
-    except Exception:
-        if not download:
-            raise
-        d = hf.snapshot_download(_REPO_ID_M2M)
+    import model_pins            # 版（コミットID）固定つきの取得
+    d = model_pins.resolve_snapshot(_REPO_ID_M2M, download=download)
     if not os.path.exists(os.path.join(d, "model.bin")):
         raise FileNotFoundError(f"CT2モデルが不完全です: {d}")
     return d

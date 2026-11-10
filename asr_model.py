@@ -12,7 +12,8 @@ MODELS レジストリの capabilities を engine が見て、後処理を自動
 import re
 
 import sherpa_onnx
-import huggingface_hub as hf
+
+import model_pins   # HF から取得するモデルの版（コミットID）固定
 
 _REPO_ID = "reazon-research/reazonspeech-k2-v2"
 _EPOCHS = 99  # v2(ja) のモデルファイル名に埋まっているepoch番号
@@ -29,10 +30,7 @@ SENSEVOICE_THREADS = 4
 
 def _resolve_files(precision: str = "fp32"):
     """モデルファイル群のローカルパスを解決（キャッシュ優先、無ければDL）"""
-    try:
-        basedir = hf.snapshot_download(_REPO_ID, local_files_only=True)
-    except hf.utils.LocalEntryNotFoundError:
-        basedir = hf.snapshot_download(_REPO_ID)
+    basedir = model_pins.resolve_snapshot(_REPO_ID)   # 版（コミットID）固定つき
     import os
     # int8 系は encoder/joiner を量子化版に差し替え（CPUで高速）
     enc = "int8." if precision in ("int8", "int8-fp32") else ""
@@ -119,13 +117,8 @@ _SV_FILES = ["model.int8.onnx", "tokens.txt", "LICENSE", "README.md"]
 def _resolve_sensevoice(download=True):
     """SenseVoice モデルフォルダの解決（HFキャッシュ → DL）"""
     import os
-    try:
-        d = hf.snapshot_download(_SV_REPO, allow_patterns=_SV_FILES,
-                                 local_files_only=True)
-    except Exception:
-        if not download:
-            raise
-        d = hf.snapshot_download(_SV_REPO, allow_patterns=_SV_FILES)
+    d = model_pins.resolve_snapshot(_SV_REPO, allow_patterns=_SV_FILES,
+                                    download=download)
     if not os.path.exists(os.path.join(d, "model.int8.onnx")):
         raise FileNotFoundError(f"SenseVoiceモデルが不完全です: {d}")
     return d
@@ -137,7 +130,7 @@ def cached(model_id="k2-ja") -> bool:
         if model_id == "sensevoice":
             _resolve_sensevoice(download=False)
         else:
-            hf.snapshot_download(_REPO_ID, local_files_only=True)
+            model_pins.resolve_snapshot(_REPO_ID, download=False)
         return True
     except Exception:
         return False
