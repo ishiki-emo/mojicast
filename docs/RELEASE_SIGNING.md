@@ -35,7 +35,7 @@ SignPath の条件は「全コンポーネントが OSI 承認ライセンス」
       凍結時は `SD_ENABLE_ASIO` を apppaths で外す（設定されていると sounddevice がこの DLL を探して失敗するため）
 - [ ] 🤖 ついでに不要物を除外: `pywebview-android.jar`、（動作確認のうえ）`dbghelp.dll` `dbgcore.dll`
 - [x] 🤖 LICENSE 末尾の日本語注記を CREDITS.md へ移した（2026-11-10 main に反映・GitHub の判定が MIT になったことを確認済み）
-- [ ] 🤖 CREDITS.md を実物に合わせる（Pillow/hf_xet は除外済み・oneMKL/WebView2 SDK/OpenSSL/protobuf を追記）
+- [x] 🤖 CREDITS.md を実物に合わせた（2026-11-10 develop・次のリリースから。MKL の方針が変わったら表も直す）
 
 ## 1. exe へのバージョン情報の付与（次のリリースで）
 
