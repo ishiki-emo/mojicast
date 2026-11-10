@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>カウンター</title>
+<script>
+  // 起動モニタに合わせたUI縮小＋テーマ先読み（soundfx_settings と同じ流儀）
+  (function () {
+    const qs = new URLSearchParams(location.search);
+    const s = parseFloat(qs.get("s"));
+    if (s > 0 && s !== 1) { document.documentElement.style.zoom = s; document.documentElement.style.setProperty("--ui-zoom", s); }
+    try { if (localStorage.getItem("mojicast-theme") === "light")
+      document.documentElement.dataset.theme = "light"; } catch (e) {}
+    if (qs.get("embed") === "1") document.documentElement.classList.add("embed");
+  })();
+</script>
+<script src="/ui/i18n.js" defer></script>
+<script src="/ui/theme-sync.js" defer></script>
+<script src="/ui/fx.js"></script>
+<script src="/ui/widgets.js"></script>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161c26; --panel2: #1c2432;
+    --line: #2a3547; --text: #dce6f5; --dim: #7d8ba1;
+    --accent: #00e5ff; --accent2: #ff2d95; --ok: #3dffa0; --warn: #ffb84d; --err: #ff5c5c;
+  }
+  :root[data-theme="light"] {
+    --bg: #f7f9fc; --panel: #ffffff; --panel2: #eef2f8;
+    --line: #dbe2ec; --text: #16202e; --dim: #5c6b80;
+    --accent: #0499bd; --accent2: #d4247a; --ok: #12a05f; --warn: #b5761a; --err: #d94141;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { width: calc(100% / var(--ui-zoom-w, 1)); }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'Yu Gothic UI', 'Meiryo', sans-serif; font-size: 14px;
+    min-height: calc(100vh / var(--ui-zoom, 1)); display: flex; flex-direction: column; user-select: none;
+  }
+  header { display: flex; align-items: center; gap: 12px;
+    padding: 12px 18px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  header .t { font-weight: 900; letter-spacing: .06em; }
+  header .d { color: var(--dim); font-size: 12px; flex: 1; }
+  :root.embed header { display: none; }
+  main { flex: 1; display: flex; gap: 14px; padding: 14px 18px; overflow-y: auto; align-items: flex-start; }
+  .list { flex: 1; min-width: 0; }
+  .side { width: 360px; flex: none; position: sticky; top: 0; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 8px 12px 4px; margin-bottom: 10px; }
+  .card.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .card.off { opacity: .6; }
+  .chead { display: flex; align-items: center; gap: 6px; padding-bottom: 6px; flex-wrap: wrap; }
+  .chead .no { color: var(--dim); font-size: 12px; width: 16px; text-align: right; }
+  .chead input.name { flex: 1; min-width: 110px; font-weight: 700; font-size: 15px; }
+  .chead .val { min-width: 44px; text-align: right; font-size: 20px; font-weight: 900;
+    font-variant-numeric: tabular-nums; color: var(--accent); }
+  .chead .sep { width: 1px; height: 18px; background: var(--line); margin: 0 2px; }
+  /* 区分は「左に見出し・右に中身」の行。中身は折り返すので枠からはみ出さない */
+  .sec { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 0 10px;
+    padding: 6px 0; border-top: 1px solid var(--line); }
+  .sec > h4 { margin: 0; padding-top: 6px; }
+  .sec > .body { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+  h4 { font-size: 12px; color: var(--dim); font-weight: 700; }
+  .item, .line { display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; min-width: 0; }
+  /* 見せ方の各行（数字・名前・単位）の先頭をそろえる */
+  .line > .lead { min-width: 128px; }
+  .grp { display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 100%; }
+  .k { color: var(--dim); font-size: 12px; white-space: nowrap; }
+  .k.tip { cursor: help; text-decoration: underline dotted; text-underline-offset: 3px; }
+  .item > .k:first-child { color: var(--text); font-size: 13px; font-weight: 700; }
+  input, select, button {
+    background: var(--panel); color: var(--text); border: 1px solid var(--line);
+    border-radius: 7px; padding: 4px 8px; font-size: 13px; font-family: inherit; }
+  select { max-width: min(100%, 260px); min-width: 0; text-overflow: ellipsis; }
+  input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.icon { padding: 3px 8px; }
+  button.x { border: 0; background: none; color: var(--dim); padding: 2px 6px; }
+  button.x:hover { color: var(--err); }
+  button.add { border-style: dashed; color: var(--dim); padding: 3px 8px; font-size: 12px; }
+  button.primary { background: var(--accent); color: #002230; font-weight: 700; border: 0; padding: 8px 16px; }
+  button.danger:hover { border-color: var(--err); color: var(--err); }
+  .stepper { display: inline-flex; align-items: center; }
+  .stepper button { border-radius: 7px 0 0 7px; padding: 3px 7px; }
+  .stepper button:last-child { border-radius: 0 7px 7px 0; }
+  .stepper input { width: 46px; text-align: center; border-radius: 0; border-left: 0; border-right: 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; background: var(--panel);
+    border: 1px solid var(--accent); border-radius: 999px; padding: 2px 8px; font-size: 13px; }
+  .chip b { cursor: pointer; color: var(--dim); font-weight: 400; }
+  .chip b:hover { color: var(--err); }
+  .hint { color: var(--dim); font-size: 12px; }
+  .warn { color: var(--warn); font-size: 12px; }
+  .adds { display: flex; gap: 6px; flex-wrap: wrap; }
+  .switch { flex: none; width: 39px; height: 22px; border: 0; border-radius: 999px; padding: 3px;
+    background: #344157; cursor: pointer; transition: .16s; }
+  .switch i { display: block; width: 16px; height: 16px; border-radius: 50%; background: #8b99ad; transition: .16s; }
+  .switch[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 36%, #344157); }
+  .switch[aria-pressed="true"] i { transform: translateX(17px); background: var(--accent); }
+  label.check { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; cursor: pointer; white-space: nowrap; }
+  input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px; }
+  .preview { position: relative; width: 100%; aspect-ratio: 16/9;
+    background: repeating-conic-gradient(var(--panel2) 0% 25%, var(--panel) 0% 50%) 0 0/24px 24px;
+    border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .marker { position: absolute; transform: translate(-50%,-50%); white-space: nowrap; cursor: grab;
+    padding: 0 4px; border-radius: 4px; line-height: 1.15; touch-action: none;
+    display: flex; align-items: baseline; gap: 4px; }
+  .marker span { paint-order: stroke fill; }
+  .marker:active { cursor: grabbing; }
+  .marker.sel { outline: 2px solid var(--accent); }
+  .status { min-height: 18px; font-size: 12px; margin: 8px 0; color: var(--dim); }
+  .status.err { color: var(--err); }
+  .empty { text-align: center; color: var(--dim); padding: 28px 10px; border: 1px dashed var(--line);
+    border-radius: 12px; margin-bottom: 12px; }
+  .sliderline { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 13px; }
+  .sliderline input[type="range"] { flex: 1; accent-color: var(--accent); padding: 0; border: 0; background: none; }
+  @media (max-width: 980px) { main { flex-direction: column; } .side { width: 100%; max-width: 480px; position: static; } }
+  @media (max-width: 560px) { .sec { grid-template-columns: minmax(0, 1fr); } .sec > h4 { padding-top: 0; } }
+</style>
+</head>
+<body>
+<header>
+  <span class="t" data-i18n="gb.title">🔢 カウンター</span>
+  <span class="d" data-i18n="gb.desc">言った回数やリアクションの回数を数えて、画面に出します。節目でシーンを切り替えることもできます</span>
+</header>
+<main>
+  <div class="list">
+    <div id="cards"></div>
+    <button class="add" id="addCard" onclick="addCard()" data-i18n="gb.add_card">＋ カードを追加</button>
+    <div class="status" id="status"></div>
+  </div>
+  <div class="side">
+    <h4 data-i18n="gb.place">画面での位置</h4>
+    <div class="preview" id="preview"></div>
+    <div class="hint" style="margin-top:6px" data-i18n="gb.place_hint">カウンターをドラッグして置きます。OBSに映る画面全体が枠です</div>
+    <div class="sliderline" id="sizeLine" hidden>
+      <span data-i18n="gb.size">大きさ</span>
+      <input type="range" id="size" min="4" max="60" step="1">
+      <span id="sizeVal" class="hint"></span>
+    </div>
+    <div class="hint" style="margin-top:14px" data-i18n="gb.recog_hint">数えたい語は「認識させる単語」にも入れておくと拾いやすくなります。聞き取りの取りこぼしがあるので、数は ＋／− で手直しできます</div>
+  </div>
+</main>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const T = (key, ja) => window.MojicastI18n ? window.MojicastI18n.t(key, ja) : ja;
+  const MAX = { cards: 10, triggers: 5, links: 5, words: 5, value: 99999 };
+  const DEFAULT_NAME = "カウンター";
+
+  let cards = [], values = {}, candidates = [], groups = [], soundRules = {};
+  let scenes = [], boxes = [], presets = [], selId = null, saveTimer = null;
+  let notice = "";   // 保存結果と一緒に出し続ける知らせ（つなぎを外した等）
+
+  async function api(path, body) {
+    const r = await fetch(path, body !== undefined
+      ? { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body) } : {});
+    let data = {};
+    try { data = await r.json(); } catch (e) {}
+    return { ok: r.ok, data };
+  }
+
+  // 要素を組み立てる。利用者の文字（カード名・語）は必ず textContent で入れる
+  function h(tag, attrs, ...kids) {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs || {})) {
+      if (k === "on") for (const [ev, fn] of Object.entries(v)) el.addEventListener(ev, fn);
+      else if (k === "class") el.className = v;
+      else if (k === "text") el.textContent = v;
+      else if (v !== undefined && v !== null && v !== false) el.setAttribute(k, v === true ? "" : v);
+    }
+    for (const c of kids.flat()) if (c != null) el.append(c);
+    return el;
+  }
+  function select(options, value, onChange) {
+    const s = h("select", { on: { change: () => onChange(s.value) } });
+    for (const [v, label, disabled] of options)
+      s.append(h("option", { value: v, text: label, disabled: !!disabled }));
+    s.value = value;
+    return s;
+  }
+  function stepper(value, min, max, onChange, opts = {}) {
+    const inp = h("input", { type: "number", min, max, value });
+    const set = (v) => {
+      v = Math.round(Number(v));
+      if (!Number.isFinite(v)) v = min;
+      v = Math.min(max, Math.max(min, v));
+      if (opts.skipZero && v === 0) v = value > 0 ? -1 : 1;   // 0 は使えない
+      value = v; inp.value = v; onChange(v);
+    };
+    inp.addEventListener("change", () => set(inp.value));
+    return h("span", { class: "stepper" },
+      h("button", { type: "button", text: "−", on: { click: () => set(value - 1) } }),
+      inp,
+      h("button", { type: "button", text: "＋", on: { click: () => set(value + 1) } }));
+  }
+  function newId() { return "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
+  function speakerSelect(t) {
+    return select([["any", T("gb.sp_any", "だれでも")], ["self", T("gb.sp_self", "自分")],
+                   ["guest", T("gb.sp_guest", "コラボ相手")]],
+                  t.speaker || "any", v => { t.speaker = v; save(); });
+  }
+
+  // ---------------- カード ----------------
+  function addCard() {
+    if (cards.length >= MAX.cards) return;
+    const c = { id: newId(), name: DEFAULT_NAME, enabled: true, step: 1, reset: "start",
+      triggers: [{ type: "word", words: [], speaker: "any" }],
+      display: { widget: { type: "counter", visible: true,
+        pos: { x: 0.88, y: 0.1 + 0.08 * (cards.length % 8) }, size: 0.12,
+        style: "", label: true, label_style: "", label_scale: 0.55,
+        unit: "", unit_style: "", unit_scale: 0.55, anim: "pop" } },
+      links: [] };
+    cards.push(c); selId = c.id;
+    render(); save();
+  }
+
+  function moveCard(i, d) {
+    const j = i + d;
+    if (j < 0 || j >= cards.length) return;
+    [cards[i], cards[j]] = [cards[j], cards[i]];
+    pruneLinks(); render(); save();
+  }
+
+  function deleteCard(i) {
+    const c = cards[i];
+    if (!confirm(T("gb.confirm_delete", "「{name}」を削除しますか？").replace("{name}", c.name))) return;
+    cards.splice(i, 1);
+    pruneLinks(); render(); save();
+  }
+
+  // つなぐ先は自分より下のカードだけ。並べ替え・削除で上や不在になったつなぎは外し、
+  // 外したことは画面に出す（黙って消さない）
+  function pruneLinks() {
+    const dropped = [];
+    cards.forEach((c, i) => {
+      const below = new Set(cards.slice(i + 1).map(x => x.id));
+      c.links = c.links.filter(lk => {
+        if (!["add", "reset"].includes(lk.op) || !lk.target || below.has(lk.target)) return true;
+        dropped.push(c.name);
+        return false;
+      });
+    });
+    if (dropped.length) {
+      // 直後の「保存しました」で消えないよう、次の保存結果に添えて出す
+      notice = T("gb.pruned", "つなぐ先が上になったため、「{names}」のつなぎを外しました")
+        .replace("{names}", [...new Set(dropped)].join("」「"));
+      setStatus(notice, true);
+    }
+  }
+
+  async function bump(c, op, value) {
+    const r = await api("/api/gambits/bump", { id: c.id, op, value });
+    if (!r.ok) { setStatus(r.data.error || T("gb.bump_fail", "変更できませんでした（保存前のカードかもしれません）"), true); return; }
+    values[c.id] = r.data.value;
+    renderValues();
+  }
+
+  // ---------------- 描画 ----------------
+  function render() {
+    const box = $("cards");
+    box.innerHTML = "";
+    if (!cards.length)
+      box.append(h("div", { class: "empty", text: T("gb.empty", "まだカードがありません。「＋カードを追加」から、数えたい言葉を選びます") }));
+    cards.forEach((c, i) => box.append(renderCard(c, i)));
+    $("addCard").disabled = cards.length >= MAX.cards;
+    renderPreview();
+  }
+
+  function renderCard(c, i) {
+    const el = h("div", { class: "card" + (c.id === selId ? " sel" : "") + (c.enabled ? "" : " off"),
+      "data-id": c.id, on: { pointerdown: () => selectCard(c.id) } });
+    const name = h("input", { class: "name", value: c.name, maxlength: 30,
+      on: { input: () => { c.name = name.value; c._named = true; renderPreview(); save(); } } });
+    const sw = h("button", { class: "switch", "aria-pressed": String(c.enabled),
+      title: T("gb.enable_t", "このカードを使う"),
+      on: { click: () => { c.enabled = !c.enabled; render(); save(); } } }, h("i"));
+    el.append(h("div", { class: "chead" },
+      h("span", { class: "no", text: String(i + 1) }), sw, name,
+      h("span", { class: "val", "data-val": c.id, text: String(values[c.id] ?? 0) }),
+      h("button", { class: "icon", title: T("gb.minus_t", "1減らす"), text: "−", on: { click: () => bump(c, "add", -1) } }),
+      h("button", { class: "icon", title: T("gb.plus_t", "1増やす"), text: "＋", on: { click: () => bump(c, "add", 1) } }),
+      h("button", { class: "icon", title: T("gb.reset_t", "0に戻す"), text: "↺", on: { click: () => bump(c, "reset", 0) } }),
+      h("span", { class: "sep" }),
+      h("button", { class: "icon", title: T("gb.up_t", "上へ"), text: "↑", disabled: i === 0, on: { click: () => moveCard(i, -1) } }),
+      h("button", { class: "icon", title: T("gb.down_t", "下へ"), text: "↓", disabled: i === cards.length - 1, on: { click: () => moveCard(i, 1) } }),
+      h("button", { class: "icon danger", title: T("gb.delete_t", "削除"), text: "🗑", on: { click: () => deleteCard(i) } })));
+
+    el.append(renderTriggers(c), renderCount(c), renderDisplay(c), renderLinks(c, i));
+    return el;
+  }
+
+  // 区分 = 左に見出し、右に中身の行
+  function section(title, ...rows) {
+    return h("div", { class: "sec" }, h("h4", { text: title }), h("div", { class: "body" }, ...rows));
+  }
+  // 「見出し語＋操作」をひとかたまりにする（折り返しで泣き別れにしない）
+  function grp(label, ...ctrls) {
+    return h("span", { class: "grp" }, label ? h("span", { class: "k", text: label }) : null, ...ctrls);
+  }
+  function delBtn(onClick) {
+    return h("button", { class: "x", text: "×", title: T("gb.delete_t", "削除"), on: { click: onClick } });
+  }
+
+  function renderTriggers(c) {
+    const rows = c.triggers.map((t, ti) => {
+      const del = delBtn(() => { c.triggers.splice(ti, 1); render(); save(); });
+      if (t.type === "word") return renderWordTrigger(c, t, del);
+      if (t.type === "silence") return renderSilenceTrigger(t, del);
+      return h("div", { class: "item" },
+        h("span", { class: "k", text: T("gb.t_sound", "リアクション") }),
+        select(groups.map(g => [g, g]), t.group, v => { t.group = v; save(); }),
+        speakerSelect(t),
+        grp(T("gb.cooldown", "間隔"), stepper(t.cooldown ?? 5, 0, 60, v => { t.cooldown = v; save(); }),
+            h("span", { class: "k", text: T("gb.sec", "秒") })), del);
+    });
+    if (c.triggers.length < MAX.triggers)
+      rows.push(h("div", { class: "adds" },
+        h("button", { class: "add", text: T("gb.add_word", "＋言った言葉"),
+          on: { click: () => { c.triggers.push({ type: "word", words: [], speaker: "any" }); render(); save(); } } }),
+        groups.length ? h("button", { class: "add", text: T("gb.add_sound", "＋リアクション"),
+          on: { click: () => { c.triggers.push({ type: "sound", group: groups[0], speaker: "any", cooldown: 5 }); render(); save(); } } }) : null,
+        // 黙っているは1カードに1つまで（話したら0に戻すので、2つあると数え方が定まらない）
+        c.triggers.some(t => t.type === "silence") ? null :
+        h("button", { class: "add", text: T("gb.add_silence", "＋黙っている"),
+          on: { click: () => { c.triggers.push({ type: "silence", speaker: "any", seconds: 30 }); render(); save(); } } })));
+    return section(T("gb.h_trigger", "きっかけ"), ...rows);
+  }
+
+  // しばらく黙っている: 1回黙るごとに1回数える（黙り続けても増え続けない）
+  const SILENCE_SECS = [5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 300, 600];
+  function renderSilenceTrigger(t, del) {
+    const secs = SILENCE_SECS.includes(t.seconds) ? SILENCE_SECS : SILENCE_SECS.concat([t.seconds]).sort((a, b) => a - b);
+    return h("div", { class: "item" },
+      h("span", { class: "k tip", text: T("gb.t_silence", "黙っている"),
+        title: T("gb.si_note", "字幕もリアクションも出ない時間を数えます。黙っている間は秒数ごとに数え、話し始めると0に戻ります（字幕を止めている間は数えません）") }),
+      h("span", { class: "grp" },
+        select([["any", T("gb.si_any", "全員")], ["self", T("gb.sp_self", "自分")],
+                ["guest", T("gb.sp_guest", "コラボ相手")]],
+               t.speaker || "any", v => { t.speaker = v; save(); }),
+        h("span", { class: "k", text: T("gb.si_for", "が") }),
+        select(secs.map(n => [String(n), n < 60 ? n + T("gb.sec", "秒") : (n / 60) + T("gb.min", "分")]),
+               String(t.seconds), v => { t.seconds = Number(v); save(); }),
+        h("span", { class: "k", text: T("gb.si_tail", "黙るごとに数える（話したら0）") })), del);
+  }
+
+  let listSeq = 0;
+  function renderWordTrigger(c, t, del) {
+    const addWord = (w) => {
+      w = (w || "").trim().slice(0, 30);
+      if (!w || t.words.includes(w) || t.words.length >= MAX.words) return;
+      t.words.push(w);
+      // 名前を自分で付けていなければ、最初の語をカード名にする
+      if (!c._named && (c.name === DEFAULT_NAME || !c.name)) c.name = w;
+      render(); save();
+    };
+    const row = h("div", { class: "item" }, h("span", { class: "k", text: T("gb.t_word", "言った言葉") }),
+      t.words.map((w, wi) => h("span", { class: "chip" }, w,
+        h("b", { text: "×", on: { click: () => { t.words.splice(wi, 1); render(); save(); } } }))));
+    if (t.words.length < MAX.words) {
+      // 登録済みの語は入力欄の候補から選ぶ（候補を選んだらそのまま追加）
+      const listId = "gbw" + (++listSeq);
+      const list = h("datalist", { id: listId },
+        candidates.filter(w => !t.words.includes(w)).map(w => h("option", { value: w })));
+      const typed = h("input", { maxlength: 30, list: listId, style: "width:170px; max-width:100%",
+        placeholder: candidates.length ? T("gb.type_or_pick", "言葉を入力・選ぶ") : T("gb.type_word", "新しい言葉"),
+        on: { keydown: (e) => { if (e.key === "Enter") addWord(typed.value); },
+              // 候補の選択はキー入力ではない input として届く（Chromium: inputType なし／WebKit: insertReplacementText）
+              input: (e) => { if ((!e.inputType || e.inputType === "insertReplacementText")
+                                  && candidates.includes(typed.value)) addWord(typed.value); } } });
+      row.append(h("span", { class: "grp" }, typed, list,
+        h("button", { class: "icon", text: "＋", title: T("gb.add_t", "追加"), on: { click: () => addWord(typed.value) } })));
+    }
+    row.append(speakerSelect(t), del);
+    if (!t.words.length) row.append(h("span", { class: "warn",
+      text: T("gb.need_word", "言葉を1つ以上入れると数え始めます") }));
+    return row;
+  }
+
+  function renderCount(c) {
+    return section(T("gb.h_count", "数え方"), h("div", { class: "line" },
+      grp(T("gb.per", "1回で＋"), stepper(c.step, 1, 100, v => { c.step = v; save(); })),
+      grp(T("gb.reset", "0に戻す"),
+        select([["start", T("gb.reset_start", "アプリの起動ごと")], ["manual", T("gb.reset_manual", "手動のときだけ")]],
+               c.reset, v => { c.reset = v; save(); }))));
+  }
+
+  function renderDisplay(c) {
+    const w = c.display.widget;
+    const vis = h("input", { type: "checkbox", checked: w.visible,
+      on: { change: () => { w.visible = vis.checked; renderPreview(); save(); } } });
+    const lab = h("input", { type: "checkbox", checked: w.label,
+      on: { change: () => { w.label = lab.checked; render(); save(); } } });
+    const looks = presets.map(p => [p.id, p.name]);
+    // 名前・単位の「見た目」（"" = 数字と同じ）と「大きさ」（数字に対する割合 20〜200%）
+    const lookSel = (key) => grp(T("gb.look", "見た目"),
+      select([["", T("gb.look_same", "数字と同じ")]].concat(looks),
+             w[key] || "", v => { w[key] = v; renderPreview(); save(); }));
+    const scaleGrp = (key) => {
+      const scale = h("input", { type: "range", min: 20, max: 200, step: 5,
+        value: Math.round((w[key] ?? 0.55) * 100),
+        style: "width:90px; padding:0; border:0; background:none; accent-color:var(--accent)" });
+      const scaleVal = h("span", { class: "k", text: scale.value + "%", style: "min-width:34px" });
+      scale.addEventListener("input", () => {
+        w[key] = scale.value / 100; scaleVal.textContent = scale.value + "%";
+        renderPreview(); save();
+      });
+      return grp(T("gb.size_rel", "大きさ"), scale, scaleVal);
+    };
+
+    const numLine = h("div", { class: "line" },
+      h("label", { class: "check lead" }, vis, T("gb.show", "画面に常に出す")),
+      grp(T("gb.look", "見た目"),
+        select([["", T("gb.look_current", "いまの字幕デザイン")]].concat(looks),
+               w.style, v => { w.style = v; renderPreview(); save(); })),
+      grp(T("gb.anim", "増えたとき"),
+        select(COUNTER_ANIMS(), w.anim, v => { w.anim = v; save(); })));
+
+    const nameLine = h("div", { class: "line" }, h("label", { class: "check lead" }, lab, T("gb.show_name", "項目名も出す")));
+    if (w.label) nameLine.append(lookSel("label_style"), scaleGrp("label_scale"));
+
+    // 単位: 入力中に描き直すと入力欄のフォーカスが外れるので、見た目・大きさは出し入れだけ
+    const unitOpts = h("span", { class: "line", style: "display:contents" },
+      lookSel("unit_style"), scaleGrp("unit_scale"));
+    const unit = h("input", { value: w.unit || "", maxlength: 10, style: "width:64px",
+      placeholder: T("gb.unit_ph", "例: 回"),
+      on: { input: () => { w.unit = unit.value.trim();
+                           unitOpts.style.display = w.unit ? "contents" : "none";
+                           renderPreview(); save(); } } });
+    unitOpts.style.display = w.unit ? "contents" : "none";
+    const unitLine = h("div", { class: "line" },
+      h("span", { class: "grp lead" }, h("span", { class: "k", text: T("gb.unit", "単位") }), unit),
+      unitOpts);
+    return section(T("gb.h_display", "見せ方"), numLine, nameLine, unitLine);
+  }
+
+  // 増えたときの動き（widgets.js が描けるものだけ。名前はワード演出と共通の訳）
+  const COUNTER_ANIMS = () => FX.WORD_ANIMS
+    .filter(([v]) => ["pop", "bounce", "heartbeat", "shake", "spin", "flash", "none"].includes(v))
+    .map(([v, ja]) => [v, FX.tr("fx.an_" + v, ja)]);
+
+  const OPS = () => [["add", T("gb.op_add", "下のカードを増やす")], ["reset", T("gb.op_reset", "下のカードを0に戻す")],
+    ["scene", T("gb.op_scene", "シーンを切り替える")], ["box", T("gb.op_box", "レイアウトを切り替える")],
+    ["preset", T("gb.op_preset", "デザインを切り替える")], ["stamp", T("gb.op_stamp", "リアクション演出を出す")]];
+
+  function renderLinks(c, i) {
+    const below = cards.slice(i + 1);
+    const rows = c.links.map((lk, li) => {
+      const row = h("div", { class: "item" },
+        h("span", { class: "grp" },
+          stepper(lk.n, 1, MAX.value, v => { lk.n = v; save(); }),
+          select([["every", T("gb.every", "ごとに")], ["reach", T("gb.reach", "に達したら（1回）")]],
+                 lk.when, v => { lk.when = v; save(); })),
+        h("span", { class: "grp" },
+          h("span", { class: "k", text: "→" }),
+          select(OPS(), lk.op, v => { changeOp(lk, v, below); render(); save(); })));
+      if (lk.op === "add" || lk.op === "reset") {
+        if (below.length) {
+          row.append(select(below.map(x => [x.id, x.name]), lk.target,
+                            v => { lk.target = v; save(); }));
+          if (lk.op === "add") row.append(stepper(lk.value ?? 1, -1000, 1000,
+                                                  v => { lk.value = v; save(); }, { skipZero: true }));
+        } else row.append(h("span", { class: "warn", text: T("gb.no_below", "下にカードがありません（下に追加すると選べます）") }));
+      } else if (lk.op === "stamp") {
+        row.append(select(groups.map(g => [g, g]), lk.group, v => { lk.group = v; render(); save(); }));
+        if (!soundRules[lk.group]?.on)
+          row.append(h("span", { class: "warn", text: T("gb.stamp_off", "⚠ リアクション演出でOFFのため出ません") }));
+      } else {
+        const items = { scene: scenes, box: boxes, preset: presets }[lk.op];
+        if (items.length) {
+          if (!items.some(x => x.id === lk.id)) lk.id = items[0].id;
+          row.append(select(items.map(x => [x.id, x.name]), lk.id, v => { lk.id = v; save(); }));
+        } else row.append(h("span", { class: "warn", text: T("gb.no_items", "切り替え先がまだありません") }));
+      }
+      row.append(delBtn(() => { c.links.splice(li, 1); render(); save(); }));
+      return row;
+    });
+    if (c.links.length < MAX.links)
+      rows.push(h("div", { class: "adds" }, h("button", { class: "add", text: T("gb.add_link", "＋つなぐ"),
+        on: { click: () => {
+          const lk = { when: "every", n: 10, op: below.length ? "add" : "stamp" };
+          changeOp(lk, lk.op, below);
+          c.links.push(lk); render(); save();
+        } } })));
+    return section(T("gb.h_links", "節目"), ...rows);
+  }
+
+  function changeOp(lk, op, below) {
+    for (const k of ["target", "value", "id", "group"]) delete lk[k];
+    lk.op = op;
+    if (op === "add" || op === "reset") { lk.target = below[0]?.id; if (op === "add") lk.value = 1; }
+    else if (op === "stamp") lk.group = groups[0];
+    else lk.id = ({ scene: scenes, box: boxes, preset: presets }[op][0] || {}).id;
+  }
+
+  function renderValues() {
+    document.querySelectorAll("[data-val]").forEach(el => {
+      el.textContent = String(values[el.dataset.val] ?? 0);
+    });
+    renderPreview();
+  }
+
+  // 選択の切替は印を付け替えるだけ（描き直すとドラッグ中の要素が消える）
+  function selectCard(id) {
+    if (selId === id) return;
+    selId = id;
+    document.querySelectorAll(".card").forEach(el => el.classList.toggle("sel", el.dataset.id === id));
+    document.querySelectorAll(".marker").forEach(el => el.classList.toggle("sel", el.dataset.id === id));
+    syncSize();
+  }
+  function syncSize() {
+    const sel = cards.find(c => c.id === selId);
+    $("sizeLine").hidden = !sel;
+    if (sel) {
+      $("size").value = Math.round(sel.display.widget.size * 100);
+      $("sizeVal").textContent = $("size").value + "%";
+    }
+  }
+
+  // ---------------- 配置プレビュー ----------------
+  // サーバの _widget_look と同じ引き方（消えたプリセットはいまの字幕デザインへ）
+  function lookOf(styleId) {
+    return presets.find(x => x.id === styleId) || presets.find(x => x.id === currentPreset) || {};
+  }
+  let currentPreset = "";
+  function renderPreview() {
+    const pv = $("preview");
+    pv.innerHTML = "";
+    const W = pv.clientWidth || 360;
+    for (const c of cards) {
+      const w = c.display.widget;
+      if (!w || !w.visible) continue;
+      const lb = w.label ? h("span", { class: "lb", text: c.name }) : null;
+      const v = h("span", { text: String(values[c.id] ?? 0) });
+      const u = w.unit ? h("span", { class: "u", text: w.unit }) : null;
+      const m = h("div", { class: "marker" + (c.id === selId ? " sel" : ""), "data-id": c.id }, lb, v, u);
+      m.style.left = w.pos.x * 100 + "%"; m.style.top = w.pos.y * 100 + "%";
+      WIDGETS.styleText(v, lookOf(w.style), WIDGETS.valuePx(w, W));
+      if (lb) WIDGETS.styleText(lb, lookOf(w.label_style || w.style), WIDGETS.labelPx(w, W));
+      if (u) {
+        WIDGETS.styleText(u, lookOf(w.unit_style || w.style), WIDGETS.unitPx(w, W));
+        // 単位は数字に寄せる（枠の gap 4px を打ち消して、数字の 0.1 倍だけ空ける）
+        u.style.marginLeft = (-4 + 0.1 * WIDGETS.valuePx(w, W)) + "px";
+      }
+      m.addEventListener("pointerdown", (e) => startDrag(e, c, m));
+      pv.append(m);
+    }
+    syncSize();
+  }
+
+  function startDrag(e, c, m) {
+    e.preventDefault(); e.stopPropagation();
+    selectCard(c.id);
+    const rect = $("preview").getBoundingClientRect();
+    m.setPointerCapture(e.pointerId);
+    const w = c.display.widget;
+    const move = (ev) => {
+      w.pos = { x: Math.min(1, Math.max(0, (ev.clientX - rect.left) / rect.width)),
+                y: Math.min(1, Math.max(0, (ev.clientY - rect.top) / rect.height)) };
+      m.style.left = w.pos.x * 100 + "%"; m.style.top = w.pos.y * 100 + "%";
+    };
+    const up = () => { m.removeEventListener("pointermove", move); m.removeEventListener("pointerup", up); save(); };
+    m.addEventListener("pointermove", move);
+    m.addEventListener("pointerup", up);
+  }
+
+  $("size").addEventListener("input", () => {
+    const c = cards.find(x => x.id === selId);
+    if (!c) return;
+    c.display.widget.size = $("size").value / 100;
+    renderPreview(); save();
+  });
+  window.addEventListener("resize", renderPreview);
+
+  // ---------------- 保存 ----------------
+  // 書きかけの行（言葉が空・つなぐ先が無い）は送らない。サーバは不正な形を
+  // 丸ごと弾くので、1行の書きかけで他の変更まで保存されなくなるのを避ける
+  function payload() {
+    return cards.map((c, i) => {
+      const below = new Set(cards.slice(i + 1).map(x => x.id));
+      const { _named, ...rest } = c;
+      return { ...rest,
+        name: (c.name || "").trim() || DEFAULT_NAME,
+        triggers: c.triggers.filter(t => t.type !== "word" || t.words.length),
+        links: c.links.filter(lk => {
+          if (lk.op === "add" || lk.op === "reset") return below.has(lk.target);
+          if (lk.op === "stamp") return !!lk.group;
+          return !!lk.id;
+        }) };
+    });
+  }
+
+  function save() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+      const r = await api("/api/gambits", { cards: payload() });
+      if (r.ok) setStatus(T("gb.saved", "保存しました") + (notice ? "／" + notice : ""), !!notice);
+      else setStatus(T("gb.save_fail", "保存できませんでした: ") + (r.data.error || ""), true);
+      notice = "";
+    }, 450);
+  }
+
+  function setStatus(msg, isErr) {
+    const s = $("status");
+    s.textContent = msg;
+    s.classList.toggle("err", !!isErr);
+  }
+
+  // ---------------- 実際の数の変化（SSE） ----------------
+  function connect() {
+    const es = new EventSource("/events");
+    es.onmessage = (e) => {
+      const msg = JSON.parse(e.data);
+      if (msg.type === "widget") { values[msg.id] = msg.value; renderValues(); }
+      else if ((msg.type === "init" || msg.type === "style") && msg.sound_rules) soundRules = msg.sound_rules;
+    };
+    es.onerror = () => { es.close(); setTimeout(connect, 1500); };
+  }
+
+  // ---------------- 初期化 ----------------
+  (async function init() {
+    const [g, cfg, sg, sc, bx, pr] = await Promise.all([
+      api("/api/gambits"), api("/api/config"), api("/api/soundfx/groups"),
+      api("/api/scenes"), api("/api/boxes"), api("/api/presets")]);
+    if (!g.ok) { setStatus(T("gb.load_fail", "読み込めませんでした。Mojicast アプリから開いてください"), true); return; }
+    cards = g.data.cards || []; values = g.data.values || {}; candidates = g.data.word_candidates || [];
+    for (const c of cards) c._named = c.name !== DEFAULT_NAME;
+    groups = sg.data.groups || []; soundRules = cfg.data.sound_fx_rules || {};
+    currentPreset = cfg.data.preset || "";
+    scenes = sc.data.scenes || []; boxes = bx.data.boxes || []; presets = pr.data.presets || [];
+    selId = cards[0]?.id || null;
+    render();
+    connect();
+  })();
+  window.addEventListener("mojicast-lang-changed", () => { try { render(); } catch (e) {} });
+</script>
+</body>
+</html>
