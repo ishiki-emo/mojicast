@@ -7,6 +7,10 @@ on:
     branches: [main, develop, "feat/**"]
   pull_request:
 
+# テストを回すだけなのでリポジトリの読み取り以外は渡さない
+permissions:
+  contents: read
+
 jobs:
   test:
     name: test (${{ matrix.os }})
@@ -16,8 +20,11 @@ jobs:
       matrix:
         os: [windows-latest, macos-15]   # macos-15 = Apple Silicon (arm64)。macos-14 は 2026-11 に提供終了
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      # actions は完全なコミットIDで固定する（タグの付け替えで中身が変わらないように）。版はコメントに併記
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
         with:
           python-version: "3.11"
           cache: pip
