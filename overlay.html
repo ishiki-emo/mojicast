@@ -167,7 +167,7 @@
     for (const name of [...panes.keys()])
       if (name !== "" && !(spk && spk[name])) {
         clearTimeout(panes.get(name)._enWait);
-        panes.get(name).boxEl.remove();
+        FX.removeBox(panes.get(name).boxEl);   // 3Dの包みがあれば一緒に外す
         panes.delete(name);
       }
     if (spk) {

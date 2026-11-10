@@ -212,6 +212,38 @@
     return s;
   };
 
+  // ---------------- 3D: 厚み（押し出し） ----------------
+  // 厚みは text-shadow を1.5pxずつずらして重ねる（1920基準のpx）。
+  // 色は縁取り色から奥ほど暗く。縁取りがほぼ黒なら文字色を暗くして使う
+  //（黒の上に黒を重ねると厚みが見えないため）
+  FX.EXTRUDE_MAX = 20;
+  FX.EXTRUDE_STEP = 1.5;
+  function hexRgb(hex) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || "").trim());
+    if (!m) return null;
+    const n = parseInt(m[1], 16);
+    return [n >> 16, (n >> 8) & 255, n & 255];
+  }
+  FX.extrudeShadows = function (style) {
+    const n = Math.max(0, Math.min(FX.EXTRUDE_MAX, Math.round(+style.extrude || 0)));
+    if (!n) return [];
+    const r = (+style.extrudeDir || 0) * Math.PI / 180;
+    const dx = Math.cos(r), dy = Math.sin(r);
+    let base = hexRgb(style.outlineColor) || [0, 0, 0];
+    if (base[0] * .299 + base[1] * .587 + base[2] * .114 < 40)
+      base = (hexRgb(style.color) || [255, 255, 255]).map(v => v * .7);
+    const out = [];
+    for (let i = 1; i <= n; i++) {
+      const k = .95 - .45 * i / n;                  // 奥ほど暗く
+      const c = base.map(v => Math.round(v * k)).join(",");
+      out.push(`${(dx * i * FX.EXTRUDE_STEP).toFixed(1)}px ${(dy * i * FX.EXTRUDE_STEP).toFixed(1)}px 0 rgb(${c})`);
+    }
+    // 下に落ちる柔らかい影
+    const e = n * FX.EXTRUDE_STEP;
+    out.push(`${(dx * e + 4).toFixed(1)}px ${(dy * e + 6).toFixed(1)}px 12px rgba(0,0,0,.5)`);
+    return out;
+  };
+
   FX.buildTextShadow = function (style) {
     const shadows = FX.outlineShadow(style.outlineWidth ?? 2,
                                      style.outlineColor || "#000");
@@ -219,6 +251,8 @@
       const g = style.glowSize || 12;
       shadows.push(`0 0 ${g}px ${style.glow}`, `0 0 ${g * 2}px ${style.glow}`);
     }
+    // 厚みは縁取り・光彩の後ろ（text-shadow は先に書いたものが手前）
+    shadows.push(...FX.extrudeShadows(style));
     if (style.shadow) shadows.push("0 3px 8px rgba(0,0,0,.8)");
     return shadows.join(",");
   };
@@ -297,9 +331,11 @@
         if (fx.scale && +fx.scale !== 1) span.style.fontSize = fx.scale + "em";
         span.style.fontWeight = 900;
         if (fx.color) {
+          // 色つき単語は影を自前で上書きするので、厚みもここで足し直す（無いと単語だけ平らになる）
           span.style.textShadow =
             FX.outlineShadow(style.outlineWidth ?? 2, style.outlineColor || "#000")
-              .concat([`0 0 12px ${fx.color}`, `0 0 22px ${fx.color}`]).join(",");
+              .concat([`0 0 12px ${fx.color}`, `0 0 22px ${fx.color}`],
+                      FX.extrudeShadows(style)).join(",");
         }
         el.appendChild(span);
         i += w.length;
@@ -455,9 +491,83 @@
    *             見切れがハードカットでなく「すっと消える」見た目になる
    * ボックスは %指定なので親（画面 or プレビューステージ）サイズに追従する。
    */
+  // ---------------- 3D: 枠ごと傾ける ----------------
+  // 傾きはレイアウト（box）の tiltX/tiltY/tiltZ（deg）と perspective（px）。
+  // 3D演出プリセットは値の組に名前を付けたもの。押すとレイアウトに値をコピーする
+  //（新UI・旧UI・MCP が同じ定義を見る）
+  FX.TILT_KEYS = ["tiltX", "tiltY", "tiltZ", "perspective"];
+  FX.TILT_LIMITS = { tiltX: [-20, 65], tiltY: [-60, 60], tiltZ: [-15, 15], perspective: [400, 3000] };
+  FX.TILT_DEFAULT_PERSPECTIVE = 1200;
+  FX.TILT_PRESETS = [
+    { id: "flat",       ja: "平面（3Dなし）", v: { tiltX: 0,  tiltY: 0,   tiltZ: 0, perspective: 1200 } },
+    { id: "wall-right", ja: "右の壁",         v: { tiltX: 0,  tiltY: -26, tiltZ: 0, perspective: 1400 } },
+    { id: "wall-left",  ja: "左の壁",         v: { tiltX: 0,  tiltY: 26,  tiltZ: 0, perspective: 1400 } },
+    { id: "floor",      ja: "床に流す",       v: { tiltX: 40, tiltY: 0,   tiltZ: 0, perspective: 900 } },
+    { id: "slant",      ja: "少し斜め",       v: { tiltX: 6,  tiltY: -14, tiltZ: 0, perspective: 1600 } },
+  ];
+  /** レイアウトの傾き（範囲に丸めた値）。リリックは傾けない。全部0なら null */
+  FX.tiltOf = function (box) {
+    if (!box || (box.mode || "flow") === "lyric") return null;
+    const L = FX.TILT_LIMITS;
+    const num = (k, d) => {
+      const v = Number(box[k]);
+      return box[k] != null && box[k] !== "" && Number.isFinite(v)
+        ? Math.min(L[k][1], Math.max(L[k][0], v)) : d;
+    };
+    const t = { tiltX: num("tiltX", 0), tiltY: num("tiltY", 0), tiltZ: num("tiltZ", 0),
+                perspective: num("perspective", FX.TILT_DEFAULT_PERSPECTIVE) };
+    return (t.tiltX || t.tiltY || t.tiltZ) ? t : null;
+  };
+  /** 今の値に一致する3D演出プリセットの id（平面は "flat"、どれでもなければ ""＝カスタム） */
+  FX.tiltPresetOf = function (box) {
+    const t = FX.tiltOf(box);
+    if (!t) return "flat";
+    const hit = FX.TILT_PRESETS.find(p => p.id !== "flat" &&
+      FX.TILT_KEYS.every(k => p.v[k] === t[k]));
+    return hit ? hit.id : "";
+  };
+
+  // 遠近（perspective）は親に置く必要がある。overlay ではコラボの各ペインの枠が
+  // body 直下に並ぶので、枠ごとに全面の透明な包みを作ってそこに置く（ペインごとに値を
+  // 分けられる・overlay/style.html の構造に手を入れずに済む）。傾けないときは作らない
+  function tiltWrap(boxEl, make) {
+    const w = boxEl.parentElement;
+    if (w && w.classList.contains("fx-persp")) return w;
+    if (!make || !w) return null;
+    const nw = document.createElement("div");
+    nw.className = "fx-persp";
+    nw.style.cssText = "position:absolute;inset:0;pointer-events:none;perspective-origin:50% 50%;";
+    w.insertBefore(nw, boxEl);
+    nw.appendChild(boxEl);
+    return nw;
+  }
+  function applyTilt(boxEl, box) {
+    const t = FX.tiltOf(box);
+    if (!t) {
+      const w = tiltWrap(boxEl, false);
+      if (w) { w.parentElement.insertBefore(boxEl, w); w.remove(); }
+      boxEl.style.transform = "";
+      boxEl.style.transformOrigin = "";
+      return;
+    }
+    const w = tiltWrap(boxEl, true);
+    if (w) w.style.perspective = t.perspective + "px";
+    // 軸: 枠が右寄りなら右端、左寄りなら左端、中ほどなら中央。
+    // 端の枠は画面の外側を軸に内側へ倒れるので「壁」に見える
+    const cx = (+box.x || 0) + (box.w ?? 100) / 2;
+    boxEl.style.transformOrigin = cx > 58 ? "100% 50%" : cx < 42 ? "0% 50%" : "50% 50%";
+    boxEl.style.transform = `rotateX(${t.tiltX}deg) rotateY(${t.tiltY}deg) rotateZ(${t.tiltZ}deg)`;
+  }
+  /** 枠を外す（包みがあれば一緒に）。ペインの撤去で使う */
+  FX.removeBox = function (boxEl) {
+    const w = tiltWrap(boxEl, false);
+    (w || boxEl).remove();
+  };
+
   FX.applyBox = function (boxEl, scrollEl, box, clipEl) {
     const mode = box.mode || "flow";
     const bubble = mode === "bubble";
+    applyTilt(boxEl, box);
     boxEl.style.position = "absolute";
     boxEl.style.left = (box.x ?? 0) + "%";
     boxEl.style.top = (box.y ?? 0) + "%";
@@ -513,17 +623,36 @@
    * 静止状態で「文字が半分切れたまま」にならないようにする。
    * スクロールアニメ完了後（smoothMs+α）に呼ぶこと。最新行は消さない。
    */
+  // el の、ancestor の内側の左上からの位置（変形前のレイアウト座標）。辿れなければ null
+  function offsetIn(el, ancestor) {
+    let top = 0, left = 0, n = el;
+    while (n && n !== ancestor) {
+      top += n.offsetTop; left += n.offsetLeft;
+      n = n.offsetParent;
+    }
+    return n === ancestor ? { top, left } : null;
+  }
+
   FX.pruneClipped = function (clipEl, linesEl, box) {
     if ((box.mode || "flow") === "lyric") return;
     const r = clipEl.getBoundingClientRect();
     const vert = box.mode === "vertical";
+    // 傾けた枠は画面上の矩形が台形になり、端の比較がずれる。
+    // そのときは変形前のレイアウト座標で判定する（平面のときは今まで通り）
+    const tilted = !!FX.tiltOf(box);
     const kids = [...linesEl.children];
     for (let i = 0; i < kids.length; i++) {
       const line = kids[i];
       if (i === kids.length - 1) continue;   // 最新行（読んでいる最中）は残す
       if (line._pruning) continue;
-      const lr = line.getBoundingClientRect();
-      const clipped = vert ? (lr.right > r.right + 1) : (lr.top < r.top - 1);
+      let clipped;
+      const o = tilted ? offsetIn(line, clipEl) : null;
+      if (o) {
+        clipped = vert ? (o.left + line.offsetWidth > clipEl.clientWidth + 1) : (o.top < -1);
+      } else {
+        const lr = line.getBoundingClientRect();
+        clipped = vert ? (lr.right > r.right + 1) : (lr.top < r.top - 1);
+      }
       if (clipped) {
         line._pruning = true;
         line.animate([{ opacity: 1 }, { opacity: 0 }],
