@@ -60,12 +60,8 @@ def _resolve(filename, download=True):
     local = os.path.join(BASE, "models_conv", _SUBDIR, filename)
     if os.path.exists(local):
         return local
-    try:
-        return hf.hf_hub_download(_REPO_ID, filename, local_files_only=True)
-    except Exception:
-        if not download:
-            raise
-        return hf.hf_hub_download(_REPO_ID, filename)
+    import model_pins            # 版（コミットID）固定つきの取得
+    return model_pins.resolve_file(_REPO_ID, filename, download=download)
 
 
 def model_file(precision: str = "int8") -> str:

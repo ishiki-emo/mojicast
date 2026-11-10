@@ -68,14 +68,9 @@ _FILES = ["model.int8.onnx", "class_labels_indices.csv", "README.md"]
 
 
 def _resolve(download=True):
-    import huggingface_hub as hf
-    try:
-        return hf.snapshot_download(_REPO, allow_patterns=_FILES,
-                                    local_files_only=True)
-    except Exception:
-        if not download:
-            raise
-        return hf.snapshot_download(_REPO, allow_patterns=_FILES)
+    import model_pins            # 版（コミットID）固定つきの取得
+    return model_pins.resolve_snapshot(_REPO, allow_patterns=_FILES,
+                                       download=download)
 
 
 def cached() -> bool:
