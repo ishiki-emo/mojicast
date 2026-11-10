@@ -157,9 +157,11 @@ powershell -ExecutionPolicy Bypass -File tools\signing\ct2_nomkl\build.ps1 -Pyth
 | 環境 | ソース取得 | oneDNN | CTranslate2 | wheel | 確認 | 合計 |
 |---|---|---|---|---|---|---|
 | 開発機（Ryzen 7 9800X3D・16 スレッド・新規フォルダ・2026-11-10） | 11秒 | 107秒 | 20秒 | 45秒 | 12秒 | **196秒** |
-| GitHub Actions `windows-2022`（4 vCPU） | （3.2 の実測を記入） | | | | | |
+| GitHub Actions `windows-2022`（4 vCPU・MSVC 14.44・2026-11-10） | 8秒 | 735秒 | 90秒 | 80秒 | 10秒 | **929秒**（ジョブ全体 約16分） |
 
 コンパイルの大半は oneDNN。wheel 作成は pip が CTranslate2 の Python 拡張をビルドする分。
+CI の wheel（MSVC 14.44）も、開発機の wheel（14.43）と同じく公式 wheel と訳文 200/200 一致（英訳 int8・韓国語訳）。
+キャッシュが当たればビルドの段階は数秒で済む（release-build-windows.yml の時間は約16分短くなる）。
 
 ### 3.2 CI での使い回し（キャッシュ）
 
@@ -177,7 +179,7 @@ powershell -ExecutionPolicy Bypass -File tools\signing\ct2_nomkl\build.ps1 -Pyth
 
 **署名に出すビルドでは `ct2_rebuild: true` にする。** SignPath の Origin verification は「その実行で、
 そのコミットのソースからビルドされた」ことを見る。キャッシュの wheel も同じスクリプトで CI が作ったものだが、
-別の実行の成果物を持ち込む形になるので、署名用は毎回ビルドする（+4〜15分程度）。
+別の実行の成果物を持ち込む形になるので、署名用は毎回ビルドする（+約16分）。
 
 ## 4. 配布物への組み込み
 

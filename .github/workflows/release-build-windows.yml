@@ -70,7 +70,7 @@ jobs:
       # Intel oneMKL / Intel OpenMP（非 OSI）を含まない ctranslate2 をソースからビルドして差し替える。
       # 翻訳のコードは同じ v4.8.1。OpenMP は MSVC の vcomp140.dll。手順は docs/signing/CT2_NOMKL_BUILD.md
       # ビルドスクリプト・MSVC の版・Python の版が同じなら、前回の wheel をキャッシュから使う
-      # （ビルドは約 4〜5 分。build-ctranslate2-windows.yml と同じ鍵）
+      # （CI でのビルドは約 16 分・2026-11-10 実測。build-ctranslate2-windows.yml と同じ鍵）
       - name: CTranslate2 cache key
         id: ct2key
         if: inputs.ctranslate2 == 'nomkl'
