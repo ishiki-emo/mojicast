@@ -30,8 +30,8 @@ SignPath の条件は「全コンポーネントが OSI 承認ライセンス」
 - [ ] 🤖 ASIO 版 PortAudio DLL（`libportaudio64bit-asio.dll`）を spec で除外する
       （Mojicast は ASIO 未使用。`a.binaries` / `a.datas` から "asio" を落とす）
 - [ ] 🤖 ついでに不要物を除外: `pywebview-android.jar`、（動作確認のうえ）`dbghelp.dll` `dbgcore.dll`
-- [ ] 👤 LICENSE 末尾の日本語注記を CREDITS.md へ移すか決める
-      （今は GitHub が MIT と判定できず「Other」表示。審査で不利になりうる）
+- [x] 🤖 LICENSE 末尾の日本語注記を CREDITS.md へ移した（2026-11-10 develop にマージ済み）
+      - [ ] 👤 main 反映後、GitHub のリポジトリ画面でライセンスが「MIT」と表示されるか確認
 - [ ] 🤖 CREDITS.md を実物に合わせる（Pillow/hf_xet は除外済み・oneMKL/WebView2 SDK/OpenSSL/protobuf を追記）
 
 ## 1. exe へのバージョン情報の付与（次のリリースで）
