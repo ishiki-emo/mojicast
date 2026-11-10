@@ -29,8 +29,12 @@ SignPath の条件は「全コンポーネントが OSI 承認ライセンス」
   - 案B: 申請時に正直に書いて SignPath に判断を仰ぐ（下書きはこの前提）
   - 実測（2026-11-10・Ryzen 7 9800X3D）: CTranslate2 は AMD では MKL を使わず oneDNN で動いている
     （`Use Intel MKL: false` / GEMM_S8 backend: DNNL）。MKL を抜いて影響を受けるのは Intel 利用者だけ
-  - [ ] 👤🤖 保留中: Intel 機で比較する小さなアプリを作る（現行版のまま `CT2_USE_MKL=0` で
-    MKL 抜きと同じ経路になるので、ビルド不要で 1行あたりの時間・訳文の一致を比べられる）
+  - [x] 🤖 Intel 機で比較するツールを作った（2026-11-10・[tools/signing/ct2_mkl_compare](../tools/signing/ct2_mkl_compare/README.md)）。
+    現行版のまま `CT2_USE_MKL=1/0` を切り替え、英訳 int8 / fp32・中・韓の1文の時間・訳文の一致・メモリを比べる。
+    `build.ps1` で Zip（配信ログ200文入り・自分の機械以外に配らない）を作る
+  - [ ] 👤 Intel 機で実行して `result_*.txt` を持ち帰る → 案A に進むか決める
+  - 参考（開発機 AMD で MKL を強制した場合・8文）: MKL 有効だと中韓 約3.4〜4.0秒/文 vs 無効 130〜190ms、
+    ピークメモリ 2.1GB vs 0.6GB。AMD で MKL を使わない今の既定は正しい
 - [x] 🤖 ASIO 版 PortAudio DLL（`libportaudio64bit-asio.dll`）を spec で除外した（2026-11-10 develop・次のリリースから）
       凍結時は `SD_ENABLE_ASIO` を apppaths で外す（設定されていると sounddevice がこの DLL を探して失敗するため）
 - [ ] 🤖 ついでに不要物を除外: `pywebview-android.jar`、（動作確認のうえ）`dbghelp.dll` `dbgcore.dll`
@@ -43,9 +47,9 @@ SignPath は署名する全ファイルに `ProductName` と `ProductVersion` �
 現状: `Mojicast.exe` は**全項目が空**、`setup.exe` は ProductName=Mojicast /
 ProductVersion=版 が入っている（Inno Setup の既定）が FileVersion は空。
 
-- [ ] 🤖 `Mojicast.spec` に VERSIONINFO を足す（Windows のみ・APP_VERSION から生成）。
-      下のコードは dist の exe の**コピー**に書き込んで動作確認済み
-      （ProductVersion=`1.2.0-beta1` / FileVersionRaw=`1.2.0.0` になる）
+- [x] 🤖 `Mojicast.spec` に VERSIONINFO を足した（2026-11-10・Windows のみ・APP_VERSION から生成）。
+      実ビルドで CompanyName=`ishiki-emo` / ProductName=`Mojicast` / ProductVersion=`1.1.0` /
+      FileVersionRaw=`1.1.0.0` を確認
 
   ```python
   # Mojicast.spec（APP_VERSION を読んだ直後あたり）
@@ -74,12 +78,12 @@ ProductVersion=版 が入っている（Inno Setup の既定）が FileVersion �
   # EXE(...) に version=VERSION_INFO を追加
   ```
 
-- [ ] 🤖 `installer/Mojicast.iss` に追加: `VersionInfoVersion`（数値4つ。beta は `1.2.0.0` のように
-      落とす → `make_installer.ps1` で `/DAppVersionNum=` を計算して渡す）、
-      `VersionInfoProductName=Mojicast`、`VersionInfoCopyright`
-- [ ] 🤖 確認: `(Get-Item dist\Mojicast\Mojicast.exe).VersionInfo` と setup.exe の両方で
-      ProductName=`Mojicast`、ProductVersion=`APP_VERSION` になっていること
-- [ ] 👤 会社名の表記を決める（`癒色えも` か `ishiki-emo` か。setup.exe は今 `癒色えも`）
+- [x] 🤖 `installer/Mojicast.iss` に VersionInfo 一式を追加し、`make_installer.ps1` が数値版
+      （`/DAppVersionNum=`・接尾辞を落とす）を渡すようにした（2026-11-10）
+- [x] 🤖 確認: `-Version 1.2.0-beta1` で作った setup.exe が ProductName=`Mojicast` /
+      ProductVersion=`1.2.0-beta1` / FileVersionRaw=`1.2.0.0` / CompanyName=`ishiki-emo`
+- [x] 👤 会社名の表記 → `ishiki-emo`（2026-11-10 決定）。なお「アプリと機能」に出る発行元
+      （`AppPublisher`）は `癒色えも` のまま
 
 ## 2. Actions でのリリースビルドへの切り替え
 
@@ -121,7 +125,8 @@ SignPath は「CI 上でこのリポジトリのソースから自動ビルド�
 承認前に載せると「署名していないのに署名ポリシーを掲げる」ことになるので、**承認後**にやる。
 ただし申請時に「どこに載せるか」を聞かれるので、場所だけ先に決めておく。
 
-- [ ] 👤 プライバシーポリシーの公開場所を決める（`docs/PRIVACY.md` か プロダクトページか）
+- [x] 👤 プライバシーポリシーの公開場所 → **`docs/PRIVACY.md` を正本**にし、プロダクトページ
+      （ishiki-emo.com/mojicast）からはそこへリンクする（2026-11-10 決定）
 - [ ] 🤖 `docs/signing/PRIVACY.draft.md` を公開用に仕上げ（日付・版を埋める）
 - [ ] 🤖 README に「## Code signing policy」節を追加（下書きをそのまま使う）
 - [ ] 👤 配布ページにも "Code signing policy" の語でリンクを置く:

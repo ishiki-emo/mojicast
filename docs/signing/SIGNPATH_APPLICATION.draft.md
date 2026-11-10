@@ -79,7 +79,7 @@ Mojicast is developed by one person.
 
 Mojicast sends no user data. It only connects to Hugging Face to download models
 and to raw.githubusercontent.com to check for updates. Privacy policy:
-[要確認: 公開後の docs/PRIVACY.md の URL]
+https://github.com/ishiki-emo/mojicast/blob/main/docs/PRIVACY.md （公開前。product page からもリンクする）
 
 ## Third-party components (for review)
 

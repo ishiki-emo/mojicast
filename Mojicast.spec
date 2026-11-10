@@ -23,6 +23,34 @@ IS_MAC = sys.platform == "darwin"
 with open(os.path.join(SPECPATH, "app_server.py"), encoding="utf-8") as _f:
     APP_VERSION = re.search(r'APP_VERSION = "([^"]+)"', _f.read()).group(1)
 
+# exe のバージョン情報（ファイルのプロパティ「詳細」タブ）。Windows のみ。
+# コード署名（SignPath）は署名する全ファイルに ProductName / ProductVersion を求め、
+# 署名時にその値を照合する。数値版は beta 等の接尾辞を落として4桁に揃える
+# （1.2.0-beta1 → 1.2.0.0）。文字列の FileVersion / ProductVersion は APP_VERSION のまま
+VERSION_INFO = None
+if not IS_MAC:
+    from PyInstaller.utils.win32 import versioninfo as _vi
+    _n = [int(x) for x in re.findall(r"\d+", APP_VERSION.split("-")[0])][:4]
+    _n = tuple(_n + [0] * (4 - len(_n)))
+    VERSION_INFO = _vi.VSVersionInfo(
+        ffi=_vi.FixedFileInfo(filevers=_n, prodvers=_n, mask=0x3F, flags=0x0,
+                              OS=0x40004, fileType=0x1, subtype=0x0, date=(0, 0)),
+        kids=[
+            _vi.StringFileInfo([_vi.StringTable("040904B0", [
+                _vi.StringStruct("CompanyName", "ishiki-emo"),
+                _vi.StringStruct("FileDescription", "Mojicast"),
+                _vi.StringStruct("FileVersion", APP_VERSION),
+                _vi.StringStruct("InternalName", "Mojicast"),
+                _vi.StringStruct("LegalCopyright",
+                                 "Copyright (c) 2026 ishiki-emo. MIT License."),
+                _vi.StringStruct("OriginalFilename", "Mojicast.exe"),
+                _vi.StringStruct("ProductName", "Mojicast"),
+                _vi.StringStruct("ProductVersion", APP_VERSION),
+            ])]),
+            _vi.VarFileInfo([_vi.VarStruct("Translation", [0x0409, 1200])]),
+        ],
+    )
+
 # アプリアイコン: assets/branding のPNGからマルチサイズICO/ICNSを生成して埋め込む。
 # PNGが無い/Pillow不在のときは icon=None（PyInstaller既定アイコン）へフォールバックする。
 APP_ICON = None
@@ -135,6 +163,7 @@ exe = EXE(
     console=False,          # ウィンドウアプリ（コンソール窓を出さない）
     disable_windowed_traceback=False,
     icon=APP_ICON,          # assets/branding のロゴ（上で生成・無ければ既定）
+    version=VERSION_INFO,   # Windows のバージョン情報（mac は None で無視される）
 )
 coll = COLLECT(
     exe, a.binaries, a.datas,

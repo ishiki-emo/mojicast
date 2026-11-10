@@ -34,7 +34,11 @@ $iscc = @(
 if (-not $iscc) { throw "Inno Setup 6 が見つかりません（winget install JRSoftware.InnoSetup）" }
 
 $iss = Join-Path $root "installer\Mojicast.iss"
-& $iscc /Qp "/DAppVersion=$Version" "/DSourceDir=$app" "/DOutputDir=$root" $iss
+# setup.exe の数値版（VersionInfoVersion）は数字4つだけ。beta 等の接尾辞を落とす
+$nums = @([regex]::Matches(($Version -split "-")[0], "\d+") | ForEach-Object { $_.Value } | Select-Object -First 4)
+while ($nums.Count -lt 4) { $nums += "0" }
+$versionNum = $nums -join "."
+& $iscc /Qp "/DAppVersion=$Version" "/DAppVersionNum=$versionNum" "/DSourceDir=$app" "/DOutputDir=$root" $iss
 if ($LASTEXITCODE -ne 0) { throw "ISCC が失敗しました（終了コード $LASTEXITCODE）" }
 
 $out = Join-Path $root "Mojicast-v$Version-win-x64-setup.exe"
