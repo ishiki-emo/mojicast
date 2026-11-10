@@ -3,8 +3,8 @@
     python tools/streamdeck/scripts/make_assets.py
 
 ボタンを足す・名前を変えるときは ACTIONS を直して実行し直す。
-アイコンは暫定デザイン（色付きの角丸に1文字）。本番の絵に差し替えるときは
-imgs/ 以下を上書きし、このスクリプトのアイコン生成を止める。
+キー画像はロゴのダーク版の色（紺の地・シアンの点灯・ピンクの演出）の線画。
+多言語で配るので絵に文字は入れない（名前は Stream Deck のタイトル欄に出す）。
 """
 import json
 import os
@@ -19,62 +19,86 @@ REPO = os.path.dirname(os.path.dirname(ROOT))
 UUID = "com.ishiki-emo.mojicast"
 VERSION = "0.1.0.0"
 
-OFF_BG, OFF_FG = "#2a2833", "#8a8796"
-PLAIN_BG = "#34303f"
-RED, PURPLE, BLUE, AMBER, GREEN = "#e5484d", "#8b5cf6", "#3b82f6", "#f59e0b", "#22c55e"
+NAVY, CYAN, PINK, WHITE = "#03102d", "#00e5ff", "#fd187b", "#FFFFFF"
+ON_BG, OFF_GLYPH = "#062638", "#9aa7bb"
 
-# kind: toggle（状態2つ・文言付き）/ select（状態2つ・名前はプラグインが下に出す）/ plain（状態1つ）
+# 線画は 144x144 の上寄り（おおむね y=18〜98）に収め、下はタイトル用に空ける。
+# 線の太さ・色は描く側で付ける。{bg} {fg} は描くときに地の色・線の色に置き換わる
+BUBBLE = ("M34 28h76a10 10 0 0 1 10 10v36a10 10 0 0 1-10 10H70l-16 14v-14H34"
+          "a10 10 0 0 1-10-10V38a10 10 0 0 1 10-10z")
+BUBBLE_LINES = f'<path d="{BUBBLE}"/><path d="M44 48h56M44 64h36"/>'
+MIC = ('<rect x="58" y="22" width="28" height="44" rx="14"/>'
+       '<path d="M46 54a26 26 0 0 0 52 0M72 80v12M60 94h24"/>')
+SPARK = '<path d="M64 30c4 20 8 25 28 29-20 4-24 9-28 29-4-20-8-25-28-29 20-4 24-9 28-29z" fill="{fg}" stroke="none"/>'
+SPARK_S = '<path d="M106 18c2 9 4 11 12 13-8 2-10 4-12 13-2-9-4-11-12-13 8-2 10-4 12-13z" fill="{fg}" stroke="none"/>'
+GOGGLES = ('<path d="M32 42h80a10 10 0 0 1 10 10v22a10 10 0 0 1-10 10H92l-10-12H62l-10 12H32'
+           'a10 10 0 0 1-10-10V52a10 10 0 0 1 10-10z"/>')
+SWAP = (f'<g stroke="{PINK}"><path d="M95 28a14 14 0 0 1 24 4M121 40a14 14 0 0 1-24-4"/>'
+        '<path d="M119 20v12h-12M97 52V40h12"/></g>')
+
+# kind: toggle（OFF/ON の2状態）/ select（未使用/使用中の2状態・名前はプラグインが下に出す）
+#       plain（1状態）/ pair（2状態とも普通の見た目。どちらも OFF ではない）
+# icons: 状態ごとの線画（1つなら全状態共通）。accent: plain/pair の線の色
 # pi: 設定画面の種類（select=プルダウン / random=対象の選択 / none=接続設定だけ）
 ACTIONS = [
     dict(id="engine", name="認識 スタート/ストップ", tip="音声認識を開始・停止します",
-         kind="toggle", glyph=("●", "●"), caption=("停止中", "認識中"), color=RED, pi="none"),
+         kind="toggle", pi="none", icons=(
+             # 停止中: 斜線入りのマイク（斜線の下は地の色で抜く）
+             MIC + '<path d="M42 26l60 66" stroke="{bg}" stroke-width="16"/><path d="M42 26l60 66"/>',
+             # 認識中: マイク＋音の波
+             MIC + '<path d="M30 36v22M114 36v22" stroke-width="6"/>')),
     dict(id="clear", name="字幕クリア", tip="画面の字幕を消します",
-         kind="plain", glyph=("消",), caption=("クリア",), color=PLAIN_BG, pi="none"),
+         kind="plain", pi="none", icons=(f'<path d="{BUBBLE}"/><path d="M61 45l22 22M83 45l-22 22"/>',)),
     dict(id="scene", name="シーン切替", tip="指定したシーン（デザイン＋レイアウト）に切り替えます",
-         kind="select", glyph=("場", "場"), color=PURPLE, pi="select", setting="id", label="シーン"),
+         kind="select", pi="select", setting="id", label="シーン", icons=(
+             '<path d="M72 24l34 16-34 16-34-16z"/><path d="M38 58l34 16 34-16"/><path d="M38 76l34 16 34-16"/>',)),
     dict(id="preset", name="デザイン切替", tip="指定した字幕デザインに切り替えます",
-         kind="select", glyph=("字", "字"), color=PURPLE, pi="select", setting="id", label="デザイン"),
+         kind="select", pi="select", setting="id", label="デザイン", icons=(
+             '<path d="M40 30h52M66 30v60"/><circle cx="102" cy="78" r="12" fill="{fg}" stroke="none"/>',)),
     dict(id="box", name="レイアウト切替", tip="指定したレイアウトに切り替えます",
-         kind="select", glyph=("枠", "枠"), color=PURPLE, pi="select", setting="id", label="レイアウト"),
+         kind="select", pi="select", setting="id", label="レイアウト", icons=(
+             '<rect x="26" y="24" width="92" height="68" rx="10"/><path d="M44 74h56"/>',)),
     dict(id="random", name="おまかせ切替", tip="シーン・デザイン・レイアウトをおまかせで切り替えます",
-         kind="plain", glyph=("？",), caption=("おまかせ",), color=PLAIN_BG, pi="random"),
+         kind="plain", pi="random", icons=(
+             '<path d="M28 38h16c22 0 30 40 52 40h16M28 78h16c22 0 30-40 52-40h16"/>'
+             '<path d="M104 28l10 10-10 10M104 68l10 10-10 10"/>',)),
     dict(id="fx", name="演出を出す", tip="笑い・拍手などの演出を手動で出します",
-         kind="plain", glyph=("★",), caption=None, color="#3a3020", fg="#f5c542", pi="select",
-         setting="group", label="演出",
-         note="演出の画像・位置は Mojicast の［音イベント演出］で設定します。音の自動検出がOFFでも出せます。"),
+         kind="plain", accent=PINK, pi="select", setting="group", label="演出",
+         note="演出の画像・位置は Mojicast の［音イベント演出］で設定します。音の自動検出がOFFでも出せます。",
+         icons=(SPARK + SPARK_S,)),
     dict(id="word-fx", name="単語エフェクト ON/OFF", tip="単語エフェクトの表示をオン・オフします",
-         kind="toggle", glyph=("語", "語"), caption=("演出OFF", "演出ON"), color=AMBER, pi="none"),
+         kind="toggle", pi="none", icons=(
+             '<rect x="22" y="50" width="76" height="36" rx="18"/><path d="M40 68h40"/>' + SPARK_S,)),
     dict(id="vrchat", name="VRChat転送 ON/OFF", tip="VRChatのチャットボックスへの転送をオン・オフします",
-         kind="toggle", glyph=("VRC", "VRC"), caption=("転送OFF", "転送ON"), color=GREEN, pi="none"),
+         kind="toggle", pi="none", icons=(GOGGLES,)),
     dict(id="vrchat-source", name="VRChat送信内容の切替", tip="VRChatへ送る内容（文字起こし／訳文）を切り替えます",
-         kind="toggle", glyph=("原", "訳"), caption=("文字起こし", "訳文"), color=BLUE, pi="none",
-         off_plain=True),
+         kind="pair", pi="none", icons=(
+             # 文字起こし: 吹き出しに2行
+             BUBBLE_LINES,
+             # 訳文: 吹き出し＋ロゴの入れ替え矢印
+             f'<g transform="translate(-10 18) scale(.78)">{BUBBLE_LINES}</g>' + SWAP)),
 ]
 
-FONT = "'Yu Gothic UI','Hiragino Sans','Noto Sans JP',sans-serif"
+
+def key_svg(icon, mode, accent=WHITE):
+    """キー画像（144x144）。mode: off / on（地を少し明るく・縁と線をシアン）/ plain"""
+    bg = ON_BG if mode == "on" else NAVY
+    fg = {"off": OFF_GLYPH, "on": CYAN}.get(mode, accent)
+    ring = (f'<rect x="5" y="5" width="134" height="134" rx="18" fill="none" stroke="{CYAN}" stroke-width="6"/>'
+            if mode == "on" else "")
+    body = icon.replace("{bg}", bg).replace("{fg}", fg)
+    return ('<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">'
+            f'<rect width="144" height="144" fill="{bg}"/>{ring}'
+            f'<g fill="none" stroke="{fg}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">'
+            f'{body}</g></svg>')
 
 
-def key_svg(glyph, caption, bg, fg):
-    """キー画像（144x144 基準）。caption が無いときは下をプラグインの名前表示に空ける"""
-    size = 64 if len(glyph) == 1 else 44
-    gy = 70 if caption else 64
-    parts = [f'<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">',
-             f'<rect x="0" y="0" width="144" height="144" rx="20" fill="{bg}"/>',
-             f'<text x="72" y="{gy}" font-family="{FONT}" font-size="{size}" font-weight="700" '
-             f'fill="{fg}" text-anchor="middle" dominant-baseline="middle">{escape(glyph)}</text>']
-    if caption:
-        parts.append(f'<text x="72" y="120" font-family="{FONT}" font-size="22" font-weight="700" '
-                     f'fill="{fg}" text-anchor="middle">{escape(caption)}</text>')
-    parts.append("</svg>")
-    return "".join(parts)
-
-
-def mono_svg(glyph, size):
-    """アクション一覧・カテゴリ用の白一色アイコン（透明背景）"""
-    fs = size * (0.8 if len(glyph) == 1 else 0.5)
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" viewBox="0 0 {size} {size}">'
-            f'<text x="{size / 2}" y="{size / 2}" font-family="{FONT}" font-size="{fs:.1f}" font-weight="700" '
-            f'fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">{escape(glyph)}</text></svg>')
+def list_svg(icon, size):
+    """アクション一覧・カテゴリ用の白一色（透明背景）。決まりで色付き・地の塗りは使えない"""
+    body = icon.replace("{bg}", "none").replace("{fg}", WHITE).replace(PINK, WHITE)
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" viewBox="18 10 108 108">'
+            f'<g fill="none" stroke="{WHITE}" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">'
+            f'{body}</g></svg>')
 
 
 def write(path, text):
@@ -139,24 +163,14 @@ def main():
     actions = []
     for a in ACTIONS:
         base = f"imgs/actions/{a['id']}"
-        fg_on = a.get("fg", "#FFFFFF")
+        icons = a["icons"]
+        modes = {"plain": ["plain"], "pair": ["plain", "plain"]}.get(a["kind"], ["off", "on"])
         states = []
-        n = 1 if a["kind"] == "plain" else 2
-        for i in range(n):
-            on = i == 1 or a["kind"] == "plain" or (a.get("off_plain") and i == 0)
-            bg = a["color"] if on else OFF_BG
-            if a.get("off_plain") and i == 0:
-                bg = PLAIN_BG
-            fg = fg_on if on else OFF_FG
-            cap = a["caption"][i] if a.get("caption") else None
-            write(os.path.join(PLUGIN, f"{base}/key{i}.svg"), key_svg(a["glyph"][i], cap, bg, fg))
-            st = {"Image": f"{base}/key{i}"}
-            if not cap:
-                st.update({"TitleAlignment": "bottom", "FontSize": 11, "ShowTitle": True})
-            else:
-                st["ShowTitle"] = False
-            states.append(st)
-        write(os.path.join(PLUGIN, f"{base}/icon.svg"), mono_svg(a["glyph"][-1], 40))
+        for i, mode in enumerate(modes):
+            icon = icons[min(i, len(icons) - 1)]
+            write(os.path.join(PLUGIN, f"{base}/key{i}.svg"), key_svg(icon, mode, a.get("accent", WHITE)))
+            states.append({"Image": f"{base}/key{i}", "TitleAlignment": "bottom", "FontSize": 11, "ShowTitle": True})
+        write(os.path.join(PLUGIN, f"{base}/icon.svg"), list_svg(icons[-1], 40))
         write(os.path.join(PLUGIN, f"ui/{a['id']}.html"), pi_html(a))
         actions.append({
             "Name": a["name"],
@@ -167,11 +181,11 @@ def main():
             "Controllers": ["Keypad"],
             "DisableAutomaticStates": True,
             "SupportedInMultiActions": True,
-            "UserTitleEnabled": a["kind"] != "toggle",
+            "UserTitleEnabled": True,
             "States": states,
         })
 
-    write(os.path.join(PLUGIN, "imgs/plugin/category-icon.svg"), mono_svg("M", 56))
+    write(os.path.join(PLUGIN, "imgs/plugin/category-icon.svg"), list_svg(BUBBLE_LINES, 56))
     src = Image.open(os.path.join(REPO, "assets", "branding", "mojicast-mo-icon-light.png")).convert("RGBA")
     for name, size in (("marketplace", 256), ("marketplace@2x", 512)):
         src.resize((size, size), Image.LANCZOS).save(os.path.join(PLUGIN, f"imgs/plugin/{name}.png"))
@@ -181,7 +195,7 @@ def main():
         "Name": "Mojicast",
         "Version": VERSION,
         "Author": "癒色えも",
-        "Description": "Mojicast（配信用のリアルタイム字幕アプリ）をボタンで操作します。認識の開始・停止、字幕クリア、シーン・デザイン・翻訳の切替、演出の手動発火など。",
+        "Description": "Mojicast（配信用のリアルタイム字幕アプリ）をボタンで操作します。認識の開始・停止、字幕クリア、シーン・デザイン・レイアウトの切替、演出の手動発火など。",
         "UUID": UUID,
         "URL": "https://ishiki-emo.com/mojicast",
         "Icon": "imgs/plugin/marketplace",

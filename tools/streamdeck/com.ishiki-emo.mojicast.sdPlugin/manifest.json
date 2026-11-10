@@ -3,7 +3,7 @@
   "Name": "Mojicast",
   "Version": "0.1.0.0",
   "Author": "癒色えも",
-  "Description": "Mojicast（配信用のリアルタイム字幕アプリ）をボタンで操作します。認識の開始・停止、字幕クリア、シーン・デザイン・翻訳の切替、演出の手動発火など。",
+  "Description": "Mojicast（配信用のリアルタイム字幕アプリ）をボタンで操作します。認識の開始・停止、字幕クリア、シーン・デザイン・レイアウトの切替、演出の手動発火など。",
   "UUID": "com.ishiki-emo.mojicast",
   "URL": "https://ishiki-emo.com/mojicast",
   "Icon": "imgs/plugin/marketplace",
@@ -39,15 +39,19 @@
       ],
       "DisableAutomaticStates": true,
       "SupportedInMultiActions": true,
-      "UserTitleEnabled": false,
+      "UserTitleEnabled": true,
       "States": [
         {
           "Image": "imgs/actions/engine/key0",
-          "ShowTitle": false
+          "TitleAlignment": "bottom",
+          "FontSize": 11,
+          "ShowTitle": true
         },
         {
           "Image": "imgs/actions/engine/key1",
-          "ShowTitle": false
+          "TitleAlignment": "bottom",
+          "FontSize": 11,
+          "ShowTitle": true
         }
       ]
     },
@@ -66,7 +70,9 @@
       "States": [
         {
           "Image": "imgs/actions/clear/key0",
-          "ShowTitle": false
+          "TitleAlignment": "bottom",
+          "FontSize": 11,
+          "ShowTitle": true
         }
       ]
     },
@@ -166,7 +172,9 @@
       "States": [
         {
           "Image": "imgs/actions/random/key0",
-          "ShowTitle": false
+          "TitleAlignment": "bottom",
+          "FontSize": 11,
+          "ShowTitle": true
         }
       ]
     },
@@ -202,15 +210,19 @@
       ],
       "DisableAutomaticStates": true,
       "SupportedInMultiActions": true,
-      "UserTitleEnabled": false,
+      "UserTitleEnabled": true,
       "States": [
         {
           "Image": "imgs/actions/word-fx/key0",
-          "ShowTitle": false
+          "TitleAlignment": "bottom",
+          "FontSize": 11,
+          "ShowTitle": true
         },
         {
           "Image": "imgs/actions/word-fx/key1",
-          "ShowTitle": false
+          "TitleAlignment": "bottom",
+          "FontSize": 11,
+          "ShowTitle": true
         }
       ]
     },
@@ -225,15 +237,19 @@
       ],
       "DisableAutomaticStates": true,
       "SupportedInMultiActions": true,
-      "UserTitleEnabled": false,
+      "UserTitleEnabled": true,
       "States": [
         {
           "Image": "imgs/actions/vrchat/key0",
-          "ShowTitle": false
+          "TitleAlignment": "bottom",
+          "FontSize": 11,
+          "ShowTitle": true
         },
         {
           "Image": "imgs/actions/vrchat/key1",
-          "ShowTitle": false
+          "TitleAlignment": "bottom",
+          "FontSize": 11,
+          "ShowTitle": true
         }
       ]
     },
@@ -248,15 +264,19 @@
       ],
       "DisableAutomaticStates": true,
       "SupportedInMultiActions": true,
-      "UserTitleEnabled": false,
+      "UserTitleEnabled": true,
       "States": [
         {
           "Image": "imgs/actions/vrchat-source/key0",
-          "ShowTitle": false
+          "TitleAlignment": "bottom",
+          "FontSize": 11,
+          "ShowTitle": true
         },
         {
           "Image": "imgs/actions/vrchat-source/key1",
-          "ShowTitle": false
+          "TitleAlignment": "bottom",
+          "FontSize": 11,
+          "ShowTitle": true
         }
       ]
     }
