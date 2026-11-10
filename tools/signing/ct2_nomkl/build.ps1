@@ -112,11 +112,19 @@ function Fetch([string]$url, [string]$path, [string]$sha256) {
     Write-Host ("  {0:N0} バイト・SHA256 一致" -f (Get-Item $path).Length)
 }
 # 展開は Windows 標準の tar（bsdtar）に固定する（PATH 次第で Git 付属の GNU tar が選ばれると、
-# "D:\..." を「ホスト D のファイル」と解釈したり、.xz を外部の xz に頼ったりする）
+# "D:\..." を「ホスト D のファイル」と解釈したりする）。
+# .tar.xz（LLVM のソース）は Python の tarfile で展開する: GitHub Actions の windows-2022 では
+# tar.exe が .xz の展開で止まった（手元の Windows 11 では数秒。2026-11-11 に2回）
 $TAR = Join-Path $env:SystemRoot "System32\tar.exe"
 function Extract([string]$archive, [string]$dest) {
     Write-Host "展開: $archive"
-    Exec $TAR @("-xf", $archive, "-C", $dest)
+    if ($archive -like "*.xz") {
+        Exec $Python @("-I", "-c",
+            "import sys, tarfile; t = tarfile.open(sys.argv[1], 'r:xz'); t.extractall(sys.argv[2], filter='data'); t.close()",
+            $archive, $dest)
+    } else {
+        Exec $TAR @("-xf", $archive, "-C", $dest)
+    }
 }
 
 # ---- Visual Studio 2022 の開発環境を取り込む（cl / link / dumpbin / ninja） ----
