@@ -100,6 +100,15 @@ SignPath は「CI 上でこのリポジトリのソースから自動ビルド�
 - [ ] 🤖 依存のバージョンを完全固定するか検討（今は requirements.txt の直接依存だけ固定。
       artifact に `pip-freeze.txt` を残しているので、差分が出たらそこで分かる）
 
+試運転の結果（2026-11-10・試運転ブランチ `ci/release-build-dryrun` で push 起動）:
+- ビルドは約3分で最後まで通る（Zip 80MB / setup.exe 52MB）
+- `actions/setup-python` の 3.11 は python.org 版 3.11.9 止まり → uv の 3.11.15（手元と同じ）に変更済み
+- 間接依存は `.github/release/requirements-win.lock`（ハッシュ付き）で固定。requirements.txt を変えたら
+  `.github/release/requirements-win.in` 冒頭のコマンドで作り直す
+- 手元ビルドとの差は、手元の開発環境に入っている余計なパッケージ（dbghelp/dbgcore・markupsafe・wheel 等）が
+  CI 側に入らないことと、click/tqdm 等の版、Windows ランタイム DLL のビルド違い。CI 側の方が素直
+- [ ] 👤🤖 CI の成果物で smoke テスト（未実施）
+
 既知の注意点:
 - Pillow が無いとアイコン生成が黙ってスキップされ、installer の `SetupIconFile` で失敗する。
   ワークフローでは明示的に入れている
