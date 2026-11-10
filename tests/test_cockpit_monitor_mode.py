@@ -18,6 +18,7 @@ except ImportError:                       # pragma: no cover
     sync_playwright = None
 
 import app_server
+import platform_compat
 import wordstore
 
 
@@ -121,7 +122,9 @@ class CockpitMonitorModeTests(unittest.TestCase):
             f'.feature-row[data-feature="{key}"]',
             "e => getComputedStyle(e).display !== 'none'")
 
-    def test_hidden_features_are_remembered_but_shown_while_on(self):
+    # VRChat の行を例に使う。mac は VRChat 非対応で行ごと出さないため、対応OSとして動かす
+    @mock.patch.object(platform_compat, "vrchat_supported", return_value=True)
+    def test_hidden_features_are_remembered_but_shown_while_on(self, _supported):
         ctx, page = self._launch()
         page.wait_for_function("() => document.querySelector('.feature-row[data-feature=\"vrchat\"]')")
         page.click("#pickFeatures")
