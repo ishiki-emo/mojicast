@@ -13,6 +13,13 @@
 
   const DICT = {
     zh: {
+      // 字幕の3D化（feat/caption-3d）で追加
+      "sy.extrude": "厚度（3D）", "sy.extrude_dir": "厚度方向", "sy.layers": "层",
+      "sy.bsec_3d": "🧊 3D", "sy.bsec_3d_d": "整个框倾斜，营造纵深感（歌词模式不可用）",
+      "sy.tilt_x": "纵向倾斜", "sy.tilt_y": "横向倾斜", "sy.tilt_z": "旋转", "sy.perspective": "透视强度",
+      "sy.tilt_flat": "平面（无3D）", "sy.tilt_wall_right": "右侧墙面", "sy.tilt_wall_left": "左侧墙面",
+      "sy.tilt_floor": "铺在地面", "sy.tilt_slant": "稍微倾斜", "sy.tilt_custom": "自定义",
+      "sy.persp_1": "弱", "sy.persp_2": "较弱", "sy.persp_3": "普通", "sy.persp_4": "较强", "sy.persp_5": "强",
       // 新UI（feat/new-ui）で追加
       "sy.bub_guest_hint": "联动时对方也使用此布局，会把两人的气泡合在一起排列。对方气泡的尾巴指向下方的位置",
       "sy.bub_gtail_x": "对方头像位置 X",
@@ -417,6 +424,9 @@
       "st.ai_access": "字幕日志权限",
       "st.ai_access_note": "保存日志与允许AI读取日志是两个独立的设置。",
       "st.ai_token_caution": "请勿共享令牌。重新生成或禁用后，旧令牌立即失效。",
+      "st.deck_title": "连接 Stream Deck", "st.deck_note": "将此连接密钥粘贴到 Stream Deck 的 Mojicast 插件中。只能进行开始/停止识别、清除字幕、切换场景和样式等按钮操作。",
+      "st.deck_issue": "生成／重新生成连接密钥", "st.deck_revoke": "禁用 Stream Deck 连接",
+      "st.deck_enabled": "Stream Deck 连接：已启用（需要连接密钥）", "st.deck_disabled": "Stream Deck 连接：已禁用",
       "st.mcp_auth_title": "连接AI应用",
       "st.mcp_auth_note": "无需设置密码。生成连接令牌，将其作为 MOJICAST_TOKEN 填入AI应用的MCP设置，然后重新启动连接。",
       "st.mcp_issue": "生成／重新生成令牌", "st.mcp_revoke": "禁用MCP连接",
@@ -583,6 +593,13 @@
       "ly.legend": "随机也在相同种子下重现相同顺序。「静 → 副歌」会逐步提高演出强度。"
     },
     en: {
+      // Added for 3D captions (feat/caption-3d)
+      "sy.extrude": "Thickness (3D)", "sy.extrude_dir": "Thickness direction", "sy.layers": " layers",
+      "sy.bsec_3d": "🧊 3D", "sy.bsec_3d_d": "Tilt the whole box for depth (not available for lyric mode)",
+      "sy.tilt_x": "Vertical tilt", "sy.tilt_y": "Horizontal tilt", "sy.tilt_z": "Rotation", "sy.perspective": "Perspective",
+      "sy.tilt_flat": "Flat (no 3D)", "sy.tilt_wall_right": "Right wall", "sy.tilt_wall_left": "Left wall",
+      "sy.tilt_floor": "Floor", "sy.tilt_slant": "Slight angle", "sy.tilt_custom": "Custom",
+      "sy.persp_1": "Weak", "sy.persp_2": "Mild", "sy.persp_3": "Normal", "sy.persp_4": "Strong", "sy.persp_5": "Very strong",
       // 新UI（feat/new-ui）で追加
       "sy.bub_guest_hint": "When your collab partner also uses this layout, both people's bubbles are arranged together. The partner's tails point to the position below",
       "sy.bub_gtail_x": "Partner avatar X",
@@ -983,6 +1000,9 @@
       "st.ai_access": "Caption log access",
       "st.ai_access_note": "Saving logs and allowing an AI app to read them are separate settings.",
       "st.ai_token_caution": "Keep the token private. Reissuing or disabling it immediately invalidates the previous token.",
+      "st.deck_title": "Connect Stream Deck", "st.deck_note": "Paste this key into the Mojicast plugin for Stream Deck. It only allows button actions such as start/stop, clearing captions, and switching scenes or designs.",
+      "st.deck_issue": "Issue / reissue key", "st.deck_revoke": "Disable Stream Deck access",
+      "st.deck_enabled": "Stream Deck access: enabled (key required)", "st.deck_disabled": "Stream Deck access: disabled",
       "st.mcp_auth_title": "Connect an AI app",
       "st.mcp_auth_note": "No password is needed. Issue a connection token, then add it as MOJICAST_TOKEN in your AI app’s MCP settings and restart the connection.",
       "st.mcp_issue": "Issue / reissue token", "st.mcp_revoke": "Disable MCP access",

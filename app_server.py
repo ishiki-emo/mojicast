@@ -715,7 +715,9 @@ def resolve_style(cfg):
            "translate": _translating(cfg),
            # 音イベント演出のルール。マスタースイッチOFFでも配る
            # （設定UIの［テスト発火］はエンジン停止中でも効かせるため）
-           "sound_rules": cfg.get("sound_fx_rules", {})}
+           "sound_rules": cfg.get("sound_fx_rules", {}),
+           # ガンビットの部品（カウンター）。配置と現在値
+           "widgets": _gambit_widgets()}
     if cfg.get("collab"):
         self_name = (cfg.get("self_name") or "自分").strip() or "自分"
         guest_name = (cfg.get("guest_name") or "ゲスト").strip() or "ゲスト"
@@ -971,35 +973,62 @@ def _try_voice_command(text, spk=""):
                          commands)
     if cmd is None:
         return False
-    suffix = ""
     if cmd["action"] == "custom":
-        # 登録済みの動作を組み込みのアクション形へ解決する
-        act = (cmd["command"].get("action") or {})
-        t = act.get("type")
-        if t in ("scene", "box", "preset"):
-            items = {"scene": scenes, "box": boxes, "preset": presets}[t]
-            it = next((x for x in items if x.get("id") == act.get("id")), None)
-            if it is None:
-                broadcast({"type": "vc", "ok": False,
-                           "message": "コマンドの切替先が見つかりません"
-                                      "（削除された可能性があります）"})
-                return True
-            cmd = {"action": t, "id": it["id"], "name": it.get("name")}
-        elif t == "random":
-            cmd = {"action": act.get("target", "box") + "_random"}
-        elif t == "translate_lang":
-            labels = {code: label for code, label, _k in voicecmd._TRANS_LANGS}
-            cmd = {"action": "translate_lang", "lang": act.get("lang"),
-                   "label": labels.get(act.get("lang"), act.get("lang"))}
-        elif t in ("translate_on", "translate_off"):
-            cmd = {"action": t}
-        elif t == "clear":
-            broadcast({"type": "clear"})
-            broadcast({"type": "vc", "ok": True,
-                       "message": "字幕をクリアしました"})
-            return True
-        else:
-            cmd = {"action": "unknown"}
+        run_action(cmd["command"].get("action") or {})
+        return True
+    ok, message = _apply_command(cmd, cfg, scenes, boxes, presets)
+    broadcast({"type": "vc", "ok": ok, "message": message})
+    return True
+
+
+def run_action(act, origin="コマンド"):
+    """登録済みの動作を実行する（カスタムコマンドとガンビットのつなぎで共用）。
+
+    act は {"type": "scene"/"box"/"preset", "id"} / {"type": "random", "target"} /
+    {"type": "translate_lang", "lang"} / {"type": "translate_on"/"translate_off"/"clear"}。
+    結果は音声コマンドと同じ vc 通知で画面に出す（失敗も黙らせない）。
+    """
+    import voicecmd
+    cfg = load_config()
+    boxes = _read_json(_boxes_path(), {"boxes": []})["boxes"]
+    presets = _read_json(_presets_path(), {"presets": []})["presets"]
+    scenes = _read_json(_scenes_path(), {"scenes": []})["scenes"]
+    t = act.get("type")
+    if t in ("scene", "box", "preset"):
+        items = {"scene": scenes, "box": boxes, "preset": presets}[t]
+        it = next((x for x in items if x.get("id") == act.get("id")), None)
+        if it is None:
+            broadcast({"type": "vc", "ok": False,
+                       "message": f"{origin}の切替先が見つかりません"
+                                  "（削除された可能性があります）"})
+            return
+        cmd = {"action": t, "id": it["id"], "name": it.get("name")}
+    elif t == "random":
+        cmd = {"action": act.get("target", "box") + "_random"}
+    elif t == "translate_lang":
+        labels = {code: label for code, label, _k in voicecmd._TRANS_LANGS}
+        cmd = {"action": "translate_lang", "lang": act.get("lang"),
+               "label": labels.get(act.get("lang"), act.get("lang"))}
+    elif t in ("translate_on", "translate_off"):
+        cmd = {"action": t}
+    elif t == "clear":
+        broadcast({"type": "clear"})
+        broadcast({"type": "vc", "ok": True,
+                   "message": "字幕をクリアしました"})
+        return
+    else:
+        cmd = {"action": "unknown"}
+    ok, message = _apply_command(cmd, cfg, scenes, boxes, presets)
+    broadcast({"type": "vc", "ok": ok, "message": message})
+
+
+def _apply_command(cmd, cfg, scenes, boxes, presets):
+    """切替系の操作（シーン・デザイン・レイアウト・翻訳）を実行し (ok, 通知文) を返す。
+
+    ボイスコマンド・カスタム動作（run_action）・外部操作キー（Stream Deck）で共用する。
+    翻訳の切替は認識中なら再起動を伴う（数秒字幕が止まる）。
+    """
+    suffix = ""
     if cmd["action"] == "scene_random":
         # 今の組み合わせと違うシーンからおまかせで選ぶ
         cur = (cfg.get("preset"), cfg.get("box"))
@@ -1034,18 +1063,15 @@ def _try_voice_command(text, spk=""):
                  and any(p.get("id") == s.get("preset") for p in presets)
                  and any(b.get("id") == s.get("box") for b in boxes))
         if not valid:
-            broadcast({"type": "vc", "ok": False,
-                       "message": f"シーン「{cmd['name']}」の中身"
-                                  "（デザインかレイアウト）が見つかりません"})
-            return True
+            return False, (f"シーン「{cmd['name']}」の中身"
+                           "（デザインかレイアウト）が見つかりません")
         with _config_lock:
             cfg = load_config()
             cfg["preset"] = s["preset"]
             cfg["box"] = s["box"]
             save_config(cfg)
         broadcast_style()
-        broadcast({"type": "vc", "ok": True,
-                   "message": f"シーン「{cmd['name']}」に切り替えました{suffix}"})
+        msg = f"シーン「{cmd['name']}」に切り替えました{suffix}"
     elif cmd["action"] in ("box", "preset"):
         key = "box" if cmd["action"] == "box" else "preset"
         label = "レイアウト" if key == "box" else "字幕デザイン"
@@ -1054,8 +1080,7 @@ def _try_voice_command(text, spk=""):
             cfg[key] = cmd["id"]
             save_config(cfg)
         broadcast_style()
-        broadcast({"type": "vc", "ok": True,
-                   "message": f"{label}を「{cmd['name']}」に切り替えました{suffix}"})
+        msg = f"{label}を「{cmd['name']}」に切り替えました{suffix}"
     elif cmd["action"] in ("translate_on", "translate_off", "translate_lang"):
         with _config_lock:
             cfg = load_config()
@@ -1084,18 +1109,199 @@ def _try_voice_command(text, spk=""):
             if changed:
                 save_config(cfg)
         if not changed:
-            broadcast({"type": "vc", "ok": True,
-                       "message": "翻訳はすでにその設定です"})
-            return True
+            return True, "翻訳はすでにその設定です"
         broadcast_style()
         if _engine is not None and _engine.running:
             msg += "（反映のため再起動しています…）"
             _restart_engine_async()
-        broadcast({"type": "vc", "ok": True, "message": msg})
     else:
-        broadcast({"type": "vc", "ok": False,
-                   "message": "コマンドを聞き取れませんでした"})
-    return True
+        return False, "コマンドを聞き取れませんでした"
+    return True, msg
+
+
+# ---------------- ガンビット（GAMBIT_DESIGN.md） ----------------
+
+_gambit = None
+_gambit_lock = threading.RLock()
+
+
+def _gambits_path():
+    return wordstore.data_path("gambits.json")
+
+
+def _gambit_values_path():
+    # 組み方（gambits.json）と分ける。mojipack で組み方を配るときに
+    # 自分の回数まで配られないようにするため
+    return wordstore.data_path("gambit_values.json")
+
+
+def _gambit_kinds():
+    """検証に使う音イベントの種類と動きの一覧"""
+    import soundfx
+    return set(soundfx.GROUPS), wordstore.EFFECT_ANIMS
+
+
+def _get_gambit():
+    """ガンビットの判定部。初回だけファイルから読む。
+
+    「起動ごと」のリセットはここで1回だけ行う＝アプリの起動ごと。
+    エンジンの再起動（翻訳の切替など）では回数を戻さない。
+    """
+    global _gambit
+    with _gambit_lock:
+        if _gambit is None:
+            import gambit
+            groups, anims = _gambit_kinds()
+            raw = _read_json(_gambits_path(), {})
+            cards = gambit.load_cards(
+                raw.get("cards") if isinstance(raw, dict) else [], groups, anims)
+            g = gambit.GambitEngine()
+            g.load(cards, _read_json(_gambit_values_path(), {}))
+            if g.reset_on_start():
+                _write_json(_gambit_values_path(), g.snapshot())
+            _gambit = g
+            _start_gambit_ticker()
+        return _gambit
+
+
+_gambit_ticker = None
+
+
+def _start_gambit_ticker():
+    """「しばらく黙っている」の見回り（毎秒）。アプリにつき1本だけ動かす"""
+    global _gambit_ticker
+    if _gambit_ticker is not None:
+        return
+
+    def loop():
+        import time
+        while True:
+            time.sleep(1.0)
+            g = _gambit
+            if g is None or not g.has_silence():
+                continue
+            running = _engine_state.get("state") == "running"
+            collab = bool(load_config().get("collab"))
+            _gambit_safely(lambda g: g.on_tick(running, collab))
+
+    _gambit_ticker = threading.Thread(target=loop, daemon=True, name="gambit-tick")
+    _gambit_ticker.start()
+
+
+def _gambit_heard(spk):
+    """声を聞いた。沈黙のきっかけがあるときだけ話者を引く（途中字幕は頻繁なため）"""
+    # 話したら、その沈黙で数えていたカードは0に戻る（値の変化を配る）
+    try:
+        if not _get_gambit().has_silence():
+            return
+        role = _speaker_role(spk)
+    except Exception:   # noqa: BLE001 — 字幕の経路を守る。失敗は見回り側で warn に出る
+        return
+    _gambit_safely(lambda g: g.heard(role))
+
+
+def _gambit_widgets():
+    """オーバーレイに重ねる部品（style 一式に載せる。再接続時も現在値が届く）。
+
+    style 一式は字幕の見た目そのものなので、ガンビット側が壊れていても
+    部品なしで返す（字幕まで止めない）
+    """
+    try:
+        g = _get_gambit()
+        presets = _read_json(_presets_path(), {"presets": []})["presets"]
+        cur = load_config().get("preset")
+        with _gambit_lock:
+            return [{"id": c["id"], "name": c["name"],
+                     "value": g.values.get(c["id"], 0), **c["display"]["widget"],
+                     "look": _widget_look(presets, c["display"]["widget"]["style"], cur),
+                     # ラベルの見た目は未指定なら数字と同じプリセット
+                     "label_look": _widget_look(
+                         presets, c["display"]["widget"]["label_style"]
+                         or c["display"]["widget"]["style"], cur),
+                     # 単位の見た目も同じく、未指定なら数字と同じ
+                     "unit_look": _widget_look(
+                         presets, c["display"]["widget"].get("unit_style")
+                         or c["display"]["widget"]["style"], cur)}
+                    for c in g.cards if c["display"].get("widget")]
+    except Exception:   # noqa: BLE001
+        return []
+
+
+_WIDGET_LOOK_KEYS = ("font", "weight", "color", "outlineColor", "outlineWidth",
+                     "glow", "glowSize", "shadow")
+
+
+def _widget_look(presets, style_id, current_id):
+    """部品の見た目を字幕デザインのプリセットから引く。未指定・消えたプリセットは
+    いま使っている字幕デザインに合わせる（部品が見えなくなるのを避ける）"""
+    p = (next((x for x in presets if x.get("id") == style_id), None)
+         or next((x for x in presets if x.get("id") == current_id), None)
+         or {})
+    return {k: p[k] for k in _WIDGET_LOOK_KEYS if k in p}
+
+
+def _gambit_word_candidates():
+    """語の候補（ワード演出と認識させる単語に登録済みのもの）。手で打つ回数を減らす"""
+    profile = load_config().get("word_profile", "")
+    words = [e.get("word") for e in wordstore.merged_effects(profile)]
+    words += [s for s, _r, _sc in wordstore.merged_hotwords(profile)]
+    seen, out = set(), []
+    for w in words:
+        if isinstance(w, str) and w.strip() and w not in seen:
+            seen.add(w)
+            out.append(w)
+    return out[:300]
+
+
+def _gambit_run(fn):
+    """判定部に出来事を渡し、返ってきた Effect を実行する。
+
+    値は変わるたびに保存する。行動（切替・スタンプ）は style の配信を伴い
+    重いので、判定部のロックを外してから実行する。
+    """
+    with _gambit_lock:
+        g = _get_gambit()
+        effects = fn(g)
+        if any(f["kind"] == "value" for f in effects):
+            _write_json(_gambit_values_path(), g.snapshot())
+        names = {c["id"]: c["name"] for c in g.cards}
+    for f in effects:
+        if f["kind"] == "value":
+            broadcast({"type": "widget", "id": f["id"], "value": f["value"],
+                       "delta": f["delta"]})
+        elif f["action"]["type"] == "stamp":
+            # 音イベント演出の設定を借りて出す（そのグループが OFF なら出ない）
+            broadcast({"type": "sound", "group": f["action"]["group"],
+                       "score": 1.0, "speaker": "", "gambit": True})
+        else:
+            run_action(f["action"],
+                       origin=f"カード「{names.get(f.get('card'), '?')}」")
+    return effects
+
+
+def _gambit_safely(fn):
+    """字幕・音イベントの経路から呼ぶ。ガンビットの不具合で字幕を止めない"""
+    try:
+        _gambit_run(fn)
+    except Exception as e:   # noqa: BLE001 — 字幕の経路を守るため握るが、黙らせない
+        _engine_on_warn("gambit", f"ガンビットでエラーが起きました: {e}")
+
+
+def _speaker_role(spk):
+    """エンジンの話者名 → ガンビットの "self" / "guest" """
+    cfg = load_config()
+    if not cfg.get("collab"):
+        return "self"
+    self_name = (cfg.get("self_name") or "自分").strip() or "自分"
+    return "self" if spk in ("", self_name) else "guest"
+
+
+def _reload_gambit(cards):
+    """組み方の保存後。今の回数と発火済みは引き継ぐ"""
+    with _gambit_lock:
+        g = _get_gambit()
+        g.load(cards, g.snapshot())
+        _write_json(_gambit_values_path(), g.snapshot())
 
 
 def _restart_engine_async():
@@ -1117,7 +1323,164 @@ def _restart_engine_async():
     threading.Thread(target=work, daemon=True, name="vc-restart").start()
 
 
+# ---------------- 外部操作キー（Stream Deck など） ----------------
+
+def _deck_state():
+    """物理ボタンの表示用スナップショット（状態ランプ・選択肢の一覧）。
+
+    字幕の本文・辞書・ログは含めない。プラグインは数秒おきにこれを読む
+    """
+    import soundfx
+    cfg = load_config()
+    with _engine_state_lock:
+        engine_state = _engine_state.get("state", "stopped")
+    rules = cfg.get("sound_fx_rules") or {}
+
+    def items(path, key):
+        return [{"id": x.get("id"), "name": x.get("name") or x.get("id")}
+                for x in _read_json(path, {key: []})[key] if x.get("id")]
+
+    return {
+        "engine": engine_state,
+        "preset": cfg.get("preset"), "box": cfg.get("box"),
+        "word_fx": cfg.get("word_fx", True) is not False,
+        "vrchat": bool(cfg.get("vrchat")),
+        "vrchat_source": cfg.get("vrchat_source", "ja"),
+        "vrchat_supported": platform_compat.vrchat_supported(),
+        # シーンは中身（デザイン＋レイアウト）も返す。今のシーンをボタンで点灯させるため
+        "scenes": [{"id": x.get("id"), "name": x.get("name") or x.get("id"),
+                    "preset": x.get("preset"), "box": x.get("box")}
+                   for x in _read_json(_scenes_path(), {"scenes": []})["scenes"]
+                   if x.get("id")],
+        "presets": items(_presets_path(), "presets"),
+        "boxes": items(_boxes_path(), "boxes"),
+        "fx_groups": [{"id": g, "name": g,
+                       "ready": bool((rules.get(g) or {}).get("on"))}
+                      for g in soundfx.GROUPS],
+        # カウンター（ガンビット）: ボタンに今の数を出す。名前と数だけで、きっかけの語は出さない
+        "counters": _deck_counters(),
+    }
+
+
+def _deck_counters():
+    try:
+        g = _get_gambit()
+        with _gambit_lock:
+            return [{"id": c["id"], "name": c["name"], "value": g.values.get(c["id"], 0),
+                     "enabled": c["enabled"]} for c in g.cards]
+    except Exception:   # noqa: BLE001 — ガンビットが壊れていても他のボタンは使えるように
+        return []
+
+
+def _deck_toggle(op, current):
+    """on/off/toggle を真偽値へ。未知の指定は None"""
+    return {"on": True, "off": False, "toggle": not current}.get(op)
+
+
+def _deck_set(key, value):
+    with _config_lock:
+        cfg = load_config()
+        cfg[key] = value
+        save_config(cfg)
+    return cfg
+
+
+def _deck_action(body):
+    """外部操作キーからの1操作を実行して (ok, 通知文) を返す。
+
+    出せるのは配信中に押す操作だけ。任意の文の表示・伏せ字・辞書・ログには触れない。
+    翻訳の切替は認識の再起動（数秒止まる）を伴うので、ボタンには出さない
+    """
+    if not isinstance(body, dict):
+        return False, "invalid request"
+    action = body.get("action")
+    op = body.get("op", "toggle")
+    cfg = load_config()
+    if action == "engine":
+        eng = get_engine()
+        with _engine_state_lock:
+            state = _engine_state.get("state", "stopped")
+        want = _deck_toggle(op, state in ("starting", "running"))
+        if want is None:
+            return False, "unknown op"
+        if want:
+            eng.start(load_config())
+            return True, "認識を開始しました"
+        eng.stop()
+        return True, "認識を停止しました"
+    if action == "clear":
+        broadcast({"type": "clear"})
+        return True, "字幕をクリアしました"
+    if action in ("scene", "preset", "box"):
+        path = {"scene": _scenes_path, "preset": _presets_path,
+                "box": _boxes_path}[action]()
+        key = action + ("s" if action != "box" else "es")
+        it = next((x for x in _read_json(path, {key: []})[key]
+                   if x.get("id") == body.get("id")), None)
+        if it is None:
+            return False, "切替先が見つかりません（削除された可能性があります）"
+        cmd = {"action": action, "id": it["id"], "name": it.get("name") or it["id"]}
+    elif action in ("scene_random", "preset_random", "box_random"):
+        cmd = {"action": action}
+    elif action == "fx":
+        import soundfx
+        group = body.get("group")
+        if group not in soundfx.GROUPS:
+            return False, "unknown group"
+        rule = (cfg.get("sound_fx_rules") or {}).get(group) or {}
+        if not rule.get("on"):
+            return False, f"「{group}」の演出が未設定です（音イベント演出の設定でONにしてください）"
+        # 音イベント検出（sound_fx）がOFFでも、手動の発火は出せる（ルールは常に配信済み）
+        broadcast({"type": "sound", "group": group, "score": 1.0,
+                   "speaker": "", "manual": True})
+        return True, f"演出「{group}」を出しました"
+    elif action == "word_fx":
+        want = _deck_toggle(op, cfg.get("word_fx", True) is not False)
+        if want is None:
+            return False, "unknown op"
+        _deck_set("word_fx", want)
+        broadcast_style()
+        return True, "単語エフェクトを" + ("オン" if want else "オフ") + "にしました"
+    elif action == "vrchat":
+        if not platform_compat.vrchat_supported():
+            return False, "このOSではVRChat転送を使えません"
+        want = _deck_toggle(op, bool(cfg.get("vrchat")))
+        if want is None:
+            return False, "unknown op"
+        vrcchat.configure(_deck_set("vrchat", want))
+        return True, "VRChat転送を" + ("オン" if want else "オフ") + "にしました"
+    elif action == "vrchat_source":
+        value = body.get("value", "toggle")
+        if value == "toggle":
+            value = "tr" if cfg.get("vrchat_source", "ja") == "ja" else "ja"
+        if value not in ("ja", "tr"):
+            return False, "unknown value"
+        vrcchat.configure(_deck_set("vrchat_source", value))
+        return True, "VRChatへ送る内容を" + ("訳文" if value == "tr" else "文字起こし") + "にしました"
+    elif action == "counter":
+        # 手直し・手で数える用。op: add（＋1）/ sub（−1）/ reset（0に戻す）
+        cid, op = body.get("id"), body.get("op", "add")
+        if op not in ("add", "sub", "reset"):
+            return False, "unknown op"
+        try:
+            _gambit_run(lambda g: g.bump(cid, "reset" if op == "reset" else "add",
+                                         -1 if op == "sub" else 1))
+        except KeyError:
+            return False, "カウンターが見つかりません（削除された可能性があります）"
+        with _gambit_lock:
+            g = _get_gambit()
+            c = next(x for x in g.cards if x["id"] == cid)
+            return True, f"「{c['name']}」を{g.values.get(cid, 0)}にしました"
+    else:
+        return False, "unknown action"
+    boxes = _read_json(_boxes_path(), {"boxes": []})["boxes"]
+    presets = _read_json(_presets_path(), {"presets": []})["presets"]
+    scenes = _read_json(_scenes_path(), {"scenes": []})["scenes"]
+    return _apply_command(cmd, cfg, scenes, boxes, presets)
+
+
 def _engine_on_final(text, fid, spk=""):
+    _gambit_heard(spk)        # コマンド発話も「黙っていない」に数える
     if _try_voice_command(text, spk):
         # コマンド発話は字幕に出さず、発話中に見えていた薄文字だけ消す
         _engine_on_partial("", spk)
@@ -1126,11 +1489,22 @@ def _engine_on_final(text, fid, spk=""):
     broadcast({"type": "final", "text": text, "id": fid, "speaker": spk,
                "rev": _style_rev})
     vrcchat.on_final(text, fid, spk)
+    # 字幕を出した後に数える（コマンド発話は数えない）
+    _gambit_safely(lambda g: g.on_final(text, _speaker_role(spk)))
+
+
+def _engine_on_sound(group, score, spk=""):
+    broadcast({"type": "sound", "group": group, "score": round(score, 2),
+               "speaker": spk})
+    _gambit_heard(spk)
+    _gambit_safely(lambda g: g.on_sound(group, _speaker_role(spk)))
 
 
 def _engine_on_partial(text, spk=""):
     broadcast({"type": "partial", "text": text, "speaker": spk})
     vrcchat.on_partial(text, spk)   # VRChatのタイピング中表示
+    if text:
+        _gambit_heard(spk)    # 長く話していて確定がまだの間も「黙っていない」
 
 
 def _engine_on_translation(fid, text, fallback=False, lang="", order=0):
@@ -1171,9 +1545,7 @@ def get_engine():
                 on_state=_on_state,
                 on_translation=_engine_on_translation,
                 on_warn=_engine_on_warn,
-                on_sound_event=lambda g, s, spk="": broadcast(
-                    {"type": "sound", "group": g, "score": round(s, 2),
-                     "speaker": spk}),
+                on_sound_event=_engine_on_sound,
             )
         return _engine
 
@@ -1244,6 +1616,11 @@ class Handler(BaseHTTPRequestHandler):
             allowed = local_auth.MCP_POST_FIELDS if state_changing else local_auth.MCP_GET
             if path not in allowed:
                 self._json({"error": "この操作はMCPに許可されていません"}, 403)
+                return False
+        if self.auth_role == "deck":
+            allowed = local_auth.DECK_POST if state_changing else local_auth.DECK_GET
+            if path not in allowed:
+                self._json({"error": "この操作は外部操作キーに許可されていません"}, 403)
                 return False
         return True
 
@@ -1385,6 +1762,10 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"groups": list(soundfx.GROUPS)})
         elif path == "/api/auth/mcp":
             self._json({"enabled": self.server.auth.enabled()})
+        elif path == "/api/auth/deck":
+            self._json({"enabled": self.server.auth.enabled("deck")})
+        elif path == "/api/deck/state":
+            self._json(_deck_state())
         elif path == "/api/config":
             cfg = load_config()
             if self.auth_role == "mcp":
@@ -1439,6 +1820,12 @@ class Handler(BaseHTTPRequestHandler):
             self._json(_read_json(_scenes_path(), {"scenes": []}))
         elif path == "/api/vc-commands":
             self._json(_read_json(_vc_commands_path(), {"commands": []}))
+        elif path == "/api/gambits":
+            g = _get_gambit()
+            with _gambit_lock:
+                cards, values = list(g.cards), dict(g.values)
+            self._json({"cards": cards, "values": values,
+                        "word_candidates": _gambit_word_candidates()})
         elif path == "/api/style-defaults":
             # 同梱項目の「初期状態に戻す」と新規作成の基準データ。
             self._json({
@@ -1540,13 +1927,14 @@ class Handler(BaseHTTPRequestHandler):
             if set(body) - local_auth.MCP_POST_FIELDS[path]:
                 self._json({"error": "この設定項目はMCPから変更できません"}, 403)
                 return
-        if path == "/api/auth/mcp":
+        if path in ("/api/auth/mcp", "/api/auth/deck"):
             action = body.get("action")
             if action not in ("rotate", "revoke"):
                 self._json({"error": "unknown credential action"}, 400)
                 return
+            kind = "deck" if path == "/api/auth/deck" else "mcp"
             try:
-                token = self.server.auth.rotate(revoke=action == "revoke")
+                token = self.server.auth.rotate(revoke=action == "revoke", kind=kind)
             except OSError:
                 self._json({"error": "認証設定を保存できませんでした"}, 500)
                 return
@@ -1814,6 +2202,34 @@ class Handler(BaseHTTPRequestHandler):
                                 if str(p).strip()]
             _write_json(_vc_commands_path(), {"commands": commands})
             self._json({"ok": True})
+        elif path == "/api/gambits":
+            import gambit
+            groups, anims = _gambit_kinds()
+            try:
+                cards = gambit.validate_cards(body.get("cards"), groups, anims)
+            except (TypeError, ValueError, AttributeError) as e:
+                self._json({"ok": False, "error": str(e)}, 400)
+                return
+            _write_json(_gambits_path(), {"cards": cards})
+            _reload_gambit(cards)
+            broadcast_style()
+            self._json({"ok": True, "cards": cards})
+        elif path == "/api/gambits/bump":
+            # 手直し（GUI の ±・リセット）とボタン（Stream Deck など）の共用口
+            import gambit
+            cid, op, value = body.get("id"), body.get("op", "add"), body.get("value", 1)
+            if not (isinstance(cid, str) and op in ("add", "reset")
+                    and isinstance(value, int) and not isinstance(value, bool)
+                    and abs(value) <= gambit.MAX_VALUE):
+                self._json({"ok": False, "error": "invalid bump"}, 400)
+                return
+            try:
+                _gambit_run(lambda g: g.bump(cid, op, value))
+            except KeyError:
+                self._json({"ok": False, "error": "カードが見つかりません"}, 404)
+                return
+            with _gambit_lock:
+                self._json({"ok": True, "value": _get_gambit().values.get(cid, 0)})
         elif path == "/api/scenes":
             scenes = body.get("scenes", [])
             ok = (isinstance(scenes, list)
@@ -1898,6 +2314,10 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/clear":
             broadcast({"type": "clear"})
             self._json({"ok": True})
+        elif path == "/api/deck/action":
+            ok, message = _deck_action(body)
+            self._json({"ok": ok, "message": message,
+                        "state": _deck_state()}, 200 if ok else 400)
         elif path == "/api/sample-caption":
             self._post_sample_caption(body)
         else:

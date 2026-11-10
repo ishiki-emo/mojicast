@@ -131,6 +131,32 @@ class McpToolTests(unittest.TestCase):
         self.assertEqual(self.events("style")[-1]["box"]["y"], 72)
         self.assertEqual(res["before"]["x"], 0)
 
+    def test_tilt_preset_expands_and_reaches_the_overlay(self):
+        res = self.m.update_layout({"tilt": "wall-right"})
+        self.assertEqual(res["after"], {"tiltX": 0, "tiltY": -26, "tiltZ": 0, "perspective": 1400})
+        self.assertEqual(self.events("style")[-1]["box"]["tiltY"], -26)
+        # 個別に渡した値はプリセットより優先
+        res = self.m.update_layout({"tilt": "floor", "tiltX": 30})
+        self.assertEqual((res["after"]["tiltX"], res["after"]["perspective"]), (30, 900))
+        for bad in ({"tilt": "spin"}, {"tiltX": 90}, {"perspective": 100}):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                self.m.update_layout(bad)
+        # 厚みはデザイン側
+        self.m.update_design({"extrude": 8, "extrudeDir": 45})
+        with self.assertRaises(ValueError):
+            self.m.update_design({"extrude": 21})
+
+    def test_tilt_presets_match_fx_js(self):
+        """MCP の 3D 演出プリセットは fx.js の FX.TILT_PRESETS と同じ値（片方だけ直すずれを防ぐ）"""
+        import re
+        with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                               "ui", "fx.js"), encoding="utf-8") as f:
+            src = f.read()
+        found = {}
+        for m in re.finditer(r'\{ id: "([\w-]+)",\s*ja: "[^"]*",\s*v: \{([^}]*)\} \}', src):
+            found[m.group(1)] = {k: int(v) for k, v in re.findall(r"(\w+): (-?\d+)", m.group(2))}
+        self.assertEqual(found, self.m.TILT_PRESETS)
+
     def test_duplicate_keeps_the_original_and_switches(self):
         orig = self.m.mojicast_status()["active_design"]
         res = self.m.duplicate("design", "AIで調整")

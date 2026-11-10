@@ -58,6 +58,8 @@ DESIGN_FIELDS = {
     "outlineWidth": ("num", 0, 8, "縁取りの太さ px（0=なし）"),
     "glow": ("color?", None, None, "光彩の色（\"\"=なし）"),
     "glowSize": ("num", 0, 40, "光彩の広がり px"),
+    "extrude": ("int", 0, 20, "文字の厚み（3D）。層の数、0=なし。1層あたり1.5px伸びる"),
+    "extrudeDir": ("int", 0, 360, "厚みの伸びる向き（度）。0=右、90=下、45=右下"),
     "shadow": ("bool", None, None, "下向きの影を付ける"),
     "hotColor": ("color", None, None, "ハイライト単語の色"),
     "animIn": ("enum", None, LINE_ANIMS, "行が出るときの動き"),
@@ -97,9 +99,33 @@ LAYOUT_FIELDS = {
     "smoothMs": ("int", 0, 2000, "スクロールの時間 ms"),
     "autoClear": ("bool", None, None, "しばらく話さないと字幕を消す"),
     "clearSec": ("num", 1, 120, "自動で消すまでの秒数"),
+    "tiltX": ("num", -20, 65, "3D: 縦の傾き（度）。大きいほど床に寝る。リリックでは無視"),
+    "tiltY": ("num", -60, 60, "3D: 横の傾き（度）。マイナスで左端が奥へ（右の壁）"),
+    "tiltZ": ("num", -15, 15, "3D: 画面内の回転（度）"),
+    "perspective": ("num", 400, 3000, "3D: カメラの距離 px。小さいほど遠近が強い（既定 1200）"),
+    "tilt": ("enum", None, ["flat", "wall-right", "wall-left", "floor", "slant"],
+             "3D演出プリセットを名前で当てる（tiltX/tiltY/tiltZ/perspective に展開）: "
+             "flat=平面 / wall-right=右の壁 / wall-left=左の壁 / floor=床に流す / slant=少し斜め"),
     "name": ("str", None, None, "表示名"),
     "desc": ("str", None, None, "説明文"),
 }
+# 3D演出プリセット。ui/fx.js の FX.TILT_PRESETS と同じ値（tests/test_mcp_server.py で突き合わせる）
+TILT_PRESETS = {
+    "flat":       {"tiltX": 0,  "tiltY": 0,   "tiltZ": 0, "perspective": 1200},
+    "wall-right": {"tiltX": 0,  "tiltY": -26, "tiltZ": 0, "perspective": 1400},
+    "wall-left":  {"tiltX": 0,  "tiltY": 26,  "tiltZ": 0, "perspective": 1400},
+    "floor":      {"tiltX": 40, "tiltY": 0,   "tiltZ": 0, "perspective": 900},
+    "slant":      {"tiltX": 6,  "tiltY": -14, "tiltZ": 0, "perspective": 1600},
+}
+
+
+def _expand_tilt(changes):
+    """"tilt": "wall-right" を傾きの4項目に展開する。個別に渡した項目のほうを優先"""
+    if "tilt" not in changes:
+        return changes
+    changes = dict(changes)
+    name = _check(LAYOUT_FIELDS, "tilt", changes.pop("tilt"))
+    return {**TILT_PRESETS[name], **changes}
 # リリック・吹き出しなどモード専用の細かい項目。意味は get_layout の現在値を見て判断する。
 # 型は現在値（無ければ同梱の値）と同じものだけ受け付ける
 LAYOUT_ADVANCED = {
@@ -302,6 +328,7 @@ def update_layout(changes: dict, layout_id: str = "") -> dict:
     """レイアウトの項目を変える（変えたい項目だけ渡す）。使用中なら配信画面へ即反映。
 
     例: 画面下に横長の帯 → {"x": 5, "y": 72, "w": 90, "h": 24, "bgOpacity": 0.5}
+    例: 右の壁のように傾ける → {"tilt": "wall-right"}（平面に戻すなら "flat"）
     枠が画面からはみ出さないよう x+w ≤ 100、y+h ≤ 100 に収める。
     位置を決めるときは OBS MCP のスクリーンショットでアバターやゲーム画面の
     重要な部分を確かめ、そこを避ける。
@@ -309,6 +336,7 @@ def update_layout(changes: dict, layout_id: str = "") -> dict:
     cfg, presets, boxes = _load()
     i = _find(boxes, layout_id or cfg.get("box"), "レイアウト")
     cur = boxes[i]
+    changes = _expand_tilt(changes)
     clean = {k: _check(LAYOUT_FIELDS, k, v, cur.get(k)) for k, v in changes.items()}
     merged = {**cur, **clean}
     for a, b in (("x", "w"), ("y", "h")):
