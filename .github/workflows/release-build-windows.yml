@@ -1,0 +1,136 @@
+# Windows 版リリースビルド（手動実行専用・署名なし）
+#
+# SignPath Foundation の無料コード署名は「CI 上でソースから検証可能な形でビルドされた
+# 成果物」しか署名しない（Origin verification）。その準備として、手元の
+# pyinstaller → build_bundle.ps1 -NoModels → make_release_zip.ps1 → make_installer.ps1
+# と同じ手順を GitHub Actions 上で再現する。
+#
+# - 既存のリリース手順（手元ビルド → smoke → gh release）は一切変えない。
+#   このワークフローは成果物を Actions の artifact に置くだけで、Release は作らない。
+# - 署名ステップは入っていない（申請が通ってから追加する。docs/RELEASE_SIGNING.md 参照）。
+# - workflow_dispatch のワークフローは、既定ブランチ（main）にこのファイルが入るまで
+#   Actions 画面に「Run workflow」ボタンが出ない。
+name: Release build (Windows, manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_version:
+        description: "app_server.py の APP_VERSION と一致するか確認する（例: 1.2.0）。空なら確認しない"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    name: build (windows-x64, models not bundled)
+    # 再現性のためイメージは固定する（windows-latest は予告なく中身が変わる）
+    runs-on: windows-2022
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Python は uv で入れる。actions/setup-python の「3.11」は python.org 版の 3.11.9 止まり
+      # （python.org は 3.11 系の Windows 版配布を 3.11.9 で終えた）で、手元ビルド
+      # （uv の 3.11.15）よりセキュリティ修正が古くなるため
+      # setup-uv はメジャー版タグ（v10）を出していないので、完全な版のコミットで固定する
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+        with:
+          version: "0.13.5"
+
+      - name: Install Python and dependencies (locked)
+        run: |
+          uv python install 3.11.15
+          uv venv .venv --python 3.11.15
+          "$PWD\.venv\Scripts" >> $env:GITHUB_PATH
+          # 間接依存まで版とハッシュを固定したロックファイル。requirements.txt を変えたら
+          # .github/release/requirements-win.in の手順で作り直す（Pillow/PyInstaller もここに入っている。
+          # Pillow が無いとアイコン生成が黙ってスキップされ、installer の SetupIconFile で失敗する）
+          uv pip sync --python .venv .github/release/requirements-win.lock --require-hashes
+          uv pip freeze --python .venv > pip-freeze.txt
+
+      - name: Show Python
+        run: python -c "import sys; print(sys.version); print(sys.executable)"
+
+      - name: Check version
+        id: ver
+        run: |
+          $m = Select-String -Path app_server.py -Pattern 'APP_VERSION = "([^"]+)"'
+          if (-not $m) { throw "app_server.py から APP_VERSION を読めません" }
+          $v = $m.Matches[0].Groups[1].Value
+          $want = "${{ inputs.expected_version }}"
+          if ($want -and $want -ne $v) { throw "APP_VERSION=$v が指定 ($want) と一致しません" }
+          "version=$v" >> $env:GITHUB_OUTPUT
+          Write-Host "APP_VERSION = $v"
+
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+
+      - name: PyInstaller
+        run: pyinstaller --noconfirm Mojicast.spec
+
+      - name: Bundle assets (light build, no models)
+        run: .\build_bundle.ps1 -NoModels
+
+      - name: Sanity check (no proprietary leftovers / no models)
+        run: |
+          $app = "dist\Mojicast"
+          # モデル等は exe 直下にだけ作られる（ctranslate2\models\ のようなライブラリ内部の
+          # 同名フォルダは別物なので、直下だけを見る）
+          foreach ($d in @("models", "models_conv", "data", "logs")) {
+            if (Test-Path (Join-Path $app $d)) { throw "混入あり: $d\" }
+          }
+          $bad = Get-ChildItem $app -Recurse -File | Where-Object { $_.Name -match 'cudnn|hf_xet' }
+          if ($bad) { $bad | ForEach-Object { Write-Host "  $($_.FullName)" }; throw "混入あり" }
+          $vi = (Get-Item "$app\Mojicast.exe").VersionInfo
+          Write-Host "Mojicast.exe ProductName=[$($vi.ProductName)] ProductVersion=[$($vi.ProductVersion)]"
+
+      - name: Install Inno Setup
+        run: |
+          $iscc = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") |
+            Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) { choco install innosetup -y --no-progress }
+
+      - name: Release zip
+        run: .\make_release_zip.ps1
+
+      - name: Installer
+        run: .\make_installer.ps1
+
+      - name: Checksums and metadata
+        run: |
+          $v = "${{ steps.ver.outputs.version }}"
+          $files = @(
+            "Mojicast-v$v-win-x64.zip",
+            "Mojicast-v$v-win-x64-setup.exe",
+            "Mojicast-v$v-win-x64-setup.zip"
+          )
+          $files | ForEach-Object {
+            $h = (Get-FileHash $_ -Algorithm SHA256).Hash.ToLower()
+            "$h  $_"
+          } | Set-Content SHA256SUMS.txt -Encoding utf8
+          Get-Content SHA256SUMS.txt
+          foreach ($f in @("dist\Mojicast\Mojicast.exe", "Mojicast-v$v-win-x64-setup.exe")) {
+            $vi = (Get-Item $f).VersionInfo
+            Write-Host "$f : ProductName=[$($vi.ProductName)] ProductVersion=[$($vi.ProductVersion)] FileVersion=[$($vi.FileVersion)]"
+          }
+
+      - name: Upload artifacts (unsigned)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: mojicast-v${{ steps.ver.outputs.version }}-win-x64-unsigned
+          path: |
+            Mojicast-v${{ steps.ver.outputs.version }}-win-x64.zip
+            Mojicast-v${{ steps.ver.outputs.version }}-win-x64-setup.exe
+            Mojicast-v${{ steps.ver.outputs.version }}-win-x64-setup.zip
+            SHA256SUMS.txt
+            pip-freeze.txt
+          if-no-files-found: error
+          retention-days: 14
