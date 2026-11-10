@@ -6,8 +6,9 @@
 （同梱物がすべて OSI 承認ライセンス）を満たさない。そこで CTranslate2 を同じ v4.8.1 のソースから
 MKL なしでビルドし、Windows 版の配布物で使う案を進めている。
 
-**状態（2026-11-10）: 案は「MSVC＋vcomp140＋`OMP_WAIT_POLICY=PASSIVE`」。採用は Intel 2台＋AMD の実測（7章）のあと。
-それまでリリースの既定は公式 wheel のまま**（release-build-windows.yml の `ctranslate2: official`、CREDITS.md も公式版の記載）。
+**状態（2026-11-10 確定）: リリースの既定は公式 wheel のまま。MKL なしビルド（MSVC＋vcomp140＋`OMP_WAIT_POLICY=PASSIVE`）は
+「SignPath に求められたら切り替える控え」として維持する**（release-build-windows.yml の `ctranslate2: official`、
+CREDITS.md も公式版の記載）。訳文は3台・全ケースで公式と一致したが、翻訳の遅れが目安を超えたため（9章）。
 
 - ビルドスクリプト: [tools/signing/ct2_nomkl/build.ps1](../../tools/signing/ct2_nomkl/build.ps1)（ローカル・CI 共通）
 - CI: [build-ctranslate2-windows.yml](../../.github/workflows/build-ctranslate2-windows.yml)（毎回フルビルド・時間の実測とキャッシュ作り）、
@@ -63,8 +64,8 @@ CTranslate2 の `OPENMP_RUNTIME` は `INTEL`（libiomp5md・非 OSI）/ `COMP`�
 | 候補 | ライセンス | 結果 |
 |---|---|---|
 | **① LLVM の libomp.dll（clang-cl ＋ `/openmp`）** | Apache-2.0 WITH LLVM-exception（OSI） | **不採用**。int8 の訳文が公式とずれる（2.3） |
-| **② MSVC の vcomp140.dll（cl ＋ `/openmp`）＋ PASSIVE** | VC++ 再頒布パッケージ（下記） | **案**。訳文は公式と一致。採用は実測のあと |
-| MSVC の `/openmp:llvm`（libomp140.x86_64.dll） | VS の `debug_nonredist` にしか無い（再配布不可） | 対象外 |
+| **② MSVC の vcomp140.dll（cl ＋ `/openmp`）＋ PASSIVE** | VC++ 再頒布パッケージ（下記） | **控え**。訳文は公式と一致するが 1.3〜1.8 倍遅い（9章） |
+| ③ MSVC の `/openmp:llvm`（libomp140.x86_64.dll） | VS の `debug_nonredist` にしか無い（**再頒布不可**） | **不可**。ビルド・訳文・速さは満たした（2.4） |
 
 vcomp140.dll は VC++ 再頒布パッケージの一部で、配布物に既に入っている MSVCP140 / VCRUNTIME140 と
 同じ扱い（Microsoft のソフトウェア ライセンス条項の「再頒布可能コード」）。OSI 承認ではないため、
@@ -72,6 +73,8 @@ SignPath には「MSVC でビルドした以上必ず付くランタイム（Sys
 （[SIGNPATH_APPLICATION.draft.md](SIGNPATH_APPLICATION.draft.md)）。通るかは申請してみないと分からない（8章）。
 
 ### 2.1 空回りと PASSIVE
+
+（この節の CPU 時間は os.times で測ったもの。Windows では 15.6ms 刻みなので、12文の平均として見る参考値。9.3）
 
 OpenMP は計算後もしばらくスレッドを空回りさせて次の仕事を待つ。Mojicast は1文訳したら次の発話まで
 間が空くので、その空回りがまるごと CPU 負荷になる。公式 wheel（Intel OpenMP）は `KMP_BLOCKTIME=5` で
@@ -87,7 +90,7 @@ OpenMP は計算後もしばらくスレッドを空回りさせて次の仕事�
 | 自前・vcomp ＋ PASSIVE（translate.py が設定） | 58ms / 86ms | 201ms / 587ms | 200/200 一致 |
 
 PASSIVE で CPU は公式と同等以下に戻るが、1文の時間が延びる（1文の中のデコード1歩ごとにスレッドが
-寝起きするため）。どこまで許せるかと、スレッド数を減らせば両方抑えられるか（7.1）を実測で決める。
+寝起きするため）。3台の実測では遅れが目安を超え、スレッド数を減らしても改善しなかった（9章）。
 
 ### 2.2 PASSIVE の影響範囲（確認済み）
 
@@ -125,6 +128,26 @@ libomp は Intel OpenMP がオープンソース化されたもので `KMP_BLOCK
   build.ps1 の履歴（コミット b7109ae）に全手順がある
 - 開発機に torch が入っていると、ctranslate2 の import で torch の libiomp5md と libomp が二重に初期化され
   `OMP: Error #15` で落ちた（vcomp では起きない）
+
+### 2.4 ③ MSVC ＋ `/openmp:llvm`（libomp140）を試した結果
+
+i7-13700HX で ② の中韓の遅れが大きかったため、コンパイラは MSVC のまま OpenMP だけ LLVM 版にする構成を試した。
+
+- **ビルド**: 上流ソース無改変で通る。oneDNN は `-DOpenMP_RUNTIME_MSVC=llvm`（CMake 3.30 以降）。CTranslate2 は
+  MSVC のとき CMakeLists.txt で `/openmp` を直接付けるが、`-DCMAKE_CXX_FLAGS_INIT=/openmp:llvm` を足すと cl は
+  `/openmp:llvm` を優先する（D9025）。`ctranslate2.dll` の OpenMP の依存は libomp140.x86_64.dll だけになる
+- **訳文**: 4ケース（int8 の英・中・韓、英 fp32）とも公式と 200/200 一致（開発機）
+- **速さ**: libomp140 は LLVM の libomp なので `KMP_BLOCKTIME=5` が効き、PASSIVE が要らない。
+  開発機で英訳 23ms / CPU 109ms、中国語訳 172ms / 697ms（公式 28 / 116、171 / 686）
+- **再頒布**: 不可。Microsoft の文書に明記されている
+  - /openmp の説明: "Support currently isn't available for production code, since the required libomp DLLs
+    aren't redistributable."（https://learn.microsoft.com/en-us/cpp/build/reference/openmp-enable-openmp-2-0-support）
+  - VS 2022 Distributable Code: "You may not distribute the contents of the following folders: …\debug_nonredist"。
+    `Microsoft.VC[version].OpenMP.LLVM` はこのフォルダの Utilities に載っている
+    （https://learn.microsoft.com/en-us/visualstudio/releases/2022/redistribution）
+  - 同じ一覧で vcomp140（`Microsoft_VC143_OpenMP`）は再頒布可能コードに入っている
+- 未検証の次案: cl の `/openmp:llvm` のまま、①で作った上流の LLVM libomp.dll（Apache-2.0）にリンクする
+  （ctranslate2.dll が呼ぶのは上流の libomp にもある `__kmpc_*` だけ）
 
 ## 3. ビルド手順
 
@@ -239,6 +262,8 @@ release-build-windows.yml の入力 `ctranslate2`（既定 `official`）を `nom
 
 ## 7. 人の確認（採用を決めるための実測）
 
+（2026-11-10 に3台で実施済み。結果と判断は 9章）
+
 🤖 の作業は済み、👤 が実機で行う。
 
 ### 7.1 Intel 2台と AMD で測る（PASSIVE あり/なし・スレッド数）
@@ -300,3 +325,50 @@ Intel 機（特に N100 のような遅い CPU）で1回はやる。
   これに PASSIVE の遅れが重なる
 - **CI イメージの更新**: VS の版が上がるとビルド結果のハッシュが変わる（キャッシュの鍵も変わる）。
   `build-info.json` に MSVC と再頒布パッケージの版を残している
+
+## 9. 判断（2026-11-10）
+
+### 9.1 結果
+
+3台（Ryzen 7 9800X3D / i7-13700HX / N100）で bench/ct2_mkl_compare を実行した
+（[results/](../../bench/ct2_mkl_compare/results/)）。
+
+- **訳文**: 全台・全ケース（英訳 int8 / fp32・中国語訳・韓国語訳 × 200文）で公式と 200/200 一致。ビルドの正しさは確認できた
+- **遅れ**: vcomp＋PASSIVE（custom_passive）は、MKL あり（Intel 機の現行）と比べて1文の時間（平均）が次のとおり増えた
+
+| | 9800X3D | i7-13700HX | N100 |
+|---|---|---|---|
+| 英訳 int8 | +30ms | +30ms | +54ms |
+| 中国語訳 | +22ms | +45ms | +92ms |
+| 韓国語訳 | +42ms | +112ms | +209ms（p95 797→1150ms） |
+
+  （9800X3D は AMD で MKL を使わないので、比べる相手は dnnl）
+- 時間の比で 1.3〜1.8 倍
+- i7-13700HX の韓国語訳 +112ms の内訳: MKL→oneDNN で +31ms、Intel OpenMP→vcomp で +34ms、PASSIVE で +47ms
+- **スレッド数**: 1 / 2 スレッドにしても改善しなかった
+- ③（MSVC＋libomp140）は速さは公式並みだったが、Microsoft が DLL の再頒布を認めていない（2.4）
+
+### 9.2 判断
+
+- リリースの既定は **official のまま確定**（release-build-windows.yml・CREDITS.md とも公式版）
+- MKL なしビルドは **SignPath に求められたら切り替える控え**として維持する。build.ps1・CI（build-ctranslate2-windows.yml・
+  release-build-windows.yml の `ctranslate2: nomkl`）・比較ツール・translate.py の PASSIVE 判定はそのまま残す
+- SignPath の申請では、公式バイナリが Intel oneMKL / Intel OpenMP を含むことを開示し、求められれば次のリリースから
+  切り替えると書く（[SIGNPATH_APPLICATION.draft.md](SIGNPATH_APPLICATION.draft.md)）
+- 切り替えるときは 4章「切り替えるときに変えるもの」の手順
+
+### 9.3 CPU/文 の計測方法の見直し
+
+3台の結果の CPU/文 には異常値があった（N100 の fp32・2スレッドで 5ms、4スレッドが1スレッドより少ない）。原因は2つ。
+
+1. **時計の刻み**: CPU 時間を `os.times()` で測っていた。Windows ではタイマー割り込みの 15.6ms 刻みで数えるため、
+   数 ms で終わる計算は 0 か 15.6ms のどちらかになる（3ms の計算 20回で 0 と 15.6 が混ざることを確かめた）
+2. **条件の不揃い**: スレッド数の比較で、4 スレッドの行だけ本計測の値（20文・2回のうち少ない方）を使い、
+   1 / 2 スレッドの行（10文・1回）と条件が違っていた
+
+比較ツールを直した（2026-11-10）: Windows では CPU サイクル数（`QueryProcessCycleTime`）を、1スレッドの空回りで
+校正した周波数で割って CPU 時間にする（3ms の計算を毎回約 3.0ms と測れ、長い区間では os.times と 0.5% 以内で一致）。
+スレッド数の比較は 1 / 2 / 4 をすべて同じ条件で測り直す。結果には測り方（`CPU 時間の測り方:`）が出る。
+
+**このため、2026-11-10 の3台の結果（results/ の 2026-11-10_*）の CPU/文 は参考値として扱う。** 特に数十 ms 以下の値と、
+スレッド数の比較の CPU/文 は信用しない。1文の時間（実時間）と訳文の一致は perf_counter と文字列比較なので影響を受けない。

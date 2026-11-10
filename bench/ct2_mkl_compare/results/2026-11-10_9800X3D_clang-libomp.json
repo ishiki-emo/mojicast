@@ -1,0 +1,763 @@
+{
+ "cpu": "AMD Ryzen 7 9800X3D 8-Core Processor",
+ "os": "Windows-10-10.0.26300-SP0",
+ "n": 200,
+ "threads": 4,
+ "variants": [
+  "dnnl",
+  "custom"
+ ],
+ "backend": {
+  "dnnl": [
+   "CPU: AuthenticAMD (SSE4.1=true, AVX=true, AVX2=true, AVX512=true)",
+   "- Selected ISA: AVX2",
+   "- Use Intel MKL: false",
+   "- SGEMM backend: DNNL (packed: false)",
+   "- GEMM_S16 backend: none (packed: false)",
+   "- GEMM_S8 backend: DNNL (packed: false, u8s8 preferred: true)",
+   "- Selected compute type: int8_float32",
+   "- Selected compute type: float32"
+  ],
+  "custom": [
+   "CPU: AuthenticAMD (SSE4.1=true, AVX=true, AVX2=true, AVX512=true)",
+   "- Selected ISA: AVX2",
+   "- Use Intel MKL: false",
+   "- SGEMM backend: DNNL (packed: false)",
+   "- GEMM_S16 backend: none (packed: false)",
+   "- GEMM_S8 backend: DNNL (packed: false, u8s8 preferred: true)",
+   "- Selected compute type: int8_float32",
+   "- Selected compute type: float32"
+  ]
+ },
+ "runtime": {
+  "dnnl": {
+   "ctranslate2_version": "4.8.1",
+   "ctranslate2_dir": "E:\\AIProject\\ct2-nomkl-build\\bench-venv\\Lib\\site-packages\\ctranslate2",
+   "ctranslate2_dll_sha256": "a26134c47079896fc046317a3aea22a64df6b63b8c51272748cd2cc406d8d668",
+   "openmp_dlls": [
+    "E:\\AIProject\\ct2-nomkl-build\\bench-venv\\Lib\\site-packages\\ctranslate2\\libiomp5md.dll"
+   ],
+   "intel_dlls": [
+    "E:\\AIProject\\ct2-nomkl-build\\bench-venv\\Lib\\site-packages\\ctranslate2\\libiomp5md.dll"
+   ],
+   "package_files": [
+    "__init__.py",
+    "__pycache__",
+    "_ext.cp311-win_amd64.pyd",
+    "converters",
+    "ctranslate2.dll",
+    "cudnn64_9.dll",
+    "extensions.py",
+    "libiomp5md.dll",
+    "logging.py",
+    "models",
+    "specs",
+    "version.py"
+   ]
+  },
+  "custom": {
+   "ctranslate2_version": "4.8.1+nomkl",
+   "ctranslate2_dir": "<tool>\\_work_20261110_211137\\ct2_custom\\ctranslate2",
+   "ctranslate2_dll_sha256": "dc4b2b0527aecc23aa4239d431928a04359c63111f1299f1964aa032c0b3ee70",
+   "openmp_dlls": [
+    "<tool>\\_work_20261110_211137\\ct2_custom\\ctranslate2\\libomp.dll"
+   ],
+   "intel_dlls": [],
+   "package_files": [
+    "__init__.py",
+    "__pycache__",
+    "_ext.cp311-win_amd64.pyd",
+    "converters",
+    "ctranslate2.dll",
+    "extensions.py",
+    "libomp.dll",
+    "logging.py",
+    "models",
+    "specs",
+    "version.py"
+   ],
+   "build_info": {
+    "ctranslate2": {
+     "commit": "0d8bcd362ac75ef860ef161d6f0efad0ae439ff0",
+     "tag": "v4.8.1"
+    },
+    "onednn": {
+     "version": "3.1.1",
+     "cmake": [
+      "-DCMAKE_BUILD_TYPE=Release",
+      "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
+      "-DONEDNN_LIBRARY_TYPE=STATIC",
+      "-DONEDNN_CPU_RUNTIME=OMP",
+      "-DONEDNN_GPU_RUNTIME=NONE",
+      "-DONEDNN_BUILD_EXAMPLES=OFF",
+      "-DONEDNN_BUILD_TESTS=OFF",
+      "-DONEDNN_ENABLE_WORKLOAD=INFERENCE",
+      "-DONEDNN_ENABLE_PRIMITIVE=CONVOLUTION;REORDER",
+      "-DONEDNN_BUILD_GRAPH=OFF",
+      "-DOpenMP_C_FLAGS=/openmp",
+      "-DOpenMP_CXX_FLAGS=/openmp",
+      "-DOpenMP_C_LIB_NAMES=libomp",
+      "-DOpenMP_CXX_LIB_NAMES=libomp",
+      "-DOpenMP_libomp_LIBRARY=<work>\\libomp-install\\lib\\libomp.lib"
+     ],
+     "sha256": "d1cd58f57b2308d362a9bc474acbc21524cb879cf5d8779b460c718f0fac82d6"
+    },
+    "cmake": [
+     "-DCMAKE_BUILD_TYPE=Release",
+     "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
+     "-DWITH_MKL=OFF",
+     "-DWITH_DNNL=ON",
+     "-DOPENMP_RUNTIME=COMP",
+     "-DENABLE_CPU_DISPATCH=ON",
+     "-DWITH_CUDA=OFF",
+     "-DWITH_CUDNN=OFF",
+     "-DWITH_RUY=OFF",
+     "-DBUILD_CLI=OFF",
+     "-DBUILD_TESTS=OFF",
+     "-DCMAKE_SHARED_LINKER_FLAGS=/LIBPATH:<work>\\libomp-install\\lib libomp.lib"
+    ],
+    "openmp": "llvm",
+    "openmp_runtime": "LLVM OpenMP 19.1.7 (libomp.dll, built from source with clang version 19.1.1)",
+    "libomp": {
+     "version": "19.1.7",
+     "openmp_src_sha256": "bd7e6901ab086fd268750363017935fd4a717c153dad3c2aab86cb0140d9e3fe",
+     "cmake": [
+      "-DCMAKE_BUILD_TYPE=Release",
+      "-DLIBOMP_ENABLE_SHARED=ON",
+      "-DLIBOMP_USE_ITT_NOTIFY=OFF",
+      "-DLIBOMP_OMPT_SUPPORT=OFF",
+      "-DLIBOMP_OMPD_SUPPORT=OFF",
+      "-DOPENMP_ENABLE_LIBOMPTARGET=OFF",
+      "-DOPENMP_ENABLE_OMPT_TOOLS=OFF",
+      "-DLIBOMP_INSTALL_ALIASES=OFF"
+     ],
+     "dll_sha256": "731f002f2c442ab57a1eed6e025ebcc8421d77e55d88152e02dc0cefd33b8fd7",
+     "cmake_src_sha256": "11c5a28f90053b0c43d0dec3d0ad579347fc277199c005206b963c19aae514e3"
+    },
+    "compiler": "clang version 19.1.1",
+    "extra_cflags": "/clang:-ffp-contract=off",
+    "msvc": "14.43.34808",
+    "visual_studio": "BuildTools",
+    "python": "3.11.15",
+    "pybind11": "2.11.1",
+    "ctranslate2_dll_dependents": [
+     "KERNEL32.dll",
+     "libomp.dll",
+     "MSVCP140.dll",
+     "VCRUNTIME140.dll",
+     "api-ms-win-crt-time-l1-1-0.dll",
+     "api-ms-win-crt-stdio-l1-1-0.dll",
+     "api-ms-win-crt-heap-l1-1-0.dll",
+     "api-ms-win-crt-runtime-l1-1-0.dll",
+     "api-ms-win-crt-math-l1-1-0.dll",
+     "api-ms-win-crt-filesystem-l1-1-0.dll",
+     "api-ms-win-crt-string-l1-1-0.dll",
+     "api-ms-win-crt-convert-l1-1-0.dll",
+     "api-ms-win-crt-utility-l1-1-0.dll",
+     "api-ms-win-crt-environment-l1-1-0.dll",
+     "api-ms-win-crt-locale-l1-1-0.dll"
+    ],
+    "wheel": "ctranslate2-4.8.1+nomkl-cp311-cp311-win_amd64.whl",
+    "wheel_sha256": "cd6b89674efd0ab1b79492191756589775d83f3f3bee1c82c31936d2ff3f4c03",
+    "built_at": "2026-11-10T12:11:27Z",
+    "seconds": {
+     "ソース取得": 0.0,
+     "libomp ビルド": 4.0,
+     "oneDNN ビルド": 1.0,
+     "CTranslate2 ビルド": 1.0,
+     "wheel 作成": 37.0
+    }
+   }
+  }
+ },
+ "failed": [],
+ "cases": {
+  "en_int8": {
+   "dnnl": {
+    "median": 13.48919999145437,
+    "mean": 13.76706200055196,
+    "p95": 23.28220001072623,
+    "load_ms": 353.0134999891743,
+    "peak_mb": 275,
+    "ratio_mean": 1.0,
+    "cpu_ms": 82.8125,
+    "same": 200,
+    "total": 200,
+    "diffs": []
+   },
+   "custom": {
+    "median": 11.623000013059936,
+    "mean": 12.44743700066465,
+    "p95": 19.61479999590665,
+    "load_ms": 333.30809997278266,
+    "peak_mb": 249,
+    "ratio_mean": 0.9041462150868208,
+    "cpu_ms": 85.15625,
+    "same": 174,
+    "total": 200,
+    "diffs": [
+     {
+      "i": 5,
+      "base": "I'm going to go ahead. but the subtitles are really",
+      "other": "I'm going to go forward. but the subtitles are really"
+     },
+     {
+      "i": 20,
+      "base": "It's going to help, so if you press a lot",
+      "other": "It's going to help, so if you press a lot."
+     },
+     {
+      "i": 26,
+      "base": "But you're a fool to do the job in front of me.",
+      "other": "But you're a fool to do the job in front of it."
+     },
+     {
+      "i": 35,
+      "base": "I'd like to see that kind of stream on the other side",
+      "other": "I'd like to see that kind of stream on the other side."
+     },
+     {
+      "i": 36,
+      "base": "Well, let's just wait quietly.",
+      "other": "Well, let's just wait up and down."
+     },
+     {
+      "i": 66,
+      "base": "Well, there's a chance it might go wrong.",
+      "other": "Well, there's a chance it could go wrong."
+     },
+     {
+      "i": 69,
+      "base": "Streamerly sneezing from the side.",
+      "other": "Streamer-like sneezing from your side."
+     },
+     {
+      "i": 72,
+      "base": "There are rumors that it'll cost about 200,000.",
+      "other": "There are rumors that it'll cost 200,000."
+     },
+     {
+      "i": 74,
+      "base": "Buy handy goods very often",
+      "other": "Buy convenient goods very often"
+     },
+     {
+      "i": 75,
+      "base": "Some of you are strong. but",
+      "other": "Some of you are strong. however"
+     },
+     {
+      "i": 81,
+      "base": "If you’re going to be with someone, meet them in a VR chat.",
+      "other": "If you’re going to be with someone, meet them in VR chat."
+     },
+     {
+      "i": 83,
+      "base": "On a sheet of metal",
+      "other": "And I hit a metal plate"
+     },
+     {
+      "i": 92,
+      "base": "It was a superalloy. What's that mixed up with?",
+      "other": "It was a superalloy. what are you mixing with that?"
+     },
+     {
+      "i": 96,
+      "base": "I'm finally here.",
+      "other": "I've finally come here."
+     },
+     {
+      "i": 104,
+      "base": "And then there's the stream,",
+      "other": "So here's the stream."
+     },
+     {
+      "i": 106,
+      "base": "Many of your DMs",
+      "other": "A lot of your DMs"
+     },
+     {
+      "i": 114,
+      "base": "Ryukaku Scattering: Can You Buy It on Amazon?",
+      "other": "Ryukaku Scattering: You Can Buy It at Amazon"
+     },
+     {
+      "i": 121,
+      "base": "Oh yeah, the third person's rpa.",
+      "other": "Oh yeah, there's a third person rpa."
+     },
+     {
+      "i": 134,
+      "base": "Isn't there something like a road over here?",
+      "other": "There's something like a road over here, right?"
+     },
+     {
+      "i": 135,
+      "base": "It's going to be.",
+      "other": "That's it."
+     },
+     {
+      "i": 152,
+      "base": "If you put it in third, wouldn't that be enough?",
+      "other": "If you put it in three, wouldn't this be possible?"
+     },
+     {
+      "i": 168,
+      "base": "Well then, I'm going to call it consciousness.",
+      "other": "Well then, I'll call it consciousness."
+     },
+     {
+      "i": 170,
+      "base": "I did it. that's what happened, actually",
+      "other": "I did it. that kind of thing is actually true"
+     },
+     {
+      "i": 187,
+      "base": "Such people's bondage and cradle",
+      "other": "And those people's bondage"
+     },
+     {
+      "i": 192,
+      "base": "That's a story of growth.",
+      "other": "It's a story of growth."
+     },
+     {
+      "i": 198,
+      "base": "It's basically a wilderness again.",
+      "other": "What should I do? The wilderness."
+     }
+    ]
+   }
+  },
+  "en_fp32": {
+   "dnnl": {
+    "median": 62.23230001342017,
+    "mean": 64.02495199814439,
+    "p95": 99.60129999672063,
+    "load_ms": 214.32509997976013,
+    "peak_mb": 395,
+    "ratio_mean": 1.0,
+    "cpu_ms": 251.5625,
+    "same": 200,
+    "total": 200,
+    "diffs": []
+   },
+   "custom": {
+    "median": 57.79854999855161,
+    "mean": 60.28540749888634,
+    "p95": 97.76149998651817,
+    "load_ms": 211.159200000111,
+    "peak_mb": 370,
+    "ratio_mean": 0.9415923888647909,
+    "cpu_ms": 253.90625,
+    "same": 200,
+    "total": 200,
+    "diffs": []
+   }
+  },
+  "zh": {
+   "dnnl": {
+    "median": 117.45169998903293,
+    "mean": 123.68742249949719,
+    "p95": 202.9090999858454,
+    "load_ms": 465.74640000471845,
+    "peak_mb": 601,
+    "ratio_mean": 1.0,
+    "cpu_ms": 537.5,
+    "same": 200,
+    "total": 200,
+    "diffs": []
+   },
+   "custom": {
+    "median": 126.35389999195468,
+    "mean": 128.90343099701568,
+    "p95": 206.60119998501614,
+    "load_ms": 463.2075999979861,
+    "peak_mb": 575,
+    "ratio_mean": 1.0421708884550465,
+    "cpu_ms": 526.5625,
+    "same": 176,
+    "total": 200,
+    "diffs": [
+     {
+      "i": 10,
+      "base": "是的,在第六年,我会直播。",
+      "other": "六年后,我要直播。"
+     },
+     {
+      "i": 26,
+      "base": "但是,他现在就把这件事看在你眼前的傻瓜。",
+      "other": "但是,他现在就把这件事做得在他的眼前很愚蠢。"
+     },
+     {
+      "i": 29,
+      "base": "啊,我做很多。",
+      "other": "啊,我做了很多。"
+     },
+     {
+      "i": 30,
+      "base": "是的,不,我更愿意把它交给你。",
+      "other": "好吧,不,我更愿意把它交给你。"
+     },
+     {
+      "i": 32,
+      "base": "它是正确的,或者我的设置不一样。",
+      "other": "或者我能做得好,我的设置不一样。"
+     },
+     {
+      "i": 33,
+      "base": "没时间,还剩下什么事,最近",
+      "other": "没时间,又什么事,最近"
+     },
+     {
+      "i": 39,
+      "base": "用简单的HTML1文件创建它。",
+      "other": "用简单的HTML1文件创建。"
+     },
+     {
+      "i": 54,
+      "base": "非常好,我避免了。",
+      "other": "很棒的,我避免了。"
+     },
+     {
+      "i": 55,
+      "base": "偶尔在眼镜上喝啤酒。",
+      "other": "偶尔在眼镜上喝啤酒"
+     },
+     {
+      "i": 69,
+      "base": "從那邊打開的,是主播。",
+      "other": "從那邊打開,就先播出。"
+     },
+     {
+      "i": 71,
+      "base": "开拓的机组人员,就是我自己。",
+      "other": "开拓的机组员,就是我自己。"
+     },
+     {
+      "i": 81,
+      "base": "如果你想和我一起,我们会在VR聊天中见到你。",
+      "other": "如果你想和我一起,我们会见到VR聊天。"
+     },
+     {
+      "i": 87,
+      "base": "好吧,我有点不满了,但是",
+      "other": "好吧,我有点不满了,但是。"
+     },
+     {
+      "i": 93,
+      "base": "超金合是真理而过的。",
+      "other": "超金合是真理的,超重的。"
+     },
+     {
+      "i": 97,
+      "base": "没想到我忘了,但我想听到这本书的结尾。",
+      "other": "没想到我忘了,但我想听到结局。"
+     },
+     {
+      "i": 110,
+      "base": "但是,我觉得你不应该低速开车。",
+      "other": "但是,我不能低速开车。"
+     },
+     {
+      "i": 129,
+      "base": "有一架战斗机。",
+      "other": "有战斗机。"
+     },
+     {
+      "i": 130,
+      "base": "或从这样的角度看,",
+      "other": "这个观点,从这样的观点。"
+     },
+     {
+      "i": 132,
+      "base": "然后,再这样做吧。",
+      "other": "然后,再做吧。"
+     },
+     {
+      "i": 134,
+      "base": "那裡,就好像有路嗎?",
+      "other": "那里的路,就好像是街道吗?"
+     },
+     {
+      "i": 170,
+      "base": "她说,我真的这么做了,其实也是这样。",
+      "other": "我想,我会这样做吗?事实上,这也是如此。"
+     },
+     {
+      "i": 176,
+      "base": "但是,如果你想做得好,就好像你没有做过。",
+      "other": "但是,如果你觉得自己在做不做的事情,那就好了。"
+     },
+     {
+      "i": 186,
+      "base": "好吧!基本的对话看起来很戏剧性。",
+      "other": "好吧,基本的谈话看起来很戏剧性。"
+     },
+     {
+      "i": 192,
+      "base": "成长的故事,就是这样一个故事。",
+      "other": "成长的故事,就是这样。"
+     }
+    ]
+   }
+  },
+  "ko": {
+   "dnnl": {
+    "median": 188.39239999942947,
+    "mean": 193.1898564985022,
+    "p95": 324.5325000025332,
+    "load_ms": 0.005099980626255274,
+    "peak_mb": 617,
+    "ratio_mean": 1.0,
+    "cpu_ms": 717.96875,
+    "same": 200,
+    "total": 200,
+    "diffs": []
+   },
+   "custom": {
+    "median": 177.55125000257976,
+    "mean": 185.83295849879505,
+    "p95": 324.44650001707487,
+    "load_ms": 0.0053000112529844046,
+    "peak_mb": 588,
+    "ratio_mean": 0.9619188184460182,
+    "cpu_ms": 714.0625,
+    "same": 154,
+    "total": 200,
+    "diffs": [
+     {
+      "i": 5,
+      "base": "진짜 써보고 싶은데, 단순히 글쓰기입니다.",
+      "other": "앞으로 나아가고 싶습니다.그냥 제목이 진짜입니다."
+     },
+     {
+      "i": 12,
+      "base": "지금은 그만큼 뜨겁다.",
+      "other": "지금은 그만큼 뜨거워요."
+     },
+     {
+      "i": 16,
+      "base": "실제로 VR 채팅을 잘 하시면 됩니다.",
+      "other": "실제로 VR 채팅을 잘 해주고 싶습니다."
+     },
+     {
+      "i": 17,
+      "base": "그건 뭐가 좋을지 생각해요.",
+      "other": "저도 괜찮다고 생각해요."
+     },
+     {
+      "i": 19,
+      "base": "그렇지 않아, 이것도 마찬가지다.",
+      "other": "그렇지 않아, 이것도 그렇다."
+     },
+     {
+      "i": 21,
+      "base": "그들이 문화를 확산하고자 하는 단체가 될 것이다.",
+      "other": "그들이 문화를 확산하기 위해 노력하는 단체가 될 것입니다."
+     },
+     {
+      "i": 30,
+      "base": "아니, 그렇지 않다, 그들은 더 이상 당신을 맡기고있다.",
+      "other": "아니, 그렇지 않다, 그들은 더 이상 당신을 맡기고 있습니다."
+     },
+     {
+      "i": 31,
+      "base": "지난번도 사용했지만,",
+      "other": "지난번도 사용했지만"
+     },
+     {
+      "i": 33,
+      "base": "오래 걸리지 않았다면, 최근에 무슨 일이 있었을까?",
+      "other": "시간이 없어도, 최근에 무슨 일이 있었을까?"
+     },
+     {
+      "i": 37,
+      "base": "이게 그런 것 같아요.",
+      "other": "이런 것 같아요."
+     },
+     {
+      "i": 41,
+      "base": "새롭게 업데이트할 수 있는 것 같아요 ᄒᄒᄒ",
+      "other": "업데이트 할 수 있는 것 같아요 ᅲᅲ"
+     },
+     {
+      "i": 45,
+      "base": "그렇다, 이 정도의 위치에서",
+      "other": "그렇다, 이 자리에서 그 정도로."
+     },
+     {
+      "i": 48,
+      "base": "그들은 흔들리고 있는 것처럼 보이고, 여러분은 그곳에서 잘 지내고 있습니다.",
+      "other": "거기서 잘 지내고 있는 것 같아서, 그곳에 다 괜찮아요."
+     },
+     {
+      "i": 57,
+      "base": "도나트를 가져오세요.",
+      "other": "도나츠를 가져오세요."
+     },
+     {
+      "i": 61,
+      "base": "그래서 그렇다.",
+      "other": "그래서 그럴 겁니다."
+     },
+     {
+      "i": 62,
+      "base": "제목도 보여줄 수 있어요, 안녕하세요.",
+      "other": "제목도 보여드릴 수 있어요, 안녕하세요."
+     },
+     {
+      "i": 69,
+      "base": "그 옆에서 배달하는 사람에게는,",
+      "other": "그 옆에서 배달하는 분들에게는"
+     },
+     {
+      "i": 73,
+      "base": "많은 소식이 있었지만 최근에 여러분들",
+      "other": "많은 소식이 있었지만 최근에 여러분은"
+     },
+     {
+      "i": 74,
+      "base": "혜택을 받으시면 구입할 수 있습니다.",
+      "other": "혜택을 받으시면 구입하실 수 있습니다."
+     },
+     {
+      "i": 79,
+      "base": "괜찮으신가요, 오래된 바카라를 좋아하시나요?",
+      "other": "괜찮으신가요, 오래된 바카라를 좋아하시는 분이 계십니까?"
+     },
+     {
+      "i": 81,
+      "base": "당신과 함께 할 수 있다면 VR 채팅에서 만날 수 있습니다.",
+      "other": "당신과 함께 할 수 있다면, VR 채팅에서 만날 수 있습니다."
+     },
+     {
+      "i": 82,
+      "base": "이렇게 목을 조금 움직이도록 하자.",
+      "other": "이처럼 목을 조금 움직이게 하라."
+     },
+     {
+      "i": 88,
+      "base": "얘기해 보니 겁에 질린 것 같아서 바꾸어 놓을 거야.",
+      "other": "자세히 말씀드릴게요, 괜찮을 것 같아서 두려워하고 이해할 수 있습니다."
+     },
+     {
+      "i": 97,
+      "base": "나는 그것을 잊지 않았다, 그러나 나는 그것이 끝나는 것을 듣고 싶다.",
+      "other": "나는 그것을 잊지 않았다고 생각했지만, 끝에 글을 듣고 싶다."
+     },
+     {
+      "i": 100,
+      "base": "그렇게 익숙해지지 않는다는 것은 이상한 일이다.",
+      "other": "너무 익숙해지지 않는다는 사실이 이상하다."
+     },
+     {
+      "i": 109,
+      "base": "이상한 것들이 재미있다.",
+      "other": "이상한 일은 재미있다."
+     },
+     {
+      "i": 111,
+      "base": "",
+      "other": "약물처럼 보이는 색깔이 조금 든다."
+     },
+     {
+      "i": 117,
+      "base": "그럼 조금 물을 줘도 될 거예요.",
+      "other": "그럼 조금 물을 줘도 될거야."
+     },
+     {
+      "i": 118,
+      "base": "얘기할 수 있는 것에 대해 이야기 할 때, 조금이라도.",
+      "other": "얘기할 수 있는 것에 대해 말해 주면, 조금이라도"
+     },
+     {
+      "i": 125,
+      "base": "축하 드립니다",
+      "other": "축하해 주세요"
+     },
+     {
+      "i": 133,
+      "base": "밀라를 꺼내서 꺼낸다.",
+      "other": "밀레니엄은 꺼져서 꺼진다."
+     },
+     {
+      "i": 136,
+      "base": "그렇지 않다, 그것은 당신이 할 수있는 VR.",
+      "other": "그렇지 않다.그러나 나는 그것을 할 수있는 VR"
+     },
+     {
+      "i": 139,
+      "base": "헬리콥터도 많다.",
+      "other": "헬리콥터도 많이 있습니다."
+     },
+     {
+      "i": 141,
+      "base": "그걸 쳐다보면 다시 돌아오게 될 거야.",
+      "other": ""
+     },
+     {
+      "i": 143,
+      "base": "좀 더 자세한데, 할 수 있는 일들이 많다.",
+      "other": "좀 더 자세히 설명해 보니, 할 수 있는 일들이 많다."
+     },
+     {
+      "i": 150,
+      "base": "이제 캔피를 날지 않도록 조심하십시오.",
+      "other": "이제 캔버스를 날아다니지 않도록 조심하십시오."
+     },
+     {
+      "i": 152,
+      "base": "셋째로, 이거 나올 수 있지 않을까?",
+      "other": "셋째로, 이거 나올 수 있을까?"
+     },
+     {
+      "i": 155,
+      "base": "이것은 어제였습니다.",
+      "other": "이것은 어제 왔습니다."
+     },
+     {
+      "i": 162,
+      "base": "이것을 주목할만한 것이 아니라, 이 일을 하는 것처럼 얘기하는 것도 좋다고 생각합니다.",
+      "other": "이것을 주목할만한 것이 아니라, 이 일에 대해 이야기하는 것처럼 느낄 수 있다고 생각합니다."
+     },
+     {
+      "i": 165,
+      "base": "출연을 위해 휴식을 취할 수 있습니다.",
+      "other": "출연을 위해 휴가를 보내고 있습니다."
+     },
+     {
+      "i": 166,
+      "base": "혹시 굉장히 고통스럽지 않나요?",
+      "other": "혹시 너무 짜증나지 않나요?"
+     },
+     {
+      "i": 172,
+      "base": "한 번에 15명, 약 20명이 함께",
+      "other": "다만 15명과 20명이 한 번에"
+     },
+     {
+      "i": 173,
+      "base": "나는 여섯째 해에 처음으로 Vtuber입니다.",
+      "other": "저도 6년 만에 처음으로 Vtuber를 했습니다."
+     },
+     {
+      "i": 177,
+      "base": "뭔가 이미지가 있는 것 같다.",
+      "other": "뭔가 이미지가 있는 것 같아요."
+     },
+     {
+      "i": 181,
+      "base": "밖으로 나가면 코 물이 목 뒤까지 날아간다.",
+      "other": "밖으로 나가면 코의 물이 목 뒤까지 날아간다."
+     },
+     {
+      "i": 186,
+      "base": "다행스럽게 말하자면, 기본적인 대화는 극적이다.",
+      "other": "다행스럽게 말하자면, 기본적인 대화는 극단적이다."
+     }
+    ]
+   }
+  }
+ }
+}

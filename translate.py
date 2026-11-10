@@ -61,7 +61,7 @@ def _ct2_openmp_runtime():
 # 使う。vcomp140 には KMP_BLOCKTIME に当たる設定が無く、既定では計算後に長く空回りする
 # （実測 9800X3D・4スレッド・1文ごとに1秒空ける: 英訳の CPU/文 公式 94ms → vcomp 396ms）。
 # OMP_WAIT_POLICY=PASSIVE で空回りをやめさせる（CPU/文 86ms。代わりに1文が遅くなる:
-# 英訳 26→58ms、中国語訳 171→201ms）。採用するかは bench/ct2_mkl_compare の実測で決める。公式 wheel（Intel OpenMP）には設定しない: Intel OpenMP では
+# 英訳 26→58ms、中国語訳 171→201ms）。MKL なし版は SignPath に求められたら切り替える控え（docs/signing/CT2_NOMKL_BUILD.md 9章）。公式 wheel（Intel OpenMP）には設定しない: Intel OpenMP では
 # PASSIVE が KMP_BLOCKTIME=0 と同じになり、上の 5ms より遅くなるため。
 # DLL が読み込まれる前（＝ctranslate2 の import より前）に設定する必要がある。利用者の指定を優先する
 # （OMP_WAIT_POLICY=ACTIVE で空回りありに戻せる）。

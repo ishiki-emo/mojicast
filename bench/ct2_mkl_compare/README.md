@@ -63,6 +63,9 @@ ct2_mkl_compare.exe --models "C:\...\Mojicast\models"
   プロセスに読み込まれた OpenMP の DLL（フルパス）、自前ビルドの `build-info.json`（CMake オプション、
   コンパイラ、vcomp140 の版とハッシュ）、子プロセスで効いていた `OMP_WAIT_POLICY`
 - **CPU/文**: 先頭20文（`--cpu-sentences`）で、1文訳して1秒空けるまでのプロセス CPU 時間。
+  Windows では CPU サイクル数（`QueryProcessCycleTime`）を校正した周波数で割って求める（`os.times` は 15.6ms 刻みで
+  数 ms の計算を正しく数えられないため・2026-11-10 から）。それより前の結果（results/ の 2026-11-10_*）の
+  CPU/文 は os.times によるもので参考値（docs/signing/CT2_NOMKL_BUILD.md 9.3）
   OpenMP のスレッドが計算後に空回りすると、速さは変わらずここだけ増える。Mojicast は Intel の
   OpenMP に `KMP_BLOCKTIME=5` を設定している（translate.py）。MSVC の OpenMP（vcomp140）にはこの設定が
   無く、開発機で英訳の CPU/文 が 94ms → 396ms に増える。`OMP_WAIT_POLICY=PASSIVE` で 86ms に戻るが、

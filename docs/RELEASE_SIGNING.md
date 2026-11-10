@@ -38,8 +38,10 @@ SignPath の条件は「全コンポーネントが OSI 承認ライセンス」
     `tools/signing/ct2_nomkl/build.ps1`・release-build-windows.yml に `ctranslate2: nomkl` で組み込み済み・
     **既定はまだ official**）。構成は MSVC＋vcomp140＋`OMP_WAIT_POLICY=PASSIVE`（訳文は公式と一致）。
     clang-cl＋LLVM libomp は int8 の訳文がずれるため不採用（2026-11-10 えもさん判断）
-  - [ ] 👤 自前ビルドでの確認（Intel 2台＋AMD の再測定〈PASSIVE あり/なし・スレッド数 1/2/4〉・通しの字幕遅延・
-    訳文の回帰比較）→ CT2_NOMKL_BUILD.md の「人の確認」。結果で採用を決め、既定と CREDITS を切り替える
+  - [x] 👤 自前ビルドでの確認（3台: 9800X3D・i7-13700HX・N100）→ 訳文は全台・全ケース 200/200 一致。ただし vcomp＋PASSIVE は
+    MKL あり比で 1.3〜1.8 倍遅い（N100 の韓国語訳 +209ms）、スレッド数でも改善せず
+  - [x] 👤 **既定は official のまま確定（2026-11-10）**。MKL なしビルドは「SignPath に求められたら切り替える控え」として維持。
+    申請では公式バイナリが oneMKL / Intel OpenMP を含むことを開示する（CT2_NOMKL_BUILD.md 9章・申請下書き）
   - 参考（開発機 AMD で MKL を強制した場合・8文）: MKL 有効だと中韓 約3.4〜4.0秒/文 vs 無効 130〜190ms、
     ピークメモリ 2.1GB vs 0.6GB。AMD で MKL を使わない今の既定は正しい
 - [x] 🤖 ASIO 版 PortAudio DLL（`libportaudio64bit-asio.dll`）を spec で除外した（2026-11-10 develop・次のリリースから）

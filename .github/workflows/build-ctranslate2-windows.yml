@@ -2,8 +2,8 @@
 #
 # Mojicast の Windows 版を SignPath Foundation で署名するには、同梱物がすべて OSI 承認ライセンス
 # である必要がある。公式の ctranslate2 wheel は Intel oneMKL と Intel OpenMP を含むため、
-# tools/signing/ct2_nomkl/build.ps1 でソースからビルドした wheel に替える案を検討している
-# （採用は Intel 2台＋AMD の実測のあと。それまでリリースの既定は公式版）。
+# tools/signing/ct2_nomkl/build.ps1 でソースからビルドした wheel を「SignPath に求められたら切り替える控え」
+# として維持している（2026-11-10 判断。リリースの既定は公式版。CT2_NOMKL_BUILD.md 9章）。
 # このワークフローは毎回キャッシュを使わずにビルドし（CI でのビルド時間を測るため）、
 # wheel を artifact に置き、同じ鍵でキャッシュにも保存する。
 # リリースビルド（release-build-windows.yml）は同じスクリプトと同じ鍵を使う。
@@ -13,9 +13,8 @@ name: Build CTranslate2 without MKL (Windows)
 on:
   workflow_dispatch:
   # workflow_dispatch は既定ブランチにこのファイルが入るまで使えないので、ビルド手順を
-  # 変えたときは push でも走らせる（ビルド時間の実測を兼ねる）
+  # 変えたときは push でも走らせる（どのブランチでも。ビルドが通ることとビルド時間の確認を兼ねる）
   push:
-    branches: [chore/signpath-prep]
     paths:
       - tools/signing/ct2_nomkl/**
       - .github/workflows/build-ctranslate2-windows.yml

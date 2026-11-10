@@ -1,0 +1,118 @@
+CTranslate2 比較  2026-11-10 21:23
+CPU: AMD Ryzen 7 9800X3D 8-Core Processor
+OS: Windows-10-10.0.26300-SP0
+文の数: 200  スレッド: 4
+
+[dnnl] 公式・MKL なし（oneDNN＋Intel OpenMP）
+  ctranslate2 4.8.1  DLL sha256 a26134c47079896f
+  OpenMP: libiomp5md.dll
+  Intel の DLL: libiomp5md.dll
+  CPU: AuthenticAMD (SSE4.1=true, AVX=true, AVX2=true, AVX512=true)
+  - Selected ISA: AVX2
+  - Use Intel MKL: false
+  - SGEMM backend: DNNL (packed: false)
+  - GEMM_S16 backend: none (packed: false)
+  - GEMM_S8 backend: DNNL (packed: false, u8s8 preferred: true)
+  - Selected compute type: int8_float32
+  - Selected compute type: float32
+[custom] 自前ビルド・MKL なし
+  ctranslate2 4.8.1+nomkl  DLL sha256 dc4b2b0527aecc23
+  OpenMP: libomp.dll
+  ビルド: -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DWITH_MKL=OFF -DWITH_DNNL=ON -DOPENMP_RUNTIME=COMP -DENABLE_CPU_DISPATCH=ON -DWITH_CUDA=OFF -DWITH_CUDNN=OFF -DWITH_RUY=OFF -DBUILD_CLI=OFF -DBUILD_TESTS=OFF -DCMAKE_SHARED_LINKER_FLAGS=/LIBPATH:<work>\libomp-install\lib libomp.lib
+  oneDNN 3.1.1 / OpenMP LLVM OpenMP 19.1.7 (libomp.dll, built from source with clang version 19.1.1) / MSVC 14.43.34808
+  CPU: AuthenticAMD (SSE4.1=true, AVX=true, AVX2=true, AVX512=true)
+  - Selected ISA: AVX2
+  - Use Intel MKL: false
+  - SGEMM backend: DNNL (packed: false)
+  - GEMM_S16 backend: none (packed: false)
+  - GEMM_S8 backend: DNNL (packed: false, u8s8 preferred: true)
+  - Selected compute type: int8_float32
+  - Selected compute type: float32
+
+基準: dnnl（公式・MKL なし（oneDNN＋Intel OpenMP））。倍率 = 平均 ÷ 基準の平均（1 より大きいほど遅い）、一致 = 基準と同じ訳文の数
+CPU/文 = 1文訳して 1 秒空けるまでに使った CPU 時間の平均（配信中の負荷。計算後に空回りすると増える）
+
+英訳 FuguMT int8（通常）
+          中央値 / 平均 / p95 (ms)         倍率      一致        ロード       ピークメモリ    CPU/文
+  dnnl    13.5 / 13.8 / 23.3           1.00倍  200/200   353ms     275MB     83ms
+  custom  11.6 / 12.4 / 19.6           0.90倍  174/200   333ms     249MB     85ms
+
+英訳 FuguMT fp32（高精度モード）
+          中央値 / 平均 / p95 (ms)         倍率      一致        ロード       ピークメモリ    CPU/文
+  dnnl    62.2 / 64.0 / 99.6           1.00倍  200/200   214ms     395MB     252ms
+  custom  57.8 / 60.3 / 97.8           0.94倍  200/200   211ms     370MB     254ms
+
+中国語訳 M2M ja→zh
+          中央値 / 平均 / p95 (ms)         倍率      一致        ロード       ピークメモリ    CPU/文
+  dnnl    117.5 / 123.7 / 202.9        1.00倍  200/200   466ms     601MB     538ms
+  custom  126.4 / 128.9 / 206.6        1.04倍  176/200   463ms     575MB     527ms
+
+韓国語訳 M2M ja→ko
+          中央値 / 平均 / p95 (ms)         倍率      一致        ロード       ピークメモリ    CPU/文
+  dnnl    188.4 / 193.2 / 324.5        1.00倍  200/200   （zh と共通）  617MB     718ms
+  custom  177.6 / 185.8 / 324.4        0.96倍  154/200   （zh と共通）  588MB     714ms
+
+訳文が変わった文（各最大10件・上=基準 dnnl / 下=比べた側）:
+  -- 英訳 FuguMT int8（通常） / custom: 26件
+    #5  I'm going to go ahead. but the subtitles are really
+        I'm going to go forward. but the subtitles are really
+    #20  It's going to help, so if you press a lot
+         It's going to help, so if you press a lot.
+    #26  But you're a fool to do the job in front of me.
+         But you're a fool to do the job in front of it.
+    #35  I'd like to see that kind of stream on the other side
+         I'd like to see that kind of stream on the other side.
+    #36  Well, let's just wait quietly.
+         Well, let's just wait up and down.
+    #66  Well, there's a chance it might go wrong.
+         Well, there's a chance it could go wrong.
+    #69  Streamerly sneezing from the side.
+         Streamer-like sneezing from your side.
+    #72  There are rumors that it'll cost about 200,000.
+         There are rumors that it'll cost 200,000.
+    #74  Buy handy goods very often
+         Buy convenient goods very often
+    #75  Some of you are strong. but
+         Some of you are strong. however
+  -- 中国語訳 M2M ja→zh / custom: 24件
+    #10  是的,在第六年,我会直播。
+         六年后,我要直播。
+    #26  但是,他现在就把这件事看在你眼前的傻瓜。
+         但是,他现在就把这件事做得在他的眼前很愚蠢。
+    #29  啊,我做很多。
+         啊,我做了很多。
+    #30  是的,不,我更愿意把它交给你。
+         好吧,不,我更愿意把它交给你。
+    #32  它是正确的,或者我的设置不一样。
+         或者我能做得好,我的设置不一样。
+    #33  没时间,还剩下什么事,最近
+         没时间,又什么事,最近
+    #39  用简单的HTML1文件创建它。
+         用简单的HTML1文件创建。
+    #54  非常好,我避免了。
+         很棒的,我避免了。
+    #55  偶尔在眼镜上喝啤酒。
+         偶尔在眼镜上喝啤酒
+    #69  從那邊打開的,是主播。
+         從那邊打開,就先播出。
+  -- 韓国語訳 M2M ja→ko / custom: 46件
+    #5  진짜 써보고 싶은데, 단순히 글쓰기입니다.
+        앞으로 나아가고 싶습니다.그냥 제목이 진짜입니다.
+    #12  지금은 그만큼 뜨겁다.
+         지금은 그만큼 뜨거워요.
+    #16  실제로 VR 채팅을 잘 하시면 됩니다.
+         실제로 VR 채팅을 잘 해주고 싶습니다.
+    #17  그건 뭐가 좋을지 생각해요.
+         저도 괜찮다고 생각해요.
+    #19  그렇지 않아, 이것도 마찬가지다.
+         그렇지 않아, 이것도 그렇다.
+    #21  그들이 문화를 확산하고자 하는 단체가 될 것이다.
+         그들이 문화를 확산하기 위해 노력하는 단체가 될 것입니다.
+    #30  아니, 그렇지 않다, 그들은 더 이상 당신을 맡기고있다.
+         아니, 그렇지 않다, 그들은 더 이상 당신을 맡기고 있습니다.
+    #31  지난번도 사용했지만,
+         지난번도 사용했지만
+    #33  오래 걸리지 않았다면, 최근에 무슨 일이 있었을까?
+         시간이 없어도, 최근에 무슨 일이 있었을까?
+    #37  이게 그런 것 같아요.
+         이런 것 같아요.

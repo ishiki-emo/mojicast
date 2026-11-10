@@ -1,0 +1,129 @@
+CTranslate2 比較  2026-11-10 22:59
+CPU: AMD Ryzen 7 9800X3D 8-Core Processor
+OS: Windows-10-10.0.26300-SP0
+文の数: 200  スレッド: 4
+
+[dnnl] 公式・MKL なし（oneDNN＋Intel OpenMP）
+  OMP_WAIT_POLICY: （指定なし）  translate.py の判定: intel
+  ctranslate2 4.8.1  DLL sha256 a26134c47079896f
+  OpenMP: libiomp5md.dll
+  Intel の DLL: libiomp5md.dll, ct2_mkl_compare.exe
+  CPU: AuthenticAMD (SSE4.1=true, AVX=true, AVX2=true, AVX512=true)
+  - Selected ISA: AVX2
+  - Use Intel MKL: false
+  - SGEMM backend: DNNL (packed: false)
+  - GEMM_S16 backend: none (packed: false)
+  - GEMM_S8 backend: DNNL (packed: false, u8s8 preferred: true)
+  - Selected compute type: int8_float32
+  - Selected compute type: float32
+[custom_passive] 自前ビルド（vcomp）＋PASSIVE
+  OMP_WAIT_POLICY: PASSIVE  translate.py の判定: msvc
+  ctranslate2 4.8.1+nomkl  DLL sha256 ed3385a95c4732cc
+  OpenMP: VCOMP140.DLL
+  Intel の DLL: ct2_mkl_compare.exe
+  ビルド: -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DWITH_MKL=OFF -DWITH_DNNL=ON -DOPENMP_RUNTIME=COMP -DENABLE_CPU_DISPATCH=ON -DWITH_CUDA=OFF -DWITH_CUDNN=OFF -DWITH_RUY=OFF -DBUILD_CLI=OFF -DBUILD_TESTS=OFF
+  oneDNN 3.1.1 / OpenMP MSVC OpenMP (vcomp140.dll, VC++ 14.42.34433) / MSVC 14.43.34808
+  CPU: AuthenticAMD (SSE4.1=true, AVX=true, AVX2=true, AVX512=true)
+  - Selected ISA: AVX2
+  - Use Intel MKL: false
+  - SGEMM backend: DNNL (packed: false)
+  - GEMM_S16 backend: none (packed: false)
+  - GEMM_S8 backend: DNNL (packed: false, u8s8 preferred: true)
+  - Selected compute type: int8_float32
+  - Selected compute type: float32
+[custom] 自前ビルド（vcomp）・待ち方は既定
+  OMP_WAIT_POLICY: （指定なし）  translate.py の判定: msvc
+  ctranslate2 4.8.1+nomkl  DLL sha256 ed3385a95c4732cc
+  OpenMP: VCOMP140.DLL
+  Intel の DLL: ct2_mkl_compare.exe
+  ビルド: -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DWITH_MKL=OFF -DWITH_DNNL=ON -DOPENMP_RUNTIME=COMP -DENABLE_CPU_DISPATCH=ON -DWITH_CUDA=OFF -DWITH_CUDNN=OFF -DWITH_RUY=OFF -DBUILD_CLI=OFF -DBUILD_TESTS=OFF
+  oneDNN 3.1.1 / OpenMP MSVC OpenMP (vcomp140.dll, VC++ 14.42.34433) / MSVC 14.43.34808
+  CPU: AuthenticAMD (SSE4.1=true, AVX=true, AVX2=true, AVX512=true)
+  - Selected ISA: AVX2
+  - Use Intel MKL: false
+  - SGEMM backend: DNNL (packed: false)
+  - GEMM_S16 backend: none (packed: false)
+  - GEMM_S8 backend: DNNL (packed: false, u8s8 preferred: true)
+  - Selected compute type: int8_float32
+  - Selected compute type: float32
+
+基準: dnnl（公式・MKL なし（oneDNN＋Intel OpenMP））。倍率 = 平均 ÷ 基準の平均（1 より大きいほど遅い）、一致 = 基準と同じ訳文の数
+CPU/文 = 1文訳して 1 秒空けるまでに使った CPU 時間の平均（配信中の負荷。計算後に空回りすると増える）
+
+英訳 FuguMT int8（通常）
+                  中央値 / 平均 / p95 (ms)         倍率      一致        ロード       ピークメモリ    CPU/文
+  dnnl            13.8 / 14.3 / 23.6           1.00倍  200/200   478ms     300MB     66ms
+  custom_passive  41.0 / 44.3 / 72.9           3.10倍  200/200   425ms     271MB     65ms
+  custom          11.7 / 11.9 / 19.7           0.83倍  200/200   413ms     271MB     362ms
+
+英訳 FuguMT fp32（高精度モード）
+                  中央値 / 平均 / p95 (ms)         倍率      一致        ロード       ピークメモリ    CPU/文
+  dnnl            57.0 / 60.2 / 104.1          1.00倍  200/200   211ms     421MB     218ms
+  custom_passive  77.0 / 79.4 / 129.1          1.32倍  200/200   222ms     391MB     209ms
+  custom          55.7 / 56.5 / 94.5           0.94倍  200/200   214ms     391MB     547ms
+
+中国語訳 M2M ja→zh
+                  中央値 / 平均 / p95 (ms)         倍率      一致        ロード       ピークメモリ    CPU/文
+  dnnl            109.9 / 115.4 / 192.7        1.00倍  200/200   458ms     627MB     502ms
+  custom_passive  135.0 / 137.8 / 227.9        1.19倍  200/200   466ms     597MB     405ms
+  custom          128.1 / 129.6 / 212.9        1.12倍  200/200   480ms     597MB     830ms
+
+韓国語訳 M2M ja→ko
+                  中央値 / 平均 / p95 (ms)         倍率      一致        ロード       ピークメモリ    CPU/文
+  dnnl            192.1 / 197.4 / 333.4        1.00倍  200/200   （zh と共通）  642MB     749ms
+  custom_passive  233.9 / 239.8 / 410.1        1.22倍  200/200   （zh と共通）  612MB     659ms
+  custom          176.3 / 183.8 / 307.5        0.93倍  200/200   （zh と共通）  613MB     926ms
+
+訳文が変わった文（各最大10件・上=基準 dnnl / 下=比べた側）:
+  なし
+
+スレッド数の比較（先頭 50 文・各1回）。CPU/文 は先頭の数文で測った値。
+  一致(同) = 同じ variant の 4 スレッドと同じ訳文の数、一致(基準) = 基準 dnnl の 4 スレッドと同じ訳文の数
+
+英訳 FuguMT int8（通常）
+                  スレッド  中央値 / 平均 (ms)       CPU/文     一致(同)     一致(基準)
+  dnnl            1       29.2 / 32.9           42ms       50/50     50/50
+  dnnl            2       18.6 / 20.4           50ms       50/50     50/50
+  dnnl            4       14.0 / 15.2           66ms       50/50     50/50
+  custom_passive  1       34.1 / 37.0           44ms       50/50     50/50
+  custom_passive  2       44.9 / 47.0           61ms       50/50     50/50
+  custom_passive  4       35.6 / 37.6           65ms       50/50     50/50
+  custom          1       35.9 / 36.5           45ms       50/50     50/50
+  custom          2       18.7 / 19.2           162ms      50/50     50/50
+  custom          4       11.3 / 11.8           362ms      50/50     50/50
+
+英訳 FuguMT fp32（高精度モード）
+                  スレッド  中央値 / 平均 (ms)       CPU/文     一致(同)     一致(基準)
+  dnnl            1       134.2 / 144.9         119ms      50/50     50/50
+  dnnl            2       82.1 / 85.6           166ms      50/50     50/50
+  dnnl            4       56.4 / 58.3           218ms      50/50     50/50
+  custom_passive  1       111.8 / 115.1         100ms      50/50     50/50
+  custom_passive  2       92.4 / 95.9           167ms      50/50     50/50
+  custom_passive  4       73.8 / 78.0           209ms      50/50     50/50
+  custom          1       115.2 / 119.2         134ms      50/50     50/50
+  custom          2       85.6 / 87.3           275ms      50/50     50/50
+  custom          4       56.4 / 59.4           547ms      50/50     50/50
+
+中国語訳 M2M ja→zh
+                  スレッド  中央値 / 平均 (ms)       CPU/文     一致(同)     一致(基準)
+  dnnl            1       336.8 / 342.7         320ms      50/50     50/50
+  dnnl            2       184.5 / 183.2         388ms      50/50     50/50
+  dnnl            4       117.8 / 122.5         502ms      50/50     50/50
+  custom_passive  1       297.2 / 317.4         298ms      50/50     50/50
+  custom_passive  2       207.9 / 223.7         408ms      50/50     50/50
+  custom_passive  4       128.9 / 133.9         405ms      50/50     50/50
+  custom          1       312.8 / 325.2         345ms      50/50     50/50
+  custom          2       194.3 / 207.0         503ms      50/50     50/50
+  custom          4       123.5 / 129.5         830ms      50/50     50/50
+
+韓国語訳 M2M ja→ko
+                  スレッド  中央値 / 平均 (ms)       CPU/文     一致(同)     一致(基準)
+  dnnl            1       425.9 / 469.0         438ms      50/50     50/50
+  dnnl            2       239.9 / 262.2         525ms      50/50     50/50
+  dnnl            4       176.4 / 191.6         749ms      50/50     50/50
+  custom_passive  1       445.3 / 470.4         452ms      50/50     50/50
+  custom_passive  2       343.0 / 368.2         578ms      50/50     50/50
+  custom_passive  4       224.5 / 229.5         659ms      50/50     50/50
+  custom          1       467.6 / 476.4         436ms      50/50     50/50
+  custom          2       290.8 / 307.3         642ms      50/50     50/50
+  custom          4       174.5 / 187.0         926ms      50/50     50/50
