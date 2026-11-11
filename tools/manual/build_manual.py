@@ -37,7 +37,7 @@ def to_data_uri(img):
 pil_images = {}
 for name in ("cockpit_first", "cockpit_solo", "cockpit_collab", "settings_hearing",
              "settings_collab", "studio_style", "studio_layout", "studio_words",
-             "studio_bubble"):
+             "studio_bubble", "studio_3d", "settings_ai", "studio_gambit"):
     pil_images[name] = load(name)
 for name, (src, box) in CROPS.items():
     pil_images[name] = load(src).crop(box)
