@@ -106,9 +106,28 @@ if IS_MAC:
 else:
     hiddenimports += ["clr"]     # pythonnet（pywebview の WinForms/WebView2 バックエンド）
 
+# Python の設定値（_sysconfigdata_*）には、ビルドに使った Python のインストール先が
+# そのまま入っていて、ビルドする環境ごとに配布物の中身が変わってしまう。
+# 実行時は使わない値なので、パスを /install（python-build-standalone 本来の値）に
+# 置き換えた複製を作り、pathex で標準ライブラリより先に見つけさせる。
+# Windows の Python にはこのモジュールが無いので何もしない
+import sysconfig as _sysconfig
+_SANITIZED_DIR = os.path.join(workpath, "sanitized")
+_sysconfig_src = os.path.join(_sysconfig.get_path("stdlib"),
+                              _sysconfig._get_sysconfigdata_name() + ".py")
+if os.path.isfile(_sysconfig_src):
+    with open(_sysconfig_src, encoding="utf-8") as _f:
+        _src = _f.read()
+    for _leak in (sys.base_prefix, os.path.expanduser("~")):
+        _src = _src.replace(_leak, "/install")
+    os.makedirs(_SANITIZED_DIR, exist_ok=True)
+    with open(os.path.join(_SANITIZED_DIR, os.path.basename(_sysconfig_src)),
+              "w", encoding="utf-8") as _f:
+        _f.write(_src)
+
 a = Analysis(
     ["app.py"],
-    pathex=[],
+    pathex=[_SANITIZED_DIR],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
