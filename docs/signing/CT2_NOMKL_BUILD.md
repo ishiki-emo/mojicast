@@ -237,6 +237,21 @@ LLVM のソース（.tar.xz）は Python の tarfile で展開する。`windows-
 CI の wheel（MSVC 14.44）も、開発機の wheel（14.43）と同じく公式 wheel と訳文 200/200 一致（英訳 int8・韓国語訳）。
 キャッシュが当たればビルドの段階は数秒で済む（release-build-windows.yml の時間は約16分短くなる）。
 
+**切り替え後の実測（2026-11-11・既定 llvm・cl 19.44.35229 / clang-cl 19.1.5・runner image 20261101.353.1）**:
+
+| 実行 | ソース取得 | libomp | oneDNN | CTranslate2 | wheel | 確認 | 合計 |
+|---|---|---|---|---|---|---|---|
+| build-ctranslate2-windows.yml（run 42927210139） | 8秒 | 53秒 | 747秒 | 92秒 | 81秒 | 10秒 | **1,000秒**（ジョブ 17分5秒） |
+| release-build-windows.yml の中でビルド（試運転 run 42927237177・キャッシュなし） | 9秒 | 47秒 | 555秒 | 67秒 | 66秒 | — | ビルドの段 **12分40秒** |
+
+- release-build-windows.yml 全体: キャッシュが当たると **約2分**（試運転 run 42929233860・ジョブ 2分7秒。テスト 21秒・PyInstaller 28秒・
+  インストーラ 40秒）、署名用に `ct2_rebuild: true` でビルドし直すと **約15分**（ビルド 12分40秒 ＋ 約2分）
+- 試運転の成果物（Zip）を手元に展開して check_bundle.ps1 と smoke_test.ps1 → PASS。動いている Mojicast.exe は
+  同梱の `_internal\ctranslate2\libomp.dll`（591,360 バイト・build-info.json の openmp_dll_sha256 と同じハッシュ）を読み込んでいた。
+  配布物の DLL・pyd・exe のうち OpenMP の DLL をインポートしているのは `ctranslate2.dll`（→ libomp.dll）だけ（手元ビルドで dumpbin により確認）
+- キャッシュの鍵（toolchain）は `msvc-14.44.35207-redist-14.44.35112-libomp-19.1.7-clang-19.1.5` で、3台で訳文一致を確かめた CI の wheel
+  （run 42853027717）と同じツールチェーン
+
 ### 3.2 CI での使い回し（キャッシュ）
 
 ビルドの入力が同じなら、前回の wheel を GitHub Actions のキャッシュから使う。鍵は
