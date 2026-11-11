@@ -13,6 +13,28 @@ if (-not (Test-Path (Join-Path $app "Mojicast.exe"))) {
     throw "先に PyInstaller ビルドを実行してください（$app が見つかりません）"
 }
 
+# --- 翻訳エンジン（ctranslate2）がどちらの版か。CREDITS.md の記載と同梱物が合っているかを確かめる。
+#     MKL なし版 = 自前ビルド（上流 LLVM OpenMP の libomp.dll）＝ Windows 版の配布物、
+#     公式版 = PyPI の wheel（Intel oneMKL 静的リンク＋Intel OpenMP の libiomp5md.dll）。
+#     公式版で出すなら CREDITS.md も書き換える（docs/signing/CT2_NOMKL_BUILD.md 5章）。
+#     手元の開発環境（reazonspeech-env）は公式版のままなので、そのまま固めると警告が出る（4章「手元ビルド」） ---
+$ct2 = Join-Path $app "_internal\ctranslate2"
+$ct2Kind = if (Test-Path (Join-Path $ct2 "libiomp5md.dll")) { "official" }
+           elseif (Test-Path (Join-Path $ct2 "libomp.dll")) { "nomkl" }
+           elseif (Test-Path (Join-Path $ct2 "vcomp140.dll")) { "vcomp" } else { "" }
+$credits = Get-Content (Join-Path $root "CREDITS.md") -Raw -Encoding UTF8
+$creditsKind = if ($credits -match 'libiomp5md') { "official" } elseif ($credits -match 'LLVM OpenMP') { "nomkl" } else { "" }
+$kindName = @{ official = "公式版（Intel MKL / Intel OpenMP 入り）"; nomkl = "MKL なし版（上流 LLVM OpenMP）";
+               vcomp = "MKL なし版の旧構成（MSVC OpenMP・不採用）"; "" = "どちらとも読めない記載" }
+if (-not $ct2Kind) {
+    Write-Warning "ctranslate2 の OpenMP の DLL が見つかりません（$ct2）"
+} elseif ($ct2Kind -ne $creditsKind) {
+    Write-Warning ("ctranslate2 が$($kindName[$ct2Kind])ですが、CREDITS.md は$($kindName[$creditsKind])で" +
+                   "書かれています。どちらかを合わせてください（docs/signing/CT2_NOMKL_BUILD.md）")
+} else {
+    Write-Host "  ctranslate2 : $($kindName[$ct2Kind])"
+}
+
 # --- コード資産のみ app 直下へ。データファイル(hotwords等)はルートに置かず、
 #     defaults\ を同梱して初回起動時に seed_defaults が生成する。
 #     → 既存インストールへの上書きアップデートでユーザーデータが潰れない ---

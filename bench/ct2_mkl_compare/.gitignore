@@ -1,0 +1,10 @@
+build/
+dist/
+*.spec
+sentences.txt
+_work_*/
+_limited_sentences.txt
+_fallback_sentences.txt
+result_*.txt
+result_*.json
+__pycache__/

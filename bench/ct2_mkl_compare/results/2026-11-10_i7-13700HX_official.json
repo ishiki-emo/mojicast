@@ -1,0 +1,110 @@
+{
+ "cpu": "13th Gen Intel(R) Core(TM) i7-13700HX",
+ "os": "Windows-10-10.0.26200-SP0",
+ "n": 200,
+ "backend": {
+  "1": [
+   "CPU: GenuineIntel (SSE4.1=true, AVX=true, AVX2=true, AVX512=false)",
+   "- Selected ISA: AVX2",
+   "- Use Intel MKL: true",
+   "- SGEMM backend: MKL (packed: true)",
+   "- GEMM_S16 backend: MKL (packed: true)",
+   "- GEMM_S8 backend: MKL (packed: true, u8s8 preferred: true)",
+   "- Selected compute type: int8_float32",
+   "- Selected compute type: float32"
+  ],
+  "0": [
+   "CPU: GenuineIntel (SSE4.1=true, AVX=true, AVX2=true, AVX512=false)",
+   "- Selected ISA: AVX2",
+   "- Use Intel MKL: false",
+   "- SGEMM backend: DNNL (packed: false)",
+   "- GEMM_S16 backend: none (packed: false)",
+   "- GEMM_S8 backend: DNNL (packed: false, u8s8 preferred: true)",
+   "- Selected compute type: int8_float32",
+   "- Selected compute type: float32"
+  ]
+ },
+ "failed": [],
+ "cases": {
+  "en_int8": {
+   "mkl": {
+    "median": 20.890450105071068,
+    "mean": 21.194514500675723,
+    "p95": 34.82659999281168,
+    "load_ms": 488.51850000210106,
+    "peak_mb": 294
+   },
+   "nomkl": {
+    "median": 27.07674994599074,
+    "mean": 27.652866495773196,
+    "p95": 45.20500008948147,
+    "load_ms": 489.10599993541837,
+    "peak_mb": 288
+   },
+   "ratio_mean": 1.304718090848062,
+   "same": 200,
+   "total": 200,
+   "diffs": []
+  },
+  "en_fp32": {
+   "mkl": {
+    "median": 66.30794994998723,
+    "mean": 69.08811000175774,
+    "p95": 111.33609991520643,
+    "load_ms": 289.17700005695224,
+    "peak_mb": 602
+   },
+   "nomkl": {
+    "median": 59.02170005720109,
+    "mean": 62.35474500339478,
+    "p95": 102.93199983425438,
+    "load_ms": 234.50660007074475,
+    "peak_mb": 404
+   },
+   "ratio_mean": 0.9025394529074301,
+   "same": 200,
+   "total": 200,
+   "diffs": []
+  },
+  "zh": {
+   "mkl": {
+    "median": 102.90439997334033,
+    "mean": 106.95101249963045,
+    "p95": 169.55939983017743,
+    "load_ms": 560.6334998738021,
+    "peak_mb": 932
+   },
+   "nomkl": {
+    "median": 121.62255006842315,
+    "mean": 122.06477399566211,
+    "p95": 194.02720010839403,
+    "load_ms": 453.8057998288423,
+    "peak_mb": 610
+   },
+   "ratio_mean": 1.1413148051878788,
+   "same": 200,
+   "total": 200,
+   "diffs": []
+  },
+  "ko": {
+   "mkl": {
+    "median": 166.81804996915162,
+    "mean": 173.68242600001395,
+    "p95": 308.43490012921393,
+    "load_ms": 0.004600035026669502,
+    "peak_mb": 932
+   },
+   "nomkl": {
+    "median": 185.54500001482666,
+    "mean": 190.77323749894276,
+    "p95": 332.4277000501752,
+    "load_ms": 0.003500143066048622,
+    "peak_mb": 622
+   },
+   "ratio_mean": 1.0984026530060529,
+   "same": 200,
+   "total": 200,
+   "diffs": []
+  }
+ }
+}

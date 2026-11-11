@@ -13,8 +13,9 @@ k2 の確定テキスト（句読点適用済み）をそのまま渡す想定�
 import os
 import re
 
-# CTranslate2 は Intel OpenMP（libiomp5md）で並列化しており、既定では計算後も
-# スレッドが 200ms 空回りして次の仕事を待つ（KMP_BLOCKTIME=200）。字幕は1文訳したら
+# CTranslate2 は OpenMP で並列化しており、既定では計算後もスレッドが 200ms 空回りして
+# 次の仕事を待つ（Intel OpenMP の KMP_BLOCKTIME=200。Windows 版の配布物が使う上流 LLVM の
+# libomp も Intel OpenMP 由来で、同じ変数が同じように効く）。字幕は1文訳したら
 # 次の発話まで間が空くので、その空回りがまるごと CPU 負荷になっていた。
 # 実測 2026-10-03（9800X3D・4スレッド・1文ごとに1秒空ける）:
 #
@@ -32,6 +33,45 @@ import re
 # 読まれる）。利用者が環境変数で指定していればそちらを優先する
 # （遅くなる環境では KMP_BLOCKTIME=200 で従来の動作に戻せる）。
 os.environ.setdefault("KMP_BLOCKTIME", "5")
+
+
+def _ct2_openmp_runtime():
+    """同梱の ctranslate2 が使う OpenMP ランタイム（"intel" / "msvc" / "llvm" / ""）。
+    "llvm" は上流 LLVM libomp の自前ビルド。Intel OpenMP と同じく KMP_BLOCKTIME が効くので何もしない。
+    ctranslate2 を import せずに（＝OpenMP の DLL を読み込む前に）、パッケージのフォルダの DLL で見分ける"""
+    try:
+        import importlib.util
+        import sys
+        spec = importlib.util.find_spec("ctranslate2")
+        dirs = list((spec.submodule_search_locations or []) if spec else [])
+        if getattr(sys, "_MEIPASS", None):      # PyInstaller 版（DLL は _internal\ctranslate2\）
+            dirs.append(os.path.join(sys._MEIPASS, "ctranslate2"))
+        for d in dirs:
+            if not os.path.isdir(d):
+                continue
+            names = {n.lower() for n in os.listdir(d)}
+            if "vcomp140.dll" in names:
+                return "msvc"
+            if "libiomp5md.dll" in names:
+                return "intel"
+            if "libomp.dll" in names:
+                return "llvm"
+    except Exception:
+        pass
+    return ""
+
+
+# Windows 版の配布物は MKL なし自前ビルド（docs/signing/CT2_NOMKL_BUILD.md）で、OpenMP は上流 LLVM の
+# libomp.dll（"llvm"）。上の KMP_BLOCKTIME=5 がそのまま効くので、ここでは何もしない。
+# 以下は不採用にした旧構成（MSVC の vcomp140.dll・"msvc"）を比較ツールなどで読み込んだときのためのもの:
+# vcomp140 には KMP_BLOCKTIME に当たる設定が無く、既定では計算後に長く空回りする
+# （実測 9800X3D・4スレッド・1文ごとに1秒空ける: 英訳の CPU/文 公式 94ms → vcomp 396ms）ので、
+# OMP_WAIT_POLICY=PASSIVE で空回りをやめさせる（CPU/文 86ms。代わりに1文が遅くなる: 英訳 26→58ms）。
+# Intel OpenMP・libomp には設定しない: PASSIVE が KMP_BLOCKTIME=0 と同じになり、上の 5ms より遅くなるため。
+# DLL が読み込まれる前（＝ctranslate2 の import より前）に設定する必要がある。利用者の指定を優先する。
+CT2_OPENMP = _ct2_openmp_runtime()
+if CT2_OPENMP == "msvc":
+    os.environ.setdefault("OMP_WAIT_POLICY", "PASSIVE")
 
 import huggingface_hub as hf
 
@@ -145,12 +185,8 @@ def _resolve_dir(download=True):
     local = os.path.join(BASE, "models_conv", _SUBDIR)
     if os.path.exists(os.path.join(local, "model.bin")):
         return local
-    try:
-        d = hf.snapshot_download(_REPO_ID, local_files_only=True)
-    except Exception:
-        if not download:
-            raise
-        d = hf.snapshot_download(_REPO_ID)
+    import model_pins            # 版（コミットID）固定つきの取得
+    d = model_pins.resolve_snapshot(_REPO_ID, download=download)
     if not os.path.exists(os.path.join(d, "model.bin")):
         raise FileNotFoundError(f"CT2モデルが不完全です: {d}")
     return d
@@ -382,12 +418,8 @@ def _resolve_dir_m2m(download=True):
     local = os.path.join(BASE, "models_conv", _SUBDIR_M2M)
     if os.path.exists(os.path.join(local, "model.bin")):
         return local
-    try:
-        d = hf.snapshot_download(_REPO_ID_M2M, local_files_only=True)
-    except Exception:
-        if not download:
-            raise
-        d = hf.snapshot_download(_REPO_ID_M2M)
+    import model_pins            # 版（コミットID）固定つきの取得
+    d = model_pins.resolve_snapshot(_REPO_ID_M2M, download=download)
     if not os.path.exists(os.path.join(d, "model.bin")):
         raise FileNotFoundError(f"CT2モデルが不完全です: {d}")
     return d

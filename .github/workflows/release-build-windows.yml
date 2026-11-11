@@ -1,0 +1,211 @@
+# Windows 版リリースビルド（手動実行専用・署名なし）
+#
+# SignPath Foundation の無料コード署名は「CI 上でソースから検証可能な形でビルドされた
+# 成果物」しか署名しない（Origin verification）。その準備として、手元の
+# pyinstaller → build_bundle.ps1 -NoModels → make_release_zip.ps1 → make_installer.ps1
+# と同じ手順を GitHub Actions 上で再現する。
+#
+# - 既存のリリース手順（手元ビルド → smoke → gh release）は一切変えない。
+#   このワークフローは成果物を Actions の artifact に置くだけで、Release は作らない。
+# - 署名ステップは入っていない（申請が通ってから追加する。docs/RELEASE_SIGNING.md 参照）。
+# - workflow_dispatch のワークフローは、既定ブランチ（main）にこのファイルが入るまで
+#   Actions 画面に「Run workflow」ボタンが出ない。
+name: Release build (Windows, manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_version:
+        description: "app_server.py の APP_VERSION と一致するか確認する（例: 1.2.0）。空なら確認しない"
+        required: false
+        default: ""
+      # 署名に出すのは nomkl（Intel oneMKL / Intel OpenMP を含まない）。official は戻すとき・比べるとき用
+      # （official にしたら CREDITS.md も公式版の記載に戻す。docs/signing/CT2_NOMKL_BUILD.md 5章）
+      ctranslate2:
+        description: "翻訳エンジン（nomkl = CTranslate2・oneDNN・LLVM OpenMP をソースからビルドした版・既定 / official = PyPI の公式版）"
+        required: false
+        default: "nomkl"
+        type: choice
+        options: [nomkl, official]
+      ct2_rebuild:
+        description: "nomkl のとき、キャッシュがあってもソースからビルドし直す（署名に出すビルドでは推奨）"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    name: build (windows-x64, models not bundled)
+    # 再現性のためイメージは固定する（windows-latest は予告なく中身が変わる）
+    runs-on: windows-2022
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Python は uv で入れる。actions/setup-python の「3.11」は python.org 版の 3.11.9 止まり
+      # （python.org は 3.11 系の Windows 版配布を 3.11.9 で終えた）で、手元ビルド
+      # （uv の 3.11.15）よりセキュリティ修正が古くなるため
+      # setup-uv はメジャー版タグ（v10）を出していないので、完全な版のコミットで固定する
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+        with:
+          version: "0.13.5"
+
+      - name: Install Python and dependencies (locked)
+        run: |
+          uv python install 3.11.15
+          uv venv .venv --python 3.11.15
+          "$PWD\.venv\Scripts" >> $env:GITHUB_PATH
+          # 間接依存まで版とハッシュを固定したロックファイル。requirements.txt を変えたら
+          # .github/release/requirements-win.in の手順で作り直す（Pillow/PyInstaller もここに入っている。
+          # Pillow が無いとアイコン生成が黙ってスキップされ、installer の SetupIconFile で失敗する）
+          uv pip sync --python .venv .github/release/requirements-win.lock --require-hashes
+
+      # Intel oneMKL / Intel OpenMP（非 OSI）を含まない ctranslate2 をソースからビルドして差し替える。
+      # 翻訳のコードは同じ v4.8.1・同じ cl。OpenMP は上流 LLVM の libomp.dll（ソースからビルド）。
+      # 手順は docs/signing/CT2_NOMKL_BUILD.md
+      # ビルドスクリプト・MSVC / clang-cl / libomp の版・Python の版が同じなら、前回の wheel をキャッシュから使う
+      # （build-ctranslate2-windows.yml と同じ鍵）
+      # 入力が無い実行（push での試運転など）も nomkl として扱う（!= 'official'）
+      - name: CTranslate2 cache key
+        id: ct2key
+        if: inputs.ctranslate2 != 'official'
+        run: |
+          $py = (uv python find 3.11.15).Trim()
+          "python=$py" >> $env:GITHUB_OUTPUT
+          $tc = (.\tools\signing\ct2_nomkl\build.ps1 -Python $py -PrintToolchain | Select-Object -Last 1).Trim()
+          "toolchain=$tc" >> $env:GITHUB_OUTPUT
+
+      - name: Restore CTranslate2 wheel
+        id: ct2cache
+        if: inputs.ctranslate2 != 'official' && !inputs.ct2_rebuild
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ct2-dist
+          key: ct2-nomkl-${{ steps.ct2key.outputs.toolchain }}-py3.11.15-${{ hashFiles('tools/signing/ct2_nomkl/build.ps1', 'tools/signing/ct2_nomkl/probe.py') }}
+
+      - name: Build CTranslate2 without MKL
+        if: inputs.ctranslate2 != 'official' && steps.ct2cache.outputs.cache-hit != 'true'
+        run: |
+          Remove-Item ct2-dist -Recurse -Force -ErrorAction SilentlyContinue
+          .\tools\signing\ct2_nomkl\build.ps1 -Python "${{ steps.ct2key.outputs.python }}" `
+            -WorkDir "$env:RUNNER_TEMP\ct2" -OutDir "$PWD\ct2-dist"
+
+      - name: Save CTranslate2 wheel
+        if: inputs.ctranslate2 != 'official' && steps.ct2cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ct2-dist
+          key: ct2-nomkl-${{ steps.ct2key.outputs.toolchain }}-py3.11.15-${{ hashFiles('tools/signing/ct2_nomkl/build.ps1', 'tools/signing/ct2_nomkl/probe.py') }}
+
+      - name: Install CTranslate2 without MKL
+        if: inputs.ctranslate2 != 'official'
+        run: |
+          Write-Host "cache hit: ${{ steps.ct2cache.outputs.cache-hit }}"
+          Get-Content ct2-dist\build-info.json
+          # キャッシュから戻した場合も、ビルド時に記録した SHA256 と照合してから入れる
+          foreach ($line in Get-Content ct2-dist\SHA256SUMS.txt) {
+            $h, $name = $line -split '\s+\*?', 2
+            $got = (Get-FileHash (Join-Path ct2-dist $name) -Algorithm SHA256).Hash.ToLower()
+            if ($got -ne $h) { throw "SHA256 が違います: $name" }
+          }
+          $info = Get-Content ct2-dist\build-info.json -Raw | ConvertFrom-Json
+          if ($info.openmp -ne "llvm") { throw "wheel の OpenMP が上流 LLVM OpenMP ではありません: $($info.openmp)" }
+          $whl = Get-ChildItem ct2-dist -Filter "ctranslate2-*.whl" | Select-Object -First 1
+          uv pip install --python .venv --no-deps --reinstall $whl.FullName
+          python -c "import ctranslate2; v = ctranslate2.__version__; print(v); assert v.endswith('+nomkl'), v"
+
+      - name: Freeze
+        run: uv pip freeze --python .venv > pip-freeze.txt
+
+      - name: Show Python
+        run: python -c "import sys; print(sys.version); print(sys.executable)"
+
+      - name: Check version
+        id: ver
+        run: |
+          $m = Select-String -Path app_server.py -Pattern 'APP_VERSION = "([^"]+)"'
+          if (-not $m) { throw "app_server.py から APP_VERSION を読めません" }
+          $v = $m.Matches[0].Groups[1].Value
+          $want = "${{ inputs.expected_version }}"
+          if ($want -and $want -ne $v) { throw "APP_VERSION=$v が指定 ($want) と一致しません" }
+          "version=$v" >> $env:GITHUB_OUTPUT
+          Write-Host "APP_VERSION = $v"
+
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+
+      - name: PyInstaller
+        run: pyinstaller --noconfirm Mojicast.spec
+
+      - name: Bundle assets (light build, no models)
+        run: .\build_bundle.ps1 -NoModels
+
+      - name: Sanity check (no proprietary leftovers / no models)
+        run: |
+          $app = "dist\Mojicast"
+          # モデル等は exe 直下にだけ作られる（ctranslate2\models\ のようなライブラリ内部の
+          # 同名フォルダは別物なので、直下だけを見る）
+          foreach ($d in @("models", "models_conv", "data", "logs")) {
+            if (Test-Path (Join-Path $app $d)) { throw "混入あり: $d\" }
+          }
+          $bad = Get-ChildItem $app -Recurse -File | Where-Object { $_.Name -match 'cudnn|hf_xet' }
+          if ($bad) { $bad | ForEach-Object { Write-Host "  $($_.FullName)" }; throw "混入あり" }
+          if ("${{ inputs.ctranslate2 }}" -ne "official") {
+            # 上流 LLVM OpenMP（libomp.dll）があり、Intel OpenMP / MKL / vcomp140 / libomp140 が無いこと、
+            # ライセンス文（CTranslate2・oneDNN・LLVM OpenMP）と CREDITS.md の記載
+            .\tools\signing\ct2_nomkl\check_bundle.ps1 -App $app
+          }
+          $vi = (Get-Item "$app\Mojicast.exe").VersionInfo
+          Write-Host "Mojicast.exe ProductName=[$($vi.ProductName)] ProductVersion=[$($vi.ProductVersion)]"
+
+      - name: Install Inno Setup
+        run: |
+          $iscc = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") |
+            Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) { choco install innosetup -y --no-progress }
+
+      - name: Release zip
+        run: .\make_release_zip.ps1
+
+      - name: Installer
+        run: .\make_installer.ps1
+
+      - name: Checksums and metadata
+        run: |
+          $v = "${{ steps.ver.outputs.version }}"
+          $files = @(
+            "Mojicast-v$v-win-x64.zip",
+            "Mojicast-v$v-win-x64-setup.exe",
+            "Mojicast-v$v-win-x64-setup.zip"
+          )
+          $files | ForEach-Object {
+            $h = (Get-FileHash $_ -Algorithm SHA256).Hash.ToLower()
+            "$h  $_"
+          } | Set-Content SHA256SUMS.txt -Encoding utf8
+          Get-Content SHA256SUMS.txt
+          foreach ($f in @("dist\Mojicast\Mojicast.exe", "Mojicast-v$v-win-x64-setup.exe")) {
+            $vi = (Get-Item $f).VersionInfo
+            Write-Host "$f : ProductName=[$($vi.ProductName)] ProductVersion=[$($vi.ProductVersion)] FileVersion=[$($vi.FileVersion)]"
+          }
+
+      - name: Upload artifacts (unsigned)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: mojicast-v${{ steps.ver.outputs.version }}-win-x64-unsigned
+          path: |
+            Mojicast-v${{ steps.ver.outputs.version }}-win-x64.zip
+            Mojicast-v${{ steps.ver.outputs.version }}-win-x64-setup.exe
+            Mojicast-v${{ steps.ver.outputs.version }}-win-x64-setup.zip
+            SHA256SUMS.txt
+            pip-freeze.txt
+            ct2-dist/build-info.json
+          if-no-files-found: error
+          retention-days: 14

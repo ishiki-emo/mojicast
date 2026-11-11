@@ -102,6 +102,20 @@ if ($server) {
     else { $fail += "running に到達しない (state=$state detail=$detail)" }
     if ($detail -match "失敗") { $fail += "自己診断の警告あり: $detail" } else { Note "  [OK] 自己診断の警告なし（句読点/英訳ロード健全）" }
 
+    # --- 翻訳エンジンの OpenMP: 英訳を読み込んだプロセスが、同梱の DLL（_internal\ctranslate2\）を
+    #     読み込んでいること。Windows 側や別の場所の OpenMP・別の種類の OpenMP が混ざっていないこと ---
+    $ct2Dir = Join-Path $app "_internal\ctranslate2"
+    $ompBundled = @("libomp.dll", "libiomp5md.dll", "vcomp140.dll") | Where-Object { Test-Path (Join-Path $ct2Dir $_) }
+    $proc = Get-Process Mojicast -EA SilentlyContinue | Where-Object { $_.Path -eq "$app\Mojicast.exe" } | Select-Object -First 1
+    $ompLoaded = @($proc.Modules | Where-Object { $_.ModuleName -match '^(libomp\S*|libiomp5md|vcomp\d*|libgomp\S*)\.dll$' })
+    if (@($ompBundled).Count -ne 1) {
+        $fail += "同梱の OpenMP の DLL が1つではない: $($ompBundled -join ', ')"
+    } elseif ($ompLoaded.Count -ne 1 -or $ompLoaded[0].FileName -ne (Join-Path $ct2Dir $ompBundled)) {
+        $fail += "読み込まれた OpenMP の DLL が同梱のものと違う: $($ompLoaded.FileName -join ', ')（同梱: $ompBundled）"
+    } else {
+        Note "  [OK] OpenMP は同梱の $($ompLoaded[0].FileName.Substring($app.Length + 1)) を読み込み済み"
+    }
+
     # --- 主要API ---
     foreach ($ep in @("/api/hotwords","/api/banned","/api/presets","/api/boxes","/api/profiles","/api/env-suggest")) {
         try { Invoke-RestMethod "http://127.0.0.1:8765$ep" -TimeoutSec 5 | Out-Null; Note "  [OK] $ep" }

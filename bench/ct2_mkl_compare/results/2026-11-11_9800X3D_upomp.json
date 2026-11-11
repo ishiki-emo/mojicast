@@ -1,0 +1,411 @@
+{
+ "cpu": "AMD Ryzen 7 9800X3D 8-Core Processor",
+ "os": "Windows-10-10.0.26300-SP0",
+ "n": 200,
+ "threads": 4,
+ "variants": [
+  "dnnl",
+  "custom"
+ ],
+ "backend": {
+  "dnnl": [
+   "CPU: AuthenticAMD (SSE4.1=true, AVX=true, AVX2=true, AVX512=true)",
+   "- Selected ISA: AVX2",
+   "- Use Intel MKL: false",
+   "- SGEMM backend: DNNL (packed: false)",
+   "- GEMM_S16 backend: none (packed: false)",
+   "- GEMM_S8 backend: DNNL (packed: false, u8s8 preferred: true)",
+   "- Selected compute type: int8_float32",
+   "- Selected compute type: float32"
+  ],
+  "custom": [
+   "CPU: AuthenticAMD (SSE4.1=true, AVX=true, AVX2=true, AVX512=true)",
+   "- Selected ISA: AVX2",
+   "- Use Intel MKL: false",
+   "- SGEMM backend: DNNL (packed: false)",
+   "- GEMM_S16 backend: none (packed: false)",
+   "- GEMM_S8 backend: DNNL (packed: false, u8s8 preferred: true)",
+   "- Selected compute type: int8_float32",
+   "- Selected compute type: float32"
+  ]
+ },
+ "runtime": {
+  "dnnl": {
+   "ctranslate2_version": "4.8.1",
+   "ctranslate2_dir": "E:\\AIProject\\ct2-nomkl-build\\bench-venv\\Lib\\site-packages\\ctranslate2",
+   "ctranslate2_dll_sha256": "a26134c47079896fc046317a3aea22a64df6b63b8c51272748cd2cc406d8d668",
+   "openmp_dlls": [
+    "E:\\AIProject\\ct2-nomkl-build\\bench-venv\\Lib\\site-packages\\ctranslate2\\libiomp5md.dll"
+   ],
+   "intel_dlls": [
+    "E:\\AIProject\\ct2-nomkl-build\\bench-venv\\Lib\\site-packages\\ctranslate2\\libiomp5md.dll"
+   ],
+   "package_files": [
+    "__init__.py",
+    "__pycache__",
+    "_ext.cp311-win_amd64.pyd",
+    "converters",
+    "ctranslate2.dll",
+    "cudnn64_9.dll",
+    "extensions.py",
+    "libiomp5md.dll",
+    "logging.py",
+    "models",
+    "specs",
+    "version.py"
+   ]
+  },
+  "custom": {
+   "ctranslate2_version": "4.8.1+nomkl",
+   "ctranslate2_dir": "E:\\AIProject\\ct2-nomkl-build\\custom-upomp\\ctranslate2",
+   "ctranslate2_dll_sha256": "9df0e3fea9fdc353b57e2d6b097bfe5732a06e1e92f71c7ac53b1328a4cba0f6",
+   "openmp_dlls": [
+    "E:\\AIProject\\ct2-nomkl-build\\custom-upomp\\ctranslate2\\libomp.dll"
+   ],
+   "intel_dlls": [],
+   "package_files": [
+    "__init__.py",
+    "__pycache__",
+    "_ext.cp311-win_amd64.pyd",
+    "converters",
+    "ctranslate2.dll",
+    "extensions.py",
+    "libomp.dll",
+    "logging.py",
+    "models",
+    "specs",
+    "version.py"
+   ]
+  }
+ },
+ "omp_wait_policy": {
+  "dnnl": "",
+  "custom": ""
+ },
+ "failed": [],
+ "cases": {
+  "en_int8": {
+   "dnnl": {
+    "median": 17.24290000856854,
+    "mean": 18.747635999752674,
+    "p95": 31.303800002206117,
+    "load_ms": 408.57559998403303,
+    "peak_mb": 276,
+    "ratio_mean": 1.0,
+    "cpu_ms": 94.50139157868769,
+    "same": 200,
+    "total": 200,
+    "diffs": []
+   },
+   "custom": {
+    "median": 17.598199992789887,
+    "mean": 18.988560001307633,
+    "p95": 31.287500023609027,
+    "load_ms": 392.27139999275096,
+    "peak_mb": 248,
+    "ratio_mean": 1.0128509003246136,
+    "cpu_ms": 102.93494656078863,
+    "same": 200,
+    "total": 200,
+    "diffs": []
+   }
+  },
+  "en_fp32": {
+   "dnnl": {
+    "median": 66.89029998960905,
+    "mean": 70.45970149993082,
+    "p95": 114.47949998546392,
+    "load_ms": 227.6836999808438,
+    "peak_mb": 396,
+    "ratio_mean": 1.0,
+    "cpu_ms": 281.5150401812559,
+    "same": 200,
+    "total": 200,
+    "diffs": []
+   },
+   "custom": {
+    "median": 67.859499991755,
+    "mean": 70.198201500898,
+    "p95": 113.1318999978248,
+    "load_ms": 258.0679000238888,
+    "peak_mb": 369,
+    "ratio_mean": 0.996288658716031,
+    "cpu_ms": 278.778631567522,
+    "same": 200,
+    "total": 200,
+    "diffs": []
+   }
+  },
+  "zh": {
+   "dnnl": {
+    "median": 139.38715000404045,
+    "mean": 142.15988150128396,
+    "p95": 232.96560000744648,
+    "load_ms": 509.72910001291893,
+    "peak_mb": 602,
+    "ratio_mean": 1.0,
+    "cpu_ms": 528.29646946102,
+    "same": 200,
+    "total": 200,
+    "diffs": []
+   },
+   "custom": {
+    "median": 140.85789999808185,
+    "mean": 143.79016849954496,
+    "p95": 229.5213000033982,
+    "load_ms": 523.525199998403,
+    "peak_mb": 574,
+    "ratio_mean": 1.0114679822538137,
+    "cpu_ms": 581.731463018896,
+    "same": 200,
+    "total": 200,
+    "diffs": []
+   }
+  },
+  "ko": {
+   "dnnl": {
+    "median": 192.21105000178795,
+    "mean": 202.19148499993025,
+    "p95": 345.82180000143126,
+    "load_ms": 0.0046000059228390455,
+    "peak_mb": 619,
+    "ratio_mean": 1.0,
+    "cpu_ms": 774.2991078005588,
+    "same": 200,
+    "total": 200,
+    "diffs": []
+   },
+   "custom": {
+    "median": 206.9570500025293,
+    "mean": 210.8945085000596,
+    "p95": 357.32819998520426,
+    "load_ms": 0.005199981387704611,
+    "peak_mb": 589,
+    "ratio_mean": 1.0430434718857342,
+    "cpu_ms": 787.1659489046579,
+    "same": 200,
+    "total": 200,
+    "diffs": []
+   }
+  }
+ },
+ "sweep": {
+  "en_int8": {
+   "dnnl": {
+    "1": {
+     "median": 39.44989999581594,
+     "mean": 39.55350400181487,
+     "cpu_ms": 51.08077135278796,
+     "same_self": 50,
+     "same_base": 50,
+     "total": 50
+    },
+    "2": {
+     "median": 20.849900000030175,
+     "mean": 21.723282000166364,
+     "cpu_ms": 66.69461938209925,
+     "same_self": 50,
+     "same_base": 50,
+     "total": 50
+    },
+    "4": {
+     "median": 14.16205000714399,
+     "mean": 14.666369998594746,
+     "cpu_ms": 93.11476021913947,
+     "same_self": 50,
+     "same_base": 50,
+     "total": 50
+    }
+   },
+   "custom": {
+    "1": {
+     "median": 32.716250003431924,
+     "mean": 34.9391940026544,
+     "cpu_ms": 44.51857500182661,
+     "same_self": 50,
+     "same_base": 50,
+     "total": 50
+    },
+    "2": {
+     "median": 17.37840000714641,
+     "mean": 18.287514003459364,
+     "cpu_ms": 56.72955192681059,
+     "same_self": 50,
+     "same_base": 50,
+     "total": 50
+    },
+    "4": {
+     "median": 16.12929998373147,
+     "mean": 16.600473996950313,
+     "cpu_ms": 101.3437870448385,
+     "same_self": 50,
+     "same_base": 50,
+     "total": 50
+    }
+   }
+  },
+  "en_fp32": {
+   "dnnl": {
+    "1": {
+     "median": 110.48849999497179,
+     "mean": 117.88673799834214,
+     "cpu_ms": 123.10354130060315,
+     "same_self": 50,
+     "same_base": 50,
+     "total": 50
+    },
+    "2": {
+     "median": 80.2510500070639,
+     "mean": 85.45825600216631,
+     "cpu_ms": 187.2913736632162,
+     "same_self": 50,
+     "same_base": 50,
+     "total": 50
+    },
+    "4": {
+     "median": 66.05984999623615,
+     "mean": 69.69568199652713,
+     "cpu_ms": 313.4650064831099,
+     "same_self": 50,
+     "same_base": 50,
+     "total": 50
+    }
+   },
+   "custom": {
+    "1": {
+     "median": 130.5306499998551,
+     "mean": 136.03403599990997,
+     "cpu_ms": 117.84633726889915,
+     "same_self": 50,
+     "same_base": 50,
+     "total": 50
+    },
+    "2": {
+     "median": 93.44209999835584,
+     "mean": 101.1593420006102,
+     "cpu_ms": 175.01682095145554,
+     "same_self": 50,
+     "same_base": 50,
+     "total": 50
+    },
+    "4": {
+     "median": 81.51699999871198,
+     "mean": 84.14909000042826,
+     "cpu_ms": 301.7843350493351,
+     "same_self": 50,
+     "same_base": 50,
+     "total": 50
+    }
+   }
+  },
+  "zh": {
+   "dnnl": {
+    "1": {
+     "median": 310.4301000130363,
+     "mean": 325.03808400128037,
+     "cpu_ms": 341.1426630610862,
+     "same_self": 50,
+     "same_base": 50,
+     "total": 50
+    },
+    "2": {
+     "median": 208.06520000041928,
+     "mean": 216.65381799801253,
+     "cpu_ms": 407.29434896779964,
+     "same_self": 50,
+     "same_base": 50,
+     "total": 50
+    },
+    "4": {
+     "median": 136.57295001030434,
+     "mean": 142.8829420026159,
+     "cpu_ms": 579.2812132949181,
+     "same_self": 50,
+     "same_base": 50,
+     "total": 50
+    }
+   },
+   "custom": {
+    "1": {
+     "median": 338.5403499996755,
+     "mean": 335.51946199848317,
+     "cpu_ms": 324.8500034105796,
+     "same_self": 50,
+     "same_base": 50,
+     "total": 50
+    },
+    "2": {
+     "median": 187.114999993355,
+     "mean": 199.0381220029667,
+     "cpu_ms": 430.57795290556487,
+     "same_self": 50,
+     "same_base": 50,
+     "total": 50
+    },
+    "4": {
+     "median": 134.8866500047734,
+     "mean": 141.6933399962727,
+     "cpu_ms": 599.8441187520563,
+     "same_self": 50,
+     "same_base": 50,
+     "total": 50
+    }
+   }
+  },
+  "ko": {
+   "dnnl": {
+    "1": {
+     "median": 430.1745499979006,
+     "mean": 453.61802200379316,
+     "cpu_ms": 460.79415557527955,
+     "same_self": 50,
+     "same_base": 50,
+     "total": 50
+    },
+    "2": {
+     "median": 306.3947499904316,
+     "mean": 305.577946001431,
+     "cpu_ms": 572.1290853873584,
+     "same_self": 50,
+     "same_base": 50,
+     "total": 50
+    },
+    "4": {
+     "median": 206.0627500177361,
+     "mean": 221.30981800088193,
+     "cpu_ms": 798.324600862486,
+     "same_self": 50,
+     "same_base": 50,
+     "total": 50
+    }
+   },
+   "custom": {
+    "1": {
+     "median": 437.0829999970738,
+     "mean": 467.6182460034033,
+     "cpu_ms": 447.3369487477001,
+     "same_self": 50,
+     "same_base": 50,
+     "total": 50
+    },
+    "2": {
+     "median": 275.12239999487065,
+     "mean": 294.07261800020933,
+     "cpu_ms": 585.8246974769287,
+     "same_self": 50,
+     "same_base": 50,
+     "total": 50
+    },
+    "4": {
+     "median": 195.46715001342818,
+     "mean": 206.57066199928522,
+     "cpu_ms": 794.3805081923188,
+     "same_self": 50,
+     "same_base": 50,
+     "total": 50
+    }
+   }
+  }
+ },
+ "cpu_clock": "QueryProcessCycleTime（4.66 GHz で換算）"
+}

@@ -18,6 +18,9 @@
 #ifndef AppVersion
   #error AppVersion を /DAppVersion=x.y.z で渡してください（make_installer.ps1 経由で実行）
 #endif
+#ifndef AppVersionNum
+  #error AppVersionNum を /DAppVersionNum=x.y.z.w で渡してください（make_installer.ps1 経由で実行）
+#endif
 #ifndef SourceDir
   #define SourceDir "..\dist\Mojicast"
 #endif
@@ -33,6 +36,15 @@ AppVersion={#AppVersion}
 AppVerName=Mojicast {#AppVersion}
 AppPublisher=癒色えも
 AppPublisherURL=https://github.com/ishiki-emo/mojicast
+; setup.exe のバージョン情報（コード署名で ProductName / ProductVersion を照合する）。
+; VersionInfoVersion は数値4桁しか受け付けないので make_installer.ps1 が
+; 接尾辞を落として渡す（1.2.0-beta1 → 1.2.0.0）。表示用の版は AppVersion のまま
+VersionInfoVersion={#AppVersionNum}
+VersionInfoProductName=Mojicast
+VersionInfoProductTextVersion={#AppVersion}
+VersionInfoTextVersion={#AppVersion}
+VersionInfoCompany=ishiki-emo
+VersionInfoCopyright=Copyright (c) 2026 ishiki-emo. MIT License.
 AppSupportURL=https://github.com/ishiki-emo/mojicast/issues
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=

@@ -40,6 +40,28 @@ _HEADER_ALIASES = {
 _DEFAULT_COLUMNS = ("surface", "reading", "score", "en", "type")
 GLOSS_ONLY = "英訳のみ"   # 種別列: 英訳辞書にだけ登録されている語（書き出し→再取り込みの汚染防止）
 
+# CSV の数式対策（CSV injection）: 書き出した CSV を Excel 等で開いたとき、
+# 先頭がこれらの文字のセルは数式として実行されうる。書き出しでは先頭に ' を付けて
+# 文字列として扱わせ、取り込みでは同じ ' を外す（「@名前」のような正当な語を元に戻す）
+#
+# 対象は「' が0個以上並んだあとに = + - @ タブ CR」で始まるセル。' 始まりも含めることで、
+# もともと「'=…」という語があっても書き出し→取り込みで1文字も変わらない（厳密に可逆）。
+# 「'Tis」のように ' の後が普通の文字なら、書き出しでも取り込みでも触らない。
+_CSV_FORMULA_RE = re.compile(r"'*[=+\-@\t\r]")
+
+
+def csv_escape_cell(v) -> str:
+    """書き出し用: 数式と解釈されうるセルの先頭に ' を付ける"""
+    v = "" if v is None else str(v)
+    return "'" + v if _CSV_FORMULA_RE.match(v) else v
+
+
+def csv_unescape_cell(v: str) -> str:
+    """取り込み用: csv_escape_cell が付けた ' を1つ外す"""
+    if v.startswith("'") and _CSV_FORMULA_RE.match(v):
+        return v[1:]
+    return v
+
 
 def decode_bytes(data: bytes) -> str:
     """UTF-8（BOM可）→ Shift_JIS(cp932) の順に試す。どちらでもなければ UTF-8 で
@@ -93,7 +115,7 @@ def _parse_csv(text: str):
         item = {"_line": lineno}
         for key, cell in zip(columns, row):
             if key:
-                item[key] = cell
+                item[key] = csv_unescape_cell(cell)
         rows.append(item)
     return rows
 
@@ -234,7 +256,7 @@ def parse_glossary(text: str):
             item = {"_line": lineno}
             for key, cell in zip(columns, row):
                 if key:
-                    item[key] = cell
+                    item[key] = csv_unescape_cell(cell)
             raw.append(item)
 
     entries, skipped = [], []
@@ -362,10 +384,12 @@ def to_csv(hot, gloss) -> str:
             continue
         seen.add(s)
         r = h.get("reading", "")
-        w.writerow([s, "" if r == s else r, h.get("score", ""), en_by.get(s, ""), ""])
+        w.writerow([csv_escape_cell(c) for c in
+                    (s, "" if r == s else r, h.get("score", ""), en_by.get(s, ""), "")])
     for g in gloss:               # 英訳だけ登録されている語も落とさない
         if g.get("ja") and g["ja"] not in seen:
-            w.writerow([g["ja"], "", "", g.get("en", ""), GLOSS_ONLY])
+            w.writerow([csv_escape_cell(c) for c in
+                        (g["ja"], "", "", g.get("en", ""), GLOSS_ONLY)])
     return buf.getvalue()
 
 
@@ -379,7 +403,7 @@ def to_csv_glossary_only(gloss) -> str:
         ja = g.get("ja", "")
         en = g.get("en", "")
         if ja and en:
-            w.writerow([ja, en])
+            w.writerow([csv_escape_cell(ja), csv_escape_cell(en)])
     return buf.getvalue()
 
 

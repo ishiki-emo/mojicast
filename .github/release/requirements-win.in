@@ -1,0 +1,7 @@
+# CI リリースビルド（Windows）用のロックファイルの元。
+# 本体の依存は requirements.txt を正とし、ここではビルド専用の依存だけを足す。
+# 更新: uv pip compile .github/release/requirements-win.in --python-version 3.11 --python-platform x86_64-pc-windows-msvc --generate-hashes -o .github/release/requirements-win.lock
+-r ../../requirements.txt
+pyinstaller==6.21.0
+# Mojicast.spec のアイコン生成（.ico）にだけ使う。exe には同梱されない
+pillow

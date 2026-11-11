@@ -48,16 +48,21 @@ wordstore.DATA = DATA
 wordstore.PROFILES_DIR = os.path.join(DATA, "profiles")
 import app_server
 app_server.start(port=PORT)
+# v1.1〜 ローカルAPIは認証必須。撮影用サーバーの画面キーを API と各画面（URL の # で渡す）に付ける
+TOKEN = app_server._active_server.auth.ui_token
+AUTH = {"Authorization": "Bearer " + TOKEN}
 
 
 def post(path, body):
     req = urllib.request.Request(BASE + path, json.dumps(body).encode(),
+                                 headers={**AUTH, "Content-Type": "application/json"},
                                  method="POST")
     return json.loads(urllib.request.urlopen(req, timeout=10).read())
 
 
 def get(path):
-    return json.loads(urllib.request.urlopen(BASE + path, timeout=10).read())
+    req = urllib.request.Request(BASE + path, headers=AUTH)
+    return json.loads(urllib.request.urlopen(req, timeout=10).read())
 
 
 B = app_server.broadcast
@@ -88,6 +93,8 @@ class Tab:
                                               timeout=30)
         self._mid = 0
         self.cmd("Page.enable")
+        if "#" not in url:
+            url += "#mojicast_session=" + TOKEN   # ui/auth.js が拾って sessionStorage へ
         self.cmd("Page.navigate", url=url)   # /json/new のurlは無視されるため明示遷移
         time.sleep(0.5)
         self.wait_ready()
@@ -158,6 +165,12 @@ try:
     t = Tab(BASE + "/ui/cockpit?theme=light")
     t.size(1280, 800)
     time.sleep(1.8)          # loadAll完了待ち
+    # 初回のマイク一覧取得（PortAudio の初期化）は遅いことがあるので、一覧が入るまで待つ
+    for _ in range(60):
+        if t.js("document.getElementById('device').options.length > 0"):
+            break
+        time.sleep(0.25)
+    time.sleep(0.5)
     t.js("showGuideIfNew(true)")   # 案内は本当の初回起動（提案前）だけ出るので明示して出す
     time.sleep(0.3)
     t.show_default_url()
@@ -271,6 +284,54 @@ try:
                 " const add = [...d.querySelectorAll('button')].find(b => /行を追加/.test(b.textContent));"
                 " if (add) { add.click(); add.click(); add.click(); }"
                 " return true; })()")
+
+    # ============ 7) 字幕の3D（「右の壁」を選んで、3D の欄が見える位置で撮る） ============
+    edit_layout("lower", "studio_3d",
+                "(() => { const d = W.document;"
+                " const b = [...d.querySelectorAll('#tiltPresets button')].find(e => /右の壁/.test(e.textContent));"
+                " if (b) b.click();"
+                " const sec = d.querySelector('.fsec.only-3d');"
+                " if (sec) sec.scrollIntoView({block: 'start'});"
+                " return !!b; })()")
+
+    # ============ 8) アプリ設定・AI連携（AI アプリ用と Stream Deck 用の接続キー） ============
+    t = Tab(BASE + "/ui/settings?section=ai&theme=light")
+    t.size(1040, 900)
+    time.sleep(1.2)
+    t.js("switchSection && switchSection('ai')")
+    time.sleep(0.4)
+    t.shot("settings_ai")
+    t.close()
+
+    # ============ 9) カウンター（言った言葉＋節目、黙っている秒数の2枚） ============
+    r = post("/api/gambits", {"cards": [
+        {"id": "c1", "name": "やばい", "enabled": True, "step": 1, "reset": "start",
+         "triggers": [{"type": "word", "words": ["やばい", "やば"], "speaker": "any"}],
+         "display": {"widget": {"type": "counter", "visible": True,
+                                "pos": {"x": 0.86, "y": 0.12}, "size": 0.12,
+                                "style": "", "label": True, "unit": "回", "anim": "pop"}},
+         "links": [{"when": "every", "n": 10, "target": "c2", "op": "add", "value": 1}]},
+        {"id": "c2", "name": "やばランク", "enabled": True, "step": 1, "reset": "manual",
+         "triggers": [],
+         "display": {"widget": {"type": "counter", "visible": True,
+                                "pos": {"x": 0.86, "y": 0.28}, "size": 0.08,
+                                "style": "", "label": True, "unit": "", "anim": "pop"}},
+         "links": []},
+        {"id": "c3", "name": "黙っている", "enabled": True, "step": 5, "reset": "start",
+         "triggers": [{"type": "silence", "seconds": 5, "speaker": "self"}],
+         "display": {"widget": {"type": "counter", "visible": True,
+                                "pos": {"x": 0.12, "y": 0.12}, "size": 0.08,
+                                "style": "", "label": True, "unit": "秒", "anim": "pop"}},
+         "links": []},
+    ]})
+    print("gambits:", r)
+    post("/api/gambits/bump", {"id": "c1", "op": "add", "value": 42})
+    post("/api/gambits/bump", {"id": "c2", "op": "add", "value": 4})
+    t = Tab(BASE + "/ui/studio?pillar=gambit&theme=light")
+    t.size(1280, 900)
+    time.sleep(2.2)
+    t.shot("studio_gambit")
+    t.close()
 
     print("ALL SHOTS DONE →", SHOTS)
 finally:
