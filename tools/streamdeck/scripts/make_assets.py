@@ -67,11 +67,11 @@ ACTIONS = [
              '<path d="M104 28l10 10-10 10M104 68l10 10-10 10"/>',)),
     dict(id="fx", name="演出を出す", tip="笑い・拍手などの演出を手動で出します",
          kind="plain", accent=PINK, pi="select", setting="group", label="演出",
-         note="演出の画像・位置は Mojicast の［音イベント演出］で設定します。音の自動検出がOFFでも出せます。",
+         note="演出の画像・位置は Mojicast の［字幕スタジオ］→［リアクション演出］で設定します。音の自動検出がOFFでも出せます。",
          icons=(SPARK + SPARK_S,)),
     dict(id="counter", name="カウンター", tip="カウンターを＋1・−1・0に戻します（ボタンに今の数を出します）",
          kind="plain", accent=CYAN, pi="counter", setting="id", label="カウンター",
-         note="カウンターは Mojicast の［単語スタジオ］→［カウンター］で作ります。ボタンには今の数が出ます。",
+         note="カウンターは Mojicast の［字幕スタジオ］→［カウンター］で作ります。ボタンには今の数が出ます。",
          icons=(TALLY,)),
     dict(id="word-fx", name="単語エフェクト ON/OFF", tip="単語エフェクトの表示をオン・オフします",
          kind="toggle", pi="none", icons=(
