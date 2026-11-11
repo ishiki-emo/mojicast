@@ -1,6 +1,6 @@
 <!--
-下書き: 承認後に docs/PRIVACY.md として公開し、README の Code signing policy 節からリンクする。
-接続先はコード（v1.1.0 / develop 8c16117）から拾ったもの。リリースごとに
+公開版（2026-11-11〜）。製品ページと README からリンクし、SignPath の Code signing policy からも参照する。
+接続先はコード（v1.2.0）から拾ったもの。リリースごとに
 「新しい外部通信を足していないか」を確認し、足したらここに追記する。
   - 更新確認: app_server.py UPDATE_MANIFEST_URL / _check_update()
   - モデル DL: asr_model.py / punct.py / translate.py / soundfx.py の _REPO*
@@ -10,7 +10,7 @@
 
 # プライバシーポリシー / Privacy Policy
 
-最終更新: YYYY-MM-DD（Mojicast vX.Y.Z）
+最終更新: 2026-11-11（Mojicast v1.2.0）
 
 ## 日本語
 
@@ -77,7 +77,7 @@ OBS のブラウザソースは鍵（認証情報）を付けて接続できな�
 
 ### パソコンに残るもの（字幕ログ）
 
-- 「字幕ログを保存する」（アプリ設定の「字幕ログ」欄）は**既定でオン**です。
+- 「字幕ログを保存する」（アプリ設定 →「画面とログ」→「字幕ログ」）は**既定でオン**です。
   認識した文（確定した行）を、時刻とコラボ時の話者名付きで
   **暗号化していないテキストファイル**として保存します。
   - Windows: 本アプリのフォルダの `logs\日付\日付時刻.log`
@@ -182,7 +182,7 @@ issued by Mojicast.
 
 ### What is stored on this computer (caption logs)
 
-- "Save caption log" (Settings → Caption log) is **on by default**. Finalized
+- "Save caption log" (Settings → Display & logs → Caption log) is **on by default**. Finalized
   caption lines are saved with a timestamp (and the speaker name in collab
   mode) as **unencrypted plain-text files**:
   - Windows: `logs\<date>\<date-time>.log` in the Mojicast folder

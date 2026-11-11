@@ -12,7 +12,7 @@ SignPath Foundation の無料 OSS コード署名を使うために、次のリ�
 |---|---|
 | [signing/LICENSE_INVENTORY.md](signing/LICENSE_INVENTORY.md) | 署名対象に同梱される全コンポーネントのライセンス一覧（調査結果） |
 | [signing/CODE_SIGNING_POLICY.draft.md](signing/CODE_SIGNING_POLICY.draft.md) | README に入れる "Code signing policy" 節 |
-| [signing/PRIVACY.draft.md](signing/PRIVACY.draft.md) | プライバシーポリシー（日英） |
+| [PRIVACY.md](PRIVACY.md) | プライバシーポリシー（日英・2026-11-11 公開） |
 | [signing/SIGNPATH_APPLICATION.draft.md](signing/SIGNPATH_APPLICATION.draft.md) | 申請フォームの英語下書き |
 | [../.github/workflows/release-build-windows.yml](../.github/workflows/release-build-windows.yml) | Actions でのリリースビルド（手動実行・署名なし） |
 | [signing/CT2_NOMKL_BUILD.md](signing/CT2_NOMKL_BUILD.md) | CTranslate2 の MKL なしビルド（手順・オプション・戻し方・人の確認） |
@@ -147,7 +147,7 @@ SignPath は「CI 上でこのリポジトリのソースから自動ビルド�
 
 - [x] 👤 プライバシーポリシーの公開場所 → **`docs/PRIVACY.md` を正本**にし、プロダクトページ
       （ishiki-emo.com/mojicast）からはそこへリンクする（2026-11-10 決定）
-- [ ] 🤖 `docs/signing/PRIVACY.draft.md` を公開用に仕上げ（日付・版を埋める）
+- [x] 🤖 `docs/PRIVACY.md` として公開（2026-11-11・v1.2.0 時点の接続先で確認）
 - [ ] 🤖 README に「## Code signing policy」節を追加（下書きをそのまま使う）
 - [ ] 👤 配布ページにも "Code signing policy" の語でリンクを置く:
       GitHub Releases の本文、BOOTH、プロダクトページ（ishiki-emo.com/mojicast）
