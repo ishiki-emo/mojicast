@@ -3,7 +3,7 @@ SignPath Foundation 申請フォーム（https://signpath.org/apply）に書く�
 フォームの実際の設問はページが JS で描画されていて取得できなかったので、
 一般的な設問（プロジェクト概要・リポジトリ・ライセンス・ビルド方法・配布物・
 チーム・評判）に合わせて書いてある。送信前にフォームの設問に合わせて並べ替えること。
-[要確認] の箇所は申請時点の事実で埋める／直す。
+[要確認] はすべて埋めた（2026-11-11・v1.2.0 リリース後の数字）。送信前にフォームの設問に合わせて並べ替える。
 -->
 
 # SignPath Foundation application — Mojicast (draft)
@@ -14,7 +14,7 @@ SignPath Foundation 申請フォーム（https://signpath.org/apply）に書く�
 - **Repository:** https://github.com/ishiki-emo/mojicast
 - **Homepage / download page:** https://ishiki-emo.com/mojicast (product page), https://github.com/ishiki-emo/mojicast/releases
 - **License:** MIT (all project code). See "Third-party components" below.
-- **First public release:** [要確認: v0.x の公開日] — current release v1.1.0 (2026-11-05). Actively maintained; releases roughly every 1–3 weeks.
+- **First public release:** v0.1.0 (2026-07-10) — current release v1.2.0 (2026-11-11). Actively maintained; releases roughly every 1–3 weeks.
 
 ## Description
 
@@ -52,7 +52,8 @@ build).
 
 - Builds run on GitHub Actions (`.github/workflows/release-build-windows.yml`,
   `windows-2022` runner, manual `workflow_dispatch`), from the tagged source in
-  this repository.
+  this repository. The v1.2.0 release was built this way:
+  https://github.com/ishiki-emo/mojicast/actions/runs/42949528870
 - Steps: install the locked dependencies (`.github/release/requirements-win.lock`,
   versions and hashes pinned) → build CTranslate2, oneDNN and LLVM OpenMP from
   source and install that CTranslate2 wheel (see below) → PyInstaller
@@ -67,23 +68,29 @@ build).
 Mojicast is developed by one person.
 
 - Author / committer / reviewer / approver: ishiki-emo (GitHub: @ishiki-emo)
-- MFA is enabled for GitHub [要確認] and will be enabled for SignPath.
+- MFA is enabled for GitHub and will be enabled for SignPath.
 - Pull requests from outside contributors are reviewed by the author before
   merging.
 
 ## Reputation
 
-- Used in a live stream by the Japanese singer Ado ("はじめてのSILENT HILL f",
-  2026-08-21, credited in the video description, about 1.1 million views)
-  [要確認: URL と最新の再生数].
-- [要確認: GitHub stars / ダウンロード数 / プロダクトページの利用者一覧の件数]
+- Used for live translation by the Japanese singer Ado in three live streams,
+  each credited in the video description ("使用翻訳機：mojicast"); about 7.2 million
+  views in total (as of 2026-11-11):
+  - https://www.youtube.com/watch?v=xPBD0VdwNkg (2026-08-21, 3.9M views)
+  - https://www.youtube.com/watch?v=IHnkmkQJIAY (2026-09-21, 1.7M views)
+  - https://www.youtube.com/watch?v=SWwB2b9oyGI (2026-09-21, 1.6M views)
+- 78 YouTube channels have credited Mojicast in 3 or more of their streams
+  (tracked automatically on https://ishiki-emo.com/mojicast).
+- GitHub: 65 stars. The app is also distributed on BOOTH
+  (https://emo-ishiki.booth.pm/items/8643987, about 1,900 likes; BOOTH does not
+  publish download counts).
 
 ## Privacy
 
 Mojicast sends no user data. It only connects to Hugging Face to download models
 and to raw.githubusercontent.com to check for updates. Privacy policy:
 https://github.com/ishiki-emo/mojicast/blob/main/docs/PRIVACY.md (also linked from https://ishiki-emo.com/mojicast)
-[要確認: 申請前に docs/PRIVACY.md を main に公開しておく]
 
 Points the privacy policy states explicitly (so reviewers do not have to find
 them in the code):

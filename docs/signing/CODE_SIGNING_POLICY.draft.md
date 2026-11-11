@@ -3,7 +3,8 @@
 SignPath Foundation の条件で、ホームページ（README）と配布ページ（Releases / BOOTH /
 プロダクトページ）に "Code signing policy" という語の見出しかリンクが必要。
 文言の1行目（Free code signing provided by ...）は SignPath 指定の定型文なので変えない。
-申請が承認されるまでは README に載せない（まだ署名していないのに書くと虚偽になる）。
+2026-11-11: えもさんの判断で、申請中の文面（「申請中・承認後はこの方針で署名・v1.2.0 までは未署名」）を
+README・製品ページ・v1.2.0 の Release 本文に先に載せた。承認されたらこの下書き（定型文入り）に差し替える。
 -->
 
 ## Code signing policy

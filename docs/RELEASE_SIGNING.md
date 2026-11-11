@@ -148,7 +148,7 @@ SignPath は「CI 上でこのリポジトリのソースから自動ビルド�
 - [x] 👤 プライバシーポリシーの公開場所 → **`docs/PRIVACY.md` を正本**にし、プロダクトページ
       （ishiki-emo.com/mojicast）からはそこへリンクする（2026-11-10 決定）
 - [x] 🤖 `docs/PRIVACY.md` として公開（2026-11-11・v1.2.0 時点の接続先で確認）
-- [ ] 🤖 README に「## Code signing policy」節を追加（下書きをそのまま使う）
+- [x] 🤖 README に「## Code signing policy」節を追加（2026-11-11・申請中の文面。承認後に下書きの定型文版へ差し替え）
 - [ ] 👤 配布ページにも "Code signing policy" の語でリンクを置く:
       GitHub Releases の本文、BOOTH、プロダクトページ（ishiki-emo.com/mojicast）
 - [ ] 🤖 リリースノートのテンプレートに Code signing policy へのリンクを入れる
