@@ -213,6 +213,11 @@ pyinstaller --noconfirm Mojicast.spec
 同ライセンスを継承し原作者クレジットを掲載しています。モデルを同梱した配布物を
 作る場合も各ライセンスの遵守が必要です（詳細は [CREDITS.md](CREDITS.md)）。
 
+## プライバシーポリシー
+
+音声・字幕・設定は外部に送信しません。外部との通信は、AIモデルのダウンロード（Hugging Face）と
+更新の確認（GitHub）の2種類だけです。詳しくは [プライバシーポリシー / Privacy Policy](docs/PRIVACY.md)。
+
 ## 作者・お問い合わせ
 
 作者: **癒色えも**
