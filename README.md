@@ -215,6 +215,8 @@ pyinstaller --noconfirm Mojicast.spec
 
 ## Code signing policy
 
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/)
+
 Windows 版のコード署名を [SignPath Foundation](https://signpath.org/) に申請しています（2026-11-11）。
 承認後は、[SignPath.io](https://about.signpath.io/) の無償コード署名（証明書は SignPath Foundation）を使い、
 次の方針で署名します。**v1.2.0 までの配布物は未署名です。**

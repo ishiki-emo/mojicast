@@ -5,6 +5,8 @@ SignPath Foundation の条件で、ホームページ（README）と配布ペー
 文言の1行目（Free code signing provided by ...）は SignPath 指定の定型文なので変えない。
 2026-11-11: えもさんの判断で、申請中の文面（「申請中・承認後はこの方針で署名・v1.2.0 までは未署名」）を
 README・製品ページ・v1.2.0 の Release 本文に先に載せた。承認されたらこの下書き（定型文入り）に差し替える。
+同日、Terms どおり定型文「Free code signing provided by SignPath.io, certificate by SignPath Foundation」を
+見出しの直下にそのまま足した（申請中の説明はその下に残す）。
 -->
 
 ## Code signing policy
