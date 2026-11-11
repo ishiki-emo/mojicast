@@ -40,17 +40,26 @@ SignPath の条件は「全コンポーネントが OSI 承認ライセンス」
     clang-cl＋LLVM libomp は int8 の訳文がずれるため不採用（2026-11-10 えもさん判断）
   - [x] 👤 自前ビルドでの確認（3台: 9800X3D・i7-13700HX・N100）→ 訳文は全台・全ケース 200/200 一致。ただし vcomp＋PASSIVE は
     MKL あり比で 1文あたり +22〜+209ms 遅い（1.2〜3.1 倍・N100 の韓国語訳 +209ms）、スレッド数でも改善せず
-  - [x] 👤 **既定は official のまま確定（2026-11-10）**。MKL なしビルドは「SignPath に求められたら切り替える控え」として維持。
-    申請では公式バイナリが oneMKL / Intel OpenMP を含むことを開示する（CT2_NOMKL_BUILD.md 9章・申請下書き）
+  - [x] 👤 ~~既定は official のまま確定（2026-11-10）~~ → 次の構成で解決したので置き換え
+  - [x] 🤖 ④ cl `/openmp:llvm` ＋ 上流 LLVM OpenMP（libomp.dll・ソースからビルド）を試作（2026-11-11）。パッチなし・
+    OpenMP の依存は libomp だけ・訳文 200/200 一致・速さは公式の MKL なし（dnnl）と同じ（CT2_NOMKL_BUILD.md 2.5）
+  - [x] 👤 ④ を3台で計測 → 訳文は全台・全ケース 200/200 一致、MKL あり比の増えは最大 +83ms（N100 の韓国語訳）で
+    MKL を外した分だけ（CT2_NOMKL_BUILD.md 9.4）
+  - [x] 👤 **Windows 版の配布物を ④ に切り替えると決定（2026-11-11）**。vcomp＋PASSIVE と clang-cl の構成は不採用
+  - [x] 🤖 切り替え（2026-11-11）: build.ps1 の既定 `-OpenMP llvm`、release-build-windows.yml の既定 `ctranslate2: nomkl`・
+    Sanity check を `tools/signing/ct2_nomkl/check_bundle.ps1` に（libomp.dll あり／Intel・vcomp140・libomp140 なし／
+    ライセンス文あり）、CREDITS.md・LICENSE_INVENTORY.md・申請下書き、build_bundle.ps1 の照合、smoke_test.ps1 で
+    同梱の libomp.dll が読み込まれることの確認（CT2_NOMKL_BUILD.md 4章・9.5）
   - 参考（開発機 AMD で MKL を強制した場合・8文）: MKL 有効だと中韓 約3.4〜4.0秒/文 vs 無効 130〜190ms、
     ピークメモリ 2.1GB vs 0.6GB。AMD で MKL を使わない今の既定は正しい
 - [x] 🤖 ASIO 版 PortAudio DLL（`libportaudio64bit-asio.dll`）を spec で除外した（2026-11-10 develop・次のリリースから）
       凍結時は `SD_ENABLE_ASIO` を apppaths で外す（設定されていると sounddevice がこの DLL を探して失敗するため）
 - [ ] 🤖 ついでに不要物を除外: `pywebview-android.jar`、（動作確認のうえ）`dbghelp.dll` `dbgcore.dll`
 - [x] 🤖 LICENSE 末尾の日本語注記を CREDITS.md へ移した（2026-11-10 main に反映・GitHub の判定が MIT になったことを確認済み）
-- [x] 🤖 CREDITS.md を実物に合わせた（2026-11-10 develop・次のリリースから）。今は公式 wheel の中身
-      （Intel oneMKL・oneDNN・Intel OpenMP）で書いてある。MKL なし版に切り替えるときに書き換える
-      （CT2_NOMKL_BUILD.md 4章。build_bundle.ps1 が同梱物とのずれを警告し、テストが既定とのずれを見る）
+- [x] 🤖 CREDITS.md を実物に合わせた（2026-11-10 develop・次のリリースから）。2026-11-11 に MKL なし版の中身
+      （oneDNN・LLVM OpenMP）へ書き換えた（build_bundle.ps1 が同梱物とのずれを警告し、テストが既定とのずれを見る）
+- [ ] 👤 手元ビルドで配るとき（CI へ移る前のリリース）は、reazonspeech-env ではなくロックファイルの環境に
+      MKL なし版を入れて固める（CT2_NOMKL_BUILD.md 4章「手元ビルド」）。reazonspeech-env のままだと公式版が入る
 
 ## 1. exe へのバージョン情報の付与（次のリリースで）
 

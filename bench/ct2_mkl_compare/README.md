@@ -45,9 +45,9 @@ ct2_mkl_compare.exe --models "C:\...\Mojicast\models"
 |---|---|---|
 | `mkl` | 公式 wheel・`CT2_USE_MKL=1` | Intel 機の現行の動き（MKL＋Intel OpenMP） |
 | `dnnl` | 公式 wheel・`CT2_USE_MKL=0` | MKL を外した場合（oneDNN＋Intel OpenMP）。AMD 機の現行の動き |
-| `custom_passive` | 自前ビルド（[tools/signing/ct2_nomkl](../../tools/signing/ct2_nomkl/build.ps1)）＋`OMP_WAIT_POLICY=PASSIVE` | 採用候補の形（oneDNN＋MSVC OpenMP・計算後に眠る） |
+| `custom_passive` | 自前ビルド（[tools/signing/ct2_nomkl](../../tools/signing/ct2_nomkl/build.ps1)）＋`OMP_WAIT_POLICY=PASSIVE` | 不採用にした旧構成（oneDNN＋MSVC OpenMP・計算後に眠る）。比べ直す用 |
 | `custom` | 自前ビルド・`OMP_WAIT_POLICY` 指定なし | vcomp 既定（計算後に空回り）。PASSIVE の効果を見るための比較用 |
-| `llvm` | 自前ビルド（`build.ps1 -OpenMP llvm`）・`OMP_WAIT_POLICY` 指定なし | cl `/openmp:llvm` ＋ 上流 LLVM libomp（Apache-2.0）。Intel OpenMP と同じ `KMP_BLOCKTIME=5` が効く。2026-11-11 から計測中 |
+| `llvm` | 自前ビルド（`build.ps1 -OpenMP llvm`）・`OMP_WAIT_POLICY` 指定なし | cl `/openmp:llvm` ＋ 上流 LLVM libomp（Apache-2.0）。Intel OpenMP と同じ `KMP_BLOCKTIME=5` が効く。2026-11-11 に3台で計測し、Windows 版の配布物に採用（dnnl と同じ速さ・CT2_NOMKL_BUILD.md 9.4・9.5） |
 
 - 既定: Intel 機は `mkl,dnnl[,custom_passive,custom]`、それ以外は `dnnl[,custom_passive,custom]`。
   上流 libomp 版もあるときは `mkl,dnnl,llvm,custom_passive`（AMD は `dnnl,llvm,custom_passive`）。

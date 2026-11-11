@@ -14,15 +14,18 @@ if (-not (Test-Path (Join-Path $app "Mojicast.exe"))) {
 }
 
 # --- 翻訳エンジン（ctranslate2）がどちらの版か。CREDITS.md の記載と同梱物が合っているかを確かめる。
-#     公式版 = Intel oneMKL 静的リンク＋Intel OpenMP（libiomp5md.dll）、
-#     MKL なし版 = 自前ビルド（MSVC OpenMP の vcomp140.dll）。
-#     どちらで出すかを変えたら CREDITS.md も書き換える（docs/signing/CT2_NOMKL_BUILD.md） ---
+#     MKL なし版 = 自前ビルド（上流 LLVM OpenMP の libomp.dll）＝ Windows 版の配布物、
+#     公式版 = PyPI の wheel（Intel oneMKL 静的リンク＋Intel OpenMP の libiomp5md.dll）。
+#     公式版で出すなら CREDITS.md も書き換える（docs/signing/CT2_NOMKL_BUILD.md 5章）。
+#     手元の開発環境（reazonspeech-env）は公式版のままなので、そのまま固めると警告が出る（4章「手元ビルド」） ---
 $ct2 = Join-Path $app "_internal\ctranslate2"
 $ct2Kind = if (Test-Path (Join-Path $ct2 "libiomp5md.dll")) { "official" }
-           elseif (Test-Path (Join-Path $ct2 "vcomp140.dll")) { "nomkl" } else { "" }
+           elseif (Test-Path (Join-Path $ct2 "libomp.dll")) { "nomkl" }
+           elseif (Test-Path (Join-Path $ct2 "vcomp140.dll")) { "vcomp" } else { "" }
 $credits = Get-Content (Join-Path $root "CREDITS.md") -Raw -Encoding UTF8
-$creditsKind = if ($credits -match 'libiomp5md') { "official" } else { "nomkl" }
-$kindName = @{ official = "公式版（Intel MKL / Intel OpenMP 入り）"; nomkl = "MKL なし版（MSVC OpenMP）" }
+$creditsKind = if ($credits -match 'libiomp5md') { "official" } elseif ($credits -match 'LLVM OpenMP') { "nomkl" } else { "" }
+$kindName = @{ official = "公式版（Intel MKL / Intel OpenMP 入り）"; nomkl = "MKL なし版（上流 LLVM OpenMP）";
+               vcomp = "MKL なし版の旧構成（MSVC OpenMP・不採用）"; "" = "どちらとも読めない記載" }
 if (-not $ct2Kind) {
     Write-Warning "ctranslate2 の OpenMP の DLL が見つかりません（$ct2）"
 } elseif ($ct2Kind -ne $creditsKind) {

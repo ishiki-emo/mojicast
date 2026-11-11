@@ -1,7 +1,8 @@
 # 署名対象（Windows 軽量版）の同梱コンポーネントとライセンス
 
 調査日: 2026-11-10 / 対象: `build_bundle.ps1 -NoModels` で作る `dist\Mojicast\`
-（v1.1.0 時点のビルド物を実際に開いて確認）
+（v1.1.0 時点のビルド物を実際に開いて確認）。2026-11-11: 翻訳エンジン（CTranslate2）を MKL なしの自前ビルドに
+切り替えた（[CT2_NOMKL_BUILD.md](CT2_NOMKL_BUILD.md)）
 
 SignPath Foundation の条件は「**すべてのコンポーネント**が OSI 承認ライセンス」
 （例外は GPLv3 第1節の意味での System Libraries のみ）。
@@ -12,16 +13,16 @@ SignPath Foundation の条件は「**すべてのコンポーネント**が OSI 
 | 区分 | 判定 |
 |---|---|
 | ✅ OSI 承認 | 下の表の大部分 |
-| ⚠️ **非 OSI・要対応** | Intel oneMKL（ctranslate2.dll に静的リンク）、Intel OpenMP（libiomp5md.dll）→ 公式 wheel のまま出し申請で開示する。MKL なしの自前ビルドを控えとして用意済み（下記）、~~Steinberg ASIO（libportaudio64bit-asio.dll）~~ → spec で除外済み、Microsoft WebView2 SDK の DLL 3種 |
-| 🟡 非 OSI だが System Libraries 扱いを想定 | MSVC ランタイム / UCRT / api-ms-win-*.dll / dbghelp.dll / dbgcore.dll（MKL なし版に切り替えた場合は vcomp140.dll も） |
+| ⚠️ **非 OSI・申請で開示** | Microsoft WebView2 SDK の DLL 3種（ローダーと .NET ラッパー）。~~Intel oneMKL・Intel OpenMP~~ → CTranslate2 を MKL なしの自前ビルドに切り替えて解消（2026-11-11）、~~Steinberg ASIO（libportaudio64bit-asio.dll）~~ → spec で除外済み |
+| 🟡 非 OSI だが System Libraries 扱いを想定 | MSVC ランタイム / UCRT / api-ms-win-*.dll / dbghelp.dll / dbgcore.dll |
 | ℹ️ 同梱しない（実行時 DL） | 学習済みモデル（SenseVoice は非 OSI の FunASR Model License） |
 
 ## 1. 非 OSI のもの（明示）
 
 | ファイル | 中身 | ライセンス | 入ってくる経路 | 対応案 |
 |---|---|---|---|---|
-| `_internal\ctranslate2\ctranslate2.dll`（59MB） | CTranslate2 本体＋**Intel oneMKL を静的リンク**（バイナリ内に "Intel(R) oneAPI Math Kernel Library" を確認） | CTranslate2 は MIT、**oneMKL は Intel Simplified Software License（非 OSI）** | PyPI の ctranslate2 wheel | **公式 wheel のまま・申請で開示（2026-11-10 確定）**: CTranslate2 を MKL なしでソースからビルドした wheel（`4.8.1+nomkl`・MSVC）を控えとして用意済み（訳文は3台で公式と一致、ただし 1文あたり +22〜+209ms・1.2〜3.1 倍遅い）。SignPath に求められたら次のリリースから切り替える。中身は CTranslate2（MIT）＋ oneDNN 3.1.1（Apache-2.0）だけ。[CT2_NOMKL_BUILD.md](CT2_NOMKL_BUILD.md) |
-| `_internal\ctranslate2\libiomp5md.dll` | Intel OpenMP ランタイム | Intel Simplified Software License（非 OSI） | 同上 | **控え**: 切り替えれば上と同時に消え、MSVC の OpenMP ランタイム `vcomp140.dll`（VC++ 再頒布パッケージ）に置き換わる。非 OSI だが MSVC ランタイムと同じ System Libraries 扱いを想定（2章）。LLVM の libomp（OSI）は int8 の訳文が公式とずれるため不採用 |
+| ~~`_internal\ctranslate2\ctranslate2.dll`（59MB）~~ | 公式 wheel の CTranslate2 本体＋**Intel oneMKL を静的リンク**（バイナリ内に "Intel(R) oneAPI Math Kernel Library" を確認） | CTranslate2 は MIT、**oneMKL は Intel Simplified Software License（非 OSI）** | PyPI の ctranslate2 wheel | **解消（2026-11-11）**: CTranslate2 4.8.1・oneDNN 3.1.1・LLVM OpenMP 19.1.7 を公開ソースから CI でビルドした wheel（`4.8.1+nomkl`）に切り替えた（3章）。訳文は3種類の CPU・4ケースで公式と 200/200 一致。リリースの Sanity check（check_bundle.ps1）が MKL の文字列の残りを見る。[CT2_NOMKL_BUILD.md](CT2_NOMKL_BUILD.md) |
+| ~~`_internal\ctranslate2\libiomp5md.dll`~~ | Intel OpenMP ランタイム | Intel Simplified Software License（非 OSI） | 同上 | **解消（2026-11-11）**: 上流 LLVM の `libomp.dll`（Apache-2.0 WITH LLVM-exception）に置き換わった（3章）。libiomp5md・vcomp140・libomp140 が無いことを Sanity check が見る |
 | `_internal\_sounddevice_data\portaudio-binaries\libportaudio64bit-asio.dll` | PortAudio＋**Steinberg ASIO SDK** | PortAudio は MIT、ASIO SDK は Steinberg のライセンス | sounddevice wheel | **Mojicast は ASIO を使っていない**（コード中に参照なし）。spec で除外するだけで済む |
 | `_internal\webview\lib\Microsoft.Web.WebView2.Core.dll` / `Microsoft.Web.WebView2.WinForms.dll` / `runtimes\*\native\WebView2Loader.dll` | WebView2 SDK | Microsoft WebView2 SDK ライセンス（再配布可・非 OSI） | pywebview | GUI の土台なので外せない。WebView2 Runtime 自体は Windows 11 の OS 部品なので System Libraries 扱いを主張できる余地はあるが、SDK の DLL は厳密には別物。**申請時に明記して判断を仰ぐ** |
 
@@ -56,7 +57,8 @@ SignPath の署名対象外。中身は自作 TS（MIT）＋ `@elgato/streamdeck
 | sherpa-onnx / sherpa-onnx-core | Apache-2.0 | |
 | NumPy | BSD-3-Clause | |
 | OpenBLAS（numpy.libs\libscipy_openblas64_*.dll） | BSD-3-Clause | |
-| CTranslate2（MKL なし自前ビルド `4.8.1+nomkl` に切り替えた場合）＋ oneDNN 3.1.1（静的リンク） | MIT ＋ Apache-2.0 | ライセンス文は wheel の dist-info\licenses に同梱 |
+| CTranslate2 4.8.1（MKL なし自前ビルド `4.8.1+nomkl`・`_internal\ctranslate2\ctranslate2.dll`）＋ oneDNN 3.1.1（静的リンク） | MIT ＋ Apache-2.0 | 公開ソースから CI でビルド（tag・コミット・tarball の SHA256 を固定、パッチなし）。ライセンス文は `_internal\ctranslate2-4.8.1+nomkl.dist-info\licenses`（`LICENSE`・`LICENSE.oneDNN`・`LICENSE.oneDNN-THIRD-PARTY-PROGRAMS`） |
+| LLVM OpenMP 19.1.7（`_internal\ctranslate2\libomp.dll`） | Apache-2.0 WITH LLVM-exception | LLVM 公式リリースのソースから CI でビルド（SHA256 固定・パッチなし）。ライセンス文は同じ licenses の `LICENSE.LLVM-openmp` |
 | sentencepiece | Apache-2.0 | |
 | OpenCC（辞書含む） | Apache-2.0 | |
 | huggingface_hub | Apache-2.0 | |
@@ -97,4 +99,5 @@ SignPath の署名対象外。中身は自作 TS（MIT）＋ `@elgato/streamdeck
   移し、LICENSE は MIT 本文だけにするのが無難。
 - **CREDITS.md の記述が実物とずれている**: 「Pillow / hf_xet ほか」が同梱扱いに
   なっているが、現在の spec では両方除外済み。逆に oneMKL（ctranslate2.dll 内）・
-  ASIO・WebView2 SDK・OpenSSL・protobuf の記載が無い。
+  ASIO・WebView2 SDK・OpenSSL・protobuf の記載が無い。→ 2026-11-10 に直し、2026-11-11 に MKL なし版
+  （oneDNN・LLVM OpenMP）の記載へ切り替えた。

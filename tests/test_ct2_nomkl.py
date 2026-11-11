@@ -1,18 +1,20 @@
 """CTranslate2 の MKL なしビルド（docs/signing/CT2_NOMKL_BUILD.md）の整合
 
 - build.ps1 がビルドする CTranslate2 の版が requirements.txt / ロックファイルと同じこと
-  （ずれると、手元とCIで別の版の翻訳エンジンが入る）。構成は MSVC＋vcomp140
-- リリースビルドの既定は公式版のまま（MKL なし版は SignPath に求められたら切り替える控え）で、nomkl を選べること
+  （ずれると、手元とCIで別の版の翻訳エンジンが入る）。構成は cl ＋ 上流 LLVM OpenMP（libomp）
+- リリースビルドの既定は MKL なし版（nomkl）で、配布物の検査（check_bundle.ps1）を通すこと
 - CREDITS.md がリリースビルドの既定と同じ版の中身で書かれていること
-- MKL なし版の wheel のキャッシュの鍵が、2つのワークフローで同じこと
-- translate.py が、vcomp の ctranslate2 のときだけ ctranslate2 を読む前に OMP_WAIT_POLICY=PASSIVE を
-  設定し、利用者の指定を上書きしないこと
+- MKL なし版の wheel のキャッシュの鍵が、2つのワークフローで同じこと（OpenMP の版を含む）
+- 配布物の検査が、libomp.dll とライセンス文を求め、Intel のもの・他の OpenMP を拒むこと
+- translate.py が、vcomp（不採用の旧構成）の ctranslate2 のときだけ ctranslate2 を読む前に
+  OMP_WAIT_POLICY=PASSIVE を設定し、利用者の指定を上書きしないこと
 - 比較ツールの集計（bench/ct2_mkl_compare/compare.py）
 """
 import importlib.util
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -64,8 +66,7 @@ class BuildScriptTests(unittest.TestCase):
         self.assertIsNotNone(m)
         self.assertIn("-DCMAKE_CXX_COMPILER=$cl", m.group(1))
         self.assertEqual(self.ps1.count("-DCMAKE_CXX_COMPILER=$clangCl"), 1)   # libomp の genClang だけ
-        self.assertIn('[ValidateSet("vcomp", "llvm")][string]$OpenMP = "vcomp"', self.ps1)
-        self.assertIn("vcomp140", self.ps1)
+        self.assertIn('[ValidateSet("llvm", "vcomp")][string]$OpenMP = "llvm"', self.ps1)   # 既定は llvm
         self.assertIn("PrintToolchain", self.ps1)          # キャッシュの鍵
 
     def test_llvm_variant_uses_pinned_upstream_libomp(self):
@@ -77,18 +78,34 @@ class BuildScriptTests(unittest.TestCase):
         self.assertIn("libomp140", self.ps1)               # 再頒布不可の libomp140 に依存したら失敗させる
         self.assertIn('"-DLIBOMP_INSTALL_ALIASES=OFF"', self.ps1)
 
+    def test_cache_key_and_build_info_include_openmp(self):
+        # キャッシュの鍵（-PrintToolchain の出力）に libomp と clang-cl の版が入る
+        self.assertIn('"msvc-$msvcVer-redist-$redistVer-libomp-$LLVM_VERSION-clang-$clangVer"', self.ps1)
+        # build-info.json に使ったコンパイラ（cl・clang-cl）の版と OpenMP の中身を残す
+        self.assertIn("compilers = [ordered]@{ cl = $clVer; clang_cl =", self.ps1)
+        for key in ("openmp = $OpenMP", "openmp_runtime = $ompDesc", "openmp_dll_sha256 ="):
+            self.assertIn(key, self.ps1)
+
 
 class WorkflowTests(unittest.TestCase):
-    def test_release_build_defaults_to_official(self):
+    def test_release_build_defaults_to_nomkl(self):
         src = _read(".github", "workflows", "release-build-windows.yml")
-        self.assertEqual(_release_default(), "official")
-        self.assertIn("options: [official, nomkl]", src)
+        self.assertEqual(_release_default(), "nomkl")
+        self.assertIn("options: [nomkl, official]", src)
         self.assertIn("ct2_rebuild:", src)
         self.assertIn("tools\\signing\\ct2_nomkl\\build.ps1", src)
-        # MKL なし版で出すときの確認: Intel のもの・他の OpenMP が無く、vcomp140 があること
-        self.assertIn("iomp|mkl_|^libomp|^libgomp", src)
-        self.assertIn("_internal\\ctranslate2\\vcomp140.dll", src)
+        # 入力の無い実行（push での試運転）も nomkl になるよう、official 以外を nomkl として扱う
+        self.assertNotIn("== 'nomkl'", src)
+        self.assertGreaterEqual(src.count("inputs.ctranslate2 != 'official'"), 5)
+        self.assertIn('if ($info.openmp -ne "llvm")', src)    # キャッシュの wheel が旧構成でないこと
+        self.assertIn("tools\\signing\\ct2_nomkl\\check_bundle.ps1 -App $app", src)
         self.assertIn("SHA256SUMS.txt", src)               # キャッシュから戻した wheel の照合
+
+    def test_ct2_build_workflow_is_llvm_only(self):
+        src = _read(".github", "workflows", "build-ctranslate2-windows.yml")
+        self.assertNotIn("matrix", src)
+        self.assertNotIn("vcomp", src)
+        self.assertIn("LLVM OpenMP", src)
 
     def test_cache_key_is_shared(self):
         def keys(name):
@@ -117,7 +134,84 @@ class CreditsTests(unittest.TestCase):
         else:
             self.assertNotIn("Intel oneMKL", src)
             self.assertNotIn("libiomp5md", src)
-            self.assertIn("vcomp140", src)
+            self.assertNotIn("vcomp140", src)
+            self.assertIn("LLVM OpenMP", src)
+            self.assertIn("Apache-2.0 WITH LLVM-exception", src)
+
+    def test_build_bundle_knows_llvm_openmp(self):
+        # build_bundle.ps1 は同梱の OpenMP の DLL と CREDITS の記載を突き合わせて警告する
+        src = _read("build_bundle.ps1")
+        self.assertIn('Join-Path $ct2 "libomp.dll"', src)
+        self.assertIn("'LLVM OpenMP'", src)
+
+
+@unittest.skipUnless(shutil.which("pwsh"), "pwsh が無い")
+class CheckBundleTests(unittest.TestCase):
+    """tools/signing/ct2_nomkl/check_bundle.ps1 を偽の配布物フォルダで動かす"""
+
+    APACHE = "Apache License\nVersion 2.0\n"
+    LIC = os.path.join("ctranslate2-4.8.1+nomkl.dist-info", "licenses")
+
+    def _make(self, d, extra=(), drop=(), credits=None):
+        files = {
+            os.path.join("ctranslate2", "ctranslate2.dll"): "binary",
+            os.path.join("ctranslate2", "libomp.dll"): "binary",
+            os.path.join(self.LIC, "LICENSE"): "MIT License",
+            os.path.join(self.LIC, "LICENSE.oneDNN"): self.APACHE,
+            os.path.join(self.LIC, "LICENSE.oneDNN-THIRD-PARTY-PROGRAMS"): "third party",
+            os.path.join(self.LIC, "LICENSE.LLVM-openmp"):
+                self.APACHE + "---- LLVM Exceptions to the Apache 2.0 License ----\n",
+        }
+        for rel in extra:
+            files[rel] = "binary"
+        for rel, text in files.items():
+            if rel in drop:
+                continue
+            p = os.path.join(d, "_internal", rel)
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            with open(p, "w", encoding="utf-8") as f:
+                f.write(text)
+        with open(os.path.join(d, "CREDITS.md"), "w", encoding="utf-8") as f:
+            f.write(credits if credits is not None else _read("CREDITS.md"))
+
+    def _check(self, **kw):
+        with tempfile.TemporaryDirectory() as d:
+            self._make(d, **kw)
+            p = subprocess.run(["pwsh", "-NoProfile", "-File",
+                                os.path.join(ROOT, "tools", "signing", "ct2_nomkl", "check_bundle.ps1"),
+                                "-App", d], capture_output=True, text=True, encoding="utf-8",
+                               errors="replace", timeout=120)
+            return p.returncode, p.stdout + p.stderr
+
+    def test_passes_for_nomkl_bundle(self):
+        code, out = self._check()
+        self.assertEqual(code, 0, out)
+
+    def test_rejects_other_openmp_and_intel(self):
+        for extra in (os.path.join("ctranslate2", "vcomp140.dll"), "vcomp140.dll",
+                      os.path.join("ctranslate2", "libiomp5md.dll"), "libomp140.x86_64.dll",
+                      "mkl_core.2.dll", "libomp.dll"):          # 最後は libomp.dll が別の場所にもある
+            code, out = self._check(extra=[extra])
+            self.assertNotEqual(code, 0, extra)
+
+    def test_requires_libomp_and_licenses(self):
+        for drop in (os.path.join("ctranslate2", "libomp.dll"),
+                     os.path.join(self.LIC, "LICENSE.LLVM-openmp"),
+                     os.path.join(self.LIC, "LICENSE.oneDNN")):
+            code, out = self._check(drop=[drop])
+            self.assertNotEqual(code, 0, drop)
+
+    def test_requires_matching_credits(self):
+        code, out = self._check(credits="Intel oneMKL / libiomp5md / oneDNN")
+        self.assertNotEqual(code, 0, out)
+
+
+class SmokeTestOpenMPTests(unittest.TestCase):
+    def test_smoke_checks_loaded_openmp_dll(self):
+        # smoke_test.ps1 は英訳を読み込んだプロセスに同梱の OpenMP の DLL が読み込まれていることを見る
+        src = _read("smoke_test.ps1")
+        self.assertIn("$proc.Modules", src)
+        self.assertIn('"libomp.dll", "libiomp5md.dll", "vcomp140.dll"', src)
 
 
 class TranslateOpenMPTests(unittest.TestCase):
