@@ -1,0 +1,8 @@
+# CI リリースビルド（Mac）用のロックファイルの元。
+# 本体の依存は requirements.txt を正とし、ここではビルド専用の依存だけを足す。
+# 更新: MACOSX_DEPLOYMENT_TARGET=14.0 uv pip compile .github/release/requirements-mac.in --python-version 3.11 --python-platform aarch64-apple-darwin --generate-hashes -o .github/release/requirements-mac.lock
+# （onnxruntime の mac wheel が macOS 14 以上向けしか無いので、対象を 14.0 にする）
+-r ../../requirements.txt
+pyinstaller==6.21.0
+# Mojicast.spec のアイコン生成（.icns）にだけ使う。.app には同梱されない
+pillow

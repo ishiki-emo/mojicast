@@ -1,0 +1,118 @@
+# Mac 版リリースビルド（手動実行専用・ad-hoc 署名のみ）
+#
+# 手元の pyinstaller → build_bundle.sh と同じ手順を GitHub Actions 上で再現する。
+# 手元ビルドだと、ビルドした環境（入っているパッケージの版など）が配布物に混ざりうるため、
+# リリース用の Mac 版はこちらで作る。
+#
+# - 成果物を Actions の artifact に置くだけで、Release は作らない（添付は手で行う）。
+# - 公証（notarization）はしない。配布物は今までどおり ad-hoc 署名で、初回起動手順は同梱の
+#   「はじめにお読みください（Mac版）.html」を参照。
+# - 開発中の確認用ビルドは「Run workflow」の「Use workflow from」で develop などを選ぶ。
+#   main 以外から作ったものは artifact 名にブランチ名とコミットが付く（配布しない）。
+# - workflow_dispatch のワークフローは、既定ブランチ（main）にこのファイルが入るまで
+#   Actions 画面に「Run workflow」ボタンが出ない。
+name: Release build (Mac, manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_version:
+        description: "app_server.py の APP_VERSION と一致するか確認する（例: 1.2.0）。空なら確認しない"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  build-mac:
+    name: build (mac-arm64, models not bundled)
+    # 再現性のためイメージは固定する（macos-latest は予告なく中身が変わる）。macos-15 = Apple Silicon
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Python は Windows 版と同じく uv で入れる（版も揃える）
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+        with:
+          version: "0.13.5"
+
+      - name: Install Python and dependencies (locked)
+        run: |
+          uv python install 3.11.15
+          uv venv .venv --python 3.11.15
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+          # 間接依存まで版とハッシュを固定したロックファイル。requirements.txt を変えたら
+          # .github/release/requirements-mac.in の手順で作り直す
+          uv pip sync --python .venv .github/release/requirements-mac.lock --require-hashes
+
+      - name: Freeze
+        run: uv pip freeze --python .venv > pip-freeze.txt
+
+      - name: Show Python
+        run: python -c "import sys; print(sys.version); print(sys.executable)"
+
+      - name: Check version
+        id: ver
+        env:
+          WANT: ${{ inputs.expected_version }}
+          REF_NAME: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+        run: |
+          v=$(sed -n 's/^APP_VERSION = "\([^"]*\)"/\1/p' app_server.py)
+          if [ -z "$v" ]; then echo "app_server.py から APP_VERSION を読めません" >&2; exit 1; fi
+          if [ -n "$WANT" ] && [ "$WANT" != "$v" ]; then
+            echo "APP_VERSION=$v が指定 ($WANT) と一致しません" >&2; exit 1
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          # main 以外（develop などの確認用）は名前で見分けられるようにする
+          if [ "$REF_NAME" = "main" ]; then
+            label="v$v-mac-arm64"
+          else
+            label="v$v-mac-arm64-${REF_NAME//\//-}-${SHA:0:7}"
+          fi
+          echo "label=$label" >> "$GITHUB_OUTPUT"
+          echo "APP_VERSION = $v / artifact = mojicast-$label"
+
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+
+      - name: PyInstaller
+        run: pyinstaller --noconfirm Mojicast.spec
+
+      - name: Bundle assets and make dmg / zip
+        run: ./build_bundle.sh
+
+      - name: Sanity check
+        run: |
+          app=dist/Mojicast.app
+          codesign --verify --deep --strict "$app"
+          # モデル・利用者データは .app に入れない（Application Support 側に作られる）
+          for d in models models_conv data logs; do
+            if [ -e "$app/Contents/Resources/$d" ]; then echo "混入あり: $d/" >&2; exit 1; fi
+          done
+          if find "$app" -iname '*cudnn*' -o -iname '*hf_xet*' | grep .; then echo "混入あり" >&2; exit 1; fi
+          # ビルドした環境のパスが残っていないこと
+          python tools/check_build_paths.py "$app"
+
+      - name: Checksums
+        env:
+          V: ${{ steps.ver.outputs.version }}
+        run: |
+          cd dist
+          shasum -a 256 "Mojicast-$V-mac-arm64.dmg" "Mojicast-$V-mac-arm64.zip" | tee ../SHA256SUMS.txt
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: mojicast-${{ steps.ver.outputs.label }}
+          path: |
+            dist/Mojicast-${{ steps.ver.outputs.version }}-mac-arm64.dmg
+            dist/Mojicast-${{ steps.ver.outputs.version }}-mac-arm64.zip
+            SHA256SUMS.txt
+            pip-freeze.txt
+          if-no-files-found: error
+          retention-days: 14
