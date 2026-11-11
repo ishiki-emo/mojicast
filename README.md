@@ -213,6 +213,35 @@ pyinstaller --noconfirm Mojicast.spec
 同ライセンスを継承し原作者クレジットを掲載しています。モデルを同梱した配布物を
 作る場合も各ライセンスの遵守が必要です（詳細は [CREDITS.md](CREDITS.md)）。
 
+## Code signing policy
+
+Windows 版のコード署名を [SignPath Foundation](https://signpath.org/) に申請しています（2026-11-11）。
+承認後は、[SignPath.io](https://about.signpath.io/) の無償コード署名（証明書は SignPath Foundation）を使い、
+次の方針で署名します。**v1.2.0 までの配布物は未署名です。**
+
+We have applied to SignPath Foundation for free code signing of the Windows build
+(2026-11-11). Once approved, the Windows binaries will be signed with a certificate
+by [SignPath Foundation](https://signpath.org/) through [SignPath.io](https://about.signpath.io/),
+under the policy below. **Releases up to v1.2.0 are not signed.**
+
+- 署名するのは、GitHub Actions 上でこのリポジトリのソースからビルドした Windows 版の `Mojicast.exe` と
+  インストーラ（`Mojicast-v*-win-x64-setup.exe`）だけです。署名には毎回、下記の承認者による手動承認が必要です。
+  Only `Mojicast.exe` and the installer built from this repository by GitHub Actions are signed, and every
+  signing request is approved manually by an approver listed below.
+- 同梱しているサードパーティのライブラリ（DLL 等）は署名しません。Mac 版は対象外です。
+  Bundled third-party libraries are not signed. The macOS build is out of scope.
+
+| Role | Members |
+|---|---|
+| Committers and reviewers | [ishiki-emo](https://github.com/ishiki-emo) |
+| Approvers | [ishiki-emo](https://github.com/ishiki-emo) |
+
+- Mojicast は個人開発です。外部からのプルリクエストは、マージ前に必ず上記レビュアーが確認します。
+  Pull requests from outside contributors are always reviewed by a reviewer before merging.
+- チームメンバーは GitHub で多要素認証（MFA）を有効にしています（SignPath でも有効にします）。
+  All team members use multi-factor authentication on GitHub (and will on SignPath).
+- プライバシー: [Privacy policy](docs/PRIVACY.md)
+
 ## プライバシーポリシー
 
 音声・字幕・設定は外部に送信しません。外部との通信は、AIモデルのダウンロード（Hugging Face）と
