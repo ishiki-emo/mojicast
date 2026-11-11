@@ -18,7 +18,8 @@ $files = Get-ChildItem $App -Recurse -File
 
 # OpenMP ランタイム: 上流 libomp が ctranslate2 の隣にちょうど1つ
 $omp = @($files | Where-Object { $_.Name -ieq "libomp.dll" })
-if ($omp.Count -ne 1 -or $omp[0].DirectoryName -ne $ct2) {
+# （パスの文字列は比べない。一時フォルダなどで 8.3 形式の短い名前と長い名前が混ざるため）
+if ($omp.Count -ne 1 -or -not (Test-Path (Join-Path $ct2 "libomp.dll"))) {
     $errors += "libomp.dll が _internal\ctranslate2 に1つだけ、になっていません: $($omp.FullName -join ', ')"
 } else {
     Write-Host ("  libomp.dll: {0:N0} バイト・SHA256 {1}" -f $omp[0].Length, (Get-FileHash $omp[0].FullName -Algorithm SHA256).Hash.ToLower())
@@ -26,7 +27,7 @@ if ($omp.Count -ne 1 -or $omp[0].DirectoryName -ne $ct2) {
 
 # 入っていてはいけないもの（Intel のもの・他の OpenMP）
 $bad = @($files | Where-Object { $_.Name -match '(?i)iomp|mkl_|^mkl|vcomp\d*\.dll$|libomp140|libgomp' })
-foreach ($f in $bad) { $errors += "入っていてはいけないファイル: $($f.FullName.Substring($App.Length + 1))" }
+foreach ($f in $bad) { $errors += "入っていてはいけないファイル: $($f.FullName)" }
 
 # ctranslate2.dll に MKL が静的リンクされていない（公式版はこの文字列を含む）
 $dll = Join-Path $ct2 "ctranslate2.dll"
