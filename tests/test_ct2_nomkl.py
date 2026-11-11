@@ -206,6 +206,20 @@ class CheckBundleTests(unittest.TestCase):
         self.assertNotEqual(code, 0, out)
 
 
+class LockedLocalBuildTests(unittest.TestCase):
+    def test_local_build_uses_lock_and_nomkl_wheel(self):
+        # 手元のリリースビルドは CI と同じロックファイルの環境に MKL なし版を入れて固める（手順書 4章）
+        src = _read("build_win_locked.ps1")
+        self.assertIn(".github\\release\\requirements-win.lock", src)
+        self.assertIn('"--require-hashes"', src)
+        # sync（公式版に戻る）→ wheel の差し替え の順
+        self.assertLess(src.index('"pip", "sync"'), src.index('"--no-deps", "--reinstall"'))
+        self.assertIn('$bi.openmp -ne "llvm"', src)
+        self.assertIn('EndsWith("+nomkl")', src)
+        self.assertIn("check_bundle.ps1", src)
+        self.assertNotIn("reazonspeech-env\\Scripts", src)
+
+
 class SmokeTestOpenMPTests(unittest.TestCase):
     def test_smoke_checks_loaded_openmp_dll(self):
         # smoke_test.ps1 は英訳を読み込んだプロセスに同梱の OpenMP の DLL が読み込まれていることを見る

@@ -300,26 +300,25 @@ release-build-windows.yml の入力 `ctranslate2` は既定で `nomkl`（入力�
   `_internal\ctranslate2\VCOMP140.DLL` が読み込まれていた（Windows 側の vcomp140 ではなく同梱のもの）
 - build_bundle.ps1 は「MKL なし版なのに CREDITS が公式版」の警告を出した（切り替え時は CREDITS も変える）
 
-### 手元ビルド
+### 手元ビルド（2026-11-11〜 手元のリリースビルドはこの手順）
 
-開発用の reazonspeech-env には MKL なし版を入れない（torch が同じ環境にあり、ctranslate2 の import で torch の
-libiomp5md と libomp が二重に初期化されて落ちる。2.3）。手元で配布物を作るときは CI と同じロックファイルの
-環境を別に作り、そこへ wheel を入れる（2026-11-11 の確認はこの手順）:
+開発用の reazonspeech-env では固めない（公式版の CTranslate2 が入る。MKL なし版を入れると、同じ環境の torch の
+libiomp5md と libomp が ctranslate2 の import で二重に初期化されて落ちる。2.3）。
+[build_win_locked.ps1](../../build_win_locked.ps1) で CI と同じロックファイルの環境（`.venv`）を作って固める:
 
 ```powershell
-uv venv .venv --python 3.11.15
-uv pip sync --python .venv .github\release\requirements-win.lock --require-hashes
-uv pip install --python .venv --no-deps --reinstall <ct2-dist>\ctranslate2-4.8.1+nomkl-cp311-cp311-win_amd64.whl
-.\.venv\Scripts\pyinstaller --noconfirm Mojicast.spec
-.\build_bundle.ps1 -NoModels
-pwsh -File tools\signing\ct2_nomkl\check_bundle.ps1 -App dist\Mojicast
-.\smoke_test.ps1
+.uild_win_locked.ps1                    # 翻訳エンジンもソースからビルド（2回目以降は前回のビルドを使い回す）
+.uild_win_locked.ps1 -Ct2Wheel <whl>    # CI の artifact（build-ctranslate2-windows.yml）の wheel を使う
+.\smoke_test.ps1                          # 以降は今までどおり（make_release_zip.ps1 → make_installer.ps1）
 ```
+
+中でやること: `.venv`（3.11.15）をロックファイルどおりに `uv pip sync` → build.ps1 の wheel（build-info.json の
+`openmp` が `llvm`・SHA256 一致を確かめる）を `--no-deps --reinstall` で差し替え → PyInstaller → build_bundle.ps1 -NoModels →
+check_bundle.ps1。dist\Mojicast に置いてある models / models_conv は dist\ 直下へ退避して、終わったら戻す。
 
 build_bundle.ps1 は同梱された ctranslate2 の種類（libomp.dll があれば MKL なし版、libiomp5md.dll があれば公式版、
 vcomp140.dll なら不採用の旧構成）と CREDITS.md の記載（`LLVM OpenMP` / `libiomp5md`）を比べ、合わなければ警告する。
-reazonspeech-env のまま固めると公式版が入り、この警告が出る（署名に出すのは CI の成果物なので配布物には影響しないが、
-手元ビルドを配るときは上の手順で作る）。
+reazonspeech-env のまま固めると公式版が入り、この警告が出る。
 
 smoke_test.ps1 は、英訳を読み込んだ Mojicast.exe のプロセスが同梱の OpenMP の DLL（`_internal\ctranslate2\libomp.dll`）を
 読み込んでいて、ほかの場所・ほかの種類の OpenMP を読み込んでいないことも確かめる。

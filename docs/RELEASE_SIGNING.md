@@ -58,8 +58,8 @@ SignPath の条件は「全コンポーネントが OSI 承認ライセンス」
 - [x] 🤖 LICENSE 末尾の日本語注記を CREDITS.md へ移した（2026-11-10 main に反映・GitHub の判定が MIT になったことを確認済み）
 - [x] 🤖 CREDITS.md を実物に合わせた（2026-11-10 develop・次のリリースから）。2026-11-11 に MKL なし版の中身
       （oneDNN・LLVM OpenMP）へ書き換えた（build_bundle.ps1 が同梱物とのずれを警告し、テストが既定とのずれを見る）
-- [ ] 👤 手元ビルドで配るとき（CI へ移る前のリリース）は、reazonspeech-env ではなくロックファイルの環境に
-      MKL なし版を入れて固める（CT2_NOMKL_BUILD.md 4章「手元ビルド」）。reazonspeech-env のままだと公式版が入る
+- [x] 🤖 手元ビルド（CI へ移る前のリリース）は `build_win_locked.ps1` でロックファイルの環境に MKL なし版を入れて
+      固める（2026-11-11 えもさん決定・CT2_NOMKL_BUILD.md 4章「手元ビルド」）。reazonspeech-env のままだと公式版が入る
 
 ## 1. exe へのバージョン情報の付与（次のリリースで）
 
