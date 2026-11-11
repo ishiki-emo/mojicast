@@ -150,7 +150,8 @@ SignPath は「CI 上でこのリポジトリのソースから自動ビルド�
 - [x] 🤖 `docs/PRIVACY.md` として公開（2026-11-11・v1.2.0 時点の接続先で確認）
 - [x] 🤖 README に「## Code signing policy」節を追加（2026-11-11・申請中の文面。承認後に下書きの定型文版へ差し替え）
 - [ ] 👤 配布ページにも "Code signing policy" の語でリンクを置く:
-      GitHub Releases の本文、BOOTH、プロダクトページ（ishiki-emo.com/mojicast）
+      GitHub Releases の本文（v1.2.0 に追記済み・2026-11-11）、プロダクトページ（FAQ とフッター・済み）、
+      **BOOTH は未**。リンク先はどれも README の `#code-signing-policy`
 - [ ] 🤖 リリースノートのテンプレートに Code signing policy へのリンクを入れる
 
 ## 4. 申請 → 承認後の署名ステップ追加と Secrets 設定
